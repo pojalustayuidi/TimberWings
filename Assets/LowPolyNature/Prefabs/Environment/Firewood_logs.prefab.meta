@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 79e53641714ec7e44b7752a744b942da
+timeCreated: 1496002112
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/Firewood_logs.prefab
+  uploadId: 362916

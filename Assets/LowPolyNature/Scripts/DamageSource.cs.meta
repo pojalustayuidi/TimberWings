@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: fbd38a9f77a354344a5a8ae183640bd7
+timeCreated: 1519330032
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/DamageSource.cs
+  uploadId: 362916

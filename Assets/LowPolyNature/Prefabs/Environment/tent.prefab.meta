@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 1f455f69eb277d242a11221188d47091
+timeCreated: 1529609824
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/tent.prefab
+  uploadId: 362916

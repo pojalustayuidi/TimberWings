@@ -1,0 +1,23 @@
+Префаб                       LOD0   LOD1   LOD2   Бюджет (1800 / 500 / 80)
+----------------------------------------------------------------------
+Tree_Cedar_A_s1               480    308     26   ок
+Tree_Cedar_B_s2               552    356     26   ок
+Tree_Cedar_C_s3               624    404     26   ок
+Tree_Cedar_D_s4               480    308     26   ок
+Tree_Birch_A_s1               728    204     72   ок
+Tree_Birch_B_s2               564    132     66   ок
+Tree_Birch_C_s3               808    184     72   ок
+Tree_Birch_D_s4               728    184     72   ок
+Tree_Autumn_A_s1              668    140     68   ок
+Tree_Autumn_B_s2              828    160     68   ок
+Tree_Autumn_C_s3              748    140     68   ок
+Willow_Dead_1_s1              336    144     42   ок
+Willow_Dead_2_s2              384    168     42   ок
+Willow_Dead_3_s3              432    192     42   ок
+Tree_Random_A_s1              648    140     68   ок
+Tree_Random_B_s2              728    120     68   ок
+Tree_Random_C_s3              568    140     68   ок
+Tree_Random_D_s4              808    180     68   ок
+Tree_Oak_A_s1                1008    140     68   ок
+Tree_Oak_B_s2                1088    200     68   ок
+Tree_Oak_C_s3                1168    200     68   ок

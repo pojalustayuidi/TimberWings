@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 1cafe5db057efc740b8a42538061bd01
+timeCreated: 1528916727
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Meshes/Materials/matLowPoly_armskin.mat
+  uploadId: 362916

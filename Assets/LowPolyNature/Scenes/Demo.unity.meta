@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 098a34d9c68692342943067d2876f441
+timeCreated: 1495710650
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scenes/Demo.unity
+  uploadId: 362916

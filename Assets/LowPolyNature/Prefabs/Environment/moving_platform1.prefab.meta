@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 86aaf0dd63f86fa49bff0cb174cdb172
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/moving_platform1.prefab
+  uploadId: 362916

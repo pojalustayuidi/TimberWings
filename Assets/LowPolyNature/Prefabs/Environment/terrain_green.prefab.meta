@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: ff6f6e2bbe380e14dbfdf1220764e3fe
+timeCreated: 1523300799
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/terrain_green.prefab
+  uploadId: 362916

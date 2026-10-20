@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 1772e0a2d49ec3c4bb9d9828da985b60
+timeCreated: 1534076861
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/Stone1.prefab
+  uploadId: 362916

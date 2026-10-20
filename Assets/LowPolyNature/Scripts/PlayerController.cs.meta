@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: 3f769344a18165840a13d2288152bea6
+timeCreated: 1513710758
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/PlayerController.cs
+  uploadId: 362916

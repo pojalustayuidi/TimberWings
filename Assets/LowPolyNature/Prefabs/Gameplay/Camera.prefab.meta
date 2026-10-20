@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 36fd618751292b64ba42a5014aa68422
+timeCreated: 1518641769
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Gameplay/Camera.prefab
+  uploadId: 362916

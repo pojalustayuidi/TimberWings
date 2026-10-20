@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: 38dc88eecf50e87429e80511295c2e60
+timeCreated: 1522168705
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/Food.cs
+  uploadId: 362916

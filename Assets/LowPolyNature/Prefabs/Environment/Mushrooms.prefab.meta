@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5b8c2654c1921e447bb362f131abe512
+timeCreated: 1496003462
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/Mushrooms.prefab
+  uploadId: 362916

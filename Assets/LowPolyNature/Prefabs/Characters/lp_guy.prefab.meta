@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: fbc08fd83daf78c4483cae67db92c0e7
+timeCreated: 1517336801
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Characters/lp_guy.prefab
+  uploadId: 362916

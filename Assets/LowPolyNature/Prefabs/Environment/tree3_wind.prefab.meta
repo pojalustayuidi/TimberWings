@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 14b4563f8671fdc49bbb7f39b47f538a
+timeCreated: 1525082811
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/tree3_wind.prefab
+  uploadId: 362916

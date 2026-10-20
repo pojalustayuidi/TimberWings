@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: e4feb19f027d35d4a8896d4108816f78
+timeCreated: 1520830076
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/Crate.cs
+  uploadId: 362916

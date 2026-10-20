@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: e34d78b822635ab43902bdf063c5ed6f
+timeCreated: 1514983076
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/Gem.cs
+  uploadId: 362916

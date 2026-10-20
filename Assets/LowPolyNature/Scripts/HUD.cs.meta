@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: 02b9452b3157a344d9e19e7f2f61f59c
+timeCreated: 1514923527
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/HUD.cs
+  uploadId: 362916

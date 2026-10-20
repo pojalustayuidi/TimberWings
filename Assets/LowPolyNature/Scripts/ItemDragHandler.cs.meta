@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: 4e3c0482e1f6d104aa165fe65ba8b206
+timeCreated: 1515098009
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/ItemDragHandler.cs
+  uploadId: 362916

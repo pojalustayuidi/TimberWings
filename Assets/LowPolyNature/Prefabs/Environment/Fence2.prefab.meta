@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 5c56c75f287e35c4faaa8eb5eabe1eea
+timeCreated: 1530124370
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Environment/Fence2.prefab
+  uploadId: 362916

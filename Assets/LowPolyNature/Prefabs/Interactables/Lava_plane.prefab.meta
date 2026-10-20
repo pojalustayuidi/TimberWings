@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 653bb973a9e549f4d8e1282c47a253f2
+timeCreated: 1534256078
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Prefabs/Interactables/Lava_plane.prefab
+  uploadId: 362916

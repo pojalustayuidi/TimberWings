@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 1e4576f40e0fce241b514538fef37579
+timeCreated: 1518643530
+licenseType: Store
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/docs/Low Poly Game Framework.pdf
+  uploadId: 362916

@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: accb6a1aeec59d44c9439400c71161be
+timeCreated: 1519850297
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 110455
+  packageName: Low Poly Game Kit
+  packageVersion: 0.81
+  assetPath: Assets/LowPolyNature/Scripts/InventorySlot.cs
+  uploadId: 362916
