@@ -23,7 +23,8 @@ namespace IslandV2
     {
         const string RootName = "Understory";
         const float Cell = 28f;
-        const int Seed = 5151;
+        // ISL-008: параметры генерации сохраняются отдельным editor-only asset.
+        // Раскладка, деревья рубки и лесные зоны остаются без изменений.
 
         struct Inst { public Mesh mesh; public Matrix4x4 m; }
 
@@ -156,32 +157,33 @@ namespace IslandV2
             var th = new Dictionary<long, List<Vector2>>();
             foreach (var t in trees) AddHash(th, t, 2f);
 
-            var rng = new System.Random(Seed);
+            var settings = ForestUnderstoryCandySettings.Load();
+            var rng = new System.Random(settings.seed);
             var sb = new StringBuilder("Подлесок (A5): " + treeSrc + "\n");
 
             // ---- кусты
-            int nb = Scatter(f, L, rng, th, 2.4f, 2.1f, 0.9f, 260, bushes, (d, inMeadow, pathEdge, wd, ed) =>
+            int nb = Scatter(f, L, rng, th, 2.4f, 2.1f, 0.9f, settings.bushCap, bushes, (d, inMeadow, pathEdge, wd, ed) =>
             {
                 float p = 0.05f + 0.34f * Mathf.Sqrt(d) + (pathEdge ? 0.07f : 0f);
                 return inMeadow ? p * 0.2f : p;
-            });
-            // ---- цветы
-            int nf = Scatter(f, L, rng, th, 1.7f, 0.9f, 0.5f, 520, flowers, (d, inMeadow, pathEdge, wd, ed) =>
+            }, settings.bushPathClearance, settings.bushClusterStrength, settings.bushClusterSize, settings.seed + 101);
+            // ---- цветы: плотность меняется плавными пятнами, но игровые запретные зоны сохраняются
+            int nf = Scatter(f, L, rng, th, 1.7f, 0.9f, 0.5f, settings.flowerCap, flowers, (d, inMeadow, pathEdge, wd, ed) =>
             {
                 if (d > 0.85f) return 0f;
                 float p = 0.05f * (1f - d);
                 if (inMeadow) p += 0.55f;
                 if (pathEdge) p += 0.28f * (1f - d);
                 return p;
-            });
-            // ---- камни
-            int nr = Scatter(f, L, rng, th, 3f, 5f, 1.0f, 80, rocks, (d, inMeadow, pathEdge, wd, ed) =>
+            }, settings.flowerPathClearance, settings.flowerClusterStrength, settings.flowerClusterSize, settings.seed + 303);
+            // ---- камни: без кластеризации, прежняя логика около воды и обрыва
+            int nr = Scatter(f, L, rng, th, 3f, 5f, 1.0f, settings.rockCap, rocks, (d, inMeadow, pathEdge, wd, ed) =>
             {
                 float p = 0.02f + 0.02f * d;
                 if (wd >= 0.2f && wd <= 3.5f) p += 0.35f;
                 if (ed < 5.5f) p += 0.16f;
                 return inMeadow ? p * 0.3f : p;
-            }, true);
+            }, settings.rockPathClearance, 0f, 10f, settings.seed + 505, true);
 
             // ---- сцена: пересоздать корень
             var parentGo = GameObject.Find("IslandV2/_Manual");
@@ -194,7 +196,7 @@ namespace IslandV2
             root.transform.localPosition = Vector3.zero; root.transform.localRotation = Quaternion.identity; root.transform.localScale = Vector3.one;
             Matrix4x4 toLocal = root.transform.worldToLocalMatrix;
 
-            var rr = new System.Random(Seed + 1);
+            var rr = new System.Random(settings.seed + 1);
             int tris = 0, chunks = 0;
             var all = new List<Kind>(); all.AddRange(bushes); all.AddRange(flowers); all.AddRange(rocks);
             foreach (var k in all)
@@ -232,6 +234,7 @@ namespace IslandV2
             EditorSceneManager.MarkSceneDirty(root.scene);
 
             sb.AppendLine("  кустов " + nb + ", кустиков цветов " + nf + ", камней " + nr + "; кусков-мешей " + chunks + ", треугольников " + tris);
+            sb.AppendLine("  ISL-008 seed=" + settings.seed + "; настройки: " + ForestUnderstoryCandySettings.AssetPath);
             sb.AppendLine("  лежит в " + parent.name + "/" + RootName + ", коллайдеров нет. Пересоздать: пункт 2 ещё раз; убрать: пункт 3.");
             Debug.Log(sb.ToString());
         }
@@ -284,7 +287,8 @@ namespace IslandV2
 
         // kinds: виды одной группы (кусты / цветы / камни); вид точки выбирается жребием, минимальное расстояние между точками группы = minGap
         static int Scatter(IslandField f, IslandLayout L, System.Random rng, Dictionary<long, List<Vector2>> trees, float step, float minGap, float treeClear, int cap,
-                           Kind[] kinds, Prob prob, bool allowNearWater = false)
+                           Kind[] kinds, Prob prob, float pathClearance, float clusterStrength, float clusterSize, int clusterSeed,
+                           bool allowNearWater = false)
         {
             var groupHash = new Dictionary<long, List<Vector2>>();
             int placed = 0;
@@ -303,7 +307,7 @@ namespace IslandV2
                     if (wd < (allowNearWater ? 0.2f : 0.5f)) continue;
                     if (f.IsFord(x, z)) continue;
                     float pd = f.PathDistance(x, z);
-                    if (pd < 0.5f) continue;
+                    if (pd < pathClearance) continue;
                     Vector2 p2 = new Vector2(x, z);
                     if (OnBuilding(f, L, x, z)) continue;
                     if (ChopZone.Avoid(x, z)) continue;
@@ -313,7 +317,10 @@ namespace IslandV2
                     for (int i = 0; i < L.meadows.Count; i++)
                         if (Vector2.Distance(L.meadows[i].pos, p2) < L.meadows[i].radius * 1.15f) { inMeadow = true; break; }
                     bool pathEdge = pd < 2.6f;
-                    if (roll > prob(d, inMeadow, pathEdge, wd, ed)) continue;
+                    float chance = prob(d, inMeadow, pathEdge, wd, ed);
+                    if (chance <= 0f) continue;
+                    chance *= ClusterMultiplier(x, z, clusterSeed, clusterSize, clusterStrength);
+                    if (roll > Mathf.Clamp01(chance)) continue;
 
                     if (AnyWithin(trees, p2, 2f, treeClear)) continue;
                     if (AnyWithin(groupHash, p2, 2f, minGap)) continue;
@@ -325,6 +332,21 @@ namespace IslandV2
                 }
             }
             return placed;
+        }
+
+        // Медленная низкочастотная маска только во время генерации в Unity Editor.
+        // В пределах одного Seed результат детерминирован и не меняется между пересборками.
+        // 0 strength = идентичная старой равномерной вероятности расстановки.
+        static float ClusterMultiplier(float x, float z, int seed, float size, float strength)
+        {
+            if (strength <= 0f) return 1f;
+            float scale = Mathf.Max(3f, size);
+            float nx = x / scale + seed * 0.01371f + 17.31f;
+            float nz = z / scale + seed * 0.00937f + 51.17f;
+            float n = Mathf.PerlinNoise(nx, nz);
+            float patch = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.28f, 0.72f, n));
+            // Разреженные участки 0.15x и цветущие островки 1.8x при полной силе.
+            return Mathf.Lerp(1f, Mathf.Lerp(0.15f, 1.8f, patch), Mathf.Clamp01(strength));
         }
 
         static bool OnBuilding(IslandField f, IslandLayout L, float x, float z)
