@@ -5,7 +5,7 @@ using UnityEngine;
 
 public static class EndingTools
 {
-    [MenuItem("Tools/BuilderSim/Показать финал %#f")]
+    [MenuItem("Tools/BuilderSim/Сюжет/Показать финал %#f", false, 720)]
     static void ShowEnding()
     {
         if (!Application.isPlaying)

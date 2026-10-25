@@ -129,7 +129,7 @@ public static class IslandUnderside
         // ---------- корни, свисающие из-под кромки ----------
         var loop = fi.GetEdgeLoop();
         int lm = loop.Count;
-        Vector2? gate = fi.Border.GetGatePosition();
+        Vector2? gate = fi.GetGatePosition();
         v = new List<Vector3>(); cl = new List<Color>(); tr = new List<int>();
         Color rootA = new Color(0.36f, 0.25f, 0.16f), rootB = new Color(0.24f, 0.17f, 0.12f);
         int rootCount = Mathf.Max(0, fi.roots);

@@ -11,7 +11,7 @@ public static class PetRollerSelfTest
     const int Samples = 10000;
     const double TolerancePercent = 2.0;   // допустимое отклонение доли редкости от таблицы, п.п.
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Проверить шансы")]
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Проверки/Питомцы: шансы", false, 1013)]
     public static void Run()
     {
         var log = new StringBuilder();

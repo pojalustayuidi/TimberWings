@@ -38,7 +38,7 @@ public class NpcBuilder : ScriptableWizard
 
     const string Folder = "Assets/_Game/NPC";
 
-    [MenuItem("Tools/BuilderSim/NPC Builder")]
+    [MenuItem("Tools/BuilderSim/Мир и персонаж/NPC Builder", false, 401)]
     static void Open()
     {
         var w = DisplayWizard<NpcBuilder>("NPC Builder", "Создать префаб");
@@ -202,7 +202,7 @@ public class NpcBuilder : ScriptableWizard
     }
 
     // ---------------------------------------------------------------- Лео
-    [MenuItem("Tools/BuilderSim/Добавить реплики Лео игроку")]
+    [MenuItem("Tools/BuilderSim/Мир и персонаж/Добавить реплики Лео игроку", false, 420)]
     static void AddLeo()
     {
         var pm = FindFirstObjectByType<PlayerMovement>();

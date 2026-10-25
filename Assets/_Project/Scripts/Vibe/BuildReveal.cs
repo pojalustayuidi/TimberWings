@@ -249,7 +249,7 @@ public class BuildReveal : MonoBehaviour
         canvasGo.transform.SetParent(transform, false);
         var canvas = canvasGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 28;       // ниже окна стройки (29) и прокачки (30), выше обычного HUD
+        canvas.sortingOrder = UiLayers.BuildReveal;
         var sc = canvasGo.GetComponent<CanvasScaler>();
         sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         sc.referenceResolution = new Vector2(1920, 1080);

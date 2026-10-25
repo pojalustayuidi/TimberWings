@@ -14,7 +14,7 @@ public static class WorkerPackSelfTest
 {
     const int N = 100000;
 
-    [MenuItem("Tools/BuilderSim/Рабочие/Проверить паки")]
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Проверки/Рабочие: паки", false, 1010)]
     public static void RunMenu()
     {
         var log = new StringBuilder();

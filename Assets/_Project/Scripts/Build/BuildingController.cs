@@ -648,6 +648,7 @@ public class BuildingController : MonoBehaviour
 
         currentBuildTimer += Time.deltaTime;
         float progress = GetProgress();
+        if (stages != null) HutBuildSite.SetProgressFor(stages, progress);
 
         if (progressFill != null) progressFill.fillAmount = progress;
 
@@ -681,6 +682,8 @@ public class BuildingController : MonoBehaviour
     void BeginBuilding()
     {
         isBuilding = true;
+        if (stages != null) { HutBuildSite.SetWorkingFor(stages, true); HutBuildSite.SetProgressFor(stages, GetProgress()); }
+        BuildWorkPose.Hold(inside, stages != null ? stages.transform : transform, true);
         if (buildingVFX != null) buildingVFX.Play();
 
         if (ring != null) ring.visible = true;
@@ -690,6 +693,8 @@ public class BuildingController : MonoBehaviour
     void StopBuilding()
     {
         isBuilding = false;
+        if (stages != null) HutBuildSite.SetWorkingFor(stages, false);
+        BuildWorkPose.Hold(null, null, false);
         if (buildingVFX != null) buildingVFX.Stop();
 
         if (ring != null) ring.visible = false;
@@ -720,6 +725,8 @@ public class BuildingController : MonoBehaviour
 
         isBuilding = false;
         currentBuildTimer = 0f;
+        if (stages != null) { HutBuildSite.SetWorkingFor(stages, false); HutBuildSite.SetProgressFor(stages, 0f); }
+        BuildWorkPose.Hold(null, null, false);
 
         if (buildingVFX != null) buildingVFX.Stop();
         if (finishVFX != null) finishVFX.Play();

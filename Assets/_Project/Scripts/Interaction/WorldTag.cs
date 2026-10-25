@@ -1,10 +1,13 @@
+// Assets/_Project/Scripts/Interaction/WorldTag.cs (НЕ в Editor)
+// Табличка Candy, которая «висит» над объектом в мире: светлое облачко с хвостиком, индиго-текст, иконка слева.
+// Круглая версия (таймер): светлый диск с индиго-контуром и цветным кольцом прогресса.
+// Рисуется поверх экрана, поэтому деревья её не закрывают и текст всегда чёткий.
+// Вешать вручную обычно не нужно: её создают InteractionHint, BackpackTag и TreeRespawn.
+// Старые подсказки красят слова светлыми цветами под тёмную панель (<color=#6BCB5A>): SetText сам делает их темнее, вызывающий код менять не нужно.
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Табличка в стиле HUD, которая «висит» над объектом в мире (как полоска рубки над игроком).
-// Рисуется поверх экрана, поэтому деревья её не закрывают и текст всегда чёткий.
-// Вешать вручную обычно не нужно: её создают InteractionHint, BackpackTag и TreeRespawn.
 public class WorldTag : MonoBehaviour
 {
     [Header("Положение")]
@@ -14,24 +17,29 @@ public class WorldTag : MonoBehaviour
 
     [Header("Вид")]
     public Sprite icon;              // необязательно: иконка слева от текста (только для прямоугольной)
-    public TMP_FontAsset font;       // пусто = шрифт задания из UIManager
+    public TMP_FontAsset font;       // пусто = круглый шрифт Candy, а если его нет, шрифт задания из UIManager
     public float fontSize = 34f;
     public bool visible = true;
 
+    const float TailW = 30f;         // ширина хвостика-указателя (единицы канваса)
+
     static RectTransform root;
-    static Sprite panelSprite, ringSprite, circleSprite, circleRing;
+    static Sprite discSprite, ringSprite;
     static bool nextCircle;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { root = null; discSprite = ringSprite = null; nextCircle = false; }
 
     bool circle;
     RectTransform rt;
     CanvasGroup cg;
     TextMeshProUGUI label;
-    Image fill, frameImg, iconImg;
+    Image fill, iconImg;
     string pending;
     float pendingProgress = 1f;
     float shownProgress = 1f;
     float punch, punchAmount;
-    Color pendingColor = new Color32(0x6B, 0xCB, 0x5A, 255);
+    Color pendingColor = UiCandy.Mint;
     float shown;
 
     // Создать табличку. circle = true: круглая, с кольцом прогресса (для таймера)
@@ -46,7 +54,7 @@ public class WorldTag : MonoBehaviour
     public void SetText(string s)
     {
         pending = s;
-        if (label != null) label.text = s;
+        if (label != null) label.text = CandyTag.Readable(s);
     }
 
     public void SetFontSize(float size)
@@ -118,11 +126,17 @@ public class WorldTag : MonoBehaviour
         rt.pivot = new Vector2(0.5f, 0f); // табличка стоит над точкой, а не посередине
 
         var bg = go.GetComponent<Image>();
-        bg.sprite = circle ? circleSprite : UiKit.Panel;          // прямоугольная: панель UiKit (латунный ободок, заклёпки)
-        bg.type = circle ? Image.Type.Simple : Image.Type.Sliced;
-        if (!circle) bg.pixelsPerUnitMultiplier = 1f / 0.62f;   // та же толщина ободка, что у метки стройки
-        bg.color = circle ? new Color32(0x1F, 0x2A, 0x44, 230) : Color.white;
-        bg.raycastTarget = false;
+        if (circle)
+        {
+            bg.sprite = discSprite;
+            bg.type = Image.Type.Simple;
+            bg.color = Color.white;
+            bg.raycastTarget = false;
+        }
+        else
+        {
+            CandyTag.StylePanel(bg, 0.42f);     // облачная панель Candy
+        }
 
         cg = go.GetComponent<CanvasGroup>();
         cg.blocksRaycasts = false;
@@ -130,7 +144,7 @@ public class WorldTag : MonoBehaviour
         cg.alpha = 0f;
 
         var h = go.GetComponent<HorizontalLayoutGroup>();
-        h.padding = circle ? new RectOffset(0, 0, 0, 0) : new RectOffset(24, 24, 14, 16);
+        h.padding = circle ? new RectOffset(0, 0, 0, 0) : new RectOffset(22, 22, 12, 16);
         h.spacing = 10f;
         h.childAlignment = TextAnchor.MiddleCenter;
         h.childControlWidth = h.childControlHeight = true;
@@ -144,15 +158,17 @@ public class WorldTag : MonoBehaviour
             var le = go.GetComponent<LayoutElement>();
             le.preferredWidth = le.preferredHeight = 84f;
 
-            // тёмная дорожка и зелёное кольцо-таймер
-            MakeRing("Track", new Color32(0x14, 0x1C, 0x30, 255), false);
-            fill = MakeRing("Fill", new Color32(0x6B, 0xCB, 0x5A, 255), true);
+            // светлая дорожка и цветное кольцо-таймер внутри индиго-контура диска
+            MakeRing("Track", CandyTag.Track, false);
+            fill = MakeRing("Fill", pendingColor, true);
             shownProgress = pendingProgress;
             fill.fillAmount = shownProgress;
             fill.color = pendingColor;
         }
         else
         {
+            CandyTag.AddTail(rt, TailW);
+
             if (icon != null)
             {
                 var ig = new GameObject("Icon", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
@@ -168,22 +184,13 @@ public class WorldTag : MonoBehaviour
             }
         }
 
-        // текст
-        var tg = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
-        tg.layer = 5;
-        tg.transform.SetParent(rt, false);
-        label = tg.GetComponent<TextMeshProUGUI>();
-        label.fontSize = circle ? 34f : fontSize;
-        label.color = Color.white;
-        label.fontStyle = FontStyles.Bold;
-        label.alignment = TextAlignmentOptions.Center;
-        label.raycastTarget = false;
-
-        if (font == null && UIManager.Instance != null && UIManager.Instance.objectiveText != null)
-            font = UIManager.Instance.objectiveText.font;
-        if (font != null) label.font = font;
-        if (!circle) { label.outlineWidth = 0.18f; label.outlineColor = new Color32(0x14, 0x1C, 0x30, 255); }   // обводка после шрифта, иначе сбросится; как у метки стройки
-        if (pending != null) label.text = pending;
+        // текст: индиго, круглый шрифт, без обводки
+        TMP_FontAsset fallback = font;
+        if (fallback == null && UIManager.Instance != null && UIManager.Instance.objectiveText != null)
+            fallback = UIManager.Instance.objectiveText.font;
+        label = CandyTag.Text(rt, "Text", circle ? 34f : fontSize, CandyTag.Ink, TextAlignmentOptions.Center, true, fallback);
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        if (pending != null) label.text = CandyTag.Readable(pending);
     }
 
     Image MakeRing(string n, Color color, bool radial)
@@ -194,10 +201,10 @@ public class WorldTag : MonoBehaviour
         g.GetComponent<LayoutElement>().ignoreLayout = true;
         var r = (RectTransform)g.transform;
         r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one;
-        r.offsetMin = r.offsetMax = Vector2.zero;
+        r.offsetMin = new Vector2(5f, 5f); r.offsetMax = new Vector2(-5f, -5f);      // кольцо внутри индиго-контура диска
 
         var img = g.GetComponent<Image>();
-        img.sprite = circleRing;
+        img.sprite = ringSprite;
         img.color = color;
         img.raycastTarget = false;
         if (radial)
@@ -236,6 +243,7 @@ public class WorldTag : MonoBehaviour
 
         RectTransformUtility.ScreenPointToLocalPointInRectangle(root, sp, null, out Vector2 p);
         p.y += Mathf.Sin(Time.time * bobSpeed) * bobAmount;
+        if (!circle) p.y += CandyTag.TailHeight(TailW);    // кончик хвостика стоит в самой точке, а не низ панели
 
         rt.anchoredPosition = p;
         float punchScale = punch > 0f ? 1f + punchAmount * Mathf.Sin((1f - punch) * Mathf.PI) : 1f;
@@ -250,17 +258,15 @@ public class WorldTag : MonoBehaviour
     // ---------- общий слой для всех табличек ----------
     static void EnsureRoot()
     {
-        if (panelSprite == null) panelSprite = Make(false, 16f, 3f, true);
-        if (ringSprite == null) ringSprite = Make(true, 16f, 3f, true);
-        if (circleSprite == null) circleSprite = Make(false, 32f, 0f, false);
-        if (circleRing == null) circleRing = Make(true, 32f, 7f, false);
+        if (discSprite == null) discSprite = MakeDisc();
+        if (ringSprite == null) ringSprite = MakeRingSprite(32f, 7f);
         if (root != null) return;
 
         var c = new GameObject("WorldTags_Canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
         c.layer = 5;
         var canvas = c.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 5; // ниже HUD (10) и попапов (20)
+        canvas.sortingOrder = UiLayers.WorldTag;
         var scaler = c.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
@@ -269,28 +275,58 @@ public class WorldTag : MonoBehaviour
         root = (RectTransform)c.transform;
     }
 
-    // Скруглённая панель или кольцо рисуются кодом, файлы не нужны
-    static Sprite Make(bool ring, float radius, float thickness, bool sliced)
+    // светлый диск с индиго-контуром (рисуется кодом, файлы не нужны)
+    static Sprite MakeDisc()
     {
         const int S = 64;
-        var tex = new Texture2D(S, S, TextureFormat.RGBA32, false)
-        {
-            filterMode = FilterMode.Bilinear,
-            wrapMode = TextureWrapMode.Clamp
-        };
+        var tex = NewTex(S);
         for (int y = 0; y < S; y++)
         {
             for (int x = 0; x < S; x++)
             {
-                float d = UiDraw.RRect(x + 0.5f, y + 0.5f, S, S, radius);
-                float a = ring ? Mathf.Clamp01(Cov(d) - Cov(d + thickness)) : Cov(d);
+                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(S * 0.5f, S * 0.5f)) - S * 0.5f + 0.5f;
+                float a = Cov(d);
+                Color c = d > -3.2f ? CandyTag.Ink : Color.Lerp(new Color32(0xE6, 0xEE, 0xFF, 255), Color.white, (y + 0.5f) / S);
+                c.a = a;
+                tex.SetPixel(x, y, c);
+            }
+        }
+        return Finish(tex, S);
+    }
+
+    // кольцо толщиной thickness (в пикселях спрайта 64)
+    static Sprite MakeRingSprite(float radius, float thickness)
+    {
+        const int S = 64;
+        var tex = NewTex(S);
+        for (int y = 0; y < S; y++)
+        {
+            for (int x = 0; x < S; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(S * 0.5f, S * 0.5f)) - radius;
+                float a = Mathf.Clamp01(Cov(d) - Cov(d + thickness));
                 tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
             }
         }
+        return Finish(tex, S);
+    }
+
+    static Texture2D NewTex(int s)
+    {
+        return new Texture2D(s, s, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+            hideFlags = HideFlags.HideAndDontSave
+        };
+    }
+
+    static Sprite Finish(Texture2D tex, int s)
+    {
         tex.Apply();
-        Vector4 border = sliced ? new Vector4(20, 20, 20, 20) : Vector4.zero;
-        return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f, 0,
-                             SpriteMeshType.FullRect, border);
+        var sp = Sprite.Create(tex, new Rect(0, 0, s, s), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, Vector4.zero);
+        sp.hideFlags = HideFlags.HideAndDontSave;
+        return sp;
     }
 
     static float Cov(float d) => Mathf.Clamp01(0.5f - d);

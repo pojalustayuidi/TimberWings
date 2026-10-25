@@ -43,12 +43,22 @@ public class CloudSea : MonoBehaviour
     public Vector2 puffSize = new Vector2(3.5f, 7f);
     public Vector2 isletRing = new Vector2(95f, 230f);
 
-    struct Puff { public Vector3 pos; public float scale, rot, speed; public int mesh; }
+    [Header("Масштаб под остров (остров v2 крупнее старого)")]
+    [Tooltip("Подгонять поле клубов, их размер и кольцо мини-островов под радиус острова. Числа выше считаются минимумом")]
+    public bool scaleWithIsland = true;
+    [Tooltip("Радиус острова, под который подобраны размеры клубов (старый остров). Радиус острова v2 около 80: клубы станут до 1,8 раза крупнее")]
+    public float refIslandRadius = 45f;
+    [Tooltip("Доля клубов, прижатых к обрыву: облачный пояс у основания скалы, как на референсе. Они не плывут по ветру, а покачиваются на месте")]
+    [Range(0f, 0.8f)] public float bankShare = 0.3f;
+
+    struct Puff { public Vector3 pos; public float scale, rot, speed; public int mesh; public bool bank; }
     struct Islet { public Vector3 pos; public float scale, yaw, yawSpeed, phase; public int mesh; }
 
-    FloatingIsland island;
+    IslandSource island;
     Vector3 center;
     float groundY, islandDepth, islandRadius;
+    float effField, effPuffMul = 1f;     // поле клубов и множитель их размера с учётом размера острова
+    Vector2 effIsletRing;
 
     Mesh quad;
     Mesh[] puffMeshes, isletMeshes;
@@ -88,7 +98,7 @@ public class CloudSea : MonoBehaviour
     static void Init()
     {
         if (PlayerMovement.Instance == null) return;                       // меню и пустые сцены не трогаем
-        if (Object.FindFirstObjectByType<FloatingIsland>() == null) return; // моря нет, пока остров не парящий
+        if (IslandSource.Find() == null) return; // моря нет, пока остров не парящий
         if (Object.FindFirstObjectByType<CloudSea>() != null) return;
         new GameObject("_CloudSea").AddComponent<CloudSea>();
     }
@@ -98,7 +108,7 @@ public class CloudSea : MonoBehaviour
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
 
-        island = FindFirstObjectByType<FloatingIsland>();
+        island = IslandSource.Find();
         if (island == null) { enabledSea = false; return; }
 
         // размеры острова
@@ -111,6 +121,15 @@ public class CloudSea : MonoBehaviour
         center = new Vector3(c.x, groundY, c.y);
         islandRadius = 10f;
         for (int i = 0; i < pts.Count; i++) islandRadius = Mathf.Max(islandRadius, Vector2.Distance(pts[i], c));
+
+        // поле клубов, размеры и кольцо мини-островов растут вместе с островом (у острова v2 радиус около 80 м, а числа в полях подобраны под старый)
+        effField = puffFieldRadius; effPuffMul = 1f; effIsletRing = isletRing;
+        if (scaleWithIsland)
+        {
+            effField = Mathf.Max(puffFieldRadius, islandRadius * 1.9f);
+            effPuffMul = Mathf.Clamp(islandRadius / Mathf.Max(1f, refIslandRadius), 1f, 1.8f);
+            effIsletRing = new Vector2(Mathf.Max(isletRing.x, islandRadius * 1.3f), Mathf.Max(isletRing.y, islandRadius * 2.8f));
+        }
 
         cloudShader = island.cloudShader != null ? island.cloudShader : Shader.Find("Project/CloudSea");
         rockShader = island.rockMaterial != null ? island.rockMaterial.shader : Shader.Find("Project/IslandRock");
@@ -170,6 +189,7 @@ public class CloudSea : MonoBehaviour
             }
         }
 
+        if (scaleWithIsland) puffN = Mathf.RoundToInt(puffN * Mathf.Clamp(effField / Mathf.Max(1f, puffFieldRadius), 1f, 1.3f));
         puffs = new Puff[rockShader != null ? puffN : 0];
         for (int i = 0; i < puffs.Length; i++) puffs[i] = NewPuff(true);
 
@@ -177,7 +197,7 @@ public class CloudSea : MonoBehaviour
         for (int i = 0; i < islets.Length; i++)
         {
             float ang = (i + (float)rnd.NextDouble() * 0.8f) / islets.Length * Mathf.PI * 2f;   // равномерно по кругу, чтобы не слиплись
-            float dist = Mathf.Lerp(isletRing.x, isletRing.y, (float)rnd.NextDouble());
+            float dist = Mathf.Lerp(effIsletRing.x, effIsletRing.y, (float)rnd.NextDouble());
             float topY = groundY - islandDepth * topDepthFactor;
             islets[i] = new Islet
             {
@@ -193,13 +213,16 @@ public class CloudSea : MonoBehaviour
 
     Puff NewPuff(bool initial)
     {
-        float R = puffFieldRadius;
+        float R = effField;
         float topY = groundY - islandDepth * topDepthFactor;
         Vector3 p;
+        bool bank = false;
         if (initial)
         {
             float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
-            float dist = R * Mathf.Sqrt((float)rnd.NextDouble());
+            bank = (float)rnd.NextDouble() < bankShare;
+            // пояс у обрыва: чуть дальше контура; остальные клубы по всему полю
+            float dist = bank ? islandRadius * Mathf.Lerp(0.9f, 1.45f, (float)rnd.NextDouble()) : R * Mathf.Sqrt((float)rnd.NextDouble());
             p = new Vector3(center.x + Mathf.Cos(ang) * dist, 0f, center.z + Mathf.Sin(ang) * dist);
         }
         else
@@ -211,14 +234,22 @@ public class CloudSea : MonoBehaviour
             Vector2 o = new Vector2(center.x, center.z) - w * R * 0.97f + perp * side;
             p = new Vector3(o.x, 0f, o.y);
         }
-        p.y = topY + ((float)rnd.NextDouble() - 0.45f) * 6f;
+        if (bank)
+        {
+            // пояс держится на высоте нижней половины скалы: основание обрыва тонет в облаках
+            float r = (float)rnd.NextDouble();
+            p.y = Mathf.Lerp(topY, groundY - islandDepth * 0.45f, r * r);
+        }
+        else p.y = topY + ((float)rnd.NextDouble() - 0.45f) * 6f;
+        float sc = Mathf.Lerp(puffSize.x, puffSize.y, (float)rnd.NextDouble()) * effPuffMul * (bank ? 1.25f : 1f);
         return new Puff
         {
             pos = p,
-            scale = Mathf.Lerp(puffSize.x, puffSize.y, (float)rnd.NextDouble()),
+            scale = sc,
             rot = (float)rnd.NextDouble() * 360f,
             speed = 0.6f + (float)rnd.NextDouble() * 0.9f,
-            mesh = rnd.Next(puffMeshes.Length)
+            mesh = rnd.Next(puffMeshes.Length),
+            bank = bank
         };
     }
 
@@ -239,6 +270,10 @@ public class CloudSea : MonoBehaviour
             qualityAt = Time.unscaledTime + 1f;
             if (builtQuality != (int)GameSettings.LightQuality) Rebuild();
         }
+
+        // Остров v2, этап 3: цвета и покрытие фона из ассета стиля (нет стиля = прежние значения полей)
+        var style = CloudCandyStyle.Current;
+        if (style != null) style.ApplyTo(this);
 
         float dt = Time.deltaTime;
         DrawLayers();
@@ -317,12 +352,12 @@ public class CloudSea : MonoBehaviour
     {
         if (puffMat == null || puffs.Length == 0) return;
 
-        float R = puffFieldRadius;
+        float R = effField;
         Vector3 w3 = new Vector3(wind.x, 0f, wind.y);
         for (int i = 0; i < puffs.Length; i++)
         {
             var p = puffs[i];
-            p.pos += w3 * (p.speed * dt);
+            if (!p.bank) p.pos += w3 * (p.speed * dt);   // пояс у обрыва стоит на месте и только покачивается
             float dist = Vector2.Distance(new Vector2(p.pos.x, p.pos.z), new Vector2(center.x, center.z));
             if (dist > R) { puffs[i] = NewPuff(false); continue; }
             puffs[i] = p;
@@ -330,7 +365,9 @@ public class CloudSea : MonoBehaviour
             float edge = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(R, R * 0.8f, dist));   // у края растут / тают, чтобы не появляться рывком
             float s = p.scale * edge;
             if (s < 0.05f) continue;
-            var m = Matrix4x4.TRS(p.pos, Quaternion.Euler(0f, p.rot, 0f), new Vector3(s, s, s));
+            Vector3 dp = p.pos;
+            if (p.bank) dp.y += Mathf.Sin(Time.time * 0.35f + p.rot) * 0.6f;
+            var m = Matrix4x4.TRS(dp, Quaternion.Euler(0f, p.rot, 0f), new Vector3(s, s, s));
             Graphics.DrawMesh(puffMeshes[p.mesh], m, puffMat, 0, cam, 0, null, ShadowCastingMode.Off, false);
         }
     }

@@ -17,6 +17,8 @@ public static class TreeMeshFactory
     static Mesh[] treeMesh = new Mesh[3];
     static Mesh stumpMesh;
     static Material bark, leaf, cut;
+    static Shader candyShader;
+    static bool candyTried;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic()
@@ -24,6 +26,8 @@ public static class TreeMeshFactory
         treeMesh = new Mesh[3];
         stumpMesh = null;
         bark = leaf = cut = null;
+        candyShader = null;
+        candyTried = false;
     }
 
     // ------------------------------------------------------------ применить к дереву
@@ -76,8 +80,33 @@ public static class TreeMeshFactory
     }
 
     // ------------------------------------------------------------ материалы
+    // Project/CandyToon (общий тун-шейдер). Shader.Find в билде найдёт его, только если шейдер лежит в
+    // Project Settings > Graphics > Always Included Shaders (материалов-ссылок на него в сцене может не быть).
+    // Нет шейдера или он не скомпилировался: откат на URP Lit, как было раньше.
+    static Shader Candy()
+    {
+        if (candyTried) return candyShader;
+        candyTried = true;
+        var sh = Shader.Find("Project/CandyToon");
+        candyShader = (sh != null && sh.isSupported) ? sh : null;
+        if (candyShader == null) Debug.LogWarning("[TreeMeshFactory] Project/CandyToon не найден: деревья на URP Lit.");
+        return candyShader;
+    }
+
     static Material MakeMat(string name, Color c, float smooth)
     {
+        var candy = Candy();
+        if (candy != null)
+        {
+            var cm = new Material(candy) { name = name };
+            cm.enableInstancing = true;
+            cm.SetColor("_BaseColor", c);   // имя свойства важно: TreeSizing / GoldenTreeFx красят через _BaseColor
+            bool isLeaf = name.Contains("Leaf");
+            cm.SetFloat("_GlossStrength", isLeaf ? 0.30f : 0f);   // блик только на листве
+            cm.SetFloat("_RimStrength", isLeaf ? 0.12f : 0f);     // рим только на листве
+            return cm;
+        }
+
         Shader sh = null;
         var rp = GraphicsSettings.currentRenderPipeline;
         if (rp != null && rp.defaultMaterial != null) sh = rp.defaultMaterial.shader;

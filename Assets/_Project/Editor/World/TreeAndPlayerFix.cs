@@ -14,7 +14,7 @@ using UnityEngine.SceneManagement;
 
 public static class TreeAndPlayerFix
 {
-    [MenuItem("Tools/BuilderSim/Починить деревья и игрока")]
+    [MenuItem("Tools/BuilderSim/Мир и персонаж/Починить деревья и игрока", false, 411)]
     static void Run()
     {
         Scene scene = SceneManager.GetActiveScene();

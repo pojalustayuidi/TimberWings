@@ -16,7 +16,7 @@ using UnityEngine.SceneManagement;
 
 public static class MissingScriptsCleaner
 {
-    [MenuItem("Tools/BuilderSim/Убрать слетевшие скрипты (Missing)")]
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Убрать слетевшие скрипты (Missing)", false, 1001)]
     static void Run()
     {
         var targets = new System.Collections.Generic.List<GameObject>();

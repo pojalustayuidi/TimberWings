@@ -12,7 +12,7 @@ public static class PetIconBaker
 {
     const string Folder = "Assets/_Project/Art/Pets/Icons";
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Нарисовать иконки (PNG и назначить)")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Нарисовать иконки (PNG и назначить)", false, 620)]
     public static void BakeAndAssign()
     {
         EnsureFolder(Folder);
@@ -59,7 +59,7 @@ public static class PetIconBaker
     }
 
     // все иконки на одном листе по 4 в ряд на розовом фоне: удобно сравнить с референсом
-    [MenuItem("Tools/BuilderSim/Питомцы/Лист иконок (превью)")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Лист иконок (превью)", false, 621)]
     public static void Sheet()
     {
         EnsureFolder(Folder);

@@ -23,7 +23,7 @@ public static class HudKitBuilder
     static TMP_FontAsset font;
     static Sprite sPanel, sPanelWood, sPlaque, sMedal, sBarFrame, sBarFill, sMapRing, sKeycap, sBtnAmber, sStar;
 
-    [MenuItem("Tools/BuilderSim/Skin Existing HUD (Kit)")]
+    [MenuItem("Tools/BuilderSim/UI/Skin Existing HUD (Kit)", false, 902)]
     static void SkinMenu()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)

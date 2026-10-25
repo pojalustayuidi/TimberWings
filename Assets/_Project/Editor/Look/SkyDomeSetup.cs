@@ -13,7 +13,7 @@ public static class SkyDomeSetup
         EditorApplication.delayCall += Ensure;
     }
 
-    [MenuItem("Tools/BuilderSim/Небо: добавить шейдер в сборку")]
+    [MenuItem("Tools/BuilderSim/Визуал и свет/Небо: добавить шейдер в сборку", false, 831)]
     static void Ensure()
     {
         var sh = Shader.Find("Project/SkyDome");

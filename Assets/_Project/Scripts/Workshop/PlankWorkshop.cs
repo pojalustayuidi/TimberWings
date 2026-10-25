@@ -18,6 +18,8 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
     [Tooltip("StoryFlow включает пилу, когда хижина достроена. Для теста можно включить руками")]
     public bool unlocked = false;
     public float radius = 3.5f;
+    [Tooltip("Хижина v2: пилорама стоит сбоку от хижины. Сюда (между хижиной и пилой) игрок подходит нажать E, отсюда считается radius. Пусто = корень хижины, как раньше")]
+    public Transform interactPoint;
     public Vector3 promptOffset = new Vector3(0f, 3f, 0f);
 
     [Header("Табличка над пилой (пока идёт работа или ждут готовые доски)")]
@@ -105,7 +107,7 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
     public float DistanceToPlayer()
     {
         if (!FindPlayer()) return float.MaxValue;
-        Vector3 d = inv.transform.position - transform.position;
+        Vector3 d = inv.transform.position - Anchor.position;
         d.y = 0f;
         return d.magnitude;
     }
@@ -177,8 +179,8 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
     }
 
     // ------------------------------------------------------------ IInteractable
-    public Transform Anchor { get { return transform; } }
-    public Vector3 PromptPoint { get { return transform.position + promptOffset; } }
+    public Transform Anchor { get { return interactPoint != null ? interactPoint : transform; } }
+    public Vector3 PromptPoint { get { return Anchor.position + promptOffset; } }
     public float Radius { get { return radius; } }
     public bool Priority { get { return true; } }
     public string Prompt { get { return "открыть пилораму"; } }
@@ -325,7 +327,7 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
         if (statusTag == null)
         {
             statusGo = new GameObject("SawStatus");
-            statusGo.transform.SetParent(transform, false);
+            statusGo.transform.SetParent(Anchor, false);
             statusTag = WorldTag.Add(statusGo, false);
             statusTag.offset = statusOffset;
             statusTag.SetIcon(UiKit.Icon(UiIcon.Plank));
@@ -362,6 +364,6 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
     void OnDrawGizmosSelected()
     {
         Gizmos.color = new Color(0.91f, 0.76f, 0.48f, 0.9f);
-        Gizmos.DrawWireSphere(transform.position + Vector3.up * 0.05f, radius);
+        Gizmos.DrawWireSphere(Anchor.position + Vector3.up * 0.05f, radius);
     }
 }

@@ -43,7 +43,7 @@ public static class PetSetupTools
 
     // ---------------------------------------------------------------- 1) Создать виды
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Создать виды")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Создать виды", false, 600)]
     public static void CreateSpecies()
     {
         var log = new StringBuilder();
@@ -149,7 +149,7 @@ public static class PetSetupTools
 
     // ---------------------------------------------------------------- 2) PetManager на сцену
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Поставить PetManager на сцену")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Поставить PetManager на сцену", false, 601)]
     public static void PlaceManager()
     {
         if (Application.isPlaying)

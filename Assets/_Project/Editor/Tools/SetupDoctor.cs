@@ -11,7 +11,7 @@ using UnityEngine;
 
 public static class SetupDoctor
 {
-    [MenuItem("Tools/BuilderSim/Проверить подключение (Setup Doctor)")]
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Проверить подключение (Setup Doctor)", false, 1000)]
     static void Run()
     {
         var sb = new StringBuilder();
@@ -290,10 +290,10 @@ public static class SetupDoctor
             else sb.AppendLine("OK   BuildStageLink ведёт RiverBridge");
         }
 
-        var borderRef = Object.FindFirstObjectByType<MapBorder>(FindObjectsInactive.Include);
-        if (borderRef == null) { warns++; sb.AppendLine("WARN Нет MapBorder: камни у прохода к мосту не убираются (проход закрыт стеной карты?)."); }
-        else if (borderRef.transform.Find("GateRocks") == null) { warns++; sb.AppendLine("WARN У MapBorder нет «GateRocks»: OpenGate() ничего не откроет. Пересобери границу карты с проходом."); }
-        else sb.AppendLine("OK   MapBorder: GateRocks есть, откроется после третьего этапа");
+        var islandRef = Object.FindFirstObjectByType<FloatingIsland>(FindObjectsInactive.Include);
+        if (islandRef == null) { warns++; sb.AppendLine("WARN Нет FloatingIsland: стена у прохода к мосту не убирается (проход закрыт?)."); }
+        else if (islandRef.GateRoot == null) { warns++; sb.AppendLine("WARN У FloatingIsland нет «GateWalls»: OpenGate() ничего не откроет. Поставь GatePoint и нажми «Собрать остров»."); }
+        else sb.AppendLine("OK   FloatingIsland: GateWalls есть, откроется после третьего этапа");
 
         if (sfBridge != null && !oskar) { warns++; sb.AppendLine("WARN Нет Оскара: глава «Мост» пойдёт без разговора, но задание примется."); }
         if (pm != null && pm.GetComponent<Speaker>() == null) { warns++; sb.AppendLine("WARN У игрока нет Speaker «Лео»: записку Гуннара читать некому, финал засчитается без реплик."); }

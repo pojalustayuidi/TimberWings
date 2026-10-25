@@ -135,11 +135,7 @@ public class MainMenuStub : MonoBehaviour
         return null;
     }
 
-    static void EnsureEventSystem()
-    {
-        if (FindFirstObjectByType<EventSystem>() != null) return;
-        new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-    }
+    static void EnsureEventSystem() { UiInputGuard.EnsureEventSystem(); }
 
     // ------------------------------------------------------------ построение
     void Build()

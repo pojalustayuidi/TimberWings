@@ -11,7 +11,7 @@ public static class UiKitTools
 {
     const string Dir = "Assets/_Project/UI/Kit";
 
-    [MenuItem("Tools/BuilderSim/UI Kit/Образец в сцене (нажми Play)")]
+    [MenuItem("Tools/BuilderSim/UI/UI Kit/Образец в сцене (нажми Play)", false, 910)]
     static void Showcase()
     {
         var go = new GameObject("UiKitShowcase");
@@ -21,7 +21,7 @@ public static class UiKitTools
         Debug.Log("UiKitShowcase добавлен в сцену. Нажми Play: образец появится поверх экрана. Esc закрывает.");
     }
 
-    [MenuItem("Tools/BuilderSim/UI Kit/Экспорт спрайтов в PNG")]
+    [MenuItem("Tools/BuilderSim/UI/UI Kit/Экспорт спрайтов в PNG", false, 911)]
     static void Export()
     {
         Directory.CreateDirectory(Dir);

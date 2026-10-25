@@ -14,7 +14,7 @@ public class DayNightWindow : EditorWindow
 
     Vector2 scroll;
 
-    [MenuItem("Tools/BuilderSim/Время суток")]
+    [MenuItem("Tools/BuilderSim/Визуал и свет/Время суток", false, 830)]
     static void Open()
     {
         var w = GetWindow<DayNightWindow>("Время суток");

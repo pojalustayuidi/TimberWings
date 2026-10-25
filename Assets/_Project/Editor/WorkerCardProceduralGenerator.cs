@@ -23,7 +23,7 @@ public static class WorkerCardProceduralGenerator
         public string perks, quote, look; public Color coat, hair, skin, accent;
     }
 
-    [MenuItem("Tools/BuilderSim/Рабочие/Сгенерировать 27 процедурных карточек")]
+    [MenuItem("Tools/BuilderSim/Рабочие/Сгенерировать 27 процедурных карточек", false, 512)]
     public static void Generate()
     {
         EnsureFolder(Root);

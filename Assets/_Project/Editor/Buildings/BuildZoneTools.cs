@@ -8,7 +8,7 @@ using UnityEngine;
 
 public static class BuildZoneTool
 {
-    [MenuItem("Tools/BuilderSim/Создать зону сдачи")]
+    [MenuItem("Tools/BuilderSim/Здания/Создать зону сдачи", false, 321)]
     static void Create()
     {
         Vector3 pos = Vector3.zero;

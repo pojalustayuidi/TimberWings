@@ -16,6 +16,7 @@ Shader "Project/SkyDome"
         _Moon ("Moon: phase cut X, angular size, visibility", Vector) = (2.2, 0.045, 0, 0)
         _Cloud ("Clouds: cover, speed, scale, detail 0..1", Vector) = (0.45, 0.012, 1.1, 1)
         _Stars ("Stars: amount", Vector) = (1, 0, 0, 0)
+        _CloudShade ("Cloud shade tint (day)", Color) = (0.62, 0.70, 0.90, 1)
     }
 
     SubShader
@@ -48,6 +49,7 @@ Shader "Project/SkyDome"
                 float4 _Moon;
                 float4 _Cloud;
                 float4 _Stars;
+                float4 _CloudShade;
             CBUFFER_END
 
             struct Attributes { float4 positionOS : POSITION; };
@@ -175,7 +177,7 @@ Shader "Project/SkyDome"
                         float3 dayLit = lerp(float3(1.0, 1.0, 1.0), _SunColor.rgb * 1.15, tw * 0.85);
                         float3 nightLit = float3(0.20, 0.25, 0.42);
                         float3 litC = lerp(nightLit, dayLit, saturate(day + tw * 0.9));
-                        float3 shadeC = litC * lerp(float3(0.62, 0.70, 0.90), float3(0.50, 0.52, 0.75), saturate(tw * 0.7 + night * 0.5));
+                        float3 shadeC = litC * lerp(_CloudShade.rgb, float3(0.50, 0.52, 0.75), saturate(tw * 0.7 + night * 0.5));
                         float3 cc = lerp(shadeC, litC, litAmt);
                         cc = lerp(cc, _Fog.rgb, haze * 0.4);                       // у горизонта облака тонут в дымке
                         float fadeH = smoothstep(0.015, 0.20, h);

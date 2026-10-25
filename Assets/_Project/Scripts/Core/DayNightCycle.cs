@@ -203,6 +203,9 @@ public class DayNightCycle : MonoBehaviour
 
     Volume dawnVol, duskVol, nightVol;
     VolumeProfile dawnProf, duskProf, nightProf;
+    ColorAdjustments dawnCA, duskCA, nightCA;   // Cloud Candy: значения грейда берём из CloudCandyStyle и обновляем при его правке
+    int gradeRev = -1;
+    bool gradeStyled;
 
     // перемотка вперёд (сон, «Фиксированный день»)
     bool warping;
@@ -386,17 +389,38 @@ public class DayNightCycle : MonoBehaviour
         duskVol = MakeVolume("DayNight Dusk", volumeDuskPriority, out duskProf);
         nightVol = MakeVolume("DayNight Night", volumeNightPriority, out nightProf);
 
-        // рассвет: чуть розовее и мягче
-        Grade(dawnProf, 0.08f, 8f, 12f, new Color(1f, 0.90f, 0.88f));
-        // закат: тёплый, насыщенный
-        Grade(duskProf, 0.05f, 10f, 20f, new Color(1f, 0.86f, 0.76f));
-        // ночь: синий фильтр, выдержку приподнимаем, чтобы деревья и дома читались
-        Grade(nightProf, 0.30f, 8f, -8f, new Color(0.72f, 0.82f, 1f));
+        dawnCA = dawnProf.Add<ColorAdjustments>(false);
+        duskCA = duskProf.Add<ColorAdjustments>(false);
+        nightCA = nightProf.Add<ColorAdjustments>(false);
+        gradeRev = -1;
+        ApplyGrades(CloudCandyStyle.Current);
     }
 
-    static void Grade(VolumeProfile p, float exposure, float contrast, float saturation, Color filter)
+    // Значения грейда суток. Со стилем Cloud Candy берутся из него, без стиля остаются прежними (откат).
+    void ApplyGrades(CloudCandyStyle st)
     {
-        var ca = p.Add<ColorAdjustments>(false);
+        if (dawnCA == null || duskCA == null || nightCA == null) return;
+        if (st != null)
+        {
+            SetGrade(dawnCA, st.gradeDawn.postExposure, st.gradeDawn.contrast, st.gradeDawn.saturation, st.gradeDawn.filter);
+            SetGrade(duskCA, st.gradeDusk.postExposure, st.gradeDusk.contrast, st.gradeDusk.saturation, st.gradeDusk.filter);
+            SetGrade(nightCA, st.gradeNight.postExposure, st.gradeNight.contrast, st.gradeNight.saturation, st.gradeNight.filter);
+        }
+        else
+        {
+            // рассвет: чуть розовее и мягче
+            SetGrade(dawnCA, 0.08f, 8f, 12f, new Color(1f, 0.90f, 0.88f));
+            // закат: тёплый, насыщенный
+            SetGrade(duskCA, 0.05f, 10f, 20f, new Color(1f, 0.86f, 0.76f));
+            // ночь: синий фильтр, выдержку приподнимаем, чтобы деревья и дома читались
+            SetGrade(nightCA, 0.30f, 8f, -8f, new Color(0.72f, 0.82f, 1f));
+        }
+        gradeStyled = st != null;
+        gradeRev = CloudCandyStyle.Revision;
+    }
+
+    static void SetGrade(ColorAdjustments ca, float exposure, float contrast, float saturation, Color filter)
+    {
         ca.postExposure.Override(exposure);
         ca.contrast.Override(contrast);
         ca.saturation.Override(saturation);
@@ -481,6 +505,11 @@ public class DayNightCycle : MonoBehaviour
     {
         if (sun == null || moon == null) return;
 
+        // Cloud Candy: цвета и числа из ассета стиля (нет ассета или он выключен = прежние значения полей)
+        CloudCandyStyle st = CloudCandyStyle.Current;
+        if (st != null) st.ApplyTo(this);
+        if (gradeRev != CloudCandyStyle.Revision || gradeStyled != (st != null)) ApplyGrades(st);
+
         float e = SunElevation(t);
         float wd, wn, wt;
         Weights(e, out wd, out wn, out wt);
@@ -490,7 +519,8 @@ public class DayNightCycle : MonoBehaviour
         float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-1.5f, 16f, e));
         float sunI = sunMaxIntensity * k;
         sun.intensity = sunI;
-        sun.color = SunColor(e);
+        sun.color = SunColor(e, st);
+        if (st != null) sun.shadowStrength = st.sunShadowStrength;
         bool sunOn = sunI > 0.005f;
         if (sun.enabled != sunOn) sun.enabled = sunOn;
         float yaw = sunYawNoon + DeltaDay(t, 0.5f) * sunYawPerDay;
@@ -522,7 +552,7 @@ public class DayNightCycle : MonoBehaviour
         Color fogTw = Color.Lerp(fogDawn, fogDusk, dusk);
         Color fog = Mix(fogDay, fogTw, fogNight, wd, wt, wn);
         RenderSettings.fog = true;
-        RenderSettings.fogMode = FogMode.ExponentialSquared;
+        RenderSettings.fogMode = st != null ? st.fogMode : FogMode.ExponentialSquared;
         RenderSettings.fogColor = fog;
         RenderSettings.fogDensity = Mathf.Lerp(fogDensityDay, fogDensityNight, wn);
 
@@ -540,8 +570,9 @@ public class DayNightCycle : MonoBehaviour
     }
 
     // цвет солнца по высоте: красноватое у горизонта, тёплое золото днём (как «золотой час» LightingRig)
-    static Color SunColor(float e)
+    static Color SunColor(float e, CloudCandyStyle st)
     {
+        if (st != null) return st.SunColorAt(e);
         Color low = new Color(1.00f, 0.45f, 0.25f);   // у горизонта
         Color mid = new Color(1.00f, 0.72f, 0.45f);   // ~8°
         Color gold = new Color(1.00f, 0.843f, 0.627f);   // ~20°, #FFD7A0

@@ -1,7 +1,7 @@
 // Assets/_Project/Scripts/Tutorial/QuestEdgeArrow.cs (НЕ в Editor)
-// Указатель к цели. Цель задаётся извне: QuestEdgeArrow.Target = transform (это делают IntroFlow и StoryFlow).
-//   Цель за кадром: круглый значок со стрелкой у края экрана, поворачивается к цели, под ним расстояние.
-//   Цель в кадре, но дальше pinMinDistance: золотая булавка подпрыгивает над целью (раньше в кадре подсказки не было вообще).
+// Указатель к цели (Candy). Цель задаётся извне: QuestEdgeArrow.Target = transform (это делают IntroFlow и StoryFlow).
+//   Цель за кадром: круглый облачный значок с лимонной стрелкой у края экрана, поворачивается к цели, под ним расстояние на облачной плашке.
+//   Цель в кадре, но дальше pinMinDistance: лимонная булавка подпрыгивает над целью (раньше в кадре подсказки не было вообще).
 //   Цель рядом: ничего не рисуем, игрок уже на месте.
 // Если Target пуст, раз в полсекунды ищется стройплощадка в состоянии Next (как раньше).
 // Позиция считается по «спокойной» камере (без дыхания и тряски), поэтому метки не дрожат.
@@ -62,7 +62,7 @@ public class QuestEdgeArrow : MonoBehaviour
         cgo.layer = 5;
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 6;
+        canvas.sortingOrder = UiLayers.QuestEdgeArrow;
         var sc = cgo.GetComponent<CanvasScaler>();
         sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         sc.referenceResolution = new Vector2(1920, 1080);
@@ -73,8 +73,8 @@ public class QuestEdgeArrow : MonoBehaviour
         TMP_FontAsset font = null;
         if (UIManager.Instance != null && UIManager.Instance.objectiveText != null) font = UIManager.Instance.objectiveText.font;
 
-        edge = NewMarker("EdgeBadge", VibeGfx.Badge, new Vector2(72f, 72f), new Vector2(0.5f, 0.5f), new Vector2(0f, -56f), font);
-        pin = NewMarker("TargetPin", VibeGfx.Pin, new Vector2(64f, 64f), new Vector2(0.5f, 4f / 64f), new Vector2(0f, 84f), font);
+        edge = NewMarker("EdgeBadge", CandyTag.Badge, new Vector2(72f, 72f), new Vector2(0.5f, 0.5f), new Vector2(0f, -58f), font);
+        pin = NewMarker("TargetPin", CandyTag.Pin, new Vector2(64f, 64f), new Vector2(0.5f, 4f / 64f), new Vector2(0f, 90f), font);
     }
 
     Marker NewMarker(string name, Sprite sprite, Vector2 size, Vector2 artPivot, Vector2 textPos, TMP_FontAsset font)
@@ -100,21 +100,20 @@ public class QuestEdgeArrow : MonoBehaviour
         im.sprite = sprite;
         im.raycastTarget = false;
 
-        var tgo = new GameObject("Txt", typeof(RectTransform), typeof(TextMeshProUGUI));
-        tgo.layer = 5;
-        tgo.transform.SetParent(m.rt, false);
-        var tr = (RectTransform)tgo.transform;
-        tr.anchoredPosition = textPos;
-        tr.sizeDelta = new Vector2(140f, 30f);
-        var t = tgo.GetComponent<TextMeshProUGUI>();
-        if (font != null) t.font = font;
-        t.fontSize = 26f;
-        t.fontStyle = FontStyles.Bold;
-        t.alignment = TextAlignmentOptions.Center;
-        t.color = Color.white;
-        t.raycastTarget = false;
-        t.outlineColor = new Color32(0x1C, 0x2A, 0x3A, 255);
-        t.outlineWidth = 0.3f;
+        // расстояние на маленькой облачной плашке: читается на любом фоне, обводка не нужна
+        var chip = new GameObject("Chip", typeof(RectTransform), typeof(Image));
+        chip.layer = 5;
+        chip.transform.SetParent(m.rt, false);
+        var cr = (RectTransform)chip.transform;
+        cr.anchoredPosition = textPos;
+        cr.sizeDelta = new Vector2(104f, 38f);
+        CandyTag.StylePanel(chip.GetComponent<Image>(), 0.3f);
+
+        var t = CandyTag.Text(cr, "Txt", 26f, CandyTag.Ink, TextAlignmentOptions.Center, true, font);
+        var tr = t.rectTransform;
+        tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one;
+        tr.offsetMin = new Vector2(2f, 4f); tr.offsetMax = new Vector2(-2f, 0f);
+        t.textWrappingMode = TextWrappingModes.NoWrap;
         m.txt = t;
 
         go.SetActive(false);

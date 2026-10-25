@@ -12,7 +12,7 @@ using UnityEngine;
 
 public static class WorkerProductionSelfTest
 {
-    [MenuItem("Tools/BuilderSim/Рабочие/Проверить производство")]
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Проверки/Рабочие: производство", false, 1011)]
     public static void RunMenu()
     {
         var log = new StringBuilder();

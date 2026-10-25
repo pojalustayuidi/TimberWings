@@ -194,6 +194,7 @@ public class PlayerMovement : MonoBehaviour
         if (animator == null) animator = GetComponentInChildren<Animator>();
         backpack = GetComponent<BackpackTag>();
         interaction = GetComponent<PlayerInteraction>();
+        if (GetComponent<WaterSwim>() == null) gameObject.AddComponent<WaterSwim>();   // плавание и утопление в реке (без WaterVolume ничего не делает)
     }
 
     // GDD: базовая скорость × бонус прокачки × (1 − 25% × заполненность рюкзака)
@@ -213,6 +214,7 @@ public class PlayerMovement : MonoBehaviour
                 v *= 1f - slow * fill;
             }
             if (IsDashing) v *= GameBalance.SkillDashMul;
+            v *= WaterSwim.SpeedMul;   // брод и плавание: медленнее
             return v;
         }
     }

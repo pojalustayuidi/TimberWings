@@ -3,6 +3,7 @@
 // Вешать не нужно: WorkerCamp добавляет её сам. Показывает «Склад: бревна 12/30 · доски 3/10», когда рядом игрок,
 // лагерь открыт, в нём есть рабочие или остатки, и окно «Лагерь» закрыто. Метка стоит на месте (WorldTag без покачивания).
 // Если склад бревен или досок полон, это написано словами («полон»), а не только цветом.
+// Вид Candy (облачко с хвостиком, индиго-текст) даёт сам WorldTag; здесь только иконка Candy.
 using UnityEngine;
 
 [RequireComponent(typeof(WorkerCamp))]
@@ -44,7 +45,7 @@ public class WorkerCampSign : MonoBehaviour
             tagGo.transform.SetParent(transform, false);
             tag = WorldTag.Add(tagGo, false);
             tag.offset = offset;
-            tag.SetIcon(UiKit.Icon(UiIcon.Log));
+            tag.SetIcon(CandyTag.Icon(UiIcon.Log));
             tag.SetFontSize(30f);
         }
         tag.visible = true;

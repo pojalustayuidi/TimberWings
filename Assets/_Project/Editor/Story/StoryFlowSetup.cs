@@ -21,7 +21,7 @@ public static class StoryFlowSetup
 {
     const string DataFolder = "Assets/_Game/BuildSites";
 
-    [MenuItem("Tools/BuilderSim/Настроить цепочку StoryFlow")]
+    [MenuItem("Tools/BuilderSim/Сюжет/Настроить цепочку StoryFlow", false, 700)]
     static void Run()
     {
         var sb = new StringBuilder("=== StoryFlow ===\n");

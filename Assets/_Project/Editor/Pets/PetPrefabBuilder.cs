@@ -43,10 +43,10 @@ public static class PetPrefabBuilder
         new Species("wolf",    0.95f, "wolf"),
     };
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Собрать префабы (только недостающие)")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Собрать префабы (только недостающие)", false, 610)]
     public static void BuildMissing() { BuildAll(false); }
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Пересобрать все префабы (сотрёт правки)")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Пересобрать все префабы (сотрёт правки)", false, 611)]
     public static void RebuildAll()
     {
         if (!EditorUtility.DisplayDialog("Пересобрать префабы питомцев",

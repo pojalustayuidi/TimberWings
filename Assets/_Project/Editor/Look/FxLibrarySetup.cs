@@ -14,7 +14,7 @@ public static class FxLibrarySetup
 {
     const string AssetPath = "Assets/_Project/Resources/FxLibrary.asset";
 
-    [MenuItem("Tools/BuilderSim/Link Cartoon FX")]
+    [MenuItem("Tools/BuilderSim/Визуал и свет/Link Cartoon FX", false, 820)]
     public static void Run()
     {
         var found = new List<GameObject>();

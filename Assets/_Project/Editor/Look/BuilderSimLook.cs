@@ -14,7 +14,7 @@ public static class BuilderSimLook
 {
     const string Dir = "Assets/_Game/Art";
 
-    [MenuItem("Tools/BuilderSim/Apply Look")]
+    [MenuItem("Tools/BuilderSim/Визуал и свет/Apply Look", false, 800)]
     public static void Apply()
     {
         EnsureFolder("Assets/_Game");

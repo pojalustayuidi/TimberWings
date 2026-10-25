@@ -68,7 +68,7 @@ public class BoardBuilder : EditorWindow
     const float ohZ = 0.55f, ohX = 0.45f, roofOff = 0.115f, postT = 0.24f;
     const float panelZ = 0.17f;   // панель стоит на этом расстоянии от задней плоскости (внутрь)
 
-    [MenuItem("Tools/BuilderSim/Board Builder")]
+    [MenuItem("Tools/BuilderSim/Здания/Board Builder", false, 300)]
     static void Open()
     {
         var w = GetWindow<BoardBuilder>(false, "Доска заказов");

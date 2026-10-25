@@ -13,7 +13,7 @@ using UnityEngine;
 
 public static class WorkersSetup
 {
-    [MenuItem("Tools/BuilderSim/Настроить рабочих (WorkerManager + лагерь)")]
+    [MenuItem("Tools/BuilderSim/Рабочие/Настроить рабочих (WorkerManager + лагерь)", false, 501)]
     static void Run()
     {
         var sb = new StringBuilder();

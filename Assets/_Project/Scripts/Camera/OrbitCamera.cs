@@ -293,7 +293,7 @@ public class OrbitCamera : MonoBehaviour
         chGo.transform.SetParent(transform, false);
         var canvas = chGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 400;               // выше HUD, ниже окон и настроек (у них 1000)
+        canvas.sortingOrder = UiLayers.OrbitCameraHud;
         var sc = chGo.GetComponent<CanvasScaler>();
         sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         sc.referenceResolution = new Vector2(1920, 1080);

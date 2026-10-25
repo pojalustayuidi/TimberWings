@@ -18,7 +18,7 @@ public static class MainMenuSceneBuilder
     const string MenuScenePath = "Assets/_Project/Scenes/MainMenu.unity";
     const string BgPath = "Assets/_Project/UI/Menu/MainMenu_BG.png";
 
-    [MenuItem("Tools/Timber Wings/Создать сцену MainMenu")]
+    [MenuItem("Tools/BuilderSim/UI/Главное меню/Создать сцену MainMenu", false, 920)]
     static void Create()
     {
         var active = SceneManager.GetActiveScene();
@@ -65,7 +65,7 @@ public static class MainMenuSceneBuilder
     }
 
     // Шаг 3: делает из PNG спрайт, открывает MainMenu и вешает на объект MainMenu компонент MainMenuBackground с этой картинкой
-    [MenuItem("Tools/Timber Wings/Шаг 3: подключить фон в MainMenu")]
+    [MenuItem("Tools/BuilderSim/UI/Главное меню/Шаг 3: подключить фон в MainMenu", false, 921)]
     static void SetupBackground()
     {
         var importer = AssetImporter.GetAtPath(BgPath) as TextureImporter;

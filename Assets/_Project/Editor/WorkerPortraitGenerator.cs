@@ -615,7 +615,7 @@ namespace TimberWings.EditorTools
             Object.DestroyImmediate(t);
         }
 
-        [MenuItem("Tools/BuilderSim/Рабочие/Сгенерировать портреты")]
+        [MenuItem("Tools/BuilderSim/Рабочие/Сгенерировать портреты", false, 511)]
         public static void GenerateAll()
         {
             Directory.CreateDirectory(OutDir);

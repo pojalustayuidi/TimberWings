@@ -17,7 +17,7 @@ public class CharacterAnimatorBuilder : EditorWindow
     string folder = "Assets/_Project/Animation";
     string fileName = "PlayerAnimator";
 
-    [MenuItem("Tools/BuilderSim/Аниматор персонажа")]
+    [MenuItem("Tools/BuilderSim/Мир и персонаж/Аниматор персонажа", false, 410)]
     static void Open() { GetWindow<CharacterAnimatorBuilder>("Аниматор персонажа"); }
 
     void OnGUI()

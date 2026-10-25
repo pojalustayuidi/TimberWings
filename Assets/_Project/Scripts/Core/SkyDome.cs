@@ -60,6 +60,7 @@ public class SkyDome : MonoBehaviour
     static readonly int MoonId = Shader.PropertyToID("_Moon");
     static readonly int CloudId = Shader.PropertyToID("_Cloud");
     static readonly int StarsId = Shader.PropertyToID("_Stars");
+    static readonly int CloudShadeId = Shader.PropertyToID("_CloudShade");
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { Instance = null; }
@@ -157,6 +158,15 @@ public class SkyDome : MonoBehaviour
 
     void UpdateMaterial()
     {
+        // Cloud Candy: цвета неба и тень облаков из ассета стиля (нет ассета = прежние значения полей и шейдера)
+        var style = CloudCandyStyle.Current;
+        if (style != null)
+        {
+            style.ApplyTo(this);
+            mat.SetColor(CloudShadeId, style.cloudShadeDay);
+        }
+        else mat.SetColor(CloudShadeId, new Color(0.62f, 0.70f, 0.90f));
+
         var dn = DayNightCycle.Instance;
         float t = DayNightCycle.Time01;
         float night = DayNightCycle.Night01;

@@ -208,7 +208,7 @@ public sealed class CampSleep : MonoBehaviour, IInteractable, IPriorityInteracta
         go.transform.SetParent(transform, false);
         canvas = go.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 29000;   // выше всего HUD, ниже «Сохранено» и тостов (30000)
+        canvas.sortingOrder = UiLayers.Fade;
 
         var bg = new GameObject("Black", typeof(RectTransform));
         bg.transform.SetParent(go.transform, false);

@@ -1,4 +1,4 @@
-// Assets/_Project/Scripts/UI/WorkerPackTable.cs (НЕ в Editor)
+// Assets/_Project/Scripts/Workers/WorkerPackTable.cs (НЕ в Editor)
 // «Стол пака»: открытие пака рабочих в режиме «выбери одну из трёх карт» (как выбор карты в FIFA).
 // Обычный класс без MonoBehaviour: его создаёт WorkersWindow внутри своей панели и вызывает Tick(dt) каждый кадр.
 //
@@ -11,6 +11,8 @@
 //                    а две невыбранные карты внизу переворачиваются «могло выпасть» (они настоящие, см. WorkerPackSystem.Draft);
 //   Итог             «Ещё» (Enter) открывает следующий такой же пак, «Готово» (E, Esc) закрывает.
 // E, Esc, Enter или клик пропускают анимацию (пропуск не меняет результат: он выбран до анимации).
+// CANDY (задача 13): светлое облако вместо тёмного стола, подарочная коробка вместо сундука, пастельные рубашки карт, текст индиго, конфетти CandyFx.
+// Таблица создаётся внутри окна рабочих под скином Candy; во время игры иконки берутся через UiKit.CandyIcon.
 // Честность: все три карты брошены по шансам пака, гарантия действует на каждую, поэтому выбор — это ритуал и азарт,
 // а не способ повысить шансы. Об этом сказано строкой на экране выбора.
 using System;
@@ -75,7 +77,7 @@ public class WorkerPackTable
     // ============================================================ элементы
     readonly RectTransform root;
     readonly Slot[] slots = new Slot[3];
-    Image bgRays, rays, glow, flash, packArt;
+    Image bgRays, rays, glow, flash, packArt, chestBodyImg, chestLidImg;
     RectTransform raysRt, glowRt, packRt;
     TMP_Text titleT, subT, priceT, honestT, hintT, smallLabel;
     CanvasGroup infoCg;
@@ -91,7 +93,7 @@ public class WorkerPackTable
         Stretch(root);
 
         var dim = UiKit.MakeImage(root, "Dim", null, false);
-        dim.color = new Color(0.03f, 0.05f, 0.09f, 0.95f);
+        dim.color = new Color(0.96f, 0.97f, 1f, 0.97f);   // светлое облако
         Stretch(dim.rectTransform);
         dim.raycastTarget = true;
 
@@ -110,29 +112,28 @@ public class WorkerPackTable
         Anch(glowRt, Mid, Mid, ResultPos, new Vector2(720f, 720f));
         glow.raycastTarget = false;
 
-        // Процедурный арт сундука вместо прежней иконки коробки: дерево, латунные обручи и камень редкости.
+        // Подарочная коробка вместо сундука: мягкая тень, корпус, крышка, белая лента, бант-камень. Цвета корпуса и крышки подбираются под пак в Begin
         packArt = UiKit.MakeImage(root, "PackArt_Glow", PetUi.GlowSprite, false);
         packRt = packArt.rectTransform;
         Anch(packRt, Mid, Mid, PackPos, new Vector2(250f, 250f));
-        packArt.color = new Color(0.68f, 0.43f, 0.16f, 0.22f);
+        packArt.color = new Color(0.45f, 0.74f, 1f, 0.3f);
         packArt.raycastTarget = false;
         var chest = NewRT("PackChest", root);
         Anch(chest, Mid, Mid, PackPos + new Vector2(0f, -4f), new Vector2(148f, 112f));
-        var chestShadow = UiKit.MakeImage(chest, "Shadow", null, false);
-        Stretch(chestShadow.rectTransform);
-        chestShadow.color = new Color(0.015f, 0.012f, 0.01f, 0.88f);
-        var chestBody = UiKit.MakeImage(chest, "DarkWood", null, false);
-        Anch(chestBody.rectTransform, Mid, Mid, new Vector2(0f, -9f), new Vector2(132f, 76f));
-        chestBody.color = new Color32(0x55, 0x2F, 0x17, 255);
-        var chestLid = UiKit.MakeImage(chest, "CurvedLid", UiKit.Slot, false);
-        Anch(chestLid.rectTransform, Mid, Mid, new Vector2(0f, 24f), new Vector2(142f, 43f));
-        chestLid.color = new Color32(0x8B, 0x56, 0x25, 255);
-        var chestBand = UiKit.MakeImage(chest, "BrassBand", null, false);
-        Anch(chestBand.rectTransform, Mid, Mid, Vector2.zero, new Vector2(15f, 92f));
-        chestBand.color = new Color32(0xE4, 0xB8, 0x62, 255);
-        var chestLock = UiKit.MakeImage(chest, "GemLock", UiKit.Icon(UiIcon.Gem), false);
-        Anch(chestLock.rectTransform, Mid, Mid, new Vector2(0f, -2f), new Vector2(34f, 34f));
-        chestLock.color = new Color32(0xF7, 0xD8, 0x83, 255);
+        var chestShadow = UiKit.MakeImage(chest, "Shadow", UiKit.Slot, true, 0.8f);
+        Anch(chestShadow.rectTransform, Mid, Mid, new Vector2(0f, -50f), new Vector2(150f, 34f));
+        chestShadow.color = new Color(UiCandy.Ink.r, UiCandy.Ink.g, UiCandy.Ink.b, 0.16f);
+        chestBodyImg = UiKit.MakeImage(chest, "Box", UiKit.Panel, true, 0.5f);
+        Anch(chestBodyImg.rectTransform, Mid, Mid, new Vector2(0f, -12f), new Vector2(128f, 80f));
+        chestBodyImg.color = UiCandy.Peach;
+        chestLidImg = UiKit.MakeImage(chest, "Lid", UiKit.Panel, true, 0.4f);
+        Anch(chestLidImg.rectTransform, Mid, Mid, new Vector2(0f, 26f), new Vector2(144f, 40f));
+        chestLidImg.color = UiCandy.PeachDeep;
+        var chestBand = UiKit.MakeImage(chest, "Ribbon", UiDraw.Pill, true, 0.3f);
+        Anch(chestBand.rectTransform, Mid, Mid, new Vector2(0f, 0f), new Vector2(18f, 104f));
+        chestBand.color = new Color(1f, 1f, 1f, 0.92f);
+        var chestLock = UiKit.MakeImage(chest, "GemBow", UiKit.CandyIcon(UiIcon.Gem), false);
+        Anch(chestLock.rectTransform, Mid, Mid, new Vector2(0f, 34f), new Vector2(40f, 40f));
         chestLock.raycastTarget = false;
 
         for (int i = 0; i < 3; i++) slots[i] = MakeSlot(i);
@@ -155,17 +156,17 @@ public class WorkerPackTable
         flash.color = new Color(1f, 1f, 1f, 0f);
         flash.raycastTarget = false;
 
-        titleT = UiKit.MakeLabel(root, "", 46f, Color.white, TextAlignmentOptions.Center, true);
+        titleT = UiKit.MakeLabel(root, "", 46f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         Anch(titleT.rectTransform, Mid, Mid, new Vector2(0f, 355f), new Vector2(1000f, 58f));
         subT = UiKit.MakeLabel(root, "", 25f, Soft, TextAlignmentOptions.Center, false);
         Anch(subT.rectTransform, Mid, Mid, new Vector2(0f, 308f), new Vector2(1100f, 36f));
-        priceT = UiKit.MakeLabel(root, "", 28f, Color.white, TextAlignmentOptions.Center, true);
+        priceT = UiKit.MakeLabel(root, "", 28f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         Anch(priceT.rectTransform, Mid, Mid, new Vector2(0f, -262f), new Vector2(900f, 40f));
-        honestT = UiKit.MakeLabel(root, "", 21f, Dim, TextAlignmentOptions.Center, false);
+        honestT = UiKit.MakeLabel(root, "", 21f, Soft, TextAlignmentOptions.Center, false);
         Anch(honestT.rectTransform, Mid, Mid, new Vector2(0f, -304f), new Vector2(1250f, 32f));
-        hintT = UiKit.MakeLabel(root, "", 21f, Dim, TextAlignmentOptions.Center, false);
+        hintT = UiKit.MakeLabel(root, "", 21f, Soft, TextAlignmentOptions.Center, false);
         Anch(hintT.rectTransform, Mid, Mid, new Vector2(0f, -385f), new Vector2(1250f, 30f));
-        smallLabel = UiKit.MakeLabel(root, "Остальные карты: могло выпасть", 21f, Dim, TextAlignmentOptions.Center, false);
+        smallLabel = UiKit.MakeLabel(root, "Остальные карты: могло выпасть", 21f, Soft, TextAlignmentOptions.Center, false);
         Anch(smallLabel.rectTransform, Mid, Mid, new Vector2(-380f, -152f), new Vector2(420f, 28f));
         foreach (var l in new[] { titleT, subT, priceT, honestT, hintT, smallLabel }) l.raycastTarget = false;
 
@@ -208,26 +209,26 @@ public class WorkerPackTable
         Anch(s.backShine.rectTransform, Mid, Mid, new Vector2(0f, 30f), new Vector2(CW * 1.1f, CW * 1.1f));
         s.backMedal = UiKit.MakeImage(back, "Medal", UiKit.Medallion, false);
         Anch(s.backMedal.rectTransform, Mid, Mid, new Vector2(0f, 24f), new Vector2(150f, 150f));
-        s.backQ = UiKit.MakeLabel(s.backMedal.transform, "?", 110f, UiKit.Navy, TextAlignmentOptions.Center, true);
+        s.backQ = UiKit.MakeLabel(s.backMedal.transform, "?", 110f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         s.backQ.raycastTarget = false;
         // Внутренний двойной контур и центральная вертикаль создают ощущение гравированной рубашки.
-        var innerLine = UiKit.MakeImage(back, "InnerGoldLine", null, false);
+        var innerLine = UiKit.MakeImage(back, "InnerLine", null, false);
         Anch(innerLine.rectTransform, Mid, Mid, Vector2.zero, new Vector2(CW - 28f, CH - 28f));
-        innerLine.color = new Color(0.82f, 0.63f, 0.30f, 0.30f);
+        innerLine.color = new Color(1f, 1f, 1f, 0.55f);
         innerLine.raycastTarget = false;
-        var sigil = UiKit.MakeImage(back, "CentralSigil", UiKit.Icon(UiIcon.Gem), false);
+        var sigil = UiKit.MakeImage(back, "CentralSigil", UiKit.CandyIcon(UiIcon.Gem), false);
         Anch(sigil.rectTransform, Mid, Mid, new Vector2(0f, 24f), new Vector2(62f, 62f));
-        sigil.color = new Color(1f, 0.80f, 0.38f, 0.88f);
+        sigil.color = new Color(1f, 1f, 1f, 0.95f);
         sigil.raycastTarget = false;
         for (int k = 0; k < 4; k++)
         {
             var st = UiKit.MakeIcon(back, UiIcon.Star, 26f, "Corner" + k);
             float sx = (k % 2 == 0 ? -1f : 1f) * (CW * 0.5f - 34f), sy = (k < 2 ? 1f : -1f) * (CH * 0.5f - 52f);
             Anch(st.rectTransform, Mid, Mid, new Vector2(sx, sy), new Vector2(26f, 26f));
-            st.color = new Color(1f, 1f, 1f, 0.35f);
+            st.color = new Color(1f, 1f, 1f, 0.75f);
             st.raycastTarget = false;
         }
-        s.backName = UiKit.MakeLabel(back, "", 24f, Color.white, TextAlignmentOptions.Center, true);
+        s.backName = UiKit.MakeLabel(back, "", 24f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         Anch(s.backName.rectTransform, Mid, Mid, new Vector2(0f, -135f), new Vector2(CW - 30f, 34f));
         s.backName.raycastTarget = false;
         foreach (var g in back.GetComponentsInChildren<Graphic>(true)) g.raycastTarget = false;
@@ -260,14 +261,14 @@ public class WorkerPackTable
         rTagText = UiKit.MakeLabel(rTag.transform, "", 26f, Color.white, TextAlignmentOptions.Center, true);
         AutoSize(rTagText, 14f, 26f);
 
-        rName = Lbl(b, "", 40f, Color.white, TextAlignmentOptions.Left, true, 0f, 56f, 640f, 54f);
+        rName = Lbl(b, "", 40f, UiCandy.Ink, TextAlignmentOptions.Left, true, 0f, 56f, 640f, 54f);
         rGem = Ic(b, UiIcon.Gem, 20f, 138f, 34f);
-        rRarity = Lbl(b, "", 30f, Color.white, TextAlignmentOptions.Left, true, 46f, 118f, 230f, 40f);
+        rRarity = Lbl(b, "", 30f, UiCandy.Ink, TextAlignmentOptions.Left, true, 46f, 118f, 230f, 40f);
         for (int i = 0; i < 5; i++) rStars[i] = Ic(b, UiIcon.Star, 300f + i * 32f, 138f, 28f);
         rRoleIcon = Ic(b, UiIcon.Coin, 20f, 184f, 32f);
-        rRole = Lbl(b, "", 26f, Color.white, TextAlignmentOptions.Left, true, 46f, 166f, 590f, 36f);
+        rRole = Lbl(b, "", 26f, UiCandy.Ink, TextAlignmentOptions.Left, true, 46f, 166f, 590f, 36f);
         rLevel = Lbl(b, "", 24f, Soft, TextAlignmentOptions.Left, false, 0f, 208f, 640f, 32f);
-        rLine = Wrap(b, 25f, Color.white, true, 0f, 246f, 640f, 84f);
+        rLine = Wrap(b, 25f, UiCandy.Ink, true, 0f, 246f, 640f, 84f);
         rPerks = Wrap(b, 21f, Soft, false, 0f, 336f, 640f, 56f);
         rBio = Wrap(b, 20f, Soft, false, 0f, 394f, 640f, 46f);
         rBio.fontStyle = FontStyles.Italic;
@@ -322,6 +323,9 @@ public class WorkerPackTable
         lastMouse = Input.mousePosition;
 
         Color pc = WorkerUi.PackColor(type);
+        chestBodyImg.color = Color.Lerp(Color.white, pc, 0.55f);
+        chestLidImg.color = Color.Lerp(Color.white, pc, 0.9f);
+        packArt.color = new Color(pc.r, pc.g, pc.b, 0.3f);
         root.gameObject.SetActive(true);
         stage = Stage.Deal;
 
@@ -331,9 +335,9 @@ public class WorkerPackTable
             ShowFace(s, false);
             s.hover = 0f;
             s.front.Set(d.defs[i], null, false);
-            s.backFill.color = Color.Lerp(UiKit.Navy, pc, 0.30f);
+            s.backFill.color = Color.Lerp(Color.white, pc, 0.45f);
             s.backTop.color = pc;
-            s.backShine.color = new Color(1f, 1f, 1f, 0.16f);
+            s.backShine.color = new Color(1f, 1f, 1f, 0.5f);
             s.backMedal.color = Color.Lerp(Color.white, pc, 0.35f);
             s.backFrame.color = Color.Lerp(Color.white, pc, 0.55f);
             s.backName.text = WorkerText.Pack(type);
@@ -526,7 +530,7 @@ public class WorkerPackTable
         titleT.text = "Выбери карту";
         subT.text = WorkerText.Pack(type);
         priceT.text = price <= 0 ? "Подарочный пак: бесплатно" : "Цена: " + price + " монет. Спишутся, когда выберешь карту";
-        priceT.color = price <= 0 ? UiKit.Good : Color.white;
+        priceT.color = price <= 0 ? UiCandy.Done : UiCandy.Ink;
         honestT.text = "Все три карты настоящие и брошены по шансам этого пака. Остальные две покажем после выбора.";
         hintT.text = "← →  или  1 2 3: выбрать   ·   Enter или клик: взять карту   ·   Esc: назад (монеты не потрачены)";
     }
@@ -590,7 +594,7 @@ public class WorkerPackTable
         if (why != PackOpenResult.Ok)
         {
             priceT.text = Why(why, m.PackPrice(type));
-            priceT.color = UiKit.Warn;
+            priceT.color = UiCandy.GoldText;
             if (SfxManager.Instance != null) SfxManager.Play("ui", 0.5f, 0.6f);
             return;
         }
@@ -783,6 +787,7 @@ public class WorkerPackTable
             float a = UnityEngine.Random.value * Mathf.PI * 2f, sp = UnityEngine.Random.Range(140f, 420f);
             SpawnSpark(at, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * sp, Color.Lerp(acc, Color.white, UnityEngine.Random.value * 0.5f), UnityEngine.Random.Range(0.6f, 1.2f), UnityEngine.Random.Range(12f, 28f));
         }
+        CandyFx.Confetti(UiCandy.Kit, slots[pick].rt, 14 + 8 * (int)res.rarity);   // конфетти из карты (нет CandyFxKit: без него)
         if (withShake && res.rarity >= WorkerRarity.Rare && onShake != null) onShake();
         if (SfxManager.Instance != null) SfxManager.Play("ui", 0.8f, 0.7f + 0.15f * (int)res.rarity);
     }
@@ -795,16 +800,16 @@ public class WorkerPackTable
         Color acc = WorkerUi.RarityAccent(res.rarity);
 
         if (res.isNew) { rTag.color = WorkerUi.Bad; rTagText.text = "НОВЫЙ!"; }
-        else { rTag.color = new Color32(0x3A, 0x4A, 0x62, 255); rTagText.text = "ДУБЛИКАТ"; }
+        else { rTag.color = WorkerUi.DupTag; rTagText.text = "ДУБЛИКАТ"; }
         if (res.wasFree) rTagText.text += "  ·  ПОДАРОК";
         if (res.GuaranteeTriggered) rTagText.text += "  ·  ГАРАНТИЯ";
 
         rName.text = d.FullName + ", " + d.age;
         rGem.color = acc;
         rRarity.text = WorkerText.Rarity(res.rarity);
-        rRarity.color = acc;
+        rRarity.color = WorkerUi.RarityText(res.rarity);
         for (int i = 0; i < 5; i++) rStars[i].gameObject.SetActive(i <= (int)res.rarity);
-        rRoleIcon.sprite = UiKit.Icon(WorkerUi.RoleIcon(d.role));
+        rRoleIcon.sprite = UiKit.CandyIcon(WorkerUi.RoleIcon(d.role));
         rRole.text = WorkerText.Role(d.role) + " · " + WorkerText.Output(d.role);
         rLevel.text = "Уровень " + st.level + (st.IsMax ? " (максимум)" : "");
 

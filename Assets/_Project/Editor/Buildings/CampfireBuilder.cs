@@ -66,7 +66,7 @@ public class CampfireBuilder : EditorWindow
     Mesh smokeMesh, sparkMesh;
     float R, fr;
 
-    [MenuItem("Tools/BuilderSim/Campfire Builder")]
+    [MenuItem("Tools/BuilderSim/Здания/Campfire Builder", false, 304)]
     static void Open()
     {
         var w = GetWindow<CampfireBuilder>(false, "Костёр");
@@ -647,14 +647,21 @@ public class CampfireBuilder : EditorWindow
         var fc = NewCtx(flames, "S3Flames");
         var fa = fc.Get(MatId.FlameA);
         var fb = fc.Get(MatId.FlameB);
-        fa.Cyl(Vector3.zero, new Vector3(Jf(0.05f), 0.95f, Jf(0.05f)), 0.3f, 0.02f, 6, 0.08f);
-        fb.Cyl(new Vector3(0, 0.02f, 0), new Vector3(0.02f, 0.65f, 0), 0.18f, 0.02f, 6, 0.08f);
+        // мультяшное пламя: «капли» из ступеней (широкое основание, мягкий изгиб, острый кончик), крупные языки как на референсе
+        Teardrop(fa, new Vector3(0f, 0f, 0f), 1.25f, 0.36f, new Vector3(Jf(0.08f), 0f, Jf(0.08f)));
+        Teardrop(fb, new Vector3(0f, 0.02f, 0f), 0.85f, 0.22f, new Vector3(Jf(0.05f), 0f, Jf(0.05f)));
         for (int i = 0; i < 5; i++)
         {
             float a = i * Mathf.PI * 2f / 5f + Jf(0.3f);
-            var b = new Vector3(Mathf.Cos(a) * 0.22f, 0, Mathf.Sin(a) * 0.22f);
-            var t = new Vector3(b.x * 1.5f, Rf(0.45f, 0.7f), b.z * 1.5f);
-            fa.Cyl(b, t, 0.13f, 0.015f, 5, 0.1f);
+            var b = new Vector3(Mathf.Cos(a) * 0.24f, 0.02f, Mathf.Sin(a) * 0.24f);
+            var lean = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 0.20f;
+            Teardrop(fa, b, Rf(0.55f, 0.85f), 0.15f, lean);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            float a = i * Mathf.PI * 2f / 3f + 0.5f + Jf(0.3f);
+            var b = new Vector3(Mathf.Cos(a) * 0.14f, 0.04f, Mathf.Sin(a) * 0.14f);
+            Teardrop(fb, b, Rf(0.35f, 0.55f), 0.09f, new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 0.10f);
         }
         fb.Cyl(new Vector3(0, -0.2f, 0), new Vector3(0, -0.15f, 0), R * 0.6f, R * 0.6f, 9, 0.05f); // жар на золе
         Flush(fc);
@@ -699,6 +706,20 @@ public class CampfireBuilder : EditorWindow
         if (S.decSticks) BuildSticks(c);
         Flush(c);
         PlaceDecor(parent);
+    }
+
+    // «капля» пламени: 5 ступеней вверх, радиус плавно сужается до острого кончика, верх уходит в сторону lean (мягкий изгиб языка)
+    static readonly float[] DropH = { 0f, 0.22f, 0.48f, 0.72f, 0.90f, 1f };
+    static readonly float[] DropR = { 0.92f, 1.00f, 0.80f, 0.50f, 0.20f, 0.02f };
+    void Teardrop(HutMesh m, Vector3 basePos, float height, float radius, Vector3 lean)
+    {
+        for (int i = 0; i + 1 < DropH.Length; i++)
+        {
+            float t0 = DropH[i], t1 = DropH[i + 1];
+            Vector3 p0 = basePos + new Vector3(lean.x * t0 * t0, height * t0, lean.z * t0 * t0);
+            Vector3 p1 = basePos + new Vector3(lean.x * t1 * t1, height * t1, lean.z * t1 * t1);
+            m.Cyl(p0, p1, radius * DropR[i], radius * DropR[i + 1], 7, 0.03f, i == 0);
+        }
     }
 
     void BuildPot(StageCtx c)

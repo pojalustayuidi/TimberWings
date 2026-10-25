@@ -24,7 +24,7 @@ public class CameraPolish : ScriptableWizard
     [Range(-30f, 40f)] public float saturation = 14f;
     [Range(-30f, 40f)] public float contrast = 10f;
 
-    [MenuItem("Tools/BuilderSim/Camera Polish")]
+    [MenuItem("Tools/BuilderSim/Визуал и свет/Camera Polish", false, 810)]
     static void Open()
     {
         var w = DisplayWizard<CameraPolish>("Camera Polish", "Применить");

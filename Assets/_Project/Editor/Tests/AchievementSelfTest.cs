@@ -7,7 +7,7 @@ using UnityEngine;
 
 public static class AchievementSelfTest
 {
-    [MenuItem("Tools/BuilderSim/Достижения/Проверить таблицу и бюджет наград")]
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Проверки/Достижения: таблица и бюджет наград", false, 1014)]
     public static void Run()
     {
         var ids = new HashSet<string>();

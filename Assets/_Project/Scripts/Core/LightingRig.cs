@@ -5,13 +5,16 @@
 //  1. Солнце «золотой час»: Directional, угол ~38°, цвет #FFD7A0, мягкие тени, дальность теней под размер острова.
 //     Если в сцене уже есть Directional Light (RenderSettings.sun или самый яркий), берёт его, второй не создаёт.
 //  2. Трёхцветный ambient (Trilight): небо холодное голубое, экватор тёплый, земля зелёно-коричневая. Лёгкий туман.
-//     Цвет фона камеры (MapBorder кладёт туда fogColor) подтягивается к новому туману, чтобы за краем карты не было шва.
+//     Цвет фона камеры (FloatingIsland.FitGround кладёт туда fogColor) подтягивается к новому туману, чтобы за краем карты не было шва.
 //  3. Глобальный Volume «Island Light» (Bloom слабый с порогом выше 1, Vignette, Color Adjustments, Tonemapping).
 //     Приоритет 15: выше общего «Vibe Grade» (10), ниже лесного «Vibe Forest» (20), поэтому лес по-прежнему блендится поверх.
 //  4. Качество берёт из GameSettings.LightQuality и пересчитывает сразу по событию GameSettings.Changed:
 //       Низкое  : без Bloom (даже в лесу), тени солнца жёсткие и короче, у фонарей и других точечных/прожекторных нет реальных теней
 //       Среднее : слабый Bloom, мягкие тени солнца, у фонарей жёсткие тени
 //       Высокое : Bloom чуть сильнее, тени дальше, у фонарей мягкие тени
+//
+// Остров v2 (этап 3): если в ассете Cloud Candy включён useBudgetShadowDistance, дальность теней берётся из профиля бюджета
+// (Mobile Low / Mobile High / ПК = качество света Низкое / Среднее / Высокое), а не считается по радиусу острова.
 //
 // Заметки по URP-ассету (проверь один раз): Bloom с порогом выше 1 виден только при включённом HDR;
 // мягкие тени и тени дополнительных источников света должны быть разрешены в URP Asset (Lighting > Additional Lights > Cast Shadows).
@@ -69,6 +72,14 @@ public class LightingRig : MonoBehaviour
 
     static Preset GetPreset(LightQualityLevel q)
     {
+        // Cloud Candy: три качества лежат в ассете стиля
+        var st = CloudCandyStyle.Current;
+        if (st != null)
+        {
+            var c = st.GetQuality(q);
+            return new Preset { bloomOn = c.bloomOn, bloom = c.bloom, bloomThreshold = c.bloomThreshold, bloomScatter = c.bloomScatter,
+                vignette = c.vignette, shadowDistMul = c.shadowDistMul, sun = c.sun, lantern = c.lantern, otherLightShadows = c.otherLightShadows };
+        }
         switch (q)
         {
             case LightQualityLevel.Low:
@@ -149,8 +160,13 @@ public class LightingRig : MonoBehaviour
         if (capProfile != null) Destroy(capProfile);
     }
 
+    int styleRev = -1;
+
     void Update()
     {
+        // правка стиля в инспекторе (в том числе в Play Mode): пересчитываем сразу
+        if (styleRev != CloudCandyStyle.Revision) { styleRev = CloudCandyStyle.Revision; Apply(); }
+
         // фонари могут появиться позже (стройка): подхватываем их с текущим качеством
         if (Time.unscaledTime < nextRescan) return;
         nextRescan = Time.unscaledTime + Mathf.Max(0.5f, lightRescanInterval);
@@ -209,6 +225,7 @@ public class LightingRig : MonoBehaviour
 
         ApplySun(p);
         ApplyEnvironment();
+        ApplyGrade();
         ApplyVolume(p);
         ApplyPointLights(p);
         EnsurePostProcessing();
@@ -229,13 +246,18 @@ public class LightingRig : MonoBehaviour
         sun.shadows = p.sun;
         if (!dayNightDriven)   // при смене суток цвет, силу и поворот солнца считает DayNightCycle каждый кадр
         {
-            sun.color = sunColor;
-            sun.intensity = sunIntensity;
-            sun.shadowStrength = sunShadowStrength;
+            var cs = CloudCandyStyle.Current;
+            sun.color = cs != null ? cs.sunNoon : sunColor;
+            sun.intensity = cs != null ? cs.sunMaxIntensity : sunIntensity;
+            sun.shadowStrength = cs != null ? cs.sunShadowStrength : sunShadowStrength;
             if (controlSunTransform) sun.transform.rotation = Quaternion.Euler(sunPitch, sunYaw, 0f);
         }
 
         float dist = Mathf.Clamp(IslandRadius() * shadowDistanceFactor, shadowDistanceMin, shadowDistanceMax) * p.shadowDistMul;
+        // Остров v2, этап 3: дальность теней из профиля бюджета (Mobile Low / Mobile High / ПК) в ассете Cloud Candy
+        var budgetStyle = CloudCandyStyle.Current;
+        if (budgetStyle != null && budgetStyle.useBudgetShadowDistance)
+            dist = Mathf.Max(10f, budgetStyle.GetBudget(GameSettings.LightQuality).shadowDistance);
         SetShadowDistance(dist);
     }
 
@@ -253,11 +275,11 @@ public class LightingRig : MonoBehaviour
         return best;
     }
 
-    // радиус острова: граница карты (MapBorder) -> рельеф (Terrain) -> запасное значение
+    // радиус острова: контур FloatingIsland -> рельеф (Terrain) -> запасное значение
     static float IslandRadius()
     {
-        MapBorder mb = MapBorder.Instance != null ? MapBorder.Instance : FindFirstObjectByType<MapBorder>();
-        if (mb != null) return Mathf.Max(mb.halfSize.x, mb.halfSize.y);
+        IslandSource fi = IslandSource.Find();
+        if (fi != null) return fi.Radius;
 
         Terrain t = Terrain.activeTerrain;
         if (t != null && t.terrainData != null) return Mathf.Max(t.terrainData.size.x, t.terrainData.size.z) * 0.5f;
@@ -281,21 +303,40 @@ public class LightingRig : MonoBehaviour
     {
         if (dayNightDriven) return;   // ambient, туман и фон камеры ведёт DayNightCycle
 
+        var cs = CloudCandyStyle.Current;
+        Color aSky = cs != null ? cs.ambientDay.sky : ambientSky;
+        Color aEq = cs != null ? cs.ambientDay.equator : ambientEquator;
+        Color aGr = cs != null ? cs.ambientDay.ground : ambientGround;
+        Color fCol = cs != null ? cs.fogDay : fogColor;
+
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = ambientSky * ambientScale;
-        RenderSettings.ambientEquatorColor = ambientEquator * ambientScale;
-        RenderSettings.ambientGroundColor = ambientGround * ambientScale;
+        RenderSettings.ambientSkyColor = aSky * ambientScale;
+        RenderSettings.ambientEquatorColor = aEq * ambientScale;
+        RenderSettings.ambientGroundColor = aGr * ambientScale;
 
         RenderSettings.fog = true;
-        RenderSettings.fogMode = FogMode.ExponentialSquared;
-        RenderSettings.fogColor = fogColor;
-        RenderSettings.fogDensity = fogDensity;
+        RenderSettings.fogMode = cs != null ? cs.fogMode : FogMode.ExponentialSquared;
+        RenderSettings.fogColor = fCol;
+        RenderSettings.fogDensity = cs != null ? cs.fogDensityDay : fogDensity;
 
         if (syncCameraBackground)
         {
             Camera cam = Camera.main;
-            if (cam != null && cam.clearFlags == CameraClearFlags.SolidColor) cam.backgroundColor = fogColor;
+            if (cam != null && cam.clearFlags == CameraClearFlags.SolidColor) cam.backgroundColor = fCol;
         }
+    }
+
+    // Общий грейд дня. Со стилем Cloud Candy значения из ассета, без него прежние (откат)
+    void ApplyGrade()
+    {
+        var cs = CloudCandyStyle.Current;
+        colorAdj.postExposure.Override(cs != null ? cs.postExposure : 0.10f);
+        colorAdj.contrast.Override(cs != null ? cs.contrast : 10f);
+        colorAdj.saturation.Override(cs != null ? cs.saturation : 10f);
+        colorAdj.colorFilter.Override(cs != null ? cs.colorFilter : new Color(1f, 0.95f, 0.88f));
+        vignette.color.Override(cs != null ? cs.vignetteColor : Color.black);
+        vignette.smoothness.Override(cs != null ? cs.vignetteSmoothness : 0.45f);
+        gradeBloom.tint.Override(cs != null ? cs.bloomTint : new Color(1f, 0.92f, 0.80f));
     }
 
     void ApplyVolume(Preset p)

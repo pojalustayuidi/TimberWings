@@ -61,7 +61,7 @@ public class BuilderSimHud : ScriptableWizard
     Sprite spTent, spHut, spMarket, spQuest, spCamp, spBridge, spForest, spGeneric;
     Material outlineMat;
 
-    [MenuItem("Tools/BuilderSim/Build HUD")]
+    [MenuItem("Tools/BuilderSim/UI/Build HUD", false, 900)]
     static void Open()
     {
         var w = DisplayWizard<BuilderSimHud>("BuilderSim HUD", "Построить");

@@ -12,7 +12,7 @@ using UnityEngine;
 
 public static class QuestSkipTools
 {
-    const string Root = "Tools/BuilderSim/Тест квестов/";
+    const string Root = "Tools/BuilderSim/Отладка и тесты/Тест квестов/";
 
     static bool InPlay()
     {
@@ -21,7 +21,7 @@ public static class QuestSkipTools
         return false;
     }
 
-    [MenuItem(Root + "Пропустить вступление")]
+    [MenuItem(Root + "Пропустить вступление", false, 1030)]
     static void SkipIntro()
     {
         if (!InPlay()) return;
@@ -30,7 +30,7 @@ public static class QuestSkipTools
         intro.Skip();
     }
 
-    [MenuItem(Root + "Пропустить текущую главу %#k")]
+    [MenuItem(Root + "Пропустить текущую главу %#k", false, 1031)]
     static void SkipChapter()
     {
         if (!InPlay()) return;
@@ -38,7 +38,7 @@ public static class QuestSkipTools
         StoryFlow.Instance.DebugSkipChapter();
     }
 
-    [MenuItem(Root + "Пропустить все главы")]
+    [MenuItem(Root + "Пропустить все главы", false, 1032)]
     static void SkipAll()
     {
         if (!InPlay()) return;
@@ -46,7 +46,7 @@ public static class QuestSkipTools
         StoryFlow.Instance.DebugSkipAll();
     }
 
-    [MenuItem(Root + "Открыть пилораму %#w")]
+    [MenuItem(Root + "Открыть пилораму %#w", false, 1033)]
     static void OpenSawmill()
     {
         if (!InPlay()) return;
@@ -73,7 +73,7 @@ public static class QuestSkipTools
         PlankWorkshopWindow.Toggle(ws);
     }
 
-    [MenuItem(Root + "+10 брёвен")]
+    [MenuItem(Root + "+10 брёвен", false, 1034)]
     static void Logs()
     {
         if (!InPlay()) return;
@@ -81,7 +81,7 @@ public static class QuestSkipTools
         if (inv != null) inv.AddWood(10);
     }
 
-    [MenuItem(Root + "+10 досок")]
+    [MenuItem(Root + "+10 досок", false, 1035)]
     static void Planks()
     {
         if (!InPlay()) return;
@@ -89,7 +89,7 @@ public static class QuestSkipTools
         if (inv != null) inv.AddPlanks(10);
     }
 
-    [MenuItem(Root + "Открыть всё сразу")]
+    [MenuItem(Root + "Открыть всё сразу", false, 1036)]
     static void Everything()
     {
         if (!InPlay()) return;

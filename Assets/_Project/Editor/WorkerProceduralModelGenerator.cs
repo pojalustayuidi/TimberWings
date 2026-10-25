@@ -190,7 +190,7 @@ namespace TimberWings.EditorTools
             UnityEngine.Object.DestroyImmediate(root);
         }
 
-        [MenuItem("Tools/BuilderSim/Рабочие/Сгенерировать 27 процедурных 3D-моделей")]
+        [MenuItem("Tools/BuilderSim/Рабочие/Сгенерировать 27 процедурных 3D-моделей", false, 510)]
         public static void GenerateAll()
         {
             Directory.CreateDirectory(Prefabs);

@@ -13,7 +13,7 @@ using UnityEngine;
 [InitializeOnLoad]
 public static class UpgradeTestTools
 {
-    const string Root = "Tools/BuilderSim/Тест прокачки/";
+    const string Root = "Tools/BuilderSim/Отладка и тесты/Тест прокачки/";
     const string AutoKey = "BuilderSim.UpgradeTest.AutoOpen";
 
     static double waitUntil;
@@ -60,7 +60,7 @@ public static class UpgradeTestTools
     }
 
     // ---------------------------------------------------------------- пункты меню
-    [MenuItem(Root + "Открыть окно прокачки %#u")]
+    [MenuItem(Root + "Открыть окно прокачки %#u", false, 1040)]
     static void OpenWindow()
     {
         if (!InPlay()) return;
@@ -72,7 +72,7 @@ public static class UpgradeTestTools
         w.OpenFor(-1);
     }
 
-    [MenuItem(Root + "+1000 монет %#m")]
+    [MenuItem(Root + "+1000 монет %#m", false, 1041)]
     static void Coins1000() { if (InPlay()) AddCoins(1000); }
 
     static void AddCoins(int n)
@@ -84,17 +84,17 @@ public static class UpgradeTestTools
         if (st != null) st.coins = inv.coinsCount;
     }
 
-    [MenuItem(Root + "+1 свободное очко %#p")]
+    [MenuItem(Root + "+1 свободное очко %#p", false, 1042)]
     static void FreePoint()
     {
         if (!InPlay()) return;
         if (PlayerUpgrades.Instance != null) PlayerUpgrades.Instance.DebugAddFreePoint();
     }
 
-    [MenuItem(Root + "Уровень игрока/3")] static void Lvl3() { if (InPlay()) SetLevel(3); }
-    [MenuItem(Root + "Уровень игрока/5")] static void Lvl5() { if (InPlay()) SetLevel(5); }
-    [MenuItem(Root + "Уровень игрока/7")] static void Lvl7() { if (InPlay()) SetLevel(7); }
-    [MenuItem(Root + "Уровень игрока/10 (максимум)")] static void Lvl10() { if (InPlay()) SetLevel(GameBalance.MaxLevel); }
+    [MenuItem(Root + "Уровень игрока/3", false, 1043)] static void Lvl3() { if (InPlay()) SetLevel(3); }
+    [MenuItem(Root + "Уровень игрока/5", false, 1044)] static void Lvl5() { if (InPlay()) SetLevel(5); }
+    [MenuItem(Root + "Уровень игрока/7", false, 1045)] static void Lvl7() { if (InPlay()) SetLevel(7); }
+    [MenuItem(Root + "Уровень игрока/10 (максимум)", false, 1046)] static void Lvl10() { if (InPlay()) SetLevel(GameBalance.MaxLevel); }
 
     static void SetLevel(int level)
     {
@@ -106,21 +106,21 @@ public static class UpgradeTestTools
         st.RefreshUI();
     }
 
-    [MenuItem(Root + "Всё на максимум")]
+    [MenuItem(Root + "Всё на максимум", false, 1047)]
     static void MaxAll()
     {
         if (!InPlay()) return;
         if (PlayerUpgrades.Instance != null) PlayerUpgrades.Instance.DebugMaxAll();
     }
 
-    [MenuItem(Root + "Сбросить прокачку и таланты")]
+    [MenuItem(Root + "Сбросить прокачку и таланты", false, 1048)]
     static void Reset()
     {
         if (!InPlay()) return;
         if (PlayerUpgrades.Instance != null) PlayerUpgrades.Instance.DebugReset();
     }
 
-    [MenuItem(Root + "Открывать при старте")]
+    [MenuItem(Root + "Открывать при старте", false, 1049)]
     static void ToggleAuto() { EditorPrefs.SetBool(AutoKey, !EditorPrefs.GetBool(AutoKey, false)); }
 
     [MenuItem(Root + "Открывать при старте", true)]

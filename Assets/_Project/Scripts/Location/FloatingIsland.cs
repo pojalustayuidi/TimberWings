@@ -1,6 +1,6 @@
 // Assets/_Project/Scripts/Location/FloatingIsland.cs (НЕ в Editor)
-// Парящий остров. Вешается на тот же объект, что и MapBorder (стиль FloatingIsland).
-// Контур берётся у MapBorder (PathPoints или прямоугольник), поэтому форму острова по-прежнему двигаешь точками.
+// Парящий остров и граница карты в одном компоненте (ворота, стена прохода, контур: FloatingIsland.Border.cs).
+// Контур берётся из точек PathPoints под этим объектом (без них запасной прямоугольник), форму острова двигаешь точками.
 //
 // Что собирает кнопка «Собрать остров» (все части лежат под объектом "Island"):
 //   Земля : если в сцене есть Terrain от LocationBuilder, он ОСТАЁТСЯ поверхностью острова (холмы, река, тропы, площадки целы).
@@ -9,7 +9,7 @@
 //   Cliff : рваный обрыв с травяной кромкой, землёй и скалой (цвета в вершинах, шейдер Project/IslandRock).
 //           Верхняя кромка идёт по высоте Terrain, поэтому холмы у края не обрезаются.
 // Старая плоскость Ground_Auto скрывается (рендерер выключается, коллайдер остаётся).
-// Невидимые стены MapBorder пересобираются по этому же контуру, поэтому у края нельзя встать «в воздухе».
+// Стена у прохода к мосту пересобирается по этому же контуру, поэтому там нельзя встать «в воздухе».
 // Низ скалы (задача 3) цепляется к bottomRing.
 // Силуэт: крупные бухты и мысы (низкочастотный шум, не трогают зону у GatePoint и защищённые места: тропы, река, площадки).
 // Юбка: слои породы цветами вершин, уступы-полки на стыках слоёв, осыпь камней на полках.
@@ -21,8 +21,7 @@ using UnityEditor.SceneManagement;
 #endif
 
 [DisallowMultipleComponent]
-[RequireComponent(typeof(MapBorder))]
-public class FloatingIsland : MonoBehaviour
+public partial class FloatingIsland : MonoBehaviour
 {
     public const string RootName = "Island";
 
@@ -181,15 +180,8 @@ public class FloatingIsland : MonoBehaviour
     // Нижнее кольцо обрыва (мировые координаты), от него строится скала снизу
     [HideInInspector] public Vector3[] bottomRing = new Vector3[0];
 
-    MapBorder border;
-
-    public MapBorder Border
-    {
-        get { if (border == null) border = GetComponent<MapBorder>(); return border; }
-    }
-
-    public List<Vector2> Outline { get { return Border.GetOutline(); } }
-    public float GroundY { get { return Border.groundY; } }
+    public List<Vector2> Outline { get { return GetOutline(); } }
+    public float GroundY { get { return groundY; } }
 
     // Находится ли точка внутри исходного контура острова (плоская проверка, высота игнорируется)
     public bool Contains(Vector3 p)
@@ -211,10 +203,10 @@ public class FloatingIsland : MonoBehaviour
 
     // ---------- контур ----------
 
-    // Сглаженный контур края (x, z) против часовой стрелки. Детерминированный: MapBorder строит по нему стены.
+    // Сглаженный контур края (x, z) против часовой стрелки. Детерминированный: по нему строится стена прохода.
     public List<Vector2> GetEdgeLoop()
     {
-        var src = new List<Vector2>(Border.GetOutline());
+        var src = GetOutline();
         if (src.Count < 3) return src;
         if (SignedArea(src) < 0f) src.Reverse();
 
@@ -331,7 +323,7 @@ public class FloatingIsland : MonoBehaviour
         if (protReady) return;
         protReady = true;
         protCellCount = 0; protObjectCount = 0; protSkippedBig = 0;
-        var pts = Border.GetOutline();
+        var pts = GetOutline();
         if (pts.Count < 3) { protCells = null; return; }
         Vector2 mn = pts[0], mx = pts[0];
         foreach (var p in pts) { mn = Vector2.Min(mn, p); mx = Vector2.Max(mx, p); }
@@ -428,7 +420,7 @@ public class FloatingIsland : MonoBehaviour
         var d = new float[m];
         if (!bays || m < 8 || (bayDepth <= 0f && capeLength <= 0f)) return d;
         EnsureProtect();
-        Vector2? gate = Border.GetGatePosition();
+        Vector2? gate = GetGatePosition();
 
         var outs = new Vector2[m];
         for (int j = 0; j < m; j++)
@@ -493,7 +485,7 @@ public class FloatingIsland : MonoBehaviour
     float[] GateFade(List<Vector2> loop)
     {
         var k = new float[loop.Count];
-        var gate = Border.GetGatePosition();
+        var gate = GetGatePosition();
         for (int i = 0; i < k.Length; i++)
         {
             if (!gate.HasValue) { k[i] = 1f; continue; }
@@ -960,7 +952,7 @@ public class FloatingIsland : MonoBehaviour
         var v = new List<Vector3>(); var c = new List<Color>(); var t = new List<int>();
         int m = loop.Count;
         float step = Mathf.Max(1.5f, 4.5f - 3f * dressDensity);
-        Vector2? gate = Border.GetGatePosition();
+        Vector2? gate = GetGatePosition();
         Color bushC = new Color(0.27f, 0.55f, 0.22f), pineC = new Color(0.18f, 0.42f, 0.24f);
 
         float acc = 0f, next = 0f;
@@ -972,7 +964,7 @@ public class FloatingIsland : MonoBehaviour
 
             Vector2 p = loop[j];
             if (Mathf.PerlinNoise(p.x * 0.05f + seed * 2.3f, p.y * 0.05f + seed * 0.4f) < 0.42f) continue;   // пустые места между кластерами
-            if (gate.HasValue && (p - gate.Value).magnitude < Border.gateWidth * 0.5f + 3f) continue;       // проход к мосту свободен
+            if (gate.HasValue && (p - gate.Value).magnitude < gateWidth * 0.5f + 3f) continue;       // проход к мосту свободен
 
             Vector2 dir = (loop[(j + 1) % m] - loop[(j - 1 + m) % m]).normalized;
             Vector2 outN = new Vector2(dir.y, -dir.x);
@@ -1264,8 +1256,8 @@ public class FloatingIsland : MonoBehaviour
         const float margin = 2f;
         float x0 = tp.x + margin, x1 = tp.x + sz.x - margin, z0 = tp.z + margin, z1 = tp.z + sz.z - margin;
 
-        var pr = Border.transform.Find("PathPoints");
-        if (Border.useCustomPath && pr != null && pr.childCount >= 3)
+        var pr = transform.Find("PathPoints");
+        if (pr != null && pr.childCount >= 3)
         {
             for (int i = 0; i < pr.childCount; i++)
             {
@@ -1275,7 +1267,7 @@ public class FloatingIsland : MonoBehaviour
                 p.x = Mathf.Clamp(p.x, x0, x1); p.z = Mathf.Clamp(p.z, z0, z1);
                 c.position = p;
             }
-            var gp = Border.transform.Find("GatePoint");
+            var gp = transform.Find("GatePoint");
             if (gp != null)
             {
                 Undo.RecordObject(gp, "Fit island outline");
@@ -1286,9 +1278,9 @@ public class FloatingIsland : MonoBehaviour
         }
         else
         {
-            Undo.RecordObject(Border, "Fit island outline");
-            Border.center = new Vector2((x0 + x1) * 0.5f, (z0 + z1) * 0.5f);
-            Border.halfSize = new Vector2((x1 - x0) * 0.5f, (z1 - z0) * 0.5f);
+            Undo.RecordObject(this, "Fit island outline");
+            center = new Vector2((x0 + x1) * 0.5f, (z0 + z1) * 0.5f);
+            halfSize = new Vector2((x1 - x0) * 0.5f, (z1 - z0) * 0.5f);
         }
         EditorSceneManager.MarkSceneDirty(gameObject.scene);
         Debug.Log("FloatingIsland: контур вписан в Terrain с отступом " + margin + " м. Теперь жми «Собрать остров».");
@@ -1324,13 +1316,12 @@ public class FloatingIsland : MonoBehaviour
         float mx = (x0 + x1) * 0.5f, mz = (z0 + z1) * 0.5f;
         float r = Mathf.Min(8f, Mathf.Min(x1 - x0, z1 - z0) * 0.15f);
 
-        Undo.RecordObject(Border, "Outline around terrain");
-        var pr = Border.transform.Find("PathPoints");
+        var pr = transform.Find("PathPoints");
         if (pr == null)
         {
             var go = new GameObject("PathPoints");
             Undo.RegisterCreatedObjectUndo(go, "Outline around terrain");
-            go.transform.SetParent(Border.transform, false);
+            go.transform.SetParent(transform, false);
             pr = go.transform;
         }
         for (int i = pr.childCount - 1; i >= 0; i--) Undo.DestroyObjectImmediate(pr.GetChild(i).gameObject);
@@ -1349,14 +1340,13 @@ public class FloatingIsland : MonoBehaviour
             go.transform.SetParent(pr, true);
             go.transform.position = new Vector3(v[i].x, GroundY, v[i].y);
         }
-        Border.useCustomPath = true;
 
         // ровный прямоугольник выглядит как «обрез»: делаем край неровным, но не глубже отступа от Terrain
         Undo.RecordObject(this, "Outline around terrain");
         edgeNoise = Mathf.Max(edgeNoise, Mathf.Min(2.2f, m * 0.7f));
         EditorUtility.SetDirty(this);
 
-        var gp = Border.transform.Find("GatePoint");
+        var gp = transform.Find("GatePoint");
         if (gp != null)
         {
             Undo.RecordObject(gp, "Outline around terrain");
@@ -1375,7 +1365,7 @@ public class FloatingIsland : MonoBehaviour
     void ReportOrphans(List<Vector2> loop, Terrain t)
     {
         if (!bays) return;
-        var src = Border.GetOutline();
+        var src = GetOutline();
         if (src.Count < 3) return;
         int trees = 0;
         if (t != null && t.terrainData != null)
@@ -1416,7 +1406,16 @@ public class FloatingIsland : MonoBehaviour
         EditorUtility.SetDirty(this);
         Debug.Log("FloatingIsland: пресет «силуэт как на референсе» применён. Жми «Собрать остров».");
     }
-
+    // Задача 1: отвесный обрыв, 3 тона породы по вертикали, узкие уступы. Ровную кромку даёт рельеф (rimFlatWidth)
+    public void ApplyCliffPreset()
+    {
+        Undo.RecordObject(this, "Cliff preset");
+        cliffDepth = 10f; cliffTuck = 0.8f; cliffRoughness = 0.7f; lipOverlap = 0.6f; lipBulge = 0.15f;
+        rockLayers = 3; ledgeWidth = 1f; ledgeAmount = 0.35f; ledgeScale = 0.06f; strataWobble = 0.7f; screeDensity = 0.5f;
+        depth = Mathf.Max(depth, cliffDepth + 16f);   // подбрюшье не короче прежнего
+        EditorUtility.SetDirty(this);
+        Debug.Log("FloatingIsland: пресет «отвесный обрыв» применён. Жми «Собрать остров».");
+    }
     static string GetPath(Transform t)
     {
         string n = t.name;
@@ -1547,7 +1546,7 @@ public class FloatingIsland : MonoBehaviour
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var pts = Outline;
-        if (pts.Count < 3) { Debug.LogWarning("FloatingIsland: у MapBorder меньше 3 точек контура"); return; }
+        if (pts.Count < 3) { Debug.LogWarning("FloatingIsland: меньше 3 точек контура"); return; }
 
         // что было у земли: берём материал до того, как скроем плоскость
         Terrain groundTerrain;
@@ -1558,7 +1557,7 @@ public class FloatingIsland : MonoBehaviour
         Renderer planeR = oldPlane != null ? oldPlane.GetComponent<Renderer>() : null;
         bool useTerrain = groundTerrain != null;
         Material top = topMaterial != null ? topMaterial : (groundR != null ? groundR.sharedMaterial : (planeR != null ? planeR.sharedMaterial : null));
-        // UV «как у старой плоскости» верны только для Ground_Auto (его растягивает MapBorder.FitGround)
+        // UV «как у старой плоскости» верны только для Ground_Auto (его растягивает FitGround)
         bool matchGround = !useTerrain && topMaterial == null && groundR != null && groundGo.name == "Ground_Auto";
         if (groundGo == null)
             Debug.Log("FloatingIsland: старая земля не найдена (ни Ground_Auto, ни Terrain, ни поля Ground Object). Остров получит собственную поверхность с коллайдером.");
@@ -1568,10 +1567,10 @@ public class FloatingIsland : MonoBehaviour
         var root = EnsureRoot();
         root.localPosition = Vector3.zero; root.localRotation = Quaternion.identity; root.localScale = Vector3.one;
 
-        // UV как у старой плоскости: она растянута по границам с запасом OuterMargin (см. MapBorder.FitGround)
+        // UV как у старой плоскости: она растянута по границам с запасом OuterMargin (см. FitGround)
         Vector2 mn = pts[0], mx = pts[0];
         foreach (var p in pts) { mn = Vector2.Min(mn, p); mx = Vector2.Max(mx, p); }
-        float ext = Border.OuterMargin;
+        float ext = OuterMargin;
         Vector2 uvMin = mn - Vector2.one * ext;
         Vector2 uvSize = (mx - mn) + Vector2.one * ext * 2f;
 
@@ -1664,8 +1663,8 @@ public class FloatingIsland : MonoBehaviour
         cloudShader = Shader.Find("Project/CloudSea");
         if (cloudShader == null) Debug.LogWarning("FloatingIsland: не найден шейдер Project/CloudSea (файл CloudSea.shader рядом со скриптом): моря облаков не будет.");
 
-        // стены по этому же контуру, земля по границам (MapBorder сам берёт GetEdgeLoop)
-        Border.Generate();
+        // стена прохода по этому же контуру, земля по границам
+        BuildWalls();
 
         // декор края: камни, кусты, ёлки (меш без коллайдеров)
         if (dressEdge && useTerrain && dressDensity > 0.01f)
@@ -1693,11 +1692,6 @@ public class FloatingIsland : MonoBehaviour
             var flags = tf.GetComponent<RiverBob>() != null ? (StaticEditorFlags)0 : (StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
             GameObjectUtility.SetStaticEditorFlags(tf.gameObject, flags);
         }
-        // водопад: рот реки, подрезка воды по контуру, струя и брызги (компонент добавляем сами, если его нет)
-        var wf = GetComponent<IslandWaterfall>();
-        if (wf == null) { wf = gameObject.AddComponent<IslandWaterfall>(); wf.runoutUsesRiverMaterial = false; }
-        if (wf.enabledFall && wf.PrepareMouth()) wf.BuildFall(root); else wf.RemoveFall();
-
         ReportOrphans(loop, useTerrain ? groundTerrain : null);
         sw.Stop();
         Debug.Log("FloatingIsland: остров собран за " + sw.ElapsedMilliseconds + " мс. Terrain " + (useTerrain ? "оставлен и обрезан" : "не найден, построен плоский Top") + ".");
@@ -1725,6 +1719,16 @@ public class FloatingIsland : MonoBehaviour
             Vector2 a = loop[i], b = loop[(i + 1) % loop.Count];
             Gizmos.DrawLine(new Vector3(a.x, GroundY + 0.15f, a.y), new Vector3(b.x, GroundY + 0.15f, b.y));
         }
+
+        Gizmos.color = new Color(1f, 0.7f, 0.2f, 1f);
+        foreach (var p in GetOutline()) Gizmos.DrawSphere(new Vector3(p.x, GroundY + 0.3f, p.y), 0.6f);
+
+        var gate = GetGatePosition();
+        if (gate.HasValue)
+        {
+            Gizmos.color = new Color(1f, 0.3f, 0.3f, 1f);
+            Gizmos.DrawWireSphere(new Vector3(gate.Value.x, GroundY + 0.3f, gate.Value.y), gateWidth * 0.5f);
+        }
     }
 }
 
@@ -1737,8 +1741,6 @@ public class FloatingIslandEditor : Editor
         DrawDefaultInspector();
         var f = (FloatingIsland)target;
         GUILayout.Space(8);
-        if (f.Border.style != MapBorder.Style.FloatingIsland)
-            EditorGUILayout.HelpBox("У MapBorder стиль не FloatingIsland: поставь его или жми Tools/BuilderSim/Convert Border To Floating Island.", MessageType.Warning);
         if (GUILayout.Button("Силуэт как на референсе (бухты, слои, уступы)")) f.ApplyReferenceShapePreset();
         if (GUILayout.Button("Естественный край (пресет настроек)")) f.ApplyNaturalEdgePreset();
         if (GUILayout.Button("Контур вокруг Terrain (шире на Margin Around Terrain)")) f.OutlineAroundTerrain();
@@ -1747,30 +1749,30 @@ public class FloatingIslandEditor : Editor
         if (GUILayout.Button("Диагностика (печатает в Console)")) f.Diagnose();
         if (GUILayout.Button("Удалить остров")) { f.Clear(); f.RestoreGround(); }
         if (GUILayout.Button("Вернуть землю (рельеф, тропы, без дырок)")) f.RestoreGround();
-        EditorGUILayout.HelpBox("Двигай точки PathPoints у MapBorder и жми «Собрать остров»: сборка заодно пересобирает стены.", MessageType.None);
+        GUILayout.Space(4);
+        if (GUILayout.Button("Добавить точку контура (в центр сцены)")) f.AddPoint();
+        if (GUILayout.Button("Точка прохода к мосту")) f.AddGatePoint();
+        if (GUILayout.Button("Выключить старые стены Boundary (не пускают за край)")) { int n = f.DisableLegacyBoundary(); f.DisableHiddenGroundCollider(); Debug.Log("FloatingIsland: выключено старых стен: " + n); EditorSceneManager.MarkSceneDirty(f.gameObject.scene); }
+        EditorGUILayout.HelpBox("Двигай точки PathPoints (Ctrl+D на точке: копия встанет следующей по порядку) и жми «Собрать остров»: сборка заодно пересобирает стену прохода. Это и есть граница карты, отдельного MapBorder нет.", MessageType.None);
     }
 }
 
 public static class FloatingIslandMenu
 {
-    [MenuItem("Tools/BuilderSim/Create Floating Island")]
+    [MenuItem("Tools/BuilderSim/Локация/Create Floating Island", false, 101)]
     static void Create()
     {
-        var b = Object.FindFirstObjectByType<MapBorder>();
-        if (b == null)
+        var f = Object.FindFirstObjectByType<FloatingIsland>();
+        if (f == null)
         {
-            var go = new GameObject("MapBorder");
-            b = go.AddComponent<MapBorder>();
+            var go = new GameObject("FloatingIsland");
             Undo.RegisterCreatedObjectUndo(go, "Create Floating Island");
+            f = go.AddComponent<FloatingIsland>();
             var pl = Object.FindFirstObjectByType<PlayerMovement>();
-            if (pl != null) { b.center = new Vector2(pl.transform.position.x, pl.transform.position.z); b.groundY = pl.transform.position.y; }
-            b.halfSize = new Vector2(35f, 35f);
+            if (pl != null) { f.center = new Vector2(pl.transform.position.x, pl.transform.position.z); f.groundY = pl.transform.position.y; }
+            f.halfSize = new Vector2(35f, 35f);
         }
-        Undo.RecordObject(b, "Create Floating Island");
-        b.style = MapBorder.Style.FloatingIsland;
-        var f = b.GetComponent<FloatingIsland>();
-        if (f == null) f = Undo.AddComponent<FloatingIsland>(b.gameObject);
-        Selection.activeGameObject = b.gameObject;
+        Selection.activeGameObject = f.gameObject;
         f.Build();
     }
 }

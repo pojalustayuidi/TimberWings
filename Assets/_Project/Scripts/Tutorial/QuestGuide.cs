@@ -1,11 +1,11 @@
 // Assets/_Project/Scripts/Tutorial/QuestGuide.cs (НЕ в Editor)
-// «Если человек тупит»: следит, идёт ли игрок к цели, и ведёт его мягко, без экранов с текстом (GDD 10.4, столп «Читаемость»).
+// «Если человек тупит» (вид Candy): следит, идёт ли игрок к цели, и ведёт его мягко, без экранов с текстом (GDD 10.4, столп «Читаемость»).
 // Цель берётся из QuestEdgeArrow.Target, ставится она так же, как раньше (IntroFlow, StoryFlow).
 //
 // Прогрессом считается: поменялся текст цели (счётчик 3/8, новый шаг), поменялись бревна или доски в рюкзаке,
 // крупный скачок монет, игрок стал ближе к цели на 3 м. Пока идёт разговор или игра на паузе, таймер стоит.
 //   нет прогресса hintAfter (20 с)  -> плашка внизу с подсказкой именно под эту цель (+ взгляд камеры к цели, если она за кадром)
-//   нет прогресса trailAfter (40 с) -> ещё и золотая дорожка из шевронов по земле от героя к цели
+//   нет прогресса trailAfter (40 с) -> ещё и лимонная дорожка из шевронов по земле от героя к цели
 //   дальше раз в repeatEvery (30 с) повтор дорожки
 //   клавиша H в любой момент: плашка + дорожка сразу
 // Выключается в настройках: VibeSettings.GuideEnabled (H работает всегда).
@@ -179,7 +179,7 @@ public class QuestGuide : MonoBehaviour
 
         bool onScreen = OnScreen(tgt);
         if (toastMain == null) BuildToast();
-        toastMain.text = Advice(tgt, dist);
+        toastMain.text = CandyTag.Readable(Advice(tgt, dist));   // зелёные «E» в совете становятся тёмно-зелёными, читаемыми на светлом
         toastSub.text = "Цель: " + Mathf.RoundToInt(dist) + " м" + (onScreen ? "" : ", " + Side(tgt)) + "   ·   " + helpKey + ": показать путь";
         toastUntil = Time.unscaledTime + (withTrail ? 7f : 6f);
         SfxManager.Play("hint", 0.7f);
@@ -261,7 +261,7 @@ public class QuestGuide : MonoBehaviour
             var go = new GameObject("Mark" + i);
             go.transform.SetParent(trailRoot.transform, false);
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = VibeGfx.Chevron;
+            sr.sprite = CandyTag.Chevron;
             sr.color = new Color(1f, 1f, 1f, 0f);
             go.transform.localScale = Vector3.one * 0.9f;
             go.SetActive(false);
@@ -340,7 +340,7 @@ public class QuestGuide : MonoBehaviour
         cgo.layer = 5;
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 7;
+        canvas.sortingOrder = UiLayers.QuestGuide;
         var sc = cgo.GetComponent<CanvasScaler>();
         sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         sc.referenceResolution = new Vector2(1920, 1080);
@@ -359,18 +359,23 @@ public class QuestGuide : MonoBehaviour
         toastGroup.blocksRaycasts = false;
         toastGroup.interactable = false;
 
-        AddImage(panel, "Bg", UiDraw.Pill, new Color32(0x1C, 0x2A, 0x3A, 235), true, Vector2.zero, Vector2.zero);
-        AddImage(panel, "Ring", UiDraw.PillRing, new Color32(0xF5, 0xC5, 0x42, 255), true, Vector2.zero, Vector2.zero);
-        AddImage(panel, "Icon", UiDraw.Star, Color.white, false, new Vector2(-400f, 0f), new Vector2(56f, 56f));
+        // облачная плашка Candy: светлое поле, иконка-звезда, индиго-текст, пружинное появление
+        var bg = AddImage(panel, "Bg", CandyTag.Panel, Color.white, true, Vector2.zero, Vector2.zero);
+        bg.pixelsPerUnitMultiplier = 1f / 0.55f;
+        AddImage(panel, "Icon", CandyTag.Icon(UiIcon.Star), Color.white, false, new Vector2(-400f, 4f), new Vector2(64f, 64f));
 
         TMP_FontAsset font = null;
         if (UIManager.Instance != null && UIManager.Instance.objectiveText != null) font = UIManager.Instance.objectiveText.font;
-        toastMain = AddText(panel, "Main", font, 28f, Color.white, new Vector2(30f, 14f), new Vector2(790f, 46f), FontStyles.Bold);
-        toastSub = AddText(panel, "Sub", font, 20f, new Color32(0xAE, 0xB9, 0xD6, 255), new Vector2(30f, -26f), new Vector2(790f, 30f), FontStyles.Normal);
+        toastMain = AddText(panel, "Main", font, 28f, CandyTag.Ink, new Vector2(30f, 18f), new Vector2(790f, 46f), FontStyles.Bold);
+        toastSub = AddText(panel, "Sub", font, 20f, CandyTag.Muted, new Vector2(30f, -20f), new Vector2(790f, 30f), FontStyles.Normal);
+
+        var pop = panel.gameObject.AddComponent<CandyPopIn>();   // выскакивает при каждом показе (плашку включает и выключает TickToast)
+        pop.fade = false;                                         // прозрачностью управляет toastGroup
+        pop.fromScale = 0.85f;
         panel.gameObject.SetActive(false);
     }
 
-    static void AddImage(RectTransform parent, string name, Sprite sp, Color c, bool stretch, Vector2 pos, Vector2 size)
+    static Image AddImage(RectTransform parent, string name, Sprite sp, Color c, bool stretch, Vector2 pos, Vector2 size)
     {
         var go = new GameObject(name, typeof(RectTransform), typeof(Image));
         go.layer = 5;
@@ -386,7 +391,8 @@ public class QuestGuide : MonoBehaviour
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             im.type = UnityEngine.UI.Image.Type.Sliced;
         }
-        else { rt.anchoredPosition = pos; rt.sizeDelta = size; }
+        else { rt.anchoredPosition = pos; rt.sizeDelta = size; im.preserveAspect = true; }
+        return im;
     }
 
     static TMP_Text AddText(RectTransform parent, string name, TMP_FontAsset font, float size, Color c, Vector2 pos, Vector2 box, FontStyles style)
@@ -398,7 +404,7 @@ public class QuestGuide : MonoBehaviour
         rt.anchoredPosition = pos;
         rt.sizeDelta = box;
         var tx = go.GetComponent<TextMeshProUGUI>();
-        if (font != null) tx.font = font;
+        CandyTag.Font(tx, font);                 // круглый шрифт Candy, а если его нет, шрифт HUD
         tx.fontSize = size;
         tx.fontStyle = style;
         tx.alignment = TextAlignmentOptions.Left;

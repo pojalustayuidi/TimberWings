@@ -59,7 +59,7 @@ public static class ResourcePanelBuilder
     static readonly Color PlankColor = new Color32(0xE8, 0xC1, 0x7A, 255);
 
     // ================================================================ меню
-    [MenuItem("Tools/BuilderSim/Build Resource Panel")]
+    [MenuItem("Tools/BuilderSim/UI/Build Resource Panel", false, 901)]
     static void Build() { Run(false); }
 
     // Вызывается из Tools > BuilderSim > Build HUD: без вопросов (старые панели удаляются), выделение не меняет.

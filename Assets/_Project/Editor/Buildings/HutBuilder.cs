@@ -205,7 +205,7 @@ public class HutBuilder : EditorWindow
     bool hasWin;
     const float oh = 0.55f, ohZ = 0.45f, doorW = 1.0f, winW = 0.9f, winZ = 0f, roofOff = 0.115f;
 
-    [MenuItem("Tools/BuilderSim/Hut Builder")]
+    [MenuItem("Tools/BuilderSim/Здания/Hut Builder", false, 302)]
     static void Open()
     {
         var w = GetWindow<HutBuilder>(false, "Хижина лесоруба");

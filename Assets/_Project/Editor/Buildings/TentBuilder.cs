@@ -74,7 +74,7 @@ public class TentBuilder : EditorWindow
     float W, L, H, wh, hw, slopeLen, slopeAng, dw, strL;
     int nStr;
 
-    [MenuItem("Tools/BuilderSim/Tent Builder")]
+    [MenuItem("Tools/BuilderSim/Здания/Tent Builder", false, 303)]
     static void Open()
     {
         var w = GetWindow<TentBuilder>(false, "Палатка");

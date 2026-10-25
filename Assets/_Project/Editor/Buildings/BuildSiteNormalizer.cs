@@ -19,7 +19,7 @@ public static class BuildSiteNormalizer
 {
     const string DataFolder = "Assets/_Game/BuildSites";
 
-    [MenuItem("Tools/BuilderSim/Привести стройки к единому виду")]
+    [MenuItem("Tools/BuilderSim/Здания/Привести стройки к единому виду", false, 320)]
     static void Run()
     {
         var sb = new StringBuilder("=== Стройки ===\n");

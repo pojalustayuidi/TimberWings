@@ -33,7 +33,7 @@ public class CameraVibeSetup : ScriptableWizard
 
     const string Dir = "Assets/_Game/Camera";
 
-    [MenuItem("Tools/BuilderSim/Camera Vibe (Apply)")]
+    [MenuItem("Tools/BuilderSim/Визуал и свет/Camera Vibe (Apply)", false, 811)]
     static void Open()
     {
         var w = DisplayWizard<CameraVibeSetup>("Camera Vibe", "Применить");

@@ -9,7 +9,7 @@ using UnityEngine;
 
 public static class PetCratePlacer
 {
-    [MenuItem("Tools/BuilderSim/Питомцы/Поставить клети в локации")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Поставить клети в локации", false, 630)]
     public static void Place()
     {
         if (Application.isPlaying)
@@ -28,7 +28,7 @@ public static class PetCratePlacer
         if (made == 0) Debug.Log("[Питомцы] Клети уже стоят (или не найдены палатка и мост), ничего не менял. Чтобы обновить модель, есть пункт «Пересобрать модель клетей».");
     }
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Пересобрать модель клетей")]
+    [MenuItem("Tools/BuilderSim/Питомцы/Пересобрать модель клетей", false, 631)]
     public static void Rebuild()
     {
         if (Application.isPlaying)

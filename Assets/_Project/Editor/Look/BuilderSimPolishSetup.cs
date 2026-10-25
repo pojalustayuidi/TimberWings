@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 public static class BuilderSimPolishSetup
 {
-    [MenuItem("Tools/BuilderSim/Polish Setup")]
+    [MenuItem("Tools/BuilderSim/Визуал и свет/Polish Setup", false, 801)]
     static void Setup()
     {
         foreach (var c in Object.FindObjectsByType<BuildingController>(FindObjectsSortMode.None))

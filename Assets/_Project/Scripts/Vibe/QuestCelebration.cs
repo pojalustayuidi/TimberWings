@@ -1,6 +1,6 @@
 // Assets/_Project/Scripts/Vibe/QuestCelebration.cs (НЕ в Editor)
-// Праздник за выполненное задание (GameEvents.QuestDone): плашка сверху «Хижина отремонтирована», конфетти над героем,
-// лёгкая тряска камеры. Звук играет SfxManager. На новый уровень (GameEvents.LevelUp) только конфетти:
+// Праздник за выполненное задание (GameEvents.QuestDone), вид Candy: облачная плашка сверху «Хижина отремонтирована»
+// (звезда, индиго-текст, пружинный выезд, конфетти-искры на плашке), конфетти над героем в цветах Candy, лёгкая тряска камеры. Звук играет SfxManager. На новый уровень (GameEvents.LevelUp) только конфетти:
 // плашку уровня у тебя уже рисует HUD.
 // «Уменьшить эффекты»: без конфетти и тряски, плашка остаётся.
 using System.Collections.Generic;
@@ -102,11 +102,11 @@ public class QuestCelebration : MonoBehaviour
         grad.SetKeys(
             new[]
             {
-                new GradientColorKey(new Color32(0xF5, 0xC5, 0x42, 255), 0.2f),
-                new GradientColorKey(new Color32(0x6B, 0xCB, 0x5A, 255), 0.4f),
-                new GradientColorKey(new Color32(0xE8, 0x6A, 0x5A, 255), 0.6f),
-                new GradientColorKey(new Color32(0x5A, 0xB8, 0xE8, 255), 0.8f),
-                new GradientColorKey(new Color32(0xF2, 0xF2, 0xF2, 255), 1f)
+                new GradientColorKey(UiCandy.Lemon, 0.2f),
+                new GradientColorKey(UiCandy.Mint, 0.4f),
+                new GradientColorKey(new Color32(0xFF, 0x8F, 0x9E, 255), 0.6f),
+                new GradientColorKey(UiCandy.Sky, 0.8f),
+                new GradientColorKey(UiCandy.LavenderDeep, 1f)
             },
             new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
         var mg = new ParticleSystem.MinMaxGradient(grad);
@@ -156,7 +156,7 @@ public class QuestCelebration : MonoBehaviour
         cgo.layer = 5;
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 20;
+        canvas.sortingOrder = UiLayers.Popups;
         var sc = cgo.GetComponent<CanvasScaler>();
         sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         sc.referenceResolution = new Vector2(1920, 1080);
@@ -175,19 +175,26 @@ public class QuestCelebration : MonoBehaviour
         group.blocksRaycasts = false;
         group.interactable = false;
 
-        AddImage(panel, "Bg", UiDraw.Pill, new Color32(0x1C, 0x2A, 0x3A, 240), Vector2.zero, Vector2.zero, true);
-        AddImage(panel, "Ring", UiDraw.PillRing, new Color32(0xF5, 0xC5, 0x42, 255), Vector2.zero, Vector2.zero, true);
-        AddImage(panel, "Star", UiDraw.Star, Color.white, new Vector2(-324f, 0f), new Vector2(72f, 72f), false);
+        // облачная панель Candy, звезда Candy слева, подпись цветом «выполнено», название индиго
+        var bg = AddImage(panel, "Bg", CandyTag.Panel, Color.white, Vector2.zero, Vector2.zero, true);
+        bg.pixelsPerUnitMultiplier = 1f / 0.7f;
+        AddImage(panel, "Star", CandyTag.Icon(UiIcon.Star), Color.white, new Vector2(-324f, 6f), new Vector2(84f, 84f), false);
 
         TMP_FontAsset font = null;
         if (UIManager.Instance != null && UIManager.Instance.objectiveText != null) font = UIManager.Instance.objectiveText.font;
-        title = AddText(panel, "Title", font, 22f, new Color32(0xF5, 0xC5, 0x42, 255), new Vector2(40f, 28f), new Vector2(620f, 30f), false);
-        main = AddText(panel, "Main", font, 40f, Color.white, new Vector2(40f, -12f), new Vector2(620f, 56f), true);
+        title = AddText(panel, "Title", font, 22f, CandyTag.Good, new Vector2(40f, 30f), new Vector2(620f, 30f), false);
+        title.characterSpacing = 6f;
+        main = AddText(panel, "Main", font, 40f, CandyTag.Ink, new Vector2(40f, -8f), new Vector2(620f, 56f), true);
         title.text = "ЗАДАНИЕ ВЫПОЛНЕНО";
+
+        // пружинный «щелчок» при каждом показе (плашку включает и выключает Update); прозрачностью управляет group
+        var pop = panel.gameObject.AddComponent<CandyPopIn>();
+        pop.fade = false;
+        pop.fromScale = 0.88f;
         panel.gameObject.SetActive(false);
     }
 
-    static void AddImage(RectTransform parent, string name, Sprite sp, Color c, Vector2 pos, Vector2 size, bool stretch)
+    static Image AddImage(RectTransform parent, string name, Sprite sp, Color c, Vector2 pos, Vector2 size, bool stretch)
     {
         var go = new GameObject(name, typeof(RectTransform), typeof(Image));
         go.layer = 5;
@@ -207,7 +214,9 @@ public class QuestCelebration : MonoBehaviour
         {
             rt.anchoredPosition = pos;
             rt.sizeDelta = size;
+            im.preserveAspect = true;
         }
+        return im;
     }
 
     static TMP_Text AddText(RectTransform parent, string name, TMP_FontAsset font, float size, Color c, Vector2 pos, Vector2 box, bool bold)
@@ -219,7 +228,7 @@ public class QuestCelebration : MonoBehaviour
         rt.anchoredPosition = pos;
         rt.sizeDelta = box;
         var tx = go.GetComponent<TextMeshProUGUI>();
-        if (font != null) tx.font = font;
+        CandyTag.Font(tx, font);                 // круглый шрифт Candy, а если его нет, шрифт HUD
         tx.fontSize = size;
         tx.alignment = TextAlignmentOptions.Center;
         tx.color = c;
@@ -241,6 +250,7 @@ public class QuestCelebration : MonoBehaviour
             panel.gameObject.SetActive(true);
             showing = true;
             t = 0f;
+            if (!VibeSettings.ReduceEffects) CandyFx.Burst(UiCandy.Kit, panel, UiCandy.Lemon, 10, 300f);   // искры на плашке
         }
 
         t += Time.unscaledDeltaTime;

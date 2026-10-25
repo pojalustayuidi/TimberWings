@@ -708,7 +708,8 @@ public class IntroFlow : MonoBehaviour, ISaveable
     }
 
     // ================================================================ клавиши WASD на экране
-    // Четыре «клавиши» внизу экрана: нажатая загорается зелёным, остальные тихо пульсируют.
+    // Четыре Candy-клавиши на облачной плашке внизу экрана: нажатая загорается зелёным, остальные тихо пульсируют.
+    // Строится в скине Candy (UiKit.UseSkin), плашка выскакивает через CandyPopIn.
     sealed class KeyHints
     {
         static readonly KeyCode[] Keys = { KeyCode.W, KeyCode.A, KeyCode.S, KeyCode.D };
@@ -718,9 +719,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
             new Vector2(0f, 48f), new Vector2(-92f, -44f), new Vector2(0f, -44f), new Vector2(92f, -44f)
         };
 
-        static readonly Color Dark = new Color(0.06f, 0.09f, 0.17f, 0.92f);
-        static readonly Color Green = new Color(0.42f, 0.80f, 0.35f, 1f);
-        static readonly Color Ring = new Color(0.62f, 0.72f, 0.95f, 1f);
+        static readonly Color Ring = new Color(0.45f, 0.74f, 1f, 1f);   // небесная пульсирующая обводка
 
         CanvasGroup group;
         readonly RectTransform[] caps = new RectTransform[4];
@@ -736,13 +735,20 @@ public class IntroFlow : MonoBehaviour, ISaveable
         public void Build(Transform parent, TMP_FontAsset font)
         {
             if (group != null) return;
+            using (UiKit.UseSkin(UiSkin.Candy)) BuildKeys(parent, font);
+        }
+
+        void BuildKeys(Transform parent, TMP_FontAsset font)
+        {
+            var roundFont = UiCandy.RoundFont;          // круглый шрифт Candy, если файл лежит в Resources/Fonts
+            if (roundFont != null) font = roundFont;
 
             var cgo = new GameObject("IntroKeysCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(CanvasGroup));
             cgo.layer = 5;
             cgo.transform.SetParent(parent, false);
             var canvas = cgo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 10;
+            canvas.sortingOrder = UiLayers.Hud;
             var sc = cgo.GetComponent<CanvasScaler>();
             sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             sc.referenceResolution = new Vector2(1920, 1080);
@@ -760,6 +766,11 @@ public class IntroFlow : MonoBehaviour, ISaveable
             panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.2f);
             panel.pivot = new Vector2(0.5f, 0.5f);
             panel.sizeDelta = new Vector2(320f, 200f);
+            panelGo.AddComponent<CandyPopIn>();   // плашка с клавишами выскакивает при каждом показе
+
+            // облачная подложка под клавишами (первой в порядке, поэтому клавиши рисуются поверх)
+            var plate = UiKit.MakePanel(panel, new Vector2(300f, 212f), false, 0.6f, "Plate");
+            plate.color = new Color(1f, 1f, 1f, 0.96f);
 
             for (int i = 0; i < 4; i++)
             {
@@ -774,7 +785,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
                 caps[i] = rt;
 
                 back[i] = kg.GetComponent<Image>();
-                back[i].sprite = UiKit.Keycap;                       // клавиша UiKit: латунный медальон с янтарной «кнопкой»
+                back[i].sprite = UiKit.Keycap;                       // клавиша Candy: лавандовый медальон с лимонной «кнопкой»
                 back[i].type = Image.Type.Simple;
                 back[i].color = Color.white;
                 back[i].raycastTarget = false;
@@ -804,7 +815,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
                 tx.fontSize = 34f;
                 tx.fontStyle = FontStyles.Bold;
                 tx.alignment = TextAlignmentOptions.Center;
-                tx.color = UiKit.Navy;
+                tx.color = UiCandy.Ink;
                 tx.raycastTarget = false;
                 label[i] = tx;
             }
@@ -830,7 +841,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
                 float k = press[i];
 
                 back[i].color = Color.Lerp(Color.white, new Color(0.62f, 1f, 0.55f, 1f), k);      // нажатая загорается зелёным
-                label[i].color = UiKit.Navy;
+                label[i].color = UiCandy.Ink;
                 float idle = 1f + 0.04f * Mathf.Sin(t * 3f + i * 0.9f);                           // остальные тихо «дышат»
                 caps[i].localScale = Vector3.one * Mathf.Lerp(idle, 0.9f, k);
 

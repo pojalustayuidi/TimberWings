@@ -73,7 +73,7 @@ public static class WorkerDatabaseTools
     }
 
     // ------------------------------------------------------------------ создание
-    [MenuItem("Tools/BuilderSim/Рабочие/Создать базу рабочих")]
+    [MenuItem("Tools/BuilderSim/Рабочие/Создать базу рабочих", false, 500)]
     public static void CreateAll()
     {
         EnsureFolder("Assets/_Project");
@@ -142,7 +142,7 @@ public static class WorkerDatabaseTools
     }
 
     // ------------------------------------------------------------------ проверка
-    [MenuItem("Tools/BuilderSim/Рабочие/Проверить базу")]
+    [MenuItem("Tools/BuilderSim/Рабочие/Проверить базу", false, 520)]
     public static void CheckMenu()
     {
         var sb = new StringBuilder();

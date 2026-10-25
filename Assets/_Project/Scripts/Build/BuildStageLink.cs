@@ -3,7 +3,9 @@
 // у палатки свой TentStages (2 состояния). Этот мостик слушает стройку и переключает нужный компонент:
 //   рынок:   1 -> 2 -> 3 по этапам стройки (при одном этапе сразу 3);
 //   палатка: 1 -> 2 (с анимацией «раскладывания») по завершении;
-//   мост:    RiverBridge.SetBuildProgress по этапам, после последнего открывается проход (стенки + камни MapBorder).
+//   рынок (v2): пока игрок реально строит, бригады Stage1_Crew / Stage2_Crew (HutBuildSite) стучат молотками, кран таскает груз,
+//            а полоска на табличке растёт вместе с прогрессом стройки (сигнал берётся из BuildingController.IsBuilding);
+//   мост:    RiverBridge.SetBuildProgress по этапам, после последнего открывается проход (стена GateWalls у FloatingIsland).
 // StoryFlow добавляет его сам, руками вешать не нужно.
 using UnityEngine;
 
@@ -35,6 +37,31 @@ public class BuildStageLink : MonoBehaviour
         if (bridge != null) bridge.SetBuildProgress(0, build != null ? build.StepsTotal : 3);
     }
 
+    // сигнал «идёт стройка» для бригад лавки: HutBuildSite сам ищет себя среди детей ShopStages, если HutStages нет
+    bool lastBuilding;
+    float lastProgress = -1f;
+
+    void Update()
+    {
+        if (build == null || shop == null) return;
+        bool now = build.IsBuilding;
+        if (now != lastBuilding)
+        {
+            lastBuilding = now;
+            HutBuildSite.SetWorkingFor(shop, now);
+            if (!now) { HutBuildSite.SetProgressFor(shop, 0f); lastProgress = -1f; }
+        }
+        if (now)
+        {
+            float p = build.GetProgress();
+            if (Mathf.Abs(p - lastProgress) > 0.004f)
+            {
+                lastProgress = p;
+                HutBuildSite.SetProgressFor(shop, p);
+            }
+        }
+    }
+
     void Subscribe()
     {
         if (build == null || subscribed) return;
@@ -56,8 +83,8 @@ public class BuildStageLink : MonoBehaviour
         if (bridge != null)
         {
             bridge.SetBuildProgress(build.StepsDone, build.StepsTotal);
-            // камни у прохода к мосту убираются один раз (MapBorder.OpenGate повторный вызов игнорирует)
-            if (done && MapBorder.Instance != null) MapBorder.Instance.OpenGate();
+            // стена у прохода к мосту убирается один раз (FloatingIsland.OpenGate повторный вызов игнорирует)
+            if (done && FloatingIsland.Instance != null) FloatingIsland.Instance.OpenGate();
         }
     }
 }

@@ -12,7 +12,7 @@ using UnityEditor.SceneManagement;
 //   - у каждой стадии свой объект (Stage1..Stage3), включается тот, что нужен. Коллайдер настила есть только у стадии 3;
 //   - на стадии 1 с обрубка падают доски и исчезают в облаках;
 //   - остров-заглушка с аркой и табличкой стоит всегда, невидимые стены не дают упасть с моста и с острова;
-//   - всё строится кодом из редактора кнопкой «Собрать мост и заглушку». Положение берётся из GatePoint у MapBorder.
+//   - всё строится кодом из редактора кнопкой «Собрать мост и заглушку». Положение берётся из GatePoint у FloatingIsland.
 // Скрипт кладётся в Assets/_Project/Scripts/Location/ (НЕ в папку Editor).
 public class GateBridge : MonoBehaviour
 {
@@ -215,7 +215,7 @@ public static class GateBridgeBuilder
     static readonly Color BoardC = new Color(0.11f, 0.16f, 0.23f);   // как цвет интерфейса #1C2A3A
     static readonly Color Glow = new Color(0.55f, 0.95f, 1f, 0f);    // альфа 0 = свечение в шейдере IslandRock
 
-    // Высота настоящей земли (Terrain или поле Apron), стены MapBorder и декор не считаются
+    // Высота настоящей земли (Terrain или поле Apron), стены прохода и декор не считаются
     static float Ground(Vector2 p, float fallback)
     {
         Physics.SyncTransforms();
@@ -468,11 +468,10 @@ public static class GateBridgeBuilder
 
     public static void Build(GateBridge gb)
     {
-        var border = Object.FindFirstObjectByType<MapBorder>();
-        var fi = border != null ? border.GetComponent<FloatingIsland>() : null;
-        if (fi == null) { Debug.LogWarning("GateBridge: на сцене нет MapBorder с компонентом FloatingIsland."); return; }
-        Vector2? gate = border.GetGatePosition();
-        if (!gate.HasValue) { Debug.LogWarning("GateBridge: у MapBorder нет GatePoint (проход). Поставь точку ворот и повтори."); return; }
+        var fi = Object.FindFirstObjectByType<FloatingIsland>();
+        if (fi == null) { Debug.LogWarning("GateBridge: на сцене нет FloatingIsland."); return; }
+        Vector2? gate = fi.GetGatePosition();
+        if (!gate.HasValue) { Debug.LogWarning("GateBridge: у FloatingIsland нет GatePoint (проход). Поставь точку ворот и повтори."); return; }
         var loop = fi.GetEdgeLoop();
         int m = loop.Count;
         if (m < 8) { Debug.LogWarning("GateBridge: контур острова слишком короткий."); return; }
@@ -608,16 +607,16 @@ public static class GateBridgeBuilder
             Wall(guards.transform, "BridgeSide" + (side < 0 ? "L" : "R"), c, N3, Lw, 5f, 0.4f);
         }
 
-        // заглушки по краю главного острова слева и справа от коридора (ворота MapBorder шире моста)
+        // заглушки по краю главного острова слева и справа от коридора (проход шире моста)
         float cw = gb.deckWidth * 0.5f + 0.45f;
-        float capEnd = border.gateWidth * 0.5f + 3f;
+        float capEnd = fi.gateWidth * 0.5f + 3f;
         if (capEnd > cw + 0.5f)
         {
             float capLen = capEnd - cw, capMid = (capEnd + cw) * 0.5f;
             for (int side = -1; side <= 1; side += 2)
             {
-                Vector2 c2 = E - N * border.edgeInset + Tn * (side * capMid);
-                Wall(guards.transform, "GateCap" + (side < 0 ? "L" : "R"), new Vector3(c2.x, y0 + border.wallHeight * 0.5f, c2.y), T3, capLen, border.wallHeight, border.wallThickness);
+                Vector2 c2 = E - N * fi.edgeInset + Tn * (side * capMid);
+                Wall(guards.transform, "GateCap" + (side < 0 ? "L" : "R"), new Vector3(c2.x, y0 + fi.wallHeight * 0.5f, c2.y), T3, capLen, fi.wallHeight, fi.wallThickness);
             }
         }
 
@@ -652,24 +651,24 @@ public static class GateBridgeBuilder
         EditorSceneManager.MarkSceneDirty(gb.gameObject.scene);
     }
 
-    [MenuItem("Tools/BuilderSim/Build Gate Bridge")]
+    [MenuItem("Tools/BuilderSim/Локация/Build Gate Bridge", false, 103)]
     static void CreateFromMenu()
     {
-        var border = Object.FindFirstObjectByType<MapBorder>();
-        if (border == null) { Debug.LogWarning("GateBridge: на сцене нет MapBorder."); return; }
-        var existing = border.transform.Find("GateBridge");
+        var island = Object.FindFirstObjectByType<FloatingIsland>();
+        if (island == null) { Debug.LogWarning("GateBridge: на сцене нет FloatingIsland."); return; }
+        var existing = island.transform.Find("GateBridge");
         GateBridge gb = existing != null ? existing.GetComponent<GateBridge>() : null;
         if (gb == null)
         {
             var go = existing != null ? existing.gameObject : new GameObject("GateBridge");
             if (existing == null) Undo.RegisterCreatedObjectUndo(go, "Create GateBridge");
-            go.transform.SetParent(border.transform, false);
+            go.transform.SetParent(island.transform, false);
             gb = go.GetComponent<GateBridge>();
             if (gb == null) gb = go.AddComponent<GateBridge>();
             if (gb == null)
             {
                 // Unity не даёт повесить на объект скрипт, который лежит в папке Editor
-                Debug.LogError("GateBridge: компонент не добавился. Скорее всего, GateBridge.cs лежит в папке Editor. Перенеси его в Assets/_Project/Scripts/Location/, удали пустой объект GateBridge под MapBorder и повтори.");
+                Debug.LogError("GateBridge: компонент не добавился. Скорее всего, GateBridge.cs лежит в папке Editor. Перенеси его в Assets/_Project/Scripts/Location/, удали пустой объект GateBridge под FloatingIsland и повтори.");
                 return;
             }
         }

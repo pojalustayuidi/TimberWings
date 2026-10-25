@@ -5,7 +5,7 @@ using TMPro;
 using UnityEngine.UI;
 
 // Assets/_Project/Scripts/Location/IslandEdgeGuard.cs (НЕ в Editor)
-// Падение с парящего острова. Добавляется сам: MapBorder.Awake вешает его, если стиль FloatingIsland и включён Allow Fall.
+// Падение с парящего острова. Добавляется сам: FloatingIsland.Awake вешает его на объект острова.
 //
 // Как это работает:
 //   1. Пока игрок стоит на земле внутри острова (не ближе Safe Edge Margin к краю), раз в 0.2 с запоминается «безопасная точка».
@@ -22,6 +22,7 @@ using UnityEngine.UI;
 // Страховка от багов: тот же путь сработает при рывке через край, загрузке рядом с краем и любом провале под остров.
 //
 // Из кода: IslandEdgeGuard.Instance.ForceRespawn();  (например, из отладки)
+//   ForceRespawn(caption, title, subtitle, tip) делает то же самое с другими надписями на плашке (так возвращает WaterSwim после утопления).
 [DisallowMultipleComponent]
 public class IslandEdgeGuard : MonoBehaviour
 {
@@ -75,7 +76,7 @@ public class IslandEdgeGuard : MonoBehaviour
     enum State { Idle, Falling, Returning }
     State state;
 
-    MapBorder border;
+    IslandSource island;
     List<Vector2> loop;
     PlayerMovement player;
     Rigidbody rb;
@@ -86,6 +87,8 @@ public class IslandEdgeGuard : MonoBehaviour
     float nextSample;
     float pivotOffset = 0.05f;   // насколько pivot игрока выше земли (замеряется, пока игрок стоит)
     int fallCount;
+    // надписи на один раз (ForceRespawn с текстами): после показа плашки сбрасываются
+    string ovCaption, ovTitle, ovSubtitle, ovTip;
     float baseZoom = 1f;   // зум камеры до падения (его возвращаем)
 
     // UI
@@ -131,10 +134,9 @@ public class IslandEdgeGuard : MonoBehaviour
         }
         if (loop == null)
         {
-            border = GetComponent<MapBorder>();
-            var fi = GetComponent<FloatingIsland>();
-            if (border == null) return false;
-            loop = fi != null ? fi.GetEdgeLoop() : border.GetOutline();
+            island = IslandSource.For(gameObject);
+            if (island == null) return false;
+            loop = island.GetEdgeLoop();
             if (loop == null || loop.Count < 3) { loop = null; return false; }
         }
         return true;
@@ -155,7 +157,7 @@ public class IslandEdgeGuard : MonoBehaviour
         }
 
         // падение: земли под ногами нет и мы заметно ниже безопасной точки (или улетели совсем глубоко)
-        float refY = hasSafe ? safe.y : border.groundY;
+        float refY = hasSafe ? safe.y : island.groundY;
         if (p.y < refY - 60f || (p.y < refY - dropDepth && !Grounded(p, 3.5f)))
             StartCoroutine(FallRoutine());
     }
@@ -167,6 +169,8 @@ public class IslandEdgeGuard : MonoBehaviour
         Vector2 q = new Vector2(p.x, p.z);
         if (!Inside(q)) return;
         if (EdgeDistance(q) < safeEdgeMargin) return;
+        WaterVolume.Hit wh;
+        if (WaterVolume.TrySample(p, out wh) && wh.submersion > 0.1f) return;   // дно реки не безопасная точка
         RaycastHit h;
         if (!GroundHit(p + Vector3.up * 0.5f, 2.1f, out h)) return;
         pivotOffset = Mathf.Clamp(p.y - h.point.y, 0.02f, 2f);
@@ -230,7 +234,7 @@ public class IslandEdgeGuard : MonoBehaviour
         Vector2 c = Vector2.zero;
         for (int i = 0; i < loop.Count; i++) c += loop[i];
         c /= loop.Count;
-        float y = border.groundY;
+        float y = island.groundY;
         var t = Terrain.activeTerrain;
         if (t != null) y = t.SampleHeight(new Vector3(c.x, 0f, c.y)) + t.GetPosition().y;
         return new Vector3(c.x, y + pivotOffset, c.y);
@@ -253,7 +257,7 @@ public class IslandEdgeGuard : MonoBehaviour
             var m = FindRespawnMarker();
             if (m != null && Inside(new Vector2(m.position.x, m.position.z)))
             {
-                float startY = Mathf.Max(m.position.y, border.groundY) + 6f;
+                float startY = Mathf.Max(m.position.y, island.groundY) + 6f;
                 RaycastHit h;
                 if (GroundHit(new Vector3(m.position.x, startY, m.position.z), 60f, out h))
                     return h.point + Vector3.up * pivotOffset;
@@ -269,6 +273,15 @@ public class IslandEdgeGuard : MonoBehaviour
         if (state == State.Idle && Init()) StartCoroutine(FallRoutine());
     }
 
+    // то же с своими надписями (утопление и т.п.). true = возвращение запущено, false = занято или нет острова
+    public bool ForceRespawn(string capStr, string titleStr, string subtitleStr, string tipStr)
+    {
+        if (state != State.Idle || !Init()) return false;
+        ovCaption = capStr; ovTitle = titleStr; ovSubtitle = subtitleStr; ovTip = tipStr;
+        StartCoroutine(FallRoutine());
+        return true;
+    }
+
     static float EaseOut(float k) { k = Mathf.Clamp01(k); return 1f - (1f - k) * (1f - k) * (1f - k); }
     static float EaseOutBack(float k)
     {
@@ -280,7 +293,7 @@ public class IslandEdgeGuard : MonoBehaviour
     IEnumerator FallRoutine()
     {
         state = State.Falling;
-        fallCount++;
+        if (ovTitle == null) fallCount++;   // утопление в счётчик падений не идёт
         player.ControlLocked = true;
         player.CancelWalk();
         SfxManager.Play("fall", 0.9f, 1f);
@@ -440,7 +453,7 @@ public class IslandEdgeGuard : MonoBehaviour
         uiRoot.transform.SetParent(transform, false);
         var cv = uiRoot.AddComponent<Canvas>();
         cv.renderMode = RenderMode.ScreenSpaceOverlay;
-        cv.sortingOrder = 29000;   // выше HUD, ниже индикатора сохранения (30000)
+        cv.sortingOrder = UiLayers.Fade;
         var sc = uiRoot.AddComponent<CanvasScaler>();
         sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         sc.referenceResolution = new Vector2(1920f, 1080f);
@@ -533,15 +546,18 @@ public class IslandEdgeGuard : MonoBehaviour
 
     void PrepareCard()
     {
-        captionText.text = caption;
-        titleText.text = title;
-        subtitleText.text = subtitle;
+        bool custom = ovTitle != null;
+        captionText.text = custom ? ovCaption : caption;
+        titleText.text = custom ? ovTitle : title;
+        subtitleText.text = custom ? ovSubtitle : subtitle;
         barFill.fillAmount = 0f;
-        string tip = (tips != null && tips.Length > 0) ? tips[Random.Range(0, tips.Length)] : "";
+        string tip = custom ? (ovTip ?? "") : ((tips != null && tips.Length > 0) ? tips[Random.Range(0, tips.Length)] : "");
+        ovCaption = ovTitle = ovSubtitle = ovTip = null;
         tipText.text = tip;
         tipText.gameObject.SetActive(!string.IsNullOrEmpty(tip));
-        countText.text = fallCount > 1 ? "Падений за сессию: " + fallCount : "";
-        countText.gameObject.SetActive(fallCount > 1);
+        bool showCount = !custom && fallCount > 1;
+        countText.text = showCount ? "Падений за сессию: " + fallCount : "";
+        countText.gameObject.SetActive(showCount);
         card.alpha = 0f;
         cardRect.localScale = Vector3.one * 0.82f;
         SetUiColors();

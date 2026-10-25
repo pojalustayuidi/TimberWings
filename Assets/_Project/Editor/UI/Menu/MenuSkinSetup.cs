@@ -14,7 +14,7 @@ public static class MenuSkinSetup
     const string Dir = "Assets/_Project/UI/Menu/Skin/";
     const string MenuScene = "Assets/_Project/Scenes/MainMenu.unity";
 
-    [MenuItem("Tools/Timber Wings/Шаг 4: скин меню")]
+    [MenuItem("Tools/BuilderSim/UI/Главное меню/Шаг 4: скин меню", false, 922)]
     static void Run()
     {
         if (!Directory.Exists(Dir))

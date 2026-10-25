@@ -10,7 +10,7 @@ public static class PetBonusSelfTest
     static int errors;
     static StringBuilder log;
 
-    [MenuItem("Tools/BuilderSim/Питомцы/Проверить бонусы")]
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Проверки/Питомцы: бонусы", false, 1012)]
     public static void Run()
     {
         errors = 0;

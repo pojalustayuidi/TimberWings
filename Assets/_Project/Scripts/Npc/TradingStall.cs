@@ -22,8 +22,11 @@ public class TradingStall : MonoBehaviour, IInteractable, IPriorityInteractable
     // продажа состоялась (квест «Первая продажа»). Событие можно вызвать только внутри класса, снаружи это делает ReportSold
     public static event Action Sold;
 
+    // продажа с деталями (монеты, бревна, доски): слушает ShopLife (эффекты и рост витрины лавки)
+    public static event Action<int, int, int> SaleMade;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatic() { Sold = null; }
+    static void ResetStatic() { Sold = null; SaleMade = null; }
 
     Speaker own;
     DialogueSequence talk;
@@ -100,10 +103,11 @@ public class TradingStall : MonoBehaviour, IInteractable, IPriorityInteractable
     }
 
     // окно сообщает о продаже; событие уходит в StoryFlow (глава «Первая продажа»). Пустая продажа не считается
-    public void ReportSold(int coins)
+    public void ReportSold(int coins, int logs = 0, int planks = 0)
     {
         if (coins <= 0) return;
         if (Sold != null) Sold();
+        if (SaleMade != null) SaleMade(coins, logs, planks);
     }
 
     void OnDrawGizmosSelected()

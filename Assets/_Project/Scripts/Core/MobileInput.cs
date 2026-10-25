@@ -43,20 +43,8 @@ public static class MobileInput
             if (SettingsMenu.IsOpen) return true;     // меню настроек (Esc): игра на паузе, управление не нужно
             if (DialogueManager.IsBusy || DialogueSequence.AnyPlaying) return false;   // реплики листаются кнопкой действия, их не блокируем
             if (BuildingController.AnyRevealing) return true;   // показ готовой стадии здания: персонаж стоит, E не открывает окна
-            var u = UpgradeWindow.Instance;
-            if (u != null && u.IsOpen) return true;
-            var p = PlankWorkshopWindow.Instance;
-            if (p != null && p.IsOpen) return true;
-            var sw = SellWindow.Instance;
-            if (sw != null && sw.IsOpen) return true;
-            var ww = WorkersWindow.Instance;
-            if (ww != null && ww.IsOpen) return true;
-            var bw = BuildWindow.Instance;
-            if (bw != null && bw.IsOpen) return true;   // IsOpen = развёрнутое окно; свёрнутая полоска с прогрессом управление не забирает
-            if (PetCrateWindow.IsOpen) return true;   // окно открытия клети питомцев
-            if (PetCollectionWindow.IsOpen) return true;   // окно коллекции питомцев
-            if (AchievementsWindow.IsOpen) return true;   // окно достижений
-            return HudMinimap.BigMapOpen;
+            // все окна и большая карта лежат в реестре UiModal (окно регистрируется само); свёрнутая полоска стройки управление не забирает
+            return UiModal.AnyOpen();
         }
     }
 
@@ -333,7 +321,7 @@ public class MobileControls : MonoBehaviour
         cgo.transform.SetParent(transform, false);
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 12;
+        canvas.sortingOrder = UiLayers.HudOverlay;
         canvasRt = (RectTransform)cgo.transform;
 
         Image bi, ki;

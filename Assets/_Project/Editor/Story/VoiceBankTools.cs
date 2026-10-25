@@ -78,7 +78,7 @@ public static class VoiceBankTools
     }
 
     // ------------------------------------------------------------ переименование
-    [MenuItem("Tools/BuilderSim/Озвучка/Переименовать файлы по номерам")]
+    [MenuItem("Tools/BuilderSim/Сюжет/Озвучка/Переименовать файлы по номерам", false, 710)]
     static void Rename()
     {
         string csv = PickCsv();
@@ -126,7 +126,7 @@ public static class VoiceBankTools
     }
 
     // ------------------------------------------------------------ проверка
-    [MenuItem("Tools/BuilderSim/Озвучка/Проверить файлы озвучки")]
+    [MenuItem("Tools/BuilderSim/Сюжет/Озвучка/Проверить файлы озвучки", false, 711)]
     static void Check()
     {
         string csv = PickCsv();

@@ -15,6 +15,9 @@ Shader "Project/IslandRock"
         _GroundMeters ("Метров на повтор текстуры", Float) = 4
         _GroundTint ("Тон земли", Color) = (1,1,1,1)
         _AllGround ("Вся поверхность = земля (поле)", Range(0,1)) = 0
+        // 1 = земля считается тем же шейдерным шумом, что у Terrain (Project/CandyGround, CandyGround.hlsl): лайм/мята + ворсинки, без текстуры.
+        // 0 = старый путь через _GroundTex (нужен, если Terrain остался на URP Lit)
+        _UseCandyGround ("Земля как у CandyGround", Range(0,1)) = 1
     }
 
     SubShader
@@ -35,6 +38,7 @@ Shader "Project/IslandRock"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Assets/_Project/Shaders/Candy/CandyGround.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _Tint;
@@ -45,6 +49,7 @@ Shader "Project/IslandRock"
                 half4 _GroundTint;
                 float _GroundMeters;
                 half _AllGround;
+                half _UseCandyGround;
             CBUFFER_END
 
             TEXTURE2D(_GroundTex);
@@ -90,27 +95,39 @@ Shader "Project/IslandRock"
                 half lit = smoothstep(0.30h, 0.55h, w) * l.shadowAttenuation;   // три тона: тень / полутень / свет
 
                 half3 amb = max(SampleSH(n), 0.12h * _Shade.rgb);
-                half3 vcol = i.color.rgb * _Tint.rgb;   // цвета вершин задаются как обычные sRGB-цвета
+                half3 vcolRock = i.color.rgb * _Tint.rgb;   // цвета вершин задаются как обычные sRGB-цвета
                 #if !defined(UNITY_COLORSPACE_GAMMA)
-                vcol = SRGBToLinear(vcol);
+                vcolRock = SRGBToLinear(vcolRock);
                 #endif
 
-                // земля: текстура Terrain по мировым XZ, поэтому на стыке с Terrain шва нет
                 half gW = saturate(lerp(i.uv.x, 1.0h, _AllGround));
                 half gS = lerp(i.uv.y, 1.0h, _AllGround);
-                half3 gTex = SAMPLE_TEXTURE2D(_GroundTex, sampler_GroundTex, i.positionWS.xz / max(0.1, _GroundMeters)).rgb * _GroundTint.rgb * gS;
-                vcol = lerp(vcol, gTex, gW);
 
-                half3 albedo = vcol;
-                // скала: мультяшный свет в три тона. Земля (трава кромки и поле): обычный ламберт, как у Terrain/Lit,
-                // иначе поле выходит светлее и бледнее Terrain (мультяшный свет даёт полную яркость сразу при ndl > 0.55)
+                // скала: мультяшный свет в три тона
                 half3 directRock = l.color * lit;
-                half3 directGround = l.color * (saturate(ndl) * l.shadowAttenuation);
-                half3 direct = lerp(directRock, directGround, gW);
                 half3 shadeRock = lerp(_Shade.rgb, half3(1, 1, 1), saturate(lit + 0.25h));
-                half3 shadeTint = lerp(shadeRock, half3(1, 1, 1), gW);
 
-                half3 col = albedo * (direct + amb) * shadeTint;
+                half3 col;
+                half3 vcol;
+                if (_UseCandyGround > 0.5h)
+                {
+                    // земля (трава кромки и поле): цвет и свет из CandyGround.hlsl, как у Terrain, поэтому на стыке шва нет
+                    half3 g = (half3)CGGrass(i.positionWS.xz, distance(_WorldSpaceCameraPos, i.positionWS), 0.0) * gS;
+                    half3 colRock = vcolRock * (directRock + amb) * shadeRock;
+                    half3 colGround = g * (half3)CGGroundShade(n, l, amb);
+                    col = lerp(colRock, colGround, gW);
+                    vcol = lerp(vcolRock, g, gW);
+                }
+                else
+                {
+                    // старый путь: текстура Terrain по мировым XZ. Земля: обычный ламберт, как у Terrain/Lit
+                    half3 gTex = SAMPLE_TEXTURE2D(_GroundTex, sampler_GroundTex, i.positionWS.xz / max(0.1, _GroundMeters)).rgb * _GroundTint.rgb * gS;
+                    vcol = lerp(vcolRock, gTex, gW);
+                    half3 directGround = l.color * (saturate(ndl) * l.shadowAttenuation);
+                    half3 direct = lerp(directRock, directGround, gW);
+                    half3 shadeTint = lerp(shadeRock, half3(1, 1, 1), gW);
+                    col = vcol * (direct + amb) * shadeTint;
+                }
 
                 half3 v = normalize(GetWorldSpaceViewDir(i.positionWS));
                 half rim = pow(1.0h - saturate(dot(n, v)), 3.0h) * _Rim;

@@ -214,7 +214,7 @@ public class ShopBuilder : EditorWindow
 
     float Rnd() { return (float)rng.NextDouble(); }
 
-    [MenuItem("Tools/BuilderSim/Shop Builder")]
+    [MenuItem("Tools/BuilderSim/Здания/Shop Builder", false, 301)]
     static void Open()
     {
         var w = GetWindow<ShopBuilder>(false, "Лавка");

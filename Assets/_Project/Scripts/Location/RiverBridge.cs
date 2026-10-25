@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// Стадии моста: 1 сломан, 2 починен, 3 красивый.
-/// Поля создаёт LocationRiver (stages, blockers, stage).
+/// Поля stages, blockers, stage. Генератор реки удалён, мост на следующую локацию (GateBridge) всё ещё слушает этот компонент.
 /// Из игры: GetComponent<RiverBridge>().SetStage(2);
 ///
 /// Стройка (BuildStageLink) ведёт мост через SetBuildProgress(этапов сдано, этапов всего):

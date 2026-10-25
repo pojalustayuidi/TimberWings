@@ -116,7 +116,7 @@ sealed class MenuFlowRunner : MonoBehaviour
     {
         var canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 5000;                    // выше всего, в том числе окна настроек (1000)
+        canvas.sortingOrder = UiLayers.MainMenu;
         gameObject.AddComponent<GraphicRaycaster>();
         group = gameObject.AddComponent<CanvasGroup>();
         group.alpha = 0f; group.blocksRaycasts = false; group.interactable = false;

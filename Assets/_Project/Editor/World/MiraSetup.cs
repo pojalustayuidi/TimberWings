@@ -14,7 +14,7 @@ using UnityEngine.SceneManagement;
 
 public static class MiraSetup
 {
-    [MenuItem("Tools/BuilderSim/Настроить старт игры")]
+    [MenuItem("Tools/BuilderSim/Мир и персонаж/Настроить старт игры", false, 402)]
     static void Run()
     {
         var sb = new StringBuilder("=== Настроить старт игры ===\n");
