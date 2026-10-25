@@ -41,8 +41,14 @@ namespace IslandV2
         public Color pathBlush = H("#F6C2B4");
         public Color pathRim = H("#FFF3D2");
         [Range(0f, 1f)] public float pathRimStrength = 0.55f;
-        [Tooltip("Живой край: на сколько метров ширина тропы гуляет (только вид, проходимость не меняется).")]
+        [Tooltip("Визуальная мягкость границы тропы в метрах. Ширину проходимого коридора не меняет.")]
+        [Range(0.25f, 1.25f)] public float pathFeather = 0.75f;
+        [Tooltip("Живой край: амплитуда визуальной неровности, м. Ось и ширина PathLine не меняются.")]
         [Range(0f, 1.5f)] public float pathWobble = 0.6f;
+        [Tooltip("Доля мелкого шума на краю (0 = только плавные изгибы).")]
+        [Range(0f, 0.6f)] public float pathFineNoise = 0.20f;
+        [Tooltip("Сила редких розово-персиковых пятен на тропе (0 = нет).")]
+        [Range(0f, 0.5f)] public float pathBlushStrength = 0.14f;
         [Tooltip("Ширина скругления края «подушки», м (от неё зависит мягкость бликов на краю).")]
         [Range(0.5f, 2.5f)] public float pathPillow = 1.2f;
         public Color contactColor = H("#45BE92");

@@ -76,20 +76,24 @@ namespace IslandV2
             float d1, d2;
             f.PathEdgeNearest(x, z, out d1, out d2);
             float junction = 1f - IslandField.Step(0f, Mathf.Max(0.1f, L.pathJunctionReach), Mathf.Max(0f, d2));
+            float baseEdge = d1 - L.pathJunctionWiden * junction;
+            // Шум действует только у ВИДИМОЙ кромки. Центр тропы и игровая раскладка не меняются.
+            float edgeNoiseBand = 1f - IslandField.Step(0.45f, 1.6f, Mathf.Abs(baseEdge));
             float wob = (Mathf.PerlinNoise(x * 0.21f + 5.7f, z * 0.21f + 1.9f) - 0.5f) * s.pathWobble
-                      + (Mathf.PerlinNoise(x * 0.7f + 12.1f, z * 0.7f + 4.4f) - 0.5f) * s.pathWobble * 0.3f;
-            float edge = d1 - L.pathJunctionWiden * junction + wob;
+                      + (Mathf.PerlinNoise(x * 0.7f + 12.1f, z * 0.7f + 4.4f) - 0.5f) * s.pathWobble * s.pathFineNoise;
+            float edge = baseEdge + wob * edgeNoiseBand;
 
             // 5а. контактная тень на траве вокруг тропы: холодная мята вместо серого затемнения
             float contact = IslandField.Step(-0.2f, 0.35f, edge) * (1f - IslandField.Step(0.35f, 0.35f + s.contactWidth, edge)) * s.contactShadow;
             c = Color.Lerp(c, s.contactColor, contact);
 
             // 5б. сама лента: центр кремовый, к краю персиковый, розоватые разводы, белая кромка
-            float cover = 1f - IslandField.Step(-0.35f, 0.25f, edge);
+            float feather = Mathf.Clamp(s.pathFeather, 0.25f, 1.25f);
+            float cover = 1f - IslandField.Step(-feather * 0.65f, feather * 0.35f, edge);
             float toEdge = IslandField.Step(-1.1f, -0.1f, edge);
             Color pc = Color.Lerp(s.pathCream, s.pathEdge, toEdge);
-            float blush = IslandField.Step(0.52f, 0.72f, Mathf.PerlinNoise(x / 9f + 31.4f, z / 9f + 2.7f));
-            pc = Color.Lerp(pc, s.pathBlush, blush * 0.5f);
+            float blush = IslandField.Step(0.62f, 0.80f, Mathf.PerlinNoise(x / 9f + 31.4f, z / 9f + 2.7f));
+            pc = Color.Lerp(pc, s.pathBlush, blush * s.pathBlushStrength);
             float rimBand = 1f - IslandField.Step(0.05f, 0.5f, Mathf.Abs(edge + 0.25f));
             pc = Color.Lerp(pc, s.pathRim, rimBand * s.pathRimStrength);
             pc = CScale(pc, 1f + (Mathf.PerlinNoise(x * 0.9f + 5.2f, z * 0.9f + 8.8f) - 0.5f) * 0.05f);
@@ -173,9 +177,54 @@ namespace IslandV2
             if (field.Contour.Count < 3) { Debug.LogError("IslandV2: контур пустой, проверь раскладку."); return; }
 
             Material mat = GetMaterial(shader);
-            BakeGroundTexture(field, mat);
+            if (!BakeGroundTexture(field, mat)) return;  // отмена не является успешной перекраской
             AssetDatabase.SaveAssets();
             Debug.Log("IslandV2: Candy-земля перекрашена. Геометрию пересобирать не нужно: материал общий, сцена обновится сама. Ползунки вида: материал Mat_IslandV2 (" + MaterialPath + "), цвета: " + IslandCandy.AssetPath + ".");
+        }
+
+        // ISL-006: пресет затрагивает ТОЛЬКО вид тропы в IslandCandy.asset.
+        // Ни IslandLayout, ни меши, ни TerrainData, ни расстановка объектов не меняются.
+        [MenuItem("Tools/BuilderSim/Локация/Остров v2/Candy-земля: ISL-006 пресет тропинок", false, 135)]
+        static void MenuIsl006PathPreset()
+        {
+            if (Application.isPlaying) { Debug.LogError("ISL-006: сначала выйди из Play Mode."); return; }
+            var s = IslandCandy.GetOrCreate();
+            if (!s.candyOn)
+            {
+                Debug.LogError("ISL-006: IslandCandy.candyOn выключен. Пресет не применён: сначала включи Candy-землю осознанно, затем повтори.");
+                return;
+            }
+
+            Color cream, edge, blush, rim, contact;
+            if (!ColorUtility.TryParseHtmlString("#F8E7BE", out cream) ||
+                !ColorUtility.TryParseHtmlString("#EDCB9D", out edge) ||
+                !ColorUtility.TryParseHtmlString("#F6D4C7", out blush) ||
+                !ColorUtility.TryParseHtmlString("#F9E9C9", out rim) ||
+                !ColorUtility.TryParseHtmlString("#6FC997", out contact))
+            {
+                Debug.LogError("ISL-006: не удалось прочитать цвета пресета. Настройки не изменены.");
+                return;
+            }
+
+            Undo.RecordObject(s, "ISL-006: пресет центральных тропинок");
+            s.pathCream = cream;
+            s.pathEdge = edge;
+            s.pathBlush = blush;
+            s.pathRim = rim;
+            s.pathRimStrength = 0.30f;
+            s.pathFeather = 0.75f;
+            s.pathWobble = 0.50f;
+            s.pathFineNoise = 0.18f;
+            s.pathBlushStrength = 0.12f;
+            s.contactColor = contact;
+            s.contactShadow = 0.18f;
+            s.contactWidth = 0.9f;
+            s.pathPillow = 1.0f;
+            EditorUtility.SetDirty(s);
+            AssetDatabase.SaveAssets();
+            Debug.Log("ISL-006: параметры центральных тропинок записаны в " + IslandCandy.AssetPath +
+                      ". Теперь запусти «Candy-земля: перекрасить (без пересборки)» (меню 133). География не менялась.");
+            Selection.activeObject = s;
         }
 
         [MenuItem("Tools/BuilderSim/Локация/Остров v2/Candy-земля: настройки (цвета)", false, 134)]

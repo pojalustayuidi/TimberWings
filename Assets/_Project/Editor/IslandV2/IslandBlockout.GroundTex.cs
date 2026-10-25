@@ -21,7 +21,7 @@ namespace IslandV2
         public const string GroundTexPath = IslandLayout.AssetFolder + "/Generated/IslandV2_GroundColor.png";
         public const string GroundMaskPath = IslandLayout.AssetFolder + "/Generated/IslandV2_GroundMask.png";
 
-        static void BakeGroundTexture(IslandField f, Material mat)
+        static bool BakeGroundTexture(IslandField f, Material mat)
         {
             var L = f.L;
             // старый ассет раскладки (без PAD_* меток, троп и реки) даёт землю без троп: говорим об этом сразу
@@ -52,7 +52,10 @@ namespace IslandV2
                 for (int j = 0; j < h; j++)
                 {
                     if ((j & 15) == 0 && EditorUtility.DisplayCancelableProgressBar("Остров v2: цвет земли" + (useCandy ? " (Candy)" : ""), "Запекание текстуры " + w + "x" + h, (float)j / h))
-                        break;
+                    {
+                        Debug.LogWarning("IslandV2: запекание цвета земли отменено. Старые PNG и материал не перезаписывались.");
+                        return false;
+                    }
                     float z = z0 + (j + 0.5f) * texel;
                     for (int i = 0; i < w; i++)
                     {
@@ -105,6 +108,7 @@ namespace IslandV2
             AssetDatabase.SaveAssets();
             Debug.Log("IslandV2: текстура цвета земли " + w + "x" + h + ", пиксель " + texel.ToString("0.00") + " м (" + GroundTexPath + ")"
                 + (useCandy ? ", маска Candy (" + GroundMaskPath + ")." : ", старая раскраска."));
+            return true;
         }
 
         // PNG в проект и настройка импорта. srgb = true для цвета; для маски false: значения читаются как есть (иначе уклон и глянец исказятся гаммой)
