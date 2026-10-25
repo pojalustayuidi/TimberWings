@@ -42,15 +42,27 @@ namespace IslandV2
             float n1 = Mathf.PerlinNoise(x / gs + 7.1f, z / gs + 3.3f);
             float n2 = Mathf.PerlinNoise(x / (gs * 0.4f) + 21.7f, z / (gs * 0.4f) + 9.4f);
             float t = Mathf.Clamp01(0.5f + (n1 * 0.75f + n2 * 0.25f - 0.5f) * s.grassContrast);
+            // ISL-007: сжимаем диапазон к середине палитры, чтобы лайм не спорил с мятой.
+            // grassVariation=1 сохраняет прежнюю окраску (обратная совместимость).
+            t = Mathf.Lerp(0.5f, t, s.grassVariation);
             Color c = s.GrassAt(t);
             float grain = 1f + (Mathf.PerlinNoise(x * 1.15f + 41.3f, z * 1.15f + 17.9f) - 0.5f) * 2f * s.grassGrain;
             c = CScale(c, grain);
+
+            // Деликатные прохладные полутона: только во время Editor bake, без нагрузки на шейдер.
+            if (s.grassCoolShadeStrength > 0.0001f)
+            {
+                float shadeScale = Mathf.Max(5f, s.grassCoolShadeScale);
+                float shadeNoise = Mathf.PerlinNoise(x / shadeScale + 11.8f, z / shadeScale + 37.3f);
+                float shade = IslandField.Step(0.46f, 0.72f, shadeNoise) * s.grassCoolShadeStrength;
+                c = Color.Lerp(c, s.grassCoolShade, shade);
+            }
 
             // 2. лес: светлая мятная подстилка, внутри «солнечные зайчики»
             float fw = f.ForestWeight(x, z) * s.forestStrength;
             c = Color.Lerp(c, s.forestFloor, fw);
             if (fw > 0.01f)
-                c = CScale(c, 1f + (Mathf.PerlinNoise(x * 0.45f + 3.1f, z * 0.45f + 8.2f) - 0.5f) * 0.18f * fw);
+                c = CScale(c, 1f + (Mathf.PerlinNoise(x * 0.45f + 3.1f, z * 0.45f + 8.2f) - 0.5f) * s.forestDappleStrength * fw);
 
             // 3. сахарный берег (WaterDistance > 0 снаружи воды; в воде и на броде берега нет)
             float wd = f.WaterDistance(x, z);

@@ -31,9 +31,20 @@ namespace IslandV2
         [Range(1f, 3f)] public float grassContrast = 1.9f;
         [Range(0f, 0.1f)] public float grassGrain = 0.04f;
 
+        [Header("Трава: мягкие полутона ISL-007")]
+        [Tooltip("0 = одна середина палитры, 1 = исходный диапазон оттенков. Не влияет на тропинки и геометрию.")]
+        [Range(0f, 1f)] public float grassVariation = 1f;
+        [Tooltip("Редкие прохладные полутона травы. 0 = без дополнительных пятен (поведение до ISL-007).")]
+        [Range(0f, 0.25f)] public float grassCoolShadeStrength = 0f;
+        [Tooltip("Средний размер мягких прохладных пятен, в метрах.")]
+        [Range(5f, 40f)] public float grassCoolShadeScale = 11f;
+        public Color grassCoolShade = H("#70BE95");
+
         [Header("Лес (под деревьями)")]
         public Color forestFloor = H("#4DC48A");
         [Range(0f, 1f)] public float forestStrength = 0.7f;
+        [Tooltip("Мягкие световые переливы земли под деревьями. 0.18 = исходное поведение.")]
+        [Range(0f, 0.3f)] public float forestDappleStrength = 0.18f;
 
         [Header("Тропа: кремовая лента с «подушкой»")]
         public Color pathCream = H("#FBE9B7");
