@@ -1,0 +1,51 @@
+TIMBER WINGS — ISL-021 / EDGE SAFETY AUDIT (READ ONLY)
+Date: 2026-10-26 18:02:42
+Unity: 6000.3.10f1
+Active scene: Assets/_Recovery/0 (7).unity (0 (7))
+This is a static Editor audit, NOT a Play Mode / save migration / FPS test.
+No scene, .asset, .meta, GameObject, component, collider or mesh will be modified.
+WARNING: Active scene lies in _Recovery. Confirm the real game scene before testing.
+
+[1. Island sources and edge guards]
+IslandV2Data count (incl. inactive): 1
+ IslandV2 active=True enabled=True
+FloatingIsland count (incl. inactive): 0
+IslandEdgeGuard count (incl. inactive): 0
+NOTE: IslandV2Data.Awake() adds IslandEdgeGuard at runtime; absence in Edit Mode may be normal.
+
+[2. Layout and contour]
+Layout: Assets/_Project/IslandV2/IslandLayout.asset
+ maxWalkSlopeDeg=32 hillAmp=0.9 hillScale=38 pathFlatten=0.6 flatBlend=5
+IslandV2Data: IslandV2
+Contour points: 120; groundY=0
+
+[3. Terrain colliders and suspicious invisible obstacles]
+All colliders in active scene, including inactive: 596
+TerrainColliders (including inactive): 2
+ TerrainCollider === ENVIRONMENT ===/чета/Terrain enabledAndActive=False terrainData=True
+ TerrainCollider IslandV2/_Generated/Ground_Terrain enabledAndActive=True terrainData=True
+ CANDIDATE: Ground_Auto / MeshCollider enabledAndActive=False trigger=False
+Name-matched legacy barrier candidates: 1; cliff candidates: 0
+NOTE: this is a name-based inventory, not proof of a collision defect.
+
+[4. Respawn markers: references, scene position, ground hit]
+ Marker: IslandV2/Markers/SPAWN_Player active=True pos=(0, 0, -4.2)
+Selected candidate marker: IslandV2/Markers/SPAWN_Player
+ Inside actual scene contour: True; edge distance=53.759 m
+ Nearest static ray hit: IslandV2/_Generated/Ground_Terrain / TerrainCollider hitY=0
+
+[5. Terrain edge samples (32 around actual v2 contour)]
+ Interior missing terrain: 0/32
+ Exterior unexpectedly solid: 0/32
+
+[6. Runtime checks that MUST be completed manually]
+[ ] Confirm actual playable scene, Git status, backups and real Inspector values.
+[ ] Run the existing IslandCheck contract / walkability test.
+[ ] In a disposable save, test falls from 8 outer-edge sections and final bridge.
+[ ] Verify respawn position, camera, movement, UI prompts and console errors.
+[ ] Test water/fall interactions, dash and auto-walk at edge.
+[ ] Save, restart and confirm progress/buildings/resources unchanged.
+[ ] Test previously reported steep areas (35.83 / 48.30 deg) in Play Mode.
+No runtime fall or saved-game integrity can be established by this Editor report.
+
+Warnings: 1. Warning != confirmed gameplay defect.

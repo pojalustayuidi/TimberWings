@@ -59,16 +59,27 @@ namespace IslandV2
             }
 
             // 2. лес: светлая мятная подстилка, внутри «солнечные зайчики»
-            float fw = f.ForestWeight(x, z) * s.forestStrength;
+            float forestWeight = f.ForestWeight(x, z);
+            float fw = forestWeight * s.forestStrength;
             c = Color.Lerp(c, s.forestFloor, fw);
             if (fw > 0.01f)
                 c = CScale(c, 1f + (Mathf.PerlinNoise(x * 0.45f + 3.1f, z * 0.45f + 8.2f) - 0.5f) * s.forestDappleStrength * fw);
 
+            // ISL-020: приглушаем контраст исключительно в переходной полосе.
+            // При zoneForestBlend=0 пиксель совпадает с алгоритмом ISL-007.
+            if (s.zoneForestBlend > 0.0001f)
+            {
+                float border = 4f * forestWeight * (1f - forestWeight); // 0 в лесу и на открытой поляне
+                Color edgeTone = Color.Lerp(s.grassGreen, s.forestFloor, 0.52f);
+                c = Color.Lerp(c, edgeTone, border * 0.18f * Mathf.Clamp01(s.zoneForestBlend));
+            }
+
             // 3. сахарный берег (WaterDistance > 0 снаружи воды; в воде и на броде берега нет)
             float wd = f.WaterDistance(x, z);
-            if (wd > 0f && wd < s.beachWidth + 1.2f)
+            float beachEnd = s.beachWidth + 1.2f + 0.7f * Mathf.Clamp01(s.zoneShoreBlend);
+            if (wd > 0f && wd < beachEnd)
             {
-                float beach = (1f - IslandField.Step(s.beachWidth * 0.55f, s.beachWidth + 1.2f, wd)) * s.beachStrength;
+                float beach = (1f - IslandField.Step(s.beachWidth * 0.55f, beachEnd, wd)) * s.beachStrength;
                 c = Color.Lerp(c, s.beachColor, beach);
             }
 
@@ -80,15 +91,29 @@ namespace IslandV2
                 if (a.kind != IslandLayout.AnchorKind.Building) continue;
                 if (a.name == "CAMPFIRE_Point") continue;   // у костра своя площадка ниже
                 float rd = f.RectDistance(a, x, z);
-                pad = Mathf.Max(pad, 1f - IslandField.Step(0.3f, 2.4f, rd));
+                pad = Mathf.Max(pad, 1f - IslandField.Step(0.3f, 2.4f + 0.8f * Mathf.Clamp01(s.zonePadBlend), rd));
             }
             c = Color.Lerp(c, s.padColor, pad * s.padStrength);
+
+            // ISL-017: приглушённый гравий вокруг основания и мягкий подход к входу.
+            // Рассчитывается только в Editor при запекании, без новых мешей и коллайдеров.
+            float siteClean;
+            c = ApplyBuildingPadDetails(c, x, z, out siteClean);
 
             // 5. тропа: edge < 0 на тропе; на развилках расширяется (как раньше); край «дышит» шумом
             float d1, d2;
             f.PathEdgeNearest(x, z, out d1, out d2);
             float junction = 1f - IslandField.Step(0f, Mathf.Max(0.1f, L.pathJunctionReach), Mathf.Max(0f, d2));
-            float baseEdge = d1 - L.pathJunctionWiden * junction;
+            // ISL-012: сглаживаем MIN двух SDF лишь там, где две ленты близко друг к другу.
+            // Сохраняем старую геометрию и L.pathJunctionWiden; видимое добавление <= roundness/4.
+            float rounding = Mathf.Clamp(s.pathJunctionRoundness, 0f, 0.9f);
+            float joinedEdge = d1;
+            if (rounding > 0.0001f && d2 < float.MaxValue * 0.5f)
+            {
+                float hRound = Mathf.Clamp01(1f - (d2 - d1) / rounding);
+                joinedEdge -= 0.25f * rounding * hRound * hRound;
+            }
+            float baseEdge = joinedEdge - L.pathJunctionWiden * junction;
             // Шум действует только у ВИДИМОЙ кромки. Центр тропы и игровая раскладка не меняются.
             float edgeNoiseBand = 1f - IslandField.Step(0.45f, 1.6f, Mathf.Abs(baseEdge));
             float wob = (Mathf.PerlinNoise(x * 0.21f + 5.7f, z * 0.21f + 1.9f) - 0.5f) * s.pathWobble
@@ -100,7 +125,8 @@ namespace IslandV2
             c = Color.Lerp(c, s.contactColor, contact);
 
             // 5б. сама лента: центр кремовый, к краю персиковый, розоватые разводы, белая кромка
-            float feather = Mathf.Clamp(s.pathFeather, 0.25f, 1.25f);
+            // Только возле слияний: на прямых участках сохраняем утверждённый ISL-006 край.
+            float feather = Mathf.Clamp(s.pathFeather + junction * s.pathJunctionFeatherBoost, 0.25f, 1.25f);
             float cover = 1f - IslandField.Step(-feather * 0.65f, feather * 0.35f, edge);
             float toEdge = IslandField.Step(-1.1f, -0.1f, edge);
             Color pc = Color.Lerp(s.pathCream, s.pathEdge, toEdge);
@@ -113,6 +139,8 @@ namespace IslandV2
 
             // «подушка» тропы: 1 на ленте, мягко до 0 за краем (по ней шейдер наклоняет нормаль)
             float h = 1f - IslandField.Step(-0.5f * s.pathPillow, 0.5f * s.pathPillow + 0.15f, edge);
+            // Псевдорельеф и глянец слегка следуют тому же краю, что и цвет: меньше двойных полос.
+            h = Mathf.Lerp(h, cover, Mathf.Clamp01(s.pathMaskEdgeMatch));
 
             // 6. круглая площадка у костра (под мощением, видна у самого костра и по краю)
             float pd = Vector2.Distance(new Vector2(x, z), f.PlazaCenter);
@@ -133,11 +161,27 @@ namespace IslandV2
             if (rdist < half + 16f && rdist > half * 0.85f)
             {
                 float sl = f.Slope(x, z);
-                float wallW = IslandField.Step(24f, 42f, sl);
+                // ISL-018: при силе 0 полностью сохраняем утверждённый алгоритм.
+                // Расширение градиента по уклону делает стык травы и камня плавнее,
+                // но не меняет ни высоту земли, ни геометрию русла.
+                float riverHarmony = Mathf.Clamp01(s.riverBankHarmony);
+                float wallW = riverHarmony > 0.0001f
+                    ? Mathf.Lerp(IslandField.Step(24f, 42f, sl),
+                                 IslandField.Step(17f, 52f, sl) * 0.92f, riverHarmony)
+                    : IslandField.Step(24f, 42f, sl);
                 if (wallW > 0.001f)
                 {
                     float dy = f.Height(x, z) - f.RiverSurfaceAt(x, z);
-                    Color rock = Color.Lerp(L.riverWallColor, L.riverWallWet, 1f - IslandField.Step(0.4f, 1.8f, dy));
+                    float wetness = 1f - IslandField.Step(0.4f, 1.8f, dy);
+                    Color rock = Color.Lerp(L.riverWallColor, L.riverWallWet, wetness);
+                    if (riverHarmony > 0.0001f)
+                    {
+                        // Цвета IslandLayout не изменяем: это локальная корректировка
+                        // при запекании _GroundTex. Сухой верх — нейтральный камень,
+                        // мокрый низ — слегка прохладный серо-голубой.
+                        Color softerRock = Color.Lerp(s.riverBankDry, s.riverBankWet, wetness);
+                        rock = Color.Lerp(rock, softerRock, riverHarmony);
+                    }
                     c = Color.Lerp(c, rock, wallW);
                 }
             }
@@ -164,11 +208,37 @@ namespace IslandV2
             float spr = 1f;
             spr *= 1f - fw * 0.6f;
             spr *= 1f - pad * s.padStrength * 0.8f;
+            // ISL-017: у входов и возле оснований не рисуем цветное «конфетти».
+            spr *= 1f - siteClean;
             spr *= 1f - plaza;
             spr *= 1f - water;
             spr *= 1f - inRiver * fw2;
             spr *= IslandField.Step(0.5f, 2.5f, Mathf.Max(0f, ed));
             spr *= Mathf.Lerp(1f, 0.6f, o.height);
+
+            // ISL-013: группируем ТОЛЬКО запечённую B-маску посыпки. Цвет, высота,
+            // глянец, путь, берег и размещённые объекты остаются прежними.
+            // При sprinkleClustering=0 записывается строго прежняя плотность.
+            if (s.sprinkleClustering > 0.0001f)
+            {
+                float scale = Mathf.Max(3f, s.sprinkleClusterSize);
+                float seedX = s.sprinkleSeed * 0.0173f;
+                float seedZ = s.sprinkleSeed * 0.0317f;
+                float big = Mathf.PerlinNoise(x / scale + seedX + 7.3f, z / scale - seedZ + 13.1f);
+                float small = Mathf.PerlinNoise(x / (scale * 0.42f) - seedZ + 19.7f,
+                                                z / (scale * 0.42f) + seedX + 3.9f);
+                float clusterNoise = big * 0.78f + small * 0.22f;
+                float patches = IslandField.Step(s.sprinkleCleanThreshold,
+                                                 s.sprinkleCleanThreshold + 0.18f,
+                                                 clusterNoise);
+                // edge уже рассчитан для цветовой границы ISL-012. Никаких
+                // новых вызовов PathEdgeNearest или изменений IslandLayout.
+                float pathClear = IslandField.Step(s.sprinklePathClearance,
+                                                   s.sprinklePathClearance + 0.55f,
+                                                   edge);
+                float grouped = spr * patches * pathClear * s.sprinklePatchDensity;
+                spr = Mathf.Lerp(spr, grouped, s.sprinkleClustering);
+            }
             o.sprinkle = Mathf.Clamp01(spr);
             return o;
         }
@@ -237,6 +307,39 @@ namespace IslandV2
             Debug.Log("ISL-006: параметры центральных тропинок записаны в " + IslandCandy.AssetPath +
                       ". Теперь запусти «Candy-земля: перекрасить (без пересборки)» (меню 133). География не менялась.");
             Selection.activeObject = s;
+        }
+
+        // ISL-012: команды меняют только три новых параметра. Нулевые значения == принятый ISL-011 вид.
+        // Никаких изменений в IslandLayout, TerrainData, Mesh, материале и генераторах построек.
+        [MenuItem("Tools/BuilderSim/Локация/Остров v2/ISL-012/1. Применить мягкие переходы", false, 136)]
+        static void MenuIsl012Enable()
+        {
+            if (Application.isPlaying) { Debug.LogError("ISL-012: выйди из Play Mode."); return; }
+            var s = IslandCandy.GetOrCreate();
+            if (!s.candyOn) { Debug.LogError("ISL-012: IslandCandy.candyOn выключен, пресет не применён."); return; }
+            Undo.RecordObject(s, "ISL-012: мягкие переходы");
+            s.pathJunctionRoundness = 0.52f;
+            s.pathJunctionFeatherBoost = 0.14f;
+            s.pathMaskEdgeMatch = 0.25f;
+            EditorUtility.SetDirty(s);
+            AssetDatabase.SaveAssets();
+            Selection.activeObject = s;
+            Debug.Log("ISL-012: пресет записан в IslandCandy.asset; запусти «Candy-земля: перекрасить (без пересборки)». Маршруты, ширина и меши не менялись.");
+        }
+
+        [MenuItem("Tools/BuilderSim/Локация/Остров v2/ISL-012/2. Выключить мягкие переходы", false, 137)]
+        static void MenuIsl012Disable()
+        {
+            if (Application.isPlaying) { Debug.LogError("ISL-012: выйди из Play Mode."); return; }
+            var s = IslandCandy.GetOrCreate();
+            Undo.RecordObject(s, "ISL-012: вернуть старый вид переходов");
+            s.pathJunctionRoundness = 0f;
+            s.pathJunctionFeatherBoost = 0f;
+            s.pathMaskEdgeMatch = 0f;
+            EditorUtility.SetDirty(s);
+            AssetDatabase.SaveAssets();
+            Selection.activeObject = s;
+            Debug.Log("ISL-012: три новых параметра отключены; запусти «Candy-земля: перекрасить (без пересборки)» для восстановления цвета и маски.");
         }
 
         [MenuItem("Tools/BuilderSim/Локация/Остров v2/Candy-земля: настройки (цвета)", false, 134)]

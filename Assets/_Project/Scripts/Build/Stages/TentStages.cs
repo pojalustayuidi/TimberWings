@@ -51,6 +51,19 @@ public class TentStages : MonoBehaviour
         for (int i = 0; i < n; i++) if (lights[i] != null) lightBase[i] = lights[i].intensity;
     }
 
+    // ISL-015: вызывается только из TentBuilder в Editor после обновления Stage1/Stage2.
+    // Никакой логики в Play Mode не меняет; убирает устаревшие ссылки на предыдущие огни.
+#if UNITY_EDITOR
+    public void EditorResetGeneratedCache()
+    {
+        if (Application.isPlaying) return;
+        init = false;
+        lightBase = null;
+        s1Scale = Vector3.one;
+        s2Scale = Vector3.one;
+    }
+#endif
+
     void Start()
     {
         if (Application.isPlaying) SetStage(startStage, false);

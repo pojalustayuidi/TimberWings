@@ -427,7 +427,7 @@ public static class TreeSpeciesMeshes
         float[] R = { 1.80f, 1.95f, 1.70f, 2.08f };      // крона крупнее (+~16%), ствол короче и толще; верхушка на прежней высоте
         float[] cy = { 2.7f, 2.9f, 2.6f, 3.0f };
         int[] cnt = { 7, 8, 6, 9 };
-        float[] sq = { 0.82f, 0.78f, 0.90f, 0.80f };
+        float[] sq = { 0.90f, 0.88f, 0.95f, 0.89f };   // ISL-014: более круглый силуэт обычного дерева
         float[] lean = { 0.05f, -0.15f, 0.10f, -0.08f };
         Broadleaf(b, seed, lod, cy[v], R[v], cnt[v], sq[v], lean[v], 0.34f, 0.20f, 0.10f, 2, 0.14f, 1, 1, 0f, 2);
     }
@@ -449,7 +449,8 @@ public static class TreeSpeciesMeshes
         float[] cy = { 5.0f, 5.3f, 5.6f };
         int[] cnt = { 11, 12, 13 };
         float[] lean = { 0.10f, -0.20f, 0.15f };
-        Broadleaf(b, seed, lod, cy[v], R[v], cnt[v], 0.72f, lean[v], 0.62f, 0.34f, 0.25f, 4, 0.22f, 1, 2, 0.30f, 3);
+        // ISL-014: старый дуб сохраняет ширину, но крона становится приземистее.
+        Broadleaf(b, seed, lod, cy[v], R[v], cnt[v], 0.66f, lean[v], 0.62f, 0.34f, 0.25f, 4, 0.22f, 1, 2, 0.30f, 3);
     }
 
     // ------------------------------------------------------------ Cedar: ёлка из 6-8 плоских ярусов с опущенными лапами и тёмной юбкой, короткий ствол виден внизу
@@ -468,16 +469,16 @@ public static class TreeSpeciesMeshes
 
         b.TubeF(0, t => new Vector3(lean[v] * t * t * 0.9f, Mathf.Lerp(-0.1f, topY, t), 0f), t => Mathf.Lerp(0.34f, topR, t), tSegs, tSides, false);
 
-        float Rb = H * 0.285f, y0 = 0.95f, yTop = H * 0.78f;
+        float Rb = H * 0.300f, y0 = 0.95f, yTop = H * 0.78f;   // ISL-014: читаемое треугольное основание
         for (int i = 0; i < N; i++)
         {
             float t = N == 1 ? 0f : i / (float)(N - 1);
             float yb = Mathf.Lerp(y0, yTop, t);
-            float r = Rb * Mathf.Lerp(1f, 0.26f, Mathf.Pow(t, 1.25f));
+            float r = Rb * Mathf.Lerp(1f, 0.22f, Mathf.Pow(t, 1.15f));
             bool last = i == N - 1;
             float h = last ? H - yb : r * 0.62f + 0.55f;
             var c = new Vector3(lean[v] * t * t * 0.9f, yb, 0f);
-            float droop = last ? 0.2f : 0.55f * (1f - 0.35f * t);
+            float droop = last ? 0.2f : 0.60f * (1f - 0.35f * t);
             b.Tier(c, last ? r * 0.9f : r, h, sides, droop, 0.34f * (1f - 0.3f * t), seed + i * 13, lod <= 1, lod <= 1, 1, 3, 2);
         }
     }
@@ -543,7 +544,8 @@ public static class TreeSpeciesMeshes
 
         // крона: овал из крупных клякс, чуть вытянут вверх (раскладка не зависит от LOD)
         float cx = stems == 1 ? 0.05f : 0f;
-        Crown(b, seed, lod, new Vector3(cx, H * 0.64f, 0f), H * 0.27f, cloudsBy[v], 1.12f, 1, 1, 0f, 3);
+        // ISL-014: узкая, высокая крона лучше открывает светлый раздвоенный ствол.
+        Crown(b, seed, lod, new Vector3(cx, H * 0.66f, 0f), H * 0.245f, cloudsBy[v], 1.26f, 1, 1, 0f, 3);
     }
 
     // ------------------------------------------------------------ Willow_Dead: перекрученный ствол, 3 сука и 8-12 длинных свисающих веток

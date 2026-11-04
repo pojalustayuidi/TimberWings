@@ -15,8 +15,8 @@ public static partial class LumberjackHutBuilder
     const float BladeScale = 1.9f;              // диаметр диска
     const float PulleyZ = SawZ - 1.55f;         // плоскость ремня
     const float WheelX = 8.4f, WheelY = 1.15f, WheelZ = SawZ - 2.45f;
-    const float DoorHalf = 0.5f;                // полуширина дверного проёма
-    const float DoorH = 1.85f;                  // высота проёма от основания
+    const float DoorHalf = 0.78f;               // ISL-015: проём 0.78 м в мире при корне 0.5
+    const float DoorH = 2.60f;                  // ISL-015: проём 1.30 м в мире при корне 0.5
 
     static Transform BuildStage2(Transform root)
     {

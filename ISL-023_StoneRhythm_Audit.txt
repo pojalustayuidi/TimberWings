@@ -1,0 +1,19 @@
+﻿TIMBER WINGS — ISL-023 / PLAZA STONE RHYTHM AUDIT
+UTC: 2026-10-26T15:49:37.3371285Z
+Unity: 6000.3.10f1
+No scene, mesh, material, collider or save-game modified by this audit.
+Active scene: Assets/_Recovery/0 (7).unity
+Scene in _Recovery: YES - UNVERIFIED SCENE
+Preconditions: OK
+Plaza: IslandV2/_Generated/CampPlaza
+Plaza radius: 5,200 m; outer slab ring index: 2
+Plaza center XZ: (0.00, 0.00)
+Outer ring center radius: 4,208 m
+Source material: Mat_IslandV2
+Existing ISL-023 overlay: none
+Candy central mosaic: NOT FOUND (will not be created)
+Overlay: accents only on outermost existing stone ring; no central mosaic or path modifications.
+Apply replaces ONLY an existing IslandV2/_Generated/CampPlaza/ISL023_StoneRhythm child, if present.
+Apply adds one decorative MeshFilter/MeshRenderer (no collider, no new material asset or texture).
+Full plaza rebuild / full island rebuild is NOT part of ISL-023.
+On a full _Generated rebuild, the add-on will disappear; re-apply if desired.

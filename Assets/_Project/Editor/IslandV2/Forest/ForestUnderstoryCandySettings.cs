@@ -31,6 +31,16 @@ namespace IslandV2
         [Min(0.5f)] public float flowerPathClearance = 0.80f;
         [Min(0.5f)] public float rockPathClearance = 1.20f;
 
+        [Header("ISL-020: переходы леса, полян и берега")]
+        [Tooltip("0 = прежние жёсткие вероятностные границы ISL-008; 1 = плавное смешивание групп декора.")]
+        [Range(0f, 1f)] public float zoneBlendStrength = 0f;
+        [Tooltip("Радиус сглаживания вероятностей на границе полян, метры. Не меняет сами поляны.")]
+        [Range(0.5f, 6f)] public float meadowFeather = 3f;
+        [Tooltip("Ширина плавной зоны влияния троп на цветы и кусты, метры.")]
+        [Range(0.5f, 3f)] public float pathFeather = 1.5f;
+        [Tooltip("Ширина плавной зоны вероятности камней у речного берега, метры.")]
+        [Range(0.4f, 2f)] public float shoreFeather = 1.1f;
+
         public static ForestUnderstoryCandySettings Load()
         {
             var saved = AssetDatabase.LoadAssetAtPath<ForestUnderstoryCandySettings>(AssetPath);

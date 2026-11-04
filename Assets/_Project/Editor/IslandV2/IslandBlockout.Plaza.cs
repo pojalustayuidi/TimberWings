@@ -72,7 +72,11 @@ namespace IslandV2
             var rng = new System.Random(L.seed + 31);
             var acc = new MeshAcc();
 
-            Color cream = W(0.93f, 0.88f, 0.76f), lav = W(0.84f, 0.79f, 0.88f), sand = W(0.88f, 0.78f, 0.60f), inner = W(0.80f, 0.70f, 0.56f);
+            // ISL-018: общий каменный стиль. Без созданного или активного пресета цвета точно исходные.
+            Color cream = ISL018StoneHarmony.PlazaColor(0, W(0.93f, 0.88f, 0.76f)),
+                lav = ISL018StoneHarmony.PlazaColor(1, W(0.84f, 0.79f, 0.88f)),
+                sand = ISL018StoneHarmony.PlazaColor(2, W(0.88f, 0.78f, 0.60f)),
+                inner = ISL018StoneHarmony.PlazaColor(3, W(0.80f, 0.70f, 0.56f));
             Color woodDark = W(0.42f, 0.28f, 0.17f), woodCap = W(0.58f, 0.42f, 0.26f), rope = W(0.80f, 0.70f, 0.48f);
             Color lampMetal = W(0.28f, 0.24f, 0.30f), bulb = W(1.0f, 0.86f, 0.50f);
 
@@ -96,7 +100,11 @@ namespace IslandV2
             }
 
             // 2. бордюр из камней, проходы у троп свободны
-            Color[] rimCols = { W(0.72f, 0.66f, 0.78f), W(0.80f, 0.75f, 0.84f), W(0.66f, 0.62f, 0.74f) };
+            Color[] rimCols = {
+                ISL018StoneHarmony.PlazaColor(4, W(0.72f, 0.66f, 0.78f)),
+                ISL018StoneHarmony.PlazaColor(5, W(0.80f, 0.75f, 0.84f)),
+                ISL018StoneHarmony.PlazaColor(6, W(0.66f, 0.62f, 0.74f))
+            };
             int ns = Mathf.RoundToInt(2f * Mathf.PI * R / 0.8f);
             int stones = 0;
             for (int i = 0; i < ns; i++)

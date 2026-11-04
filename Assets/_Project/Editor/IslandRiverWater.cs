@@ -27,7 +27,10 @@ namespace IslandV2
 
         const float RowStep = 1.0f;        // шаг рядов ленты воды вдоль реки, метры (мельче: гладкий поворот штрихов течения на меандре)
         const float ArcDrop = 1.6f;        // на каком падении (м) струя из горизонтальной становится вертикальной: плавная дуга через порог
-        const int FallCols = 11;           // колонок в полотне водопада (было 5): ровный изгиб и струи без изломов
+        public const int FallCols = 15;    // колонок в полотне водопада: ровный изгиб и рельеф струй
+        public const int FallArcRows = 12; // рядов на дуге через порог (густо у самого порога)
+        public const int FallTailRows = 9; // рядов на вертикальном падении
+        public const int FallRows = FallArcRows + FallTailRows;   // ровно столько рядов в одном полотне: по этому числу проверка шва находит стык
         public const string SprayMaterialPath = IslandLayout.AssetFolder + "/Mat_IslandSpray.mat";
         const float EdgeTuck = 0.25f;      // насколько лента шире воды (уходит под откос берега), метры
         const float Lift = 0.03f;          // лента выше расчётной поверхности: нет z-fight с откосом у самой воды
@@ -82,12 +85,18 @@ namespace IslandV2
             var fv = new List<Vector3>(); var fnr = new List<Vector3>(); var fuv = new List<Vector2>();
             var fcol = new List<Color>(); var fidx = new List<int>();
 
+            // грот у истока (TW_RIVER_ART): вода в нём и на первых метрах за устьем темнее и глубже по цвету. Числа в TWRiverSpec; без истока caveLen = 0
+            float caveLen = TWRiverSpec.CaveLength(f);
             int volumes = 0;
             for (int pi = 0; pi < pieces.Count; pi++)
             {
                 var axis = Resample(pieces[pi], RowStep);
                 if (axis.Count < 2) continue;
-                AddSurface(f, axis, half, v, nr, uv, col, idx);
+                bool fromInlet = false;
+                if (caveLen > 0f)
+                    foreach (var ed in f.RiverEdges)
+                        if (!ed.isOutlet && Vector2.Distance(axis[0], ed.pos) < 1.5f) { fromInlet = true; break; }
+                AddSurface(f, axis, half, fromInlet ? caveLen : 0f, v, nr, uv, col, idx);
                 AddVolume(f, gen, Resample(pieces[pi], 3f), half, pi);
                 volumes++;
             }
@@ -98,8 +107,7 @@ namespace IslandV2
             foreach (var e in f.RiverEdges)
             {
                 if (!e.isOutlet) continue;
-                AddFall(f, e.pos, half, totalDepth, 0f, 1f, 1f, fv, fnr, fuv, fcol, fidx);      // передний слой
-                AddFall(f, e.pos, half, totalDepth, 1f, 0.8f, 0.55f, fv, fnr, fuv, fcol, fidx); // задний слой: уже и ближе к скале
+                AddFall(f, e, half, totalDepth, fv, fnr, fuv, fcol, fidx);   // ОДНО полотно: второго слоя больше нет
                 AddSpray(f, gen, e.pos, half, totalDepth, falls);
                 falls++;
             }
@@ -141,7 +149,7 @@ namespace IslandV2
         }
 
         // ================================================================ поверхность
-        static void AddSurface(IslandField f, List<Vector2> axis, float half, List<Vector3> v, List<Vector3> nr, List<Vector2> uv, List<Color> col, List<int> idx)
+        static void AddSurface(IslandField f, List<Vector2> axis, float half, float caveLen, List<Vector3> v, List<Vector3> nr, List<Vector2> uv, List<Color> col, List<int> idx)
         {
             var L = f.L;
             float w = half + EdgeTuck;
@@ -163,6 +171,10 @@ namespace IslandV2
                 float wallOff = half + 3f;
                 float bankTop = 0.5f * (f.Height(p.x + n.x * wallOff, p.y + n.y * wallOff) + f.Height(p.x - n.x * wallOff, p.y - n.y * wallOff));
                 float canyon = Mathf.Clamp01((bankTop - (y - Lift)) / 3.5f) * (1f - fw);
+
+                // грот: along = метры от входа реки. 1 внутри, плавно к 0 за устьем. Цвет глубже (r -> 1), ущелье (a) темнит воду и тормозит течение
+                float cave = caveLen > 0.1f ? TWRiverSpec.CaveShade(along, caveLen) : 0f;
+                if (cave > 0f) { depthShare = Mathf.Lerp(depthShare, 1f, cave); canyon = Mathf.Max(canyon, cave); }
 
                 // r = доля глубины (цвет), g = 0 (режим «поверхность»), b = пена у порога, a = ущелье
                 var c = new Color(depthShare, 0f, Mathf.Clamp01(cut), canyon);
@@ -197,42 +209,54 @@ namespace IslandV2
             return f.Inside(edge.x + n1.x * 0.6f, edge.y + n1.y * 0.6f) ? -n1 : n1;
         }
 
-        // Профиль «через порог»: вынос наружу растёт по дуге (быстро в начале, к ArcDrop замирает), дальше водопад падает строго вертикально.
+        // Профиль «через порог»: четверть окружности. Вынос растёт как sqrt(2k - k^2): у порога струя идёт строго горизонтально (как лента реки),
+        // к концу дуги (k = 1, падение ArcDrop) движется строго вертикально. Раньше было квадратичное замедление: на пороге струя сразу уходила под ~40° вниз, это и был излом.
         static float FallOut(float drop, float off)
         {
             float k = Mathf.Clamp01(drop / ArcDrop);
-            return off * (1f - (1f - k) * (1f - k));
+            return off * Mathf.Sqrt(Mathf.Max(0f, 2f * k - k * k));
         }
 
-        static void AddFall(IslandField f, Vector2 edge, float half, float totalDepth, float layer, float widthMul, float outMul, List<Vector3> v, List<Vector3> nr, List<Vector2> uv, List<Color> col, List<int> idx)
+        // Нормаль профиля в плоскости (вынос, высота): перпендикуляр к касательной дуги. Возвращает (outComp, upComp), длина 1.
+        static Vector2 FallProfileNormal(float drop, float off)
+        {
+            float k = Mathf.Clamp01(drop / ArcDrop);
+            if (k >= 1f) return new Vector2(1f, 0f);
+            float s = Mathf.Sqrt(Mathf.Max(1e-4f, 2f * k - k * k));
+            float dOut = off * (1f - k) / s;                    // d(вынос)/dk, k на 0..1
+            return new Vector2(ArcDrop, dOut).normalized;       // касательная (dOut, -ArcDrop) -> нормаль (ArcDrop, dOut)
+        }
+
+        // ОДНО полотно водопада (раньше два слоя «передний + задний», которые шейдер смешивал по альфе: каша из двух полупрозрачных стен).
+        // Верхний ряд полотна совпадает с последним рядом ленты River_Water: те же две точки по ширине и та же высота.
+        // Для этого верх повёрнут по направлению течения реки на выходе (e.outward), а не по нормали контура (при косом выходе реки получался клин-щель).
+        // Ниже, по мере падения, направление плавно переходит к нормали кромки: полотно ложится вдоль обрыва.
+        static void AddFall(IslandField f, IslandField.RiverEdge e, float half, float totalDepth, List<Vector3> v, List<Vector3> nr, List<Vector2> uv, List<Color> col, List<int> idx)
         {
             var L = f.L;
-            Vector2 n = OutwardNormal(f, edge);
-            Vector2 side = new Vector2(-n.y, n.x);               // вдоль кромки
+            Vector2 edge = e.pos;
+            Vector2 cn = OutwardNormal(f, edge);                  // нормаль кромки
+            Vector2 fd = e.outward.sqrMagnitude > 0.5f ? e.outward.normalized : cn;   // направление течения на выходе
+
             float yLip = f.RiverSurfaceAt(edge.x, edge.y) + Lift;
             float yCliffTop = yLip - Lift - L.riverLip;            // земля на пороге
             float yBottom = yCliffTop - totalDepth - L.fallExtra;
             float total = Mathf.Max(2f, yLip - yBottom);
-            float off = Mathf.Max(0.3f, L.fallOffset) * outMul;
+            float off = Mathf.Max(0.3f, L.fallOffset);
 
-            // ширина: сверху ровно как у ленты реки (half + EdgeTuck): нет ступеньки между рекой и водопадом, водопад «цельный».
-            // Дальше мягко сужается до fallWidthShare и к низу чуть расходится
-            float wTop = (half + EdgeTuck) * widthMul;
-            float wMid = half * Mathf.Clamp(L.fallWidthShare, 0.4f, 1.2f) * widthMul;
+            // ширина: сверху ровно как у ленты реки (half + EdgeTuck), дальше мягко до fallWidthShare и к низу чуть расходится
+            float wTop = half + EdgeTuck;
+            float wMid = half * Mathf.Clamp(L.fallWidthShare, 0.4f, 1.2f);
 
-            // ряды по падению: густо на дуге, реже на вертикали
-            var dropRows = new List<float>();
-            const int arcRows = 9;
-            for (int k = 0; k < arcRows; k++)
+            var dropRows = new List<float>(FallRows);
+            for (int k = 0; k < FallArcRows; k++)
             {
-                float t = (float)k / (arcRows - 1);
-                dropRows.Add(ArcDrop * t * t * (3f - 2f * t) * 0.35f + ArcDrop * t * 0.65f);   // немного гуще у самого порога
+                float t = (float)k / (FallArcRows - 1);
+                dropRows.Add(ArcDrop * t * t);                    // t^2: густо у порога, где кривизна максимальна
             }
-            const int tail = 9;
-            float tailStart = ArcDrop;
-            for (int k = 1; k <= tail; k++)
-                dropRows.Add(Mathf.Lerp(tailStart, total, (float)k / tail));
-            int rows = dropRows.Count;
+            for (int k = 1; k <= FallTailRows; k++)
+                dropRows.Add(Mathf.Lerp(ArcDrop, total, (float)k / FallTailRows));
+            int rows = dropRows.Count;                            // == FallRows
             int cols = FallCols;
 
             int first = v.Count;
@@ -243,31 +267,39 @@ namespace IslandV2
                 float drop = dropRows[r];
                 float out_ = FallOut(drop, off);
                 float k01 = Mathf.Clamp01(drop / total);
+
+                // направление: у порога по течению реки, к низу вдоль нормали кромки
+                float sdir = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(drop / (ArcDrop * 1.5f)));
+                Vector2 dir = Vector2.Lerp(fd, cn, sdir).normalized;
+                Vector2 side = new Vector2(-dir.y, dir.x);
+
                 float narrow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(drop / (ArcDrop * 2.2f)));
-                float wHere = Mathf.Lerp(wTop, wMid, narrow) * (1f + 0.18f * k01);   // струя чуть расходится к низу
-                wHere *= 1f - 0.30f * Mathf.SmoothStep(0.70f, 1f, k01);               // и закругляется в самом низу, а не обрубается прямоугольником
+                float wHere = Mathf.Lerp(wTop, wMid, narrow) * (1f + 0.18f * k01);
+                wHere *= 1f - 0.30f * Mathf.SmoothStep(0.70f, 1f, k01);   // внизу закругляется, а не обрубается прямоугольником
                 float y = yLip - drop;
-                Vector2 centre = edge + n * out_;
+                Vector2 centre = edge + dir * out_;
                 Vector3 cen3 = new Vector3(centre.x, y, centre.y);
                 if (r > 0) pathLen += Vector3.Distance(prev, cen3);
                 prev = cen3;
 
-                float fade = 1f - Mathf.SmoothStep(0.30f, 1.0f, k01);                            // внизу плавно растворяется (альфа в шейдере водопада)
-                float foam = Mathf.Clamp01(1f - drop / 0.45f);                                    // белая кромка гребня сверху
-                var c = new Color(fade, 0f, foam * (1f - 0.4f * layer), layer);                  // a = номер слоя (шейдер Waterfall)
+                float fade = 1f - Mathf.SmoothStep(0.30f, 1.0f, k01);                 // внизу растворяется
+                float foam = Mathf.Clamp01(1f - drop / 0.45f);                         // пена гребня
+                var c = new Color(fade, 0f, foam, 0f);                                 // A больше не слой (слой один)
 
-                // нормаль: у порога смотрит вверх, дальше постепенно от скалы наружу
-                Vector3 nrm = new Vector3(n.x, 0.0f, n.y);
-                float tilt = Mathf.Clamp01(drop / ArcDrop);
-                nrm = Vector3.Lerp(Vector3.up, nrm, tilt * tilt * (3f - 2f * tilt));
+                Vector2 pn = FallProfileNormal(drop, off);
+                float spread = Mathf.SmoothStep(0.15f, 0.9f, drop / total);            // рельеф струй проявляется по мере падения
 
                 for (int cI = 0; cI < cols; cI++)
                 {
                     float u = Mathf.Lerp(-1f, 1f, (float)cI / (cols - 1));
-                    // полотно чуть выгнуто наружу по центру (на 6% ширины): вода выглядит объёмной, а не плоской лентой
+                    // общий выгиб наружу по центру (6% ширины)
                     float bow = (1f - u * u) * 0.06f * wHere * Mathf.Clamp01(drop / ArcDrop);
-                    Vector2 pp = centre + side * (u * wHere) + n * bow;
+                    // струи: 3 неравных валика по ширине. Не шум, а плавный рельеф: полотно ловит свет по-разному, но остаётся цельным и без разрывов
+                    float lobes = 0.55f * Mathf.Sin(u * 6.9f + 0.8f) + 0.45f * Mathf.Sin(u * 11.3f + 2.1f);
+                    float relief = lobes * 0.10f * off * spread * (1f - u * u * 0.6f);
+                    Vector2 pp = centre + side * (u * wHere) + dir * (bow + relief);
                     v.Add(new Vector3(pp.x, y, pp.y));
+                    Vector3 nrm = new Vector3(dir.x * pn.x, pn.y, dir.y * pn.x);
                     nr.Add(nrm.normalized);
                     uv.Add(new Vector2(u, pathLen));
                     col.Add(c);
@@ -277,9 +309,9 @@ namespace IslandV2
             {
                 for (int cI = 0; cI + 1 < cols; cI++)
                 {
-                    int a = first + r * cols + cI, b = a + 1, c2 = a + cols, d = c2 + 1;
-                    idx.Add(a); idx.Add(c2); idx.Add(b);
-                    idx.Add(b); idx.Add(c2); idx.Add(d);
+                    int a2 = first + r * cols + cI, b2 = a2 + 1, c2 = a2 + cols, d = c2 + 1;
+                    idx.Add(a2); idx.Add(c2); idx.Add(b2);
+                    idx.Add(b2); idx.Add(c2); idx.Add(d);
                 }
             }
         }
@@ -302,7 +334,7 @@ namespace IslandV2
             }
             else if (m.shader != sh) m.shader = sh;
             m.SetColor("_ShallowColor", L.riverShallow);
-            m.SetColor("_MidColor", Color.Lerp(L.riverShallow, L.riverDeep, 0.45f));
+            m.SetColor("_MidColor", Color.Lerp(L.riverShallow, L.riverDeep, 0.5f));   // та же палитра, что у River_Water: нет скачка цвета на стыке
             m.SetColor("_FoamColor", L.riverFoam);
             m.renderQueue = (int)RenderQueue.Transparent;
             m.enableInstancing = false;

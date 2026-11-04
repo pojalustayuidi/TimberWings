@@ -21,7 +21,7 @@ public class TentBuilder : EditorWindow
     [System.Serializable]
     public class Settings
     {
-        public float width = 2.4f, length = 2.9f, height = 2.2f, wallHeight = 0.5f, doorWidth = 1.0f;
+        public float width = 2.4f, length = 2.9f, height = 3.10f, wallHeight = 0.60f, doorWidth = 1.20f; // ISL-015: значения для новых палаток; сохранённые EditorPrefs не перезаписываются
         public int seed = 777;
         public Color canvasA = new Color(0.94f, 0.88f, 0.72f);
         public Color canvasB = new Color(0.86f, 0.36f, 0.28f);
@@ -111,6 +111,15 @@ public class TentBuilder : EditorWindow
         S.wallHeight = EditorGUILayout.Slider("Высота стенки (м)", S.wallHeight, 0.2f, 1.2f);
         S.doorWidth = EditorGUILayout.Slider("Ширина входа (м)", S.doorWidth, 0.7f, 1.6f);
         S.seed = EditorGUILayout.IntField("Seed", S.seed);
+        // Старые сохранённые настройки не меняем без явного решения пользователя.
+        if (GUILayout.Button("ISL-015: пропорции для персонажа 1.19 м"))
+        {
+            S.height = Mathf.Max(S.height, 3.10f);
+            S.wallHeight = Mathf.Max(S.wallHeight, 0.60f);
+            S.doorWidth = Mathf.Max(S.doorWidth, 1.20f);
+            Save();
+            Repaint();
+        }
 
         EditorGUILayout.Space(4);
         EditorGUILayout.LabelField("Цвета", EditorStyles.boldLabel);
@@ -417,11 +426,13 @@ public class TentBuilder : EditorWindow
 
     void Build()
     {
-        EnsureFolder(Dir);
+        // ISL-015: сохраняем существующий корень CampTent, его позицию, поворот,
+        // масштаб (в игровой сцене 0.5) и TentStages с UnityEvent-подписками.
+        // Заменяются ТОЛЬКО созданные генератором Stage1/Stage2 и их содержимое.
         var old = FindTent();
-        if (old != null) Undo.DestroyObjectImmediate(old);
-        if (S.followPad) SnapToPad();
+        if (old == null && S.followPad) SnapToPad();
 
+        EnsureFolder(Dir);
         rng = new System.Random(S.seed);
         matCache.Clear();
         puffMesh = null;
@@ -430,42 +441,73 @@ public class TentBuilder : EditorWindow
         Prepare();
         Physics.SyncTransforms();
 
-        float gy;
-        if (!AverageGround(out gy))
+        GameObject go;
+        TentStages existingStages = null;
+        bool showBuilt = true;
+        if (old != null)
         {
-            gy = S.position.y;
-            Debug.LogWarning("TentBuilder: под палаткой не найден Terrain/«Ground», высота взята из позиции ручки.");
+            go = old;
+            root = go.transform;
+            existingStages = go.GetComponent<TentStages>();
+            if (existingStages == null)
+            {
+                Debug.LogError("ISL-015: у существующей палатки нет TentStages; сборка отменена, чтобы не уничтожить ссылки.");
+                return;
+            }
+            if (existingStages.stage1 == null || existingStages.stage2 == null ||
+                existingStages.stage1.transform.parent != root || existingStages.stage2.transform.parent != root)
+            {
+                Debug.LogError("ISL-015: Stage1/Stage2 отличаются от ожидаемой структуры; сборка отменена.");
+                return;
+            }
+            showBuilt = existingStages.stage2.activeSelf;
+            // Удаляем только два корневых объекта стадий, сам CampTent не удаляем.
+            Undo.DestroyObjectImmediate(existingStages.stage1);
+            Undo.DestroyObjectImmediate(existingStages.stage2);
         }
-
-        var go = new GameObject(RootName);
-        Undo.RegisterCreatedObjectUndo(go, "Построить палатку");
-        root = go.transform;
-        root.SetPositionAndRotation(new Vector3(S.position.x, gy, S.position.z), Quaternion.Euler(0, S.yaw, 0));
+        else
+        {
+            float gy;
+            if (!AverageGround(out gy))
+            {
+                gy = S.position.y;
+                Debug.LogWarning("TentBuilder: под палаткой не найден Terrain/«Ground», высота взята из позиции ручки.");
+            }
+            go = new GameObject(RootName);
+            Undo.RegisterCreatedObjectUndo(go, "Построить палатку");
+            root = go.transform;
+            root.SetPositionAndRotation(new Vector3(S.position.x, gy, S.position.z), Quaternion.Euler(0, S.yaw, 0));
+        }
 
         var s1 = NewChild(root, "Stage1");
         var s2 = NewChild(root, "Stage2");
         BuildStage1(s1);
         BuildStage2(s2);
 
-        var bp = NewChild(root, "BuildPoint");
+        Transform bp = root.Find("BuildPoint");
+        if (bp == null) bp = NewChild(root, "BuildPoint");
         float bz = L * 0.5f + 2.2f;
         bp.localPosition = new Vector3(0, GY(0, bz), bz);
 
-        var st = go.AddComponent<TentStages>();
+        var st = existingStages != null ? existingStages : Undo.AddComponent<TentStages>(go);
+        Undo.RecordObject(st, "ISL-015: обновить визуальные стадии палатки");
         st.stage1 = s1.gameObject;
         st.stage2 = s2.gameObject;
         st.buildPoint = bp;
-        st.startStage = 1;
+        if (existingStages == null) st.startStage = 1;
         st.curtains = curtains.ToArray();
         st.flagSegs = flagSegs.ToArray();
         st.swingers = swingers.ToArray();
         st.lights = lights.ToArray();
         st.buildPuff = puffPS;
-        st.SetStage(2, false);
+        st.EditorResetGeneratedCache();
+        st.RestoreStage(showBuilt ? 2 : 1);
 
+        EditorUtility.SetDirty(st);
         Selection.activeGameObject = go;
         AssetDatabase.SaveAssets();
         EditorSceneManager.MarkSceneDirty(go.scene);
+        Debug.Log("[ISL-015] Палатка обновлена. Корень, world position/rotation/scale и TentStages сохранены. Проверь коллайдеры и точки взаимодействия.");
     }
 
     // ===================================================================== STAGE 1: стройплощадка

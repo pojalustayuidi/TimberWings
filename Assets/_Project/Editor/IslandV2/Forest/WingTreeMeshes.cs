@@ -176,14 +176,15 @@ namespace IslandV2
 
             Vector3 cc = top + new Vector3(0f, 1.7f, 0f);
             float wide = new[] { 3.0f, 2.7f, 3.3f }[V];
-            b.Blob(1, cc + new Vector3(0f, 0.1f, 0f), new Vector3(wide, 0.95f, wide), sb, lv, 0.16f, 3);
+            // ISL-014: плоский купол и пониженная цепочка пухов читаются как облачный зонтик.
+            b.Blob(1, cc + new Vector3(0f, 0.1f, 0f), new Vector3(wide, 0.82f, wide), sb, lv, 0.16f, 3);
             int nr = new[] { 6, 5, 7 }[V];
             for (int i = 0; i < nr; i++)
             {
                 float a = i / (float)nr * Mathf.PI * 2f + 0.3f + V;
                 float k = 0.9f + 0.3f * TreeMB.H(sb + 10, i);
-                Vector3 c = cc + new Vector3(Mathf.Cos(a) * wide * 0.92f, -0.45f + (TreeMB.H(sb + 11, i) - 0.5f) * 0.5f, Mathf.Sin(a) * wide * 0.92f);
-                b.Blob(i % 3 == 0 ? 2 : 1, c, new Vector3(1.35f * k, 0.85f * k, 1.35f * k), sb + 20 + i, lv, 0.16f, 3);
+                Vector3 c = cc + new Vector3(Mathf.Cos(a) * wide * 0.92f, -0.55f + (TreeMB.H(sb + 11, i) - 0.5f) * 0.5f, Mathf.Sin(a) * wide * 0.92f);
+                b.Blob(i % 3 == 0 ? 2 : 1, c, new Vector3(1.35f * k, 0.80f * k, 1.35f * k), sb + 20 + i, lv, 0.16f, 3);
             }
             for (int i = 0; i < 2; i++)
             {

@@ -29,6 +29,9 @@ namespace IslandV2
                 Debug.LogWarning("IslandV2: в раскладке троп " + L.paths.Count + ", точек реки " + L.riverPoints.Count + ", метка PAD_Hut " + (L.FindAnchor("PAD_Hut") != null ? "есть" : "НЕТ")
                     + ". Похоже на ассет от старой версии: выбери " + IslandLayout.AssetPath + " и нажми внизу «Сбросить раскладку к значениям по умолчанию», потом пункт 121.");
 
+            // ISL-017: кэш зон строится ровно один раз перед циклом по пикселям.
+            // Используем сохранённый IslandLayout и реальные корни построек из открытой сцены.
+            PrepareBuildingPadContexts(f);
             var candy = IslandCandy.GetOrCreate();
             bool useCandy = candy != null && candy.candyOn && mat.HasProperty("_GroundMask") && mat.HasProperty("_CandyOn");
             if (candy != null && candy.candyOn && !useCandy)
@@ -53,7 +56,7 @@ namespace IslandV2
                 {
                     if ((j & 15) == 0 && EditorUtility.DisplayCancelableProgressBar("Остров v2: цвет земли" + (useCandy ? " (Candy)" : ""), "Запекание текстуры " + w + "x" + h, (float)j / h))
                     {
-                        Debug.LogWarning("IslandV2: запекание цвета земли отменено. Старые PNG и материал не перезаписывались.");
+                        Debug.LogWarning("IslandV2: запекание цвета земли отменено. Исходные PNG сохранены, новые текстуры в материал не назначались.");
                         return false;
                     }
                     float z = z0 + (j + 0.5f) * texel;

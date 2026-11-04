@@ -1,0 +1,12 @@
+TIMBER WINGS — CENTER COMPLETE HOTFIX / READ ONLY
+UTC: 2026-10-26T17:24:51.7897539Z
+Unity: 6000.3.10f1
+Scene: Assets/_Recovery/0 (7).unity
+Scene in _Recovery: True
+Added atmosphere: Campfire/Stage3/TW_CenterComplete_Atmosphere
+Added ember glow exists: True; activeSelf=False
+Added motes exists: True; activeSelf=False
+Added 3D audio will be left unchanged.
+ChopGrove formula: ALREADY PATCHED
+This audit does NOT change scene objects, assets, meshes, colliders, lighting, project scripts or saves.
+No Play Mode validation is implied.

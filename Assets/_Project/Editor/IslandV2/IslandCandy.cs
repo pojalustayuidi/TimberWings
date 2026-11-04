@@ -66,6 +66,14 @@ namespace IslandV2
         [Range(0f, 1f)] public float contactShadow = 0.35f;
         [Range(0.3f, 3f)] public float contactWidth = 1.3f;
 
+        [Header("ISL-012: мягкие сопряжения тропинок (только визуальная окраска)")]
+        [Tooltip("Радиус мягкого объединения двух ближайших лент, метры. 0 = прежняя форма; добавочное расширение не более четверти значения.")]
+        [Range(0f, 0.9f)] public float pathJunctionRoundness = 0f;
+        [Tooltip("Дополнительная мягкость цветовой границы возле пересечений, метры. На одиночных участках не действует.")]
+        [Range(0f, 0.4f)] public float pathJunctionFeatherBoost = 0f;
+        [Tooltip("Насколько маска псевдорельефа края совпадает с цветовым переходом: 0 = старая подушка, 1 = точно по покрытию.")]
+        [Range(0f, 1f)] public float pathMaskEdgeMatch = 0f;
+
         [Header("Берег, площадки, брод")]
         public Color beachColor = H("#F2E2A6");
         [Range(0f, 1f)] public float beachStrength = 0.6f;
@@ -75,6 +83,36 @@ namespace IslandV2
         public Color plazaStone = H("#F2E2B8");
         public Color plazaRim = H("#E3C99A");
         public Color fordSand = H("#F1E6B5");
+
+        [Header("ISL-013: группы мелкой Candy-посыпки (только маска земли)")]
+        [Tooltip("0 = вид до ISL-013; 1 = островки декоративных штрихов с чистыми промежутками. Требует перекраски земли.")]
+        [Range(0f, 1f)] public float sprinkleClustering = 0f;
+        [Tooltip("Средний размер групп посыпки в мировых метрах; не влияет на группы кустов и цветов.")]
+        [Range(3f, 28f)] public float sprinkleClusterSize = 9f;
+        [Tooltip("Порог шума: больше значение = больше чистых мест.")]
+        [Range(0.2f, 0.7f)] public float sprinkleCleanThreshold = 0.43f;
+        [Tooltip("Множитель плотности внутри групп: 0 = полностью чистая поверхность.")]
+        [Range(0f, 1f)] public float sprinklePatchDensity = 0.75f;
+        [Tooltip("Чистая полоса вдоль внешней границы тропы в метрах (только посыпка, не ширина тропы).")]
+        [Range(0f, 2f)] public float sprinklePathClearance = 0.70f;
+        [Tooltip("Детерминированный сдвиг крупных групп. Не изменяет Seed генератора подлеска.")]
+        [Range(0, 99999)] public int sprinkleSeed = 13013;
+
+        [Header("ISL-018: речной склон — гармония камня (только цвет)")]
+        [Tooltip("0 = исходная окраска речного склона. 1 = полное смешивание к новой палитре и более мягкому переходу. Требует перекраски Candy-земли.")]
+        [Range(0f, 1f)] public float riverBankHarmony = 0f;
+        [Tooltip("Сухой камень выше уровня воды. Используется только при riverBankHarmony > 0.")]
+        public Color riverBankDry = H("#C5C0BA");
+        [Tooltip("Камень непосредственно у воды. Используется только при riverBankHarmony > 0.")]
+        public Color riverBankWet = H("#829DA4");
+
+        [Header("ISL-020: мягкие переходы между зонами (Editor bake)")]
+        [Tooltip("Лёгкий промежуточный оттенок у границы леса и открытой травы. 0 = прежняя палитра.")]
+        [Range(0f, 1f)] public float zoneForestBlend = 0f;
+        [Tooltip("Насколько плавнее выходит песочная береговая полоса на траву, дополнительно до 0.7 м.")]
+        [Range(0f, 1f)] public float zoneShoreBlend = 0f;
+        [Tooltip("Дополнительное визуальное растушёвывание краёв площадок зданий, до 0.8 м. Не меняет footprint.")]
+        [Range(0f, 1f)] public float zonePadBlend = 0f;
 
         [Header("Блеск и кромка")]
         [Range(0f, 1f)] public float glossGrass = 0.12f;

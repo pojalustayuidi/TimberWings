@@ -142,7 +142,7 @@ public partial class ChopGroveBuilder
         {
             float t = i / (float)n;
             float x = Mathf.Lerp(-GateHalf, GateHalf, t);
-            float y = yTop - 0.05f + 0.72f * Mathf.Pow(Mathf.Sin(t * Mathf.PI), 0.75f);
+            float y = yTop - 0.05f + 0.72f * Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * Mathf.PI)), 0.75f);
             Vector3 p = new Vector3(x, y, GateZ);
             if (i > 0) Beam(prev, p, 0.21f, 7, GrovePal.Bark);
             prev = p;

@@ -327,6 +327,11 @@ Shader "Project/TreeToon"
             #pragma fragment fragDepth
             #pragma multi_compile_instancing
 
+            // В URP Depth Priming/Depth Prepass учитывает DepthOnly до основного
+            // прохода. Повторяем ту же маску PeekClip, чтобы скрытая крона не
+            // записывала глубину перед героем. ShadowCaster НЕ меняем.
+            #include "TreeToonPeek.hlsl"
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -336,18 +341,21 @@ Shader "Project/TreeToon"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
             };
 
             Varyings vertDepth(Attributes v)
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                o.positionCS = TransformWorldToHClip(TTWindWS(v.positionOS.xyz));
+                o.positionWS = TTWindWS(v.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;
             }
 
             half4 fragDepth(Varyings i) : SV_Target
             {
+                PeekClip(i.positionCS, i.positionWS);
                 return 0;
             }
             ENDHLSL

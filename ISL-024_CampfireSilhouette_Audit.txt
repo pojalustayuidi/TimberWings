@@ -1,0 +1,24 @@
+﻿TIMBER WINGS — ISL-024 / CAMPFIRE SILHOUETTE (READ ONLY)
+UTC: 2026-10-26T16:08:00.8769654Z
+Unity: 6000.3.10f1
+Active scene: Assets/_Recovery/0 (7).unity
+Recovery scene: YES — verify main scene and backup
+This command does NOT edit GameObjects, transforms, materials, meshes, colliders, lights or saves.
+PRECONDITIONS: OK
+Campfire: Campfire
+Position: (0.00, 0.00, 0.00)
+HutStages attached: True
+Stage2: Campfire/Stage2 / active=True
+Stage3: Campfire/Stage3 / active=True
+Flames: Campfire/Stage3/Flames / localPosition=(0.00, 0.22, 0.00)
+CampfireFlicker attached to Stage3: True
+Stage2 material (reused): Candy_Camp / shader=Project/CandyToon
+Flame material (reused): Candy_Flame / shader=Project/CandyToon
+Prior tripod accents: False
+Prior log accents: False
+Prior flame accents: False
+No runtime scripts, no colliders, no extra lights, no new shaders/materials/textures.
+APPLY target objects: Campfire/Stage2/ISL024_TripodAccents, Campfire/Stage3/ISL024_LogsAccents, Campfire/Stage3/Flames/ISL024_FlameAccents
+APPLY also creates/updates ONLY three named Mesh .asset files in Assets/_Project/Generated/ISL024
+Existing base meshes and their GUIDs are never changed.
+Rebuilding Campfire via CandyCampfire.Build destroys the current Campfire root, including overlays: DON'T run it.

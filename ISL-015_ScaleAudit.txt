@@ -1,0 +1,403 @@
+TIMBER WINGS / ISL-015 / OBJECT SCALE AUDIT
+Generated: 2026-10-25 18:44:31
+Unity: 6000.3.10f1
+Scene: Assets/_Recovery/0 (7).unity (0 (7))
+Mode: EDIT MODE
+Units: world units (assumed meters, not independently calibrated)
+Measurement: world axis-aligned renderer bounds (rotated objects may appear wider)
+Only active, enabled MeshRenderer/SkinnedMeshRenderer objects are used for visual bounds.
+All changes to scenes/assets/prefabs: NONE. Only report TXT is written outside Assets.
+
+SCENE TOTALS: roots=77; transforms=5311; PlayerMovement=1
+WARNING: active scene is in _Recovery; verify it is your actual game scene.
+
+[1] PLAYER REFERENCE
+Player 1: Player
+  Model reference: Player/characterMedium
+  Root localScale: 1 x 1 x 1; lossyScale: 1 x 1 x 1
+  Visual bounds (W x H x D): 1.129 x 1.189 x 0.317
+  Visual bottom/top Y: 0.064 / 1.252
+  Root CapsuleCollider: height=1.21; diameter≈0.5; isTrigger=False
+REFERENCE HERO HEIGHT: 1.189 m (visual bounds)
+NOTE: animated/disabled children, weapon, hair, or HUD can bias measurements; inspect visually.
+
+[2] MAJOR BUILDINGS AND BRIDGE (INCLUDING PLACEHOLDERS)
+  LumberjackHut
+    worldPosition=-23.47 x 0.197 x 31.66; lossyScale=0.5 x 0.5 x 0.5
+    visible W/H/D=10.176 x 2.668 x 6.063; height / player=2.245x
+     Colliders total=15
+  TradingStall
+    worldPosition=40.97 x 0 x 13.41; lossyScale=1 x 1 x 1
+    visible W/H/D=6.379 x 4.263 x 6.464; height / player=3.587x
+     Colliders total=3
+  CampTent
+    worldPosition=-3.63 x 0 x 7.78; lossyScale=0.5 x 0.5 x 0.5
+    visible W/H/D=3.009 x 1.177 x 2.76; height / player=0.991x
+     Colliders total=9
+  IslandV2/_Manual/ChopGladeDecor
+    worldPosition=10 x 0 x -50; lossyScale=1 x 1 x 1
+    visible W/H/D=20.469 x 1.984 x 18.089; height / player=1.669x
+     Colliders total=6
+  IslandV2/_Generated/BLK_Campfire
+    worldPosition=0 x 0 x 0; lossyScale=1 x 1 x 1
+    visible W/H/D=2.6 x 0.5 x 2.6; height / player=0.421x
+     Colliders total=1
+  IslandV2/_Generated/BLK_QuestBoard
+    worldPosition=19 x 0 x 8.96; lossyScale=1 x 1 x 1
+    visible W/H/D=1.926 x 3 x 2.735; height / player=2.524x
+     Colliders total=1
+  IslandV2/_Generated/BLK_Tent
+    worldPosition=-22 x 0 x -27.39; lossyScale=1 x 1 x 1
+    visible W/H/D=6.403 x 3 x 6.234; height / player=2.524x
+     Colliders total=1
+  IslandV2/_Generated/River_Bridge
+    worldPosition=0 x 0 x 0; lossyScale=1 x 1 x 1
+    visible W/H/D=19.596 x 6.215 x 4.675; height / player=5.229x
+     Colliders total=30
+
+[3] RIVER BRIDGE: PHYSICAL RAIL AND DECK COLLIDERS
+  First deck collision box (world size approx): 3.2 x 0.36 x 2.031
+  First invisible safety rail (world size approx): 0.22 x 1.3 x 2.031
+  Deck colliders=10; rail colliders=20
+  SOURCE REFERENCE (not measured): BrWidth=3.2, BrRailH=1.1, BrLampH=2.0 (IslandBlockout.Bridge.cs)
+
+[4] NAMED DETAILS: DOORS / BENCHES / STEPS / RAILS / WINDOWS / COUNTERS
+  Note: when a generator combines parts into one mesh, individual dimensions CANNOT be recovered by name.
+  LumberjackHut/Stage1/FirePit/SeatLogA
+    Visible W/H/D=0.721 x 0.16 x 0.16; height / player=0.135x
+  LumberjackHut/Stage1/FirePit/SeatLogB
+    Visible W/H/D=0.333 x 0.187 x 0.569; height / player=0.157x
+  LumberjackHut/Stage2/Frame/DoorPostL
+    Visible W/H/D=0.08 x 0.925 x 0.21; height / player=0.778x
+  LumberjackHut/Stage2/Frame/DoorPostR
+    Visible W/H/D=0.08 x 0.925 x 0.21; height / player=0.778x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableLeg
+    Visible W/H/D=0.08 x 0.31 x 0.08; height / player=0.261x
+  LumberjackHut/Stage2/SawSkeleton/TableStringer
+    Visible W/H/D=2.3 x 0.075 x 0.075; height / player=0.063x
+  LumberjackHut/Stage2/SawSkeleton/TableStringer
+    Visible W/H/D=2.3 x 0.075 x 0.075; height / player=0.063x
+  LumberjackHut/Stage2/SawSkeleton/TableCross
+    Visible W/H/D=0.06 x 0.06 x 0.72; height / player=0.05x
+  LumberjackHut/Stage2/SawSkeleton/TableCross
+    Visible W/H/D=0.06 x 0.06 x 0.72; height / player=0.05x
+  LumberjackHut/Stage2/SawSkeleton/TableCross
+    Visible W/H/D=0.06 x 0.06 x 0.72; height / player=0.05x
+  LumberjackHut/Stage2/SawSkeleton/TableCross
+    Visible W/H/D=0.06 x 0.06 x 0.72; height / player=0.05x
+  LumberjackHut/Stage3/WallsTop/DoorLintel
+    Visible W/H/D=0.75 x 0.09 x 0.22; height / player=0.076x
+  LumberjackHut/Stage3/WallsTop/HutWindowGlass
+    Visible W/H/D=0.03 x 0.27 x 0.257; height / player=0.227x
+  LumberjackHut/Stage3/WallsTop/HutWindowGlass
+    Visible W/H/D=0.03 x 0.27 x 0.257; height / player=0.227x
+  LumberjackHut/Stage3/DoorPivot
+    Visible W/H/D=0.489 x 0.895 x 0.291; height / player=0.753x
+  LumberjackHut/Stage3/DoorPivot/DoorLeaf
+    Visible W/H/D=0.445 x 0.895 x 0.265; height / player=0.753x
+  LumberjackHut/Stage3/DoorPivot/DoorGroove
+    Visible W/H/D=0.012 x 0.875 x 0.011; height / player=0.736x
+  LumberjackHut/Stage3/DoorPivot/DoorGroove
+    Visible W/H/D=0.012 x 0.875 x 0.011; height / player=0.736x
+  LumberjackHut/Stage3/DoorPivot/DoorGroove
+    Visible W/H/D=0.012 x 0.875 x 0.011; height / player=0.736x
+  LumberjackHut/Stage3/DoorPivot/DoorBraceA
+    Visible W/H/D=0.398 x 0.06 x 0.224; height / player=0.05x
+  LumberjackHut/Stage3/DoorPivot/DoorBraceB
+    Visible W/H/D=0.398 x 0.06 x 0.224; height / player=0.05x
+  LumberjackHut/Stage3/DoorPivot/DoorKnob
+    Visible W/H/D=0.063 x 0.05 x 0.059; height / player=0.042x
+  LumberjackHut/Stage3/WindowFront
+    Visible W/H/D=0.675 x 0.45 x 0.261; height / player=0.379x
+  LumberjackHut/Stage3/WindowFront/HutWindowGlass
+    Visible W/H/D=0.4 x 0.35 x 0.02; height / player=0.294x
+  LumberjackHut/Stage3/WindowBack
+    Visible W/H/D=0.55 x 0.45 x 0.105; height / player=0.379x
+  LumberjackHut/Stage3/WindowBack/HutWindowGlass
+    Visible W/H/D=0.4 x 0.35 x 0.02; height / player=0.294x
+  LumberjackHut/Stage3/WindowLeft
+    Visible W/H/D=0.261 x 0.45 x 0.675; height / player=0.379x
+  LumberjackHut/Stage3/WindowLeft/HutWindowGlass
+    Visible W/H/D=0.02 x 0.35 x 0.4; height / player=0.294x
+  LumberjackHut/Stage3/Interior/TableTop
+    Visible W/H/D=0.45 x 0.035 x 0.3; height / player=0.029x
+  LumberjackHut/Stage3/Interior/TableLeg
+    Visible W/H/D=0.035 x 0.25 x 0.035; height / player=0.21x
+  LumberjackHut/Stage3/Interior/TableLeg
+    Visible W/H/D=0.035 x 0.25 x 0.035; height / player=0.21x
+  LumberjackHut/Stage3/Interior/TableLeg
+    Visible W/H/D=0.035 x 0.25 x 0.035; height / player=0.21x
+  LumberjackHut/Stage3/Interior/TableLeg
+    Visible W/H/D=0.035 x 0.25 x 0.035; height / player=0.21x
+  LumberjackHut/Stage3/Porch/PorchStep
+    Visible W/H/D=0.7 x 0.05 x 0.2; height / player=0.042x
+  LumberjackHut/Stage3/Porch/LanternLPivot
+    Visible W/H/D=0.11 x 0.242 x 0.11; height / player=0.204x
+  LumberjackHut/Stage3/Porch/LanternRPivot
+    Visible W/H/D=0.11 x 0.242 x 0.11; height / player=0.204x
+  LumberjackHut/Stage3/DoorSign
+    Visible W/H/D=0.5 x 0.257 x 0.049; height / player=0.217x
+  LumberjackHut/Stage3/Sawmill/TableTop
+    Visible W/H/D=2.35 x 0.05 x 0.34; height / player=0.042x
+  LumberjackHut/Stage3/Sawmill/TableTop
+    Visible W/H/D=2.35 x 0.05 x 0.34; height / player=0.042x
+  LumberjackHut/Stage3/Sawmill/TableGuide
+    Visible W/H/D=2.3 x 0.035 x 0.035; height / player=0.029x
+  LumberjackHut/Stage3/Sawmill/TableGuide
+    Visible W/H/D=2.3 x 0.035 x 0.035; height / player=0.029x
+  LumberjackHut/Stage3/Sawmill/SawLanternPivot
+    Visible W/H/D=0.11 x 0.243 x 0.11; height / player=0.204x
+  LumberjackHut/Stage3/GateArch/LanternBracket
+    Visible W/H/D=0.15 x 0.025 x 0.025; height / player=0.021x
+  LumberjackHut/Stage3/GateArch/GateLanternLPivot
+    Visible W/H/D=0.11 x 0.242 x 0.11; height / player=0.204x
+  LumberjackHut/Stage3/GateArch/LanternBracket
+    Visible W/H/D=0.15 x 0.025 x 0.025; height / player=0.021x
+  LumberjackHut/Stage3/GateArch/GateLanternRPivot
+    Visible W/H/D=0.11 x 0.242 x 0.11; height / player=0.204x
+  LumberjackHut/Stage3/WindowBox
+    Visible W/H/D=0.485 x 0.286 x 0.128; height / player=0.24x
+  TradingStall/Platform/Step
+    Visible W/H/D=0.44 x 0.15 x 0.95; height / player=0.126x
+  TradingStall/Platform/StepShadow
+    Visible W/H/D=0.48 x 0.07 x 0.99; height / player=0.059x
+  TradingStall/Stage2/CounterBody
+    Visible W/H/D=0.5 x 0.85 x 2.1; height / player=0.715x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterBoard
+    Visible W/H/D=0.05 x 0.74 x 0.19; height / player=0.623x
+  TradingStall/Stage2/CounterSkirt
+    Visible W/H/D=0.06 x 0.14 x 2.12; height / player=0.118x
+  TradingStall/Stage2/CounterTop
+    Visible W/H/D=0.78 x 0.1 x 2.26; height / player=0.084x
+  TradingStall/Stage2/CounterLip
+    Visible W/H/D=0.06 x 0.07 x 2.28; height / player=0.059x
+  TradingStall/Stage2/CounterFringe
+    Visible W/H/D=0.33 x 0.16 x 0.298; height / player=0.134x
+  TradingStall/Stage2/CounterFringe
+    Visible W/H/D=0.325 x 0.16 x 0.311; height / player=0.134x
+  TradingStall/Stage2/CounterFringe
+    Visible W/H/D=0.311 x 0.16 x 0.205; height / player=0.134x
+  TradingStall/Stage2/CounterFringe
+    Visible W/H/D=0.194 x 0.16 x 0.306; height / player=0.134x
+  TradingStall/Stage2/CounterFringe
+    Visible W/H/D=0.326 x 0.16 x 0.309; height / player=0.134x
+  TradingStall/Stage2/CounterFringe
+    Visible W/H/D=0.32 x 0.16 x 0.227; height / player=0.134x
+  TradingStall/Stage2/CounterFringe
+    Visible W/H/D=0.206 x 0.16 x 0.312; height / player=0.134x
+  TradingStall/Stage2/CounterPostL
+    Visible W/H/D=0.12 x 1 x 0.12; height / player=0.841x
+  TradingStall/Stage2/CounterPostR
+    Visible W/H/D=0.12 x 1 x 0.12; height / player=0.841x
+  TradingStall/Stage2/CounterCollider
+    Collider BoxCollider W/H/D=0.6 x 1 x 2.1
+  TradingStall/Stage3/LanternLPivot
+    Visible W/H/D=0.22 x 0.485 x 0.22; height / player=0.408x
+  TradingStall/Stage3/LanternRPivot
+    Visible W/H/D=0.22 x 0.485 x 0.22; height / player=0.408x
+  TradingStall/Stage3/CounterProps
+    Visible W/H/D=0.747 x 0.535 x 1.777; height / player=0.45x
+  TradingStall/Stage3/Entrance
+    Visible W/H/D=0.717 x 0.596 x 1.674; height / player=0.501x
+  ForestTrails
+    Visible W/H/D=16.528 x 1.778 x 9.13; height / player=1.496x
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.354 x 1.1 x 2.123
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.923 x 1.1 x 2.065
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.339 x 1.1 x 1.896
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.583 x 1.1 x 1.722
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.697 x 1.1 x 1.612
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.76 x 1.1 x 1.54
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.856 x 1.1 x 1.407
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.999 x 1.1 x 1.128
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=2.111 x 1.1 x 0.696
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=2.062 x 1.1 x 0.951
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=2.004 x 1.1 x 1.124
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.922 x 1.1 x 1.296
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.759 x 1.1 x 1.536
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.475 x 1.1 x 1.805
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.11 x 1.1 x 2.006
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.784 x 1.1 x 2.1
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.592 x 1.1 x 2.126
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.493 x 1.1 x 2.132
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.346 x 1.1 x 2.13
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.387 x 1.1 x 2.129
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.833 x 1.1 x 1.441
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.75 x 1.1 x 1.552
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.661 x 1.1 x 1.649
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.487 x 1.1 x 1.798
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=1.171 x 1.1 x 1.98
+  IslandV2/_Manual/ChopZone/Colliders/Col_Fence
+    Collider BoxCollider W/H/D=0.688 x 1.1 x 2.11
+  IslandV2/_Manual/ChopGladeDecor/Col_Seat
+    Collider BoxCollider W/H/D=0.57 x 0.34 x 0.57
+  IslandV2/_Manual/ChopGladeDecor/Col_Seat
+    Collider BoxCollider W/H/D=0.646 x 0.4 x 0.646
+  IslandV2/_Manual/SacredTrees/Sacred_Lantern_0
+    Visible W/H/D=8.296 x 8.925 x 7.967; height / player=7.509x
+    Collider CapsuleCollider W/H/D=1.172 x 2.735 x 1.172
+  IslandV2/_Manual/SacredTrees/Sacred_Lantern_1
+    Visible W/H/D=9.948 x 9.431 x 10.081; height / player=7.935x
+    Collider CapsuleCollider W/H/D=1.239 x 2.891 x 1.239
+  IslandV2/_Manual/GuardianLite/Lite_Lantern_0
+    Visible W/H/D=8.16 x 9.281 x 7.802; height / player=7.809x
+    Collider CapsuleCollider W/H/D=1.219 x 2.845 x 1.219
+  IslandV2/_Manual/GuardianLite/Lite_Lantern_1
+    Visible W/H/D=9.716 x 9.551 x 9.524; height / player=8.036x
+    Collider CapsuleCollider W/H/D=1.255 x 2.927 x 1.255
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_0
+    Visible W/H/D=5.897 x 5.877 x 5.899; height / player=4.945x
+    Collider CapsuleCollider W/H/D=0.783 x 1.826 x 0.783
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_6
+    Visible W/H/D=4.59 x 6.162 x 4.478; height / player=5.185x
+    Collider CapsuleCollider W/H/D=0.821 x 1.915 x 0.821
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_8
+    Visible W/H/D=4.848 x 5.731 x 4.763; height / player=4.822x
+    Collider CapsuleCollider W/H/D=0.763 x 1.781 x 0.763
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_12
+    Visible W/H/D=5.008 x 5.53 x 5.07; height / player=4.653x
+    Collider CapsuleCollider W/H/D=0.736 x 1.718 x 0.736
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_15
+    Visible W/H/D=5.447 x 5.691 x 5.491; height / player=4.788x
+    Collider CapsuleCollider W/H/D=0.758 x 1.768 x 0.758
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_16
+    Visible W/H/D=4.966 x 5.274 x 4.915; height / player=4.437x
+    Collider CapsuleCollider W/H/D=0.702 x 1.639 x 0.702
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_18
+    Visible W/H/D=6.606 x 6.745 x 6.564; height / player=5.675x
+    Collider CapsuleCollider W/H/D=0.898 x 2.096 x 0.898
+  IslandV2/_Manual/GuardianLite/LiteS_Lantern_20
+    Visible W/H/D=5.634 x 5.721 x 5.662; height / player=4.813x
+    Collider CapsuleCollider W/H/D=0.762 x 1.778 x 0.762
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_0
+    Collider BoxCollider W/H/D=2.17 x 1.513 x 0.365
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_0
+    Collider BoxCollider W/H/D=2.17 x 1.513 x 0.365
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_1
+    Collider BoxCollider W/H/D=2.141 x 1.469 x 0.363
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_1
+    Collider BoxCollider W/H/D=2.141 x 1.469 x 0.363
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_2
+    Collider BoxCollider W/H/D=2.111 x 1.424 x 0.361
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_2
+    Collider BoxCollider W/H/D=2.111 x 1.424 x 0.361
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_3
+    Collider BoxCollider W/H/D=2.082 x 1.379 x 0.359
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_3
+    Collider BoxCollider W/H/D=2.082 x 1.379 x 0.359
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_4
+    Collider BoxCollider W/H/D=2.052 x 1.333 x 0.357
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_4
+    Collider BoxCollider W/H/D=2.052 x 1.333 x 0.357
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_5
+    Collider BoxCollider W/H/D=2.039 x 1.313 x 0.356
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_5
+    Collider BoxCollider W/H/D=2.039 x 1.313 x 0.356
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_6
+    Collider BoxCollider W/H/D=2.069 x 1.36 x 0.358
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_6
+    Collider BoxCollider W/H/D=2.069 x 1.36 x 0.358
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_7
+    Collider BoxCollider W/H/D=2.099 x 1.405 x 0.36
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_7
+    Collider BoxCollider W/H/D=2.099 x 1.405 x 0.36
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_8
+    Collider BoxCollider W/H/D=2.128 x 1.45 x 0.362
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_8
+    Collider BoxCollider W/H/D=2.128 x 1.45 x 0.362
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_L_9
+    Collider BoxCollider W/H/D=2.158 x 1.494 x 0.364
+  IslandV2/_Generated/River_Bridge/Bridge_Colliders/Rail_R_9
+    Collider BoxCollider W/H/D=2.158 x 1.494 x 0.364
+  Detail entries=145
+
+[5] SELECTED TREE REFERENCES (SCENE ONLY)
+  Tree bounds are representative, not a standard for all species/LODs.
+  IslandV2/_Manual/ForestChop/Chop_0 W/H/D=6.049 x 5.09 x 6.202; height / player=4.282x
+  IslandV2/_Manual/ForestChop/Chop_1 W/H/D=5.597 x 4.802 x 5.734; height / player=4.04x
+  IslandV2/_Manual/ForestChop/Chop_2 W/H/D=5.132 x 4.802 x 4.939; height / player=4.04x
+  IslandV2/_Manual/ForestChop/Chop_3 W/H/D=3.771 x 4.763 x 3.805; height / player=4.007x
+  IslandV2/_Manual/ForestChop/Chop_4 W/H/D=4.99 x 5.09 x 4.733; height / player=4.282x
+  IslandV2/_Manual/ForestChop/Chop_5 W/H/D=3.809 x 5.597 x 3.824; height / player=4.709x
+  IslandV2/_Manual/ForestChop/Chop_6 W/H/D=3.444 x 5.471 x 3.444; height / player=4.603x
+  IslandV2/_Manual/ForestChop/Chop_7 W/H/D=3.06 x 5.597 x 3.086; height / player=4.709x
+  IslandV2/_Manual/ForestChop/Chop_8 W/H/D=4.704 x 6.206 x 4.755; height / player=5.221x
+  IslandV2/_Manual/ForestChop/Chop_9 W/H/D=4.346 x 6.206 x 4.266; height / player=5.221x
+  IslandV2/_Manual/ForestChop/Chop_10 W/H/D=3.297 x 5.597 x 3.32; height / player=4.709x
+  IslandV2/_Manual/ForestChop/Chop_11 W/H/D=4.218 x 5.597 x 4.219; height / player=4.709x
+  IslandV2/_Manual/ForestChop/Chop_12 W/H/D=6.716 x 5.09 x 6.688; height / player=4.282x
+  IslandV2/_Manual/ForestChop/Chop_13 W/H/D=3.695 x 4.763 x 3.753; height / player=4.007x
+  IslandV2/_Manual/ForestChop/Chop_14 W/H/D=5.44 x 4.804 x 5.503; height / player=4.041x
+  IslandV2/_Manual/ForestChop/Chop_15 W/H/D=3.413 x 4.763 x 3.521; height / player=4.007x
+  IslandV2/_Manual/ForestChop/Chop_16 W/H/D=5.003 x 6.206 x 5.007; height / player=5.221x
+  IslandV2/_Manual/ForestChop/Chop_17 W/H/D=3.959 x 5.471 x 3.959; height / player=4.603x
+
+[6] SOURCE DEFAULTS (NOT PROOF OF CURRENT SCENE DIMENSIONS)
+  TentBuilder.Settings: width=2.4, length=2.9, height=2.2, doorWidth=1.0 m
+  ShopBuilderV2.Settings: width=3.6, depth=2.6; PostH=2.2 m
+  HutBuilder.Settings: wallHeight=2.5 m
+  ForestGladeBeauty.Bench: board centre y≈0.41 m (source model)
+  These values come from Scripts(4).zip; assets and saved Editor settings may differ.
+
+[7] HOW TO ASSESS
+  Compare avatar visual height against: door opening, step rise, bench seat, counter, bridge rail and roof eave.
+  Use one fixed Game View camera, same build stages, and test walking/interactions before any scaling.
+  If a name-only detail is absent, provide its generator/mesh asset; do not automatically scale a whole building.
+  World-axis-aligned bounds can overestimate width/depth for objects rotated in the scene.
+  No NavMesh, colliders, interaction distances, prefab links, save data or scene objects were touched.

@@ -35,8 +35,8 @@ public static partial class LumberjackHutBuilder
     const float W = 4.4f, D = 3.8f;                 // хижина по X и по Z
     const float FoundH = 0.28f;                     // высота каменного основания
     const float Course = 0.30f, LogR = 0.17f;       // шаг и радиус венца
-    const int CoursesStage2 = 5, CoursesTotal = 8;
-    const float EaveY = 2.55f, Rise = 1.7f, RoofLen = 5.5f;
+    const int CoursesStage2 = 5, CoursesTotal = 10; // ISL-015: два добавочных венца под более высоким дверным проёмом
+    const float EaveY = 3.15f, Rise = 1.7f, RoofLen = 5.5f; // ISL-015: крыша приподнята только по Y, фундамент и габариты XZ прежние
     const float SawX0 = 3.9f, SawX1 = 9.1f, SawZ = -0.3f;
     const int DeckN = 7;
     const float FenceX0 = -5.6f, FenceX1 = 10.6f, FenceZ0 = -4.6f, FenceZ1 = 4.8f;
@@ -95,6 +95,16 @@ public static partial class LumberjackHutBuilder
         mats.Clear();
 
         var root = hs.transform;
+        // ISL-015: не сбрасывать сохранённый начальный этап строительства.
+        var serializedStages = new SerializedObject(hs);
+        var initialStageProperty = serializedStages.FindProperty("initialStage");
+        int previousInitialStage = initialStageProperty != null ? initialStageProperty.intValue : 1;
+        int previousVisibleStage = 1;
+        GameObject previousStage3 = hs.GetStageObject(3);
+        GameObject previousStage2 = hs.GetStageObject(2);
+        if (previousStage3 != null && previousStage3.activeSelf) previousVisibleStage = 3;
+        else if (previousStage2 != null && previousStage2.activeSelf) previousVisibleStage = 2;
+
         Undo.IncrementCurrentGroup();
         Undo.SetCurrentGroupName("Хижина лесоруба v2: сборка");
         int undoGroup = Undo.GetCurrentGroup();
@@ -129,7 +139,8 @@ public static partial class LumberjackHutBuilder
             bp.position = s1.TransformPoint(new Vector3(GateX - 0.9f, 0f, 3.5f));
             bp.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(s1.position - bp.position, Vector3.up).normalized == Vector3.zero ? s1.forward : Vector3.ProjectOnPlane(s1.position - bp.position, Vector3.up).normalized, Vector3.up);
 
-            hs.Configure(s1.gameObject, s2.gameObject, s3.gameObject, bp, 1);
+            Undo.RecordObject(hs, "ISL-015: сохранить состояние HutStages");
+            hs.Configure(s1.gameObject, s2.gameObject, s3.gameObject, bp, previousInitialStage);
 
             // E у пилорамы: точка взаимодействия между хижиной и пилой
             var ws = hs.GetComponentInParent<PlankWorkshop>(true);
@@ -154,8 +165,8 @@ public static partial class LumberjackHutBuilder
                 Debug.LogWarning("[HutV2] PlankWorkshop у этой хижины не найден: E у пилорамы останется как было. Если пила висит на другом объекте, назначь ему «Interact Point» = SawInteractPoint вручную.");
             }
 
-            // показать стадию 3 для проверки
-            hs.SetStage(3);
+            // ISL-015: оставить ту же видимую стадию, что была перед пересборкой.
+            hs.SetStageSilent(previousVisibleStage);
 
             EditorUtility.SetDirty(hs);
             EditorSceneManager.MarkSceneDirty(root.gameObject.scene);

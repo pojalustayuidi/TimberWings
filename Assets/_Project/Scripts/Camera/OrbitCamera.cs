@@ -128,6 +128,27 @@ public class OrbitCamera : MonoBehaviour
     public float ignoreSmallerThan = 0.8f;   // колайдеры меньше (размер bounds) камеру не двигают: цветы, камешки
     public LayerMask collisionMask = ~0;
 
+    [Header("ISL-016: видимость героя под кронами")]
+    [Tooltip("Мягкое окно в объектах с Project/TreeToon перед героем. В первую очередь помогает с кронами; коллайдеры не трогает.")]
+    public bool treePeek = true;
+    [Tooltip("Радиус открываемой области в мировых метрах на глубине героя")]
+    [Range(0.5f, 2f)] public float treePeekRadius = 1.05f;
+    [Tooltip("Мягкость перехода от прозрачной части к полной кроне")]
+    [Range(0.05f, 1f)] public float treePeekSoftness = 0.55f;
+    [Tooltip("Непрозрачность в самом центре окна: 0 = не видно перекрывающую крону")]
+    [Range(0f, 0.4f)] public float treePeekMinOpacity = 0.08f;
+    [Tooltip("Запас глубины перед героем, чтобы не затрагивать кроны у него за спиной")]
+    [Range(0f, 1f)] public float treePeekDepthMargin = 0.35f;
+    [Tooltip("Высота центра окна над основанием персонажа")]
+    [Range(0.3f, 1.5f)] public float treePeekPlayerHeight = 0.83f;
+    [Tooltip("Время плавного появления и исчезновения окна")]
+    [Range(0.05f, 1f)] public float treePeekFadeTime = 0.22f;
+
+    static readonly int TreePeekDataId = Shader.PropertyToID("_PeekData");
+    static readonly int TreePeekParamsId = Shader.PropertyToID("_PeekParams");
+    float treePeekBlend;
+    Vector3 treePeekLastViewport;
+
     Camera cam;
     CameraFollow follow;
     PlayerMovement player;
@@ -175,9 +196,24 @@ public class OrbitCamera : MonoBehaviour
 
     void Awake() { instance = this; }
 
-    void OnDestroy() { if (instance == this) instance = null; }
+    void OnDestroy()
+    {
+        if (applied) ClearTreePeek();
+        if (instance == this) instance = null;
+    }
 
-    void OnDisable() { ReleaseCursor(); }
+    void OnDisable()
+    {
+        ReleaseCursor();
+        if (applied) ClearTreePeek();
+    }
+
+    // Shader-глобали разделяются с CameraFollow. Записываем их только когда
+    // именно OrbitCamera управляет игровой камерой; при выходе очищаем.
+    static void ClearTreePeek()
+    {
+        Shader.SetGlobalVector(TreePeekParamsId, new Vector4(0f, 1f, 0f, 0f));
+    }
 
     void Update()
     {
@@ -193,6 +229,8 @@ public class OrbitCamera : MonoBehaviour
         // сцена сменилась или это меню: камеры/игрока может не быть
         if (cam == null || !cam.isActiveAndEnabled)
         {
+            if (applied) ClearTreePeek();
+            treePeekBlend = 0f;
             cam = Camera.main;
             follow = null;
             applied = false;
@@ -239,12 +277,15 @@ public class OrbitCamera : MonoBehaviour
         // вступительный наезд только в начале сцены, а не при переключении в настройках
         introElapsed = (intro && follow.intro && Time.timeSinceLevelLoad < 3f) ? 0f : float.MaxValue;
 
+        treePeekBlend = 0f;
         applied = true;
         Active = true;
     }
 
     void Exit()
     {
+        ClearTreePeek();
+        treePeekBlend = 0f;
         applied = false;
         Active = false;
         shakeT = 0f;
@@ -354,6 +395,44 @@ public class OrbitCamera : MonoBehaviour
         tex.Apply();
         reticle = Sprite.Create(tex, new Rect(0, 0, N, N), new Vector2(0.5f, 0.5f), 100f);
         return reticle;
+    }
+
+    // Повторно используем готовый dithering из TreeToonPeek.hlsl.
+    // Работает без Physics.Raycast, Materials/MPB и переключения Renderer.enabled.
+    // Как и CameraFollow, меняет только отрисовку перекрывающих фрагментов,
+    // оставляя ShadowCaster и физические взаимодействия нетронутыми.
+    void UpdateTreePeek(bool cinematicReveal, float dt)
+    {
+        bool desired = treePeek && !cinematicReveal && cam != null && player != null;
+        Vector3 vp = Vector3.zero;
+        if (desired)
+        {
+            Vector3 chest = player.transform.position + Vector3.up * treePeekPlayerHeight;
+            vp = cam.WorldToViewportPoint(chest);
+            desired = vp.z > cam.nearClipPlane && vp.x > -0.5f && vp.x < 1.5f && vp.y > -0.5f && vp.y < 1.5f;
+        }
+
+        if (desired) treePeekLastViewport = vp;
+        else vp = treePeekLastViewport; // без скачка окна в угол при плавном отключении
+
+        treePeekBlend = Mathf.MoveTowards(treePeekBlend, desired ? 1f : 0f,
+            dt / Mathf.Max(0.05f, treePeekFadeTime));
+        if (treePeekBlend <= 0.001f)
+        {
+            ClearTreePeek();
+            return;
+        }
+
+        // Радиус шейдера задан в долях высоты кадра. Согласуем его с
+        // перспективной камерой по вертикальному FOV и глубине груди игрока.
+        float viewHeight = 2f * Mathf.Max(0.1f, vp.z) *
+            Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        float radius = treePeekRadius / Mathf.Max(0.05f, viewHeight);
+
+        Shader.SetGlobalVector(TreePeekDataId,
+            new Vector4(vp.x, vp.y, radius, treePeekSoftness));
+        Shader.SetGlobalVector(TreePeekParamsId,
+            new Vector4(vp.z - treePeekDepthMargin, cam.aspect, treePeekBlend, treePeekMinOpacity));
     }
 
     void Step()
@@ -483,6 +562,7 @@ public class OrbitCamera : MonoBehaviour
         cam.fieldOfView = reveal ? Mathf.Lerp(fov, revealFov, rv) : fov;
         cam.transform.SetPositionAndRotation(focus + back * curDist + shake, rot);
 
+        UpdateTreePeek(reveal, dt);
         UpdateCrosshair(dt);
 
         // движение персонажа теперь относительно камеры (без облёта yawBias)

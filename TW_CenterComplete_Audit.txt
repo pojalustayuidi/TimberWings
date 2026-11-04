@@ -1,0 +1,23 @@
+﻿TIMBER WINGS / CENTER COMPLETE — READ-ONLY AUDIT
+UTC: 2026-10-26T17:16:59.5213467Z
+Unity: 6000.3.10f1
+Scene: Assets/_Recovery/0 (7).unity
+NOTE: audit creates only this external TXT report; it never changes Unity objects/assets.
+PRECONDITIONS: OK
+Campfire: Campfire
+Plaza: IslandV2/_Generated/CampPlaza
+Existing FX: Sparks=True Smoke=True
+Existing plaza lights: True
+Campfire existing light: True
+Existing Stone Rhythm: True (retained)
+Current center art add-on: True
+Current atmosphere add-on: True
+Campfire compact mesh: Assets/_Project/Generated/TWCenterComplete/TW_CompactStage2.asset
+New effect adds ZERO realtime lights and colliders.
+Compact transforms: only Stage2/Mesh_Solid and Stage3/Mesh_Solid MeshFilter sharedMesh may be reassigned; also optional ISL024B tripod/flame meshes. Backup references stored for removal.
+New audio: Assets/_Project/Audio/TW_WarmCampfireLoop.wav / MISSING; audio disabled
+Decor around radius >=5.5m placed only where IslandField says no path/water.
+Command APPLY creates/replaces ONLY IslandV2/_Generated/CampPlaza/TW_CenterComplete_Art and Campfire/Stage3/TW_CenterComplete_Atmosphere
+Generated mesh assets: Assets/_Project/Generated/TWCenterComplete/TW_CenterInlay.asset, Assets/_Project/Generated/TWCenterComplete/TW_CenterBotanicals.asset, Assets/_Project/Generated/TWCenterComplete/TW_CenterEmberBed.asset and up to four private compact copies.
+WARNING: CURRENT SCENE LIVES IN _Recovery. Backup/confirm the intended game scene.
+Not a Play Mode, FPS Profiler or save-game test.

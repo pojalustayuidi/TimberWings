@@ -1,0 +1,183 @@
+TIMBER WINGS / ISL-011 / SURFACE MATERIAL AUDIT
+Generated: 2026-10-25 15:59:31
+Unity: 6000.3.10f1
+Scene: Assets/_Recovery/0 (7).unity
+Only existing assets are inspected. Missing files are NOT created.
+
+[1] CANDY GROUND SETTINGS
+Asset: Assets/_Project/IslandV2/IslandCandy.asset
+Candy enabled: True; texel m: 0.4
+Grass Mint/Green/Lime/Sun: #70CBA0 (0.439, 0.796, 0.627) / #83D77D (0.514, 0.843, 0.49) / #A9E17B (0.663, 0.882, 0.482) / #CCE990 (0.8, 0.914, 0.565)
+Forest floor: #5BB68B (0.357, 0.714, 0.545); strength: 0.58
+Path cream/edge: #F8E7BE (0.973, 0.906, 0.745) / #EDCB9D (0.929, 0.796, 0.616)
+Beach/Pad: #F2E2A6 (0.949, 0.886, 0.651) / #F3E3B0 (0.953, 0.89, 0.69)
+Plaza stone/rim: #F2E2B8 (0.949, 0.886, 0.722) / #E3C99A (0.89, 0.788, 0.604)
+Gloss mask grass/path: 0.12 / 0.85
+
+[2] LAYOUT COLOURS (DO NOT RESET OR REBUILD LAYOUT)
+Asset: Assets/_Project/IslandV2/IslandLayout.asset
+Rock top/mid/dark: #C2ADCC (0.76, 0.68, 0.8) / #9E91BD (0.62, 0.57, 0.74) / #6E6399 (0.43, 0.39, 0.6)
+River wall/damp: #A394BD (0.64, 0.58, 0.74) / #616B9E (0.38, 0.42, 0.62)
+Cliff wet/lip: #6B80BD (0.42, 0.5, 0.74) / #8FC73D (0.56, 0.78, 0.24)
+Plaza stone/rim (layout): #E0D1A8 (0.88, 0.82, 0.66) / #B2A17A (0.7, 0.63, 0.48)
+
+[3] SHARED MATERIALS, CURRENT STORED VALUES
+-- Island ground + plaza : Assets/_Project/IslandV2/Mat_IslandV2.mat
+   Shader: Project/IslandV2/VertexColor; instancing=False; renderQueue=2000
+   _Tint=#FFFFFF (1, 1, 1)
+   _Bright=1
+   _AmbientMul=1
+   _Wrap=0.35
+   _Toon=0.5
+   _Gloss=0.6
+   _GlossPower=24
+   _Sparkle=0.35
+   _Sprinkles=0.6
+   _Airy=0.06
+   _CandyOn=1
+   _GroundTex=Assets/_Project/IslandV2/Generated/IslandV2_GroundColor.png [sRGB=True; mipmaps=True; compression=Uncompressed]
+   _GroundMask=Assets/_Project/IslandV2/Generated/IslandV2_GroundMask.png [sRGB=False; mipmaps=True; compression=Uncompressed]
+-- Island cliff : Assets/_Project/IslandV2/Mat_IslandRock.mat
+   Shader: Project/IslandRock; instancing=False; renderQueue=2000
+   _Tint=#FFFFFF (1, 1, 1)
+   _Shade=#9485BD (0.58, 0.52, 0.74)
+   _GroundTint=#FFFFFF (1, 1, 1)
+   _Wrap=0.4
+   _Rim=0.22
+   _UseCandyGround=0
+   _AllGround=0
+   _GroundTex=(not assigned)
+-- Forest rock : Assets/_Project/Prefabs/Trees/Generated/Materials/Under_Rock.mat
+   Shader: Project/TreeToon; instancing=True; renderQueue=2000
+   _Tint=#FFFFFF (1, 1, 1)
+   _BaseColor=#C7BDE0 (0.78, 0.74, 0.88)
+   _BottomColor=#756E9E (0.46, 0.43, 0.62)
+   _ShadowTint=#C7E0FF (0.78, 0.88, 1)
+   _RimStrength=0.16
+   _StepSoft=0.05
+   _Level0=0.42
+   _Level1=0.72
+   _Level2=0.98
+   _Ambient=0.35
+   _ShadowStrength=0.9
+-- Grove moss stone : Assets/_Project/Prefabs/Trees/Generated/Materials/Grove_StoneMoss.mat
+   Shader: Project/TreeToon; instancing=True; renderQueue=2000
+   _Tint=#FFFFFF (1, 1, 1)
+   _BaseColor=#B8BDB2 (0.72, 0.74, 0.7)
+   _BottomColor=#525957 (0.32, 0.35, 0.34)
+   _ShadowTint=#C7E0FF (0.78, 0.88, 1)
+   _RimStrength=0.12
+   _StepSoft=0.05
+   _Level0=0.42
+   _Level1=0.72
+   _Level2=0.98
+   _Ambient=0.35
+   _ShadowStrength=0.9
+-- Grandpa stone : Assets/_Project/Prefabs/Trees/Generated/Materials/Grandpa_Stone.mat
+   Shader: Project/TreeToon; instancing=True; renderQueue=2000
+   _Tint=#FFFFFF (1, 1, 1)
+   _BaseColor=#C2BDD6 (0.76, 0.74, 0.84)
+   _BottomColor=#615E80 (0.38, 0.37, 0.5)
+   _ShadowTint=#C7E0FF (0.78, 0.88, 1)
+   _RimStrength=0.12
+   _StepSoft=0.05
+   _Level0=0.42
+   _Level1=0.72
+   _Level2=0.98
+   _Ambient=0.35
+   _ShadowStrength=0.9
+-- Sacred stone : Assets/_Project/Prefabs/Trees/Generated/Materials/Sacred_Stone.mat
+   Shader: Project/TreeToon; instancing=True; renderQueue=2000
+   _Tint=#FFFFFF (1, 1, 1)
+   _BaseColor=#CCC7EB (0.8, 0.78, 0.92)
+   _BottomColor=#706B9E (0.44, 0.42, 0.62)
+   _ShadowTint=#C7E0FF (0.78, 0.88, 1)
+   _RimStrength=0.16
+   _StepSoft=0.05
+   _Level0=0.42
+   _Level1=0.72
+   _Level2=0.98
+   _Ambient=0.35
+   _ShadowStrength=0.9
+
+[4] SCENE MATERIAL USAGE (open scene only)
+Scene renderers (including disabled): 3658
+Unique referenced materials: 350
+  slots= 291 | Tree_Bark | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Bark.mat
+  slots= 248 | WoodDark | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/WoodDark.mat
+  slots= 234 | Tree_Leaf_Green | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_Green.mat
+  slots= 234 | Tree_Leaf_Under | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_Under.mat
+  slots= 203 | WoodMid | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/WoodMid.mat
+  slots= 171 | Tree_Bark_Birch | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Bark_Birch.mat
+  slots= 171 | Tree_BarkMark | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_BarkMark.mat
+  slots= 171 | Tree_Leaf_Birch | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_Birch.mat
+  slots= 171 | Tree_Leaf_BirchUnder | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_BirchUnder.mat
+  slots= 154 | Grass | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Grass.mat
+  slots= 151 | Rope | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Rope.mat
+  slots= 147 | Red | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Red.mat
+  slots= 146 | Tree_Bark_Oak | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Bark_Oak.mat
+  slots= 141 | patch-dirt | Universal Render Pipeline/Lit | Assets/patch-dirt.mat
+  slots= 127 | LogEnd | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/LogEnd.mat
+  slots= 122 | Moss | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Moss.mat
+  slots= 107 | WoodLight | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/WoodLight.mat
+  slots= 106 | PlankDark | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/PlankDark.mat
+  slots= 104 | MetalDark | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/MetalDark.mat
+  slots=  98 | Plank | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Plank.mat
+  slots=  94 | Cream | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Cream.mat
+  slots=  84 | Tree_Leaf_Oak | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_Oak.mat
+  slots=  84 | Tree_Leaf_OakAlt | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_OakAlt.mat
+  slots=  84 | Tree_Leaf_OakUnder | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_OakUnder.mat
+  slots=  79 | Under_Stem | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_Stem.mat
+  slots=  73 | RoofShade | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/RoofShade.mat
+  slots=  63 | Under_BushUnder | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_BushUnder.mat
+  slots=  52 | Leaf | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Leaf.mat
+  slots=  48 | Cloud | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Cloud.mat
+  slots=  47 | Under_BushLime | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_BushLime.mat
+  slots=  46 | Under_FlowerPink | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_FlowerPink.mat
+  slots=  43 | Sacred_Gem | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Sacred_Gem.mat
+  slots=  42 | Gold | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Gold.mat
+  slots=  42 | Tree_Leaf_Dark | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_Dark.mat
+  slots=  42 | Tree_Leaf_DarkTip | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_DarkTip.mat
+  slots=  42 | Tree_Leaf_DarkUnder | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_DarkUnder.mat
+  slots=  41 | Metal | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Metal.mat
+  slots=  41 | Roof | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Roof.mat
+  slots=  41 | Stone | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Stone.mat
+  slots=  40 | Sacred_Rune | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Sacred_Rune.mat
+  slots=  40 | Sacred_Stone | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Sacred_Stone.mat
+  slots=  39 | StoneDark | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/StoneDark.mat
+  slots=  35 | Sky | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Sky.mat
+  slots=  32 | Mira_Hair | Universal Render Pipeline/Lit | Assets/_Project/Characters/Mira/Materials/Mira_Hair.mat
+  slots=  32 | Pink | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Pink.mat
+  slots=  28 | Skin | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Skin.mat
+  slots=  27 | colormap | Universal Render Pipeline/Lit | Assets/_Project/Models/Environment/FBX format 1/floor.fbx
+  slots=  27 | Under_Rock | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_Rock.mat
+  slots=  26 | Lilac | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/Lilac.mat
+  slots=  25 | Under_FlowerYellow | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_FlowerYellow.mat
+  slots=  23 | GoldDark | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/GoldDark.mat
+  slots=  22 | Under_FlowerWhite | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_FlowerWhite.mat
+  slots=  21 | Mat_IslandV2 | Project/IslandV2/VertexColor | Assets/_Project/IslandV2/Mat_IslandV2.mat
+  slots=  21 | Under_BushDark | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_BushDark.mat
+  slots=  19 | HutLamp | Project/CandyToon | Assets/_Project/Art/HutV2/Materials/HutLamp.mat
+  slots=  19 | Under_FlowerPurple | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Under_FlowerPurple.mat
+  slots=  16 | Mat_Walls | Universal Render Pipeline/Lit | Assets/_Project/Materials/Mat_Walls.mat
+  slots=  16 | Pond_Decor | Project/Pond/Toon | Assets/_Game/Pond/Pond_Decor.mat
+  slots=  16 | Wing_Willow_Bark | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Wing_Willow_Bark.mat
+  slots=  16 | Wing_Willow_Mint | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Wing_Willow_Mint.mat
+  slots=  16 | Wing_Willow_Pink | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Wing_Willow_Pink.mat
+  slots=  16 | Wing_Willow_Sky | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Wing_Willow_Sky.mat
+  slots=  16 | Wood | Universal Render Pipeline/Lit | Assets/Wood.mat
+  slots=  15 | A2B0C2 | Universal Render Pipeline/Lit | Assets/_Project/Materials/A2B0C2.mat
+  slots=  15 | Tree_Leaf_Orange | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_Orange.mat
+  slots=  15 | Tree_Leaf_UnderYellow | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_UnderYellow.mat
+  slots=  15 | Tree_Leaf_Yellow | Project/TreeToon | Assets/_Project/Materials/Forest/Tree_Leaf_Yellow.mat
+  slots=  14 | Board_Pin | Universal Render Pipeline/Lit | Assets/_Game/Board/Board_Pin.mat
+  slots=  14 | Candy_Camp | Project/CandyToon | Assets/_Game/Campfire/Candy_Camp.mat
+  slots=  14 | Sacred_Blossom_Bark | Project/TreeToon | Assets/_Project/Prefabs/TreeS/Generated/Materials/Sacred_Blossom_Bark.mat
+  ... remaining 280 materials omitted
+
+[5] NOTES FOR ISL-011
+_Gloss/_GlossPower (IslandVertexColor) and _RimStrength (TreeToon) are different lighting models.
+Island plaza mesh uses vertex colours on the SAME shared ground material; its palette is not a separate .mat.
+Changing the IslandCandy palette requires Candy-ground repaint; changing materials does not rebuild geometry.
+Do NOT run ForestMats.Get(..., force:true) while inspecting authored materials.
+The report is read-only; asset or scene changes performed: NONE.

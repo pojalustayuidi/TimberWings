@@ -1,0 +1,22 @@
+TIMBER WINGS / ISL-022 GAME VIEW EVIDENCE
+Captured UTC: 2026-10-26T15:29:03.2867433Z
+Scene: Assets/_Recovery/0 (7).unity
+Scene in _Recovery: YES / unverified playable scene
+Slot: OVERVIEW
+Shot: live GAME camera
+Caption: ISL022 OVERVIEW FPS 59.8 (sampled FPS, NOT Profiler FPS)
+Unity: 6000.3.10f1
+Resolution at request: 642x1156
+Quality preset: Fantastic
+Camera: Main Camera
+OrbitCamera.Active: True
+Preset camera position: (13.2188, 12.5739, -32.5535)
+Preset camera rotation quaternion: (0.10121, -0.87863, 0.41439, 0.21460)
+Projection: Perspective
+FieldOfView: 60.000
+OrthographicSize: 1.000
+Preset phase / time01: Day / 0.3133
+Actual phase / time01 at capture: Day / 0.3133
+FPS sample frames: 120
+NOTICE: camera-pose replay does not teleport the player or freeze the day/night simulation.
+NOTICE: no Play Mode safety, saved-game migration or release-scene status is proven by this image.

@@ -1,0 +1,83 @@
+TIMBER WINGS / ISL-019 / RELIEF AUDIT (READ ONLY)
+Generated: 2026-10-25 20:48:38
+Unity: 6000.3.10f1
+Scene: Assets/_Recovery/0 (7).unity (0 (7))
+Layout asset: Assets/_Project/IslandV2/IslandLayout.asset
+All heights in world units; assumed meters, not independently calibrated.
+WARNING: this report does not prove navigation, water physics, save-state safety or FPS.
+WARNING: active scene is under _Recovery. Verify that it is your actual playable scene.
+
+[1] SAVED LAYOUT VALUES (NOT CODE DEFAULTS)
+seed=7; hillAmp=0.9; hillScale=38; pathFlatten=0.6; flatBlend=5
+maxWalkSlopeDeg=32; meshCell=2; terrainResolution=513; terrainBaseY=-8; terrainHeightRange=18
+Paths=12; anchors=23; meadows=5; crossings=1
+Contour area=15400.01; bounds X[-81.843,84.788] Z[-62.052,61.715]
+
+[2] HEIGHT GRID (sampling ~4 m)
+Inside cells=974; open natural=177; protected=797
+Height all terrain min/max=-5.634 .. 0.679 m; maximum sampled slope=57.912 deg
+Height OPEN LAND min/max=-2.675 .. 0.649 m; maximum sampled slope=30.122 deg
+Open-land samples above maxWalkSlopeDeg=0 / 177 (not equivalent to navigation failures)
+Protected means within 3 m of a path edge, 6 m of water, 5 m of island edge,
+or within anchor.flatRadius + flatBlend + 2 m. Protected zones MUST NOT be reshaped casually.
+
+[3] ANCHOR HEIGHTS AND PAD TRANSITIONS
+CAMPFIRE_Point x=0 z=0 height=0 nearby dry Y=-0.287 .. 0.157 m maxSlope=9.84 marker: XZ offset=0, Y delta=0
+SPAWN_Player x=0 z=-4.2 height=0 nearby dry Y=0 .. 0 m maxSlope=0 marker: XZ offset=0, Y delta=0
+PAD_Hut x=-24 z=30 height=0 nearby dry Y=0 .. 0.322 m maxSlope=11.02 marker: XZ offset=0, Y delta=0
+PAD_Market x=40 z=13 height=0 nearby dry Y=-0.215 .. 0.081 m maxSlope=10.183 marker: XZ offset=0, Y delta=0
+PAD_QuestBoard x=19 z=9 height=0 nearby dry Y=-0.348 .. 0 m maxSlope=13.925 marker: XZ offset=0, Y delta=0
+PAD_Tent x=-22 z=-28 height=0 nearby dry Y=-0.238 .. 0 m maxSlope=8.117 marker: XZ offset=0, Y delta=0
+PAD_Forest x=6 z=44 height=0 nearby dry Y=-0.133 .. 0.16 m maxSlope=6.904 marker: XZ offset=0, Y delta=0
+ForestGate x=4 z=34 height=0 nearby dry Y=-0.037 .. 0.285 m maxSlope=11.455 marker: XZ offset=0, Y delta=0
+DEFERRED_Bridge x=81.538 z=11.459 height=0 nearby dry Y=-0.215 .. 0.165 m maxSlope=9.137 marker: XZ offset=0, Y delta=0
+PAD_SiteA x=26 z=19 height=0 nearby dry Y=-0.238 .. 0 m maxSlope=7.753 marker: XZ offset=0, Y delta=0
+PAD_SiteB x=24 z=-6 height=0 nearby dry Y=-0.327 .. 0 m maxSlope=11.776 marker: XZ offset=0, Y delta=0
+PAD_PetCase x=-17 z=-31 height=0 nearby dry Y=-0.192 .. 0 m maxSlope=7.105 marker: XZ offset=0, Y delta=0
+PAD_Worker1 x=-23.2 z=-21.1 height=0 nearby dry Y=-0.262 .. 0 m maxSlope=9.172 marker: XZ offset=0, Y delta=0
+PAD_Worker2 x=-26.9 z=-23.1 height=0 nearby dry Y=-0.189 .. 0 m maxSlope=6.701 marker: XZ offset=0, Y delta=0
+PAD_Worker3 x=-28.9 z=-26.8 height=0 nearby dry Y=-0.028 .. 0.014 m maxSlope=0.964 marker: XZ offset=0, Y delta=0
+PAD_Worker4 x=-28.3 z=-31 height=0 nearby dry Y=0 .. 0.11 m maxSlope=4.197 marker: XZ offset=0, Y delta=0
+PAD_Worker5 x=-25.5 z=-34.1 height=0 nearby dry Y=0 .. 0.133 m maxSlope=4.764 marker: XZ offset=0, Y delta=0
+PAD_Worker6 x=-21.4 z=-35 height=0 nearby dry Y=-0.065 .. 0.061 m maxSlope=3.229 marker: XZ offset=0, Y delta=0
+PAD_Grandpa x=7.707 z=52.022 height=0 nearby dry Y=-0.194 .. 0.052 m maxSlope=5.943 marker: XZ offset=0, Y delta=0
+PAD_Lighthouse x=52.238 z=36.026 height=0 nearby dry Y=-0.195 .. 0.03 m maxSlope=7.234 marker: XZ offset=0, Y delta=0
+PAD_GunnarGlade x=-30 z=-8 height=0 nearby dry Y=-0.278 .. 0 m maxSlope=9.201 marker: XZ offset=0, Y delta=0
+PAD_GunnarShore x=-64 z=8 height=0 nearby dry Y=-0.135 .. 0.134 m maxSlope=22.528 marker: XZ offset=0, Y delta=0
+PAD_GroveSouth x=10 z=-50 height=0 nearby dry Y=-0.389 .. 0.04 m maxSlope=13.742 marker: XZ offset=0, Y delta=0
+
+[4] ROUTE CENTRE-LINE SLOPES (SAMPLED)
+Хижина: drySamples=24, height=0 .. 0.153 m, maxSlope=2.829 at (-16.708,21.281), overLimit=0, river/pondSamples=0
+Рынок: drySamples=22, height=-0.149 .. 0 m, maxSlope=4.38 at (25.272,7.735), overLimit=0, river/pondSamples=0
+Доска: drySamples=6, height=-0.056 .. 0 m, maxSlope=3.024 at (15.406,4.781), overLimit=0, river/pondSamples=0
+Палатка: drySamples=22, height=-0.192 .. 0 m, maxSlope=3.177 at (-14.875,-22.5), overLimit=0, river/pondSamples=0
+Пруд: drySamples=24, height=-0.092 .. 0.116 m, maxSlope=9.984 at (30.296,-30.593), overLimit=0, river/pondSamples=0
+Лес: drySamples=26, height=0 .. 0.186 m, maxSlope=3.218 at (2.753,25.988), overLimit=0, river/pondSamples=0
+Мост: drySamples=61, height=-0.069 .. 0.208 m, maxSlope=3.024 at (50.828,7.484), overLimit=0, river/pondSamples=0
+К броду: drySamples=17, height=-2.268 .. 0.159 m, maxSlope=35.833 at (-46.313,21.375), overLimit=1, river/pondSamples=0
+За рекой: drySamples=11, height=-2.278 .. 0 m, maxSlope=48.301 at (-57.438,16.406), overLimit=1, river/pondSamples=0
+Маяк: drySamples=19, height=-0.041 .. 0.227 m, maxSlope=2.398 at (58.155,25.13), overLimit=0, river/pondSamples=0
+Стройплощадка: drySamples=27, height=-0.224 .. 0 m, maxSlope=4.143 at (27.672,8.719), overLimit=0, river/pondSamples=0
+Роща: drySamples=23, height=-0.053 .. 0.065 m, maxSlope=1.343 at (9.063,-37.938), overLimit=0, river/pondSamples=0
+
+[5] SCENE TERRAIN COLLIDER SPOT-CHECK
+anchorChecks=23; rayMisses=0; above 0.35 m=0; maxAbsError=0 m
+Errors may indicate stale TerrainData or sampling resolution; inspect before rebuilding anything.
+
+[6] OPTIONAL SCENIC-VIEW CANDIDATES (HEIGHT ONLY, NOT LINE OF SIGHT)
+  X=-4.479, Z=23.786, groundY=0.649, slope=1.09 deg
+  X=70.902, Z=19.794, groundY=0.554, slope=1.099 deg
+  X=-12.413, Z=43.748, groundY=0.379, slope=1.298 deg
+  X=19.326, Z=-32.109, groundY=0.318, slope=0.634 deg
+  X=55.033, Z=-0.169, groundY=0.317, slope=3.033 deg
+  X=-71.924, Z=-8.154, groundY=0.26, slope=0.731 deg
+  X=-32.25, Z=-44.086, groundY=0.209, slope=1.516 deg
+  X=31.228, Z=51.733, groundY=0.192, slope=0.974 deg
+These spots are only candidates. Trees, buildings, camera angle and interaction areas are NOT evaluated.
+
+[7] NEXT STEPS
+1. Compare Game View from central camp, forest, river/bridge, and a distant edge viewpoint.
+2. Run the existing IslandCheck separately; this report is NOT a passability test.
+3. Do not run full IslandV2 rebuild or edit hillAmp until collider, pad, routes and placed objects are accounted for.
+4. Any later geometry change must rebuild BOTH visual chunks and TerrainCollider and re-check gameplay.
+Files written outside Assets: TXT, CSV, PNG. Scene/assets modified: NONE.

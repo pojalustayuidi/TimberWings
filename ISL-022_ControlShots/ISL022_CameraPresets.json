@@ -1,0 +1,92 @@
+{
+    "poses": [
+        {
+            "key": "CENTER",
+            "scenePath": "Assets/_Recovery/0 (7).unity",
+            "recordedUtc": "2026-10-26T15:28:18Z",
+            "ready": true,
+            "orthographic": false,
+            "position": {
+                "x": 3.012474298477173,
+                "y": 3.0470871925354006,
+                "z": -6.689969539642334
+            },
+            "rotation": {
+                "x": -0.20908692479133607,
+                "y": 0.09328329563140869,
+                "z": -0.020040782168507577,
+                "w": -0.9732313752174377
+            },
+            "fov": 60.0,
+            "orthoSize": 1.0,
+            "time01": 0.2578291893005371,
+            "dayPhase": "Dawn"
+        },
+        {
+            "key": "BRIDGE",
+            "scenePath": "Assets/_Recovery/0 (7).unity",
+            "recordedUtc": "2026-10-26T15:29:30Z",
+            "ready": true,
+            "orthographic": false,
+            "position": {
+                "x": -48.11281967163086,
+                "y": 9.807473182678223,
+                "z": 37.13317108154297
+            },
+            "rotation": {
+                "x": 0.008991648443043232,
+                "y": -0.9743459224700928,
+                "z": 0.22136564552783967,
+                "w": 0.0395769439637661
+            },
+            "fov": 60.0,
+            "orthoSize": 1.0,
+            "time01": 0.3535785973072052,
+            "dayPhase": "Day"
+        },
+        {
+            "key": "OVERVIEW",
+            "scenePath": "Assets/_Recovery/0 (7).unity",
+            "recordedUtc": "2026-10-26T15:29:03Z",
+            "ready": true,
+            "orthographic": false,
+            "position": {
+                "x": 13.218788146972657,
+                "y": 12.573888778686524,
+                "z": -32.55352783203125
+            },
+            "rotation": {
+                "x": 0.10121291130781174,
+                "y": -0.878626823425293,
+                "z": 0.41438719630241396,
+                "w": 0.21460214257240296
+            },
+            "fov": 60.0,
+            "orthoSize": 1.0,
+            "time01": 0.313315212726593,
+            "dayPhase": "Day"
+        },
+        {
+            "key": "",
+            "scenePath": "",
+            "recordedUtc": "",
+            "ready": false,
+            "orthographic": false,
+            "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 0.0
+            },
+            "fov": 0.0,
+            "orthoSize": 0.0,
+            "time01": 0.0,
+            "dayPhase": ""
+        }
+    ]
+}

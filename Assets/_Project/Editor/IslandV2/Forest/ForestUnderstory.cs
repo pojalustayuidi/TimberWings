@@ -164,26 +164,31 @@ namespace IslandV2
             // ---- кусты
             int nb = Scatter(f, L, rng, th, 2.4f, 2.1f, 0.9f, settings.bushCap, bushes, (d, inMeadow, pathEdge, wd, ed) =>
             {
-                float p = 0.05f + 0.34f * Mathf.Sqrt(d) + (pathEdge ? 0.07f : 0f);
-                return inMeadow ? p * 0.2f : p;
-            }, settings.bushPathClearance, settings.bushClusterStrength, settings.bushClusterSize, settings.seed + 101);
+                float p = 0.05f + 0.34f * Mathf.Sqrt(d) + pathEdge * 0.07f;
+                return p * Mathf.Lerp(1f, 0.2f, inMeadow);
+            }, settings.bushPathClearance, settings.bushClusterStrength, settings.bushClusterSize, settings.seed + 101, settings);
             // ---- цветы: плотность меняется плавными пятнами, но игровые запретные зоны сохраняются
             int nf = Scatter(f, L, rng, th, 1.7f, 0.9f, 0.5f, settings.flowerCap, flowers, (d, inMeadow, pathEdge, wd, ed) =>
             {
                 if (d > 0.85f) return 0f;
                 float p = 0.05f * (1f - d);
-                if (inMeadow) p += 0.55f;
-                if (pathEdge) p += 0.28f * (1f - d);
+                p += 0.55f * inMeadow;
+                p += 0.28f * pathEdge * (1f - d);
                 return p;
-            }, settings.flowerPathClearance, settings.flowerClusterStrength, settings.flowerClusterSize, settings.seed + 303);
+            }, settings.flowerPathClearance, settings.flowerClusterStrength, settings.flowerClusterSize, settings.seed + 303, settings);
             // ---- камни: без кластеризации, прежняя логика около воды и обрыва
             int nr = Scatter(f, L, rng, th, 3f, 5f, 1.0f, settings.rockCap, rocks, (d, inMeadow, pathEdge, wd, ed) =>
             {
                 float p = 0.02f + 0.02f * d;
-                if (wd >= 0.2f && wd <= 3.5f) p += 0.35f;
+                float coastOld = wd >= 0.2f && wd <= 3.5f ? 1f : 0f;
+                float feather = Mathf.Clamp(settings.shoreFeather, 0.4f, 2f);
+                float coastSoft = IslandField.Step(0.2f, 0.2f + feather, wd)
+                                * (1f - IslandField.Step(3.5f - feather, 3.5f + feather, wd));
+                float coast = Mathf.Lerp(coastOld, coastSoft, settings.zoneBlendStrength);
+                p += 0.35f * coast;
                 if (ed < 5.5f) p += 0.16f;
-                return inMeadow ? p * 0.3f : p;
-            }, settings.rockPathClearance, 0f, 10f, settings.seed + 505, true);
+                return p * Mathf.Lerp(1f, 0.3f, inMeadow);
+            }, settings.rockPathClearance, 0f, 10f, settings.seed + 505, settings, true);
 
             // ---- сцена: пересоздать корень
             var parentGo = GameObject.Find("IslandV2/_Manual");
@@ -234,6 +239,7 @@ namespace IslandV2
             EditorSceneManager.MarkSceneDirty(root.scene);
 
             sb.AppendLine("  кустов " + nb + ", кустиков цветов " + nf + ", камней " + nr + "; кусков-мешей " + chunks + ", треугольников " + tris);
+            sb.AppendLine("  ISL-020 zoneBlend=" + settings.zoneBlendStrength.ToString("F2") + "; meadowFeather=" + settings.meadowFeather.ToString("F1") + " м");
             sb.AppendLine("  ISL-008 seed=" + settings.seed + "; настройки: " + ForestUnderstoryCandySettings.AssetPath);
             sb.AppendLine("  лежит в " + parent.name + "/" + RootName + ", коллайдеров нет. Пересоздать: пункт 2 ещё раз; убрать: пункт 3.");
             Debug.Log(sb.ToString());
@@ -249,7 +255,7 @@ namespace IslandV2
         }
 
         // ============================================================ расстановка
-        delegate float Prob(float treeDensity, bool inMeadow, bool pathEdge, float waterDist, float edgeDist);
+        delegate float Prob(float treeDensity, float meadow, float pathEdge, float waterDist, float edgeDist);
 
         static long HKey(Vector2 p, float cs) { return ((long)Mathf.FloorToInt(p.x / cs) << 32) ^ (uint)Mathf.FloorToInt(p.y / cs); }
         static void AddHash(Dictionary<long, List<Vector2>> h, Vector2 p, float cs)
@@ -288,7 +294,7 @@ namespace IslandV2
         // kinds: виды одной группы (кусты / цветы / камни); вид точки выбирается жребием, минимальное расстояние между точками группы = minGap
         static int Scatter(IslandField f, IslandLayout L, System.Random rng, Dictionary<long, List<Vector2>> trees, float step, float minGap, float treeClear, int cap,
                            Kind[] kinds, Prob prob, float pathClearance, float clusterStrength, float clusterSize, int clusterSeed,
-                           bool allowNearWater = false)
+                           ForestUnderstoryCandySettings settings, bool allowNearWater = false)
         {
             var groupHash = new Dictionary<long, List<Vector2>>();
             int placed = 0;
@@ -313,11 +319,20 @@ namespace IslandV2
                     if (ChopZone.Avoid(x, z)) continue;
 
                     float d = Mathf.Clamp01(CountWithin(trees, p2, 2f, 6f) / 8f);
-                    bool inMeadow = false;
+                    float meadowHard = 0f, meadowSoft = 0f;
+                    float feather = Mathf.Clamp(settings.meadowFeather, 0.5f, 6f);
                     for (int i = 0; i < L.meadows.Count; i++)
-                        if (Vector2.Distance(L.meadows[i].pos, p2) < L.meadows[i].radius * 1.15f) { inMeadow = true; break; }
-                    bool pathEdge = pd < 2.6f;
-                    float chance = prob(d, inMeadow, pathEdge, wd, ed);
+                    {
+                        float dist = Vector2.Distance(L.meadows[i].pos, p2);
+                        float edge = L.meadows[i].radius * 1.15f;
+                        if (dist < edge) meadowHard = 1f;
+                        meadowSoft = Mathf.Max(meadowSoft, 1f - IslandField.Step(edge - feather, edge + feather, dist));
+                    }
+                    float meadow = Mathf.Lerp(meadowHard, meadowSoft, Mathf.Clamp01(settings.zoneBlendStrength));
+                    float pathHard = pd < 2.6f ? 1f : 0f;
+                    float pathSoft = 1f - IslandField.Step(2.6f - settings.pathFeather, 2.6f + settings.pathFeather, pd);
+                    float pathNear = Mathf.Lerp(pathHard, pathSoft, Mathf.Clamp01(settings.zoneBlendStrength));
+                    float chance = prob(d, meadow, pathNear, wd, ed);
                     if (chance <= 0f) continue;
                     chance *= ClusterMultiplier(x, z, clusterSeed, clusterSize, clusterStrength);
                     if (roll > Mathf.Clamp01(chance)) continue;

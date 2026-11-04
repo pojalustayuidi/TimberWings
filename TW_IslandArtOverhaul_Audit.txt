@@ -1,0 +1,23 @@
+﻿TIMBER WINGS — ISLAND ART OVERHAUL v1 — READ ONLY
+UTC: 2026-10-27T19:42:55.2237483Z
+Unity: 6000.3.10f1
+Active scene: Assets/RiverOverhaulTest/Island_v2.unity
+Scene in _Recovery: False
+No objects, asset references, mesh assets, colliders or saves are modified by AUDIT.
+PRECONDITIONS: OK
+Layout: Assets/_Project/IslandV2/IslandLayout.asset
+Contour vertices: 120
+Ground TerrainCollider: IslandV2/_Generated/Ground_Terrain
+Vertex-color material: Assets/_Project/IslandV2/Mat_IslandV2.mat
+Existing overhaul root: none
+No terrain, water, cliff, tree or campfire rebuild is performed by APPLY.
+Zone meshes: Camp, Pond, River, ForestLight, ForestDark, Mystic, Edge.
+PLAN Camp: 5 grounded decorative clusters, 572 tris
+PLAN Pond: 38 grounded decorative clusters, 4048 tris
+PLAN River: 45 grounded decorative clusters, 4776 tris
+PLAN ForestLight: 45 grounded decorative clusters, 5472 tris
+PLAN ForestDark: 45 grounded decorative clusters, 5688 tris
+PLAN Mystic: 30 grounded decorative clusters, 3648 tris
+PLAN Edge: 47 grounded decorative clusters, 4520 tris
+APPLY replaces only TW_IslandArtOverhaul_V1 under IslandV2/_Manual and seven .mesh assets in Assets/_Project/Generated/TWIslandArtOverhaulV1.
+Future full island rebuild does not remove _Manual. Remove command only touches our root.
