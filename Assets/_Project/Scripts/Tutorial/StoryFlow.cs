@@ -7,7 +7,7 @@
 //   4. Хижина      Оскар         (ур. 2)  починить хижину, потом пила: 2 бревна -> 1 доска
 //   5. Доски       без разговора          сделать 6 досок на пиле
 //   6. Рынок       Мира                   построить прилавок (бревна + доски); после главы включается NPC-торговец
-//   7. Первая продажа Торговец            познакомиться (E), потом продать брёвна или доски через окно продажи (E)
+//   7. Первая продажа                    продать брёвна или доски у здания лавки (tradeAtBuilding). Старый NPC оставлен для совместимости
 //   8. Палатка     Оскар         (ур. 3)  построить палатку (бревна, доски, монеты), лагерь для рабочих
 //  8б. Звери-помощники Оскар      (ур. 4)  после палатки: у клети в лагере первая бесплатная Лесная клеть, один раз даёт Обычного питомца
 //   9. Мост        Оскар         (ур. 5)  три этапа: опоры (брёвна + монеты), настил, тросы и перила (доски + монеты); после третьего открывается проход, а Небесная клеть питомцев открывается сюжетом
@@ -52,6 +52,9 @@ public class StoryFlow : MonoBehaviour, ISaveable
     public Transform noteSpot;
     [Tooltip("Когда мост достроен: вместо чтения записки вслух показать финальную заставку (EndingSequence). Выключи, чтобы вернуть старый диалог")]
     public bool useEnding = true;
+    [Tooltip("Радиус около точки записки, в котором Лео «подошёл» (метры). Работает, когда точка записки задана (площадка на дальнем острове). " +
+             "Держи его заметно меньше расстояния до главного берега: иначе финал сработает не там")]
+    public float noteRadius = 3.5f;
 
     [Header("Звери-помощники")]
     [Tooltip("Кто даёт главу про питомцев. Сейчас Оскар. Будет свой NPC: впиши его Speaker.displayName (и добавь имя в VoiceId.SpeakerKey)")]
@@ -62,6 +65,9 @@ public class StoryFlow : MonoBehaviour, ISaveable
     [Header("Торговец")]
     [Tooltip("NPC-торговец у прилавка (Speaker + DialogueSequence + NpcMarker + TradingStall). Пусто = найдётся по merchantName, в том числе среди выключенных. До постройки рынка объект выключается, после главы «Рынок» включается")]
     public GameObject merchant;
+    [Tooltip("Торговля через здание: без знакомства с отдельным NPC")]
+    public bool tradeAtBuilding;
+    public TradingStall marketTrading;
 
     [Header("Имена говорящих (как в Speaker.displayName)")]
     public string miraName = "Мира";
@@ -75,12 +81,16 @@ public class StoryFlow : MonoBehaviour, ISaveable
     public string talkToText = "Поговори с {0}: <color=#6BCB5A>E</color>";
     public string returnToText = "Вернись к {0}: <color=#6BCB5A>E</color>";
 
-    // торговля (у NPC-торговца) открыта, когда прилавок построен (или рынка в сцене нет)
+    // торговля открыта, когда прилавок построен (или рынка в сцене нет)
     public bool MarketOpen { get; private set; }
     public bool AllDone { get; private set; }
     // клеть питомцев в лагере доступна (глава «Звери-помощники» принята или пропущена). Без StoryFlow клеть открыта по уровню
     public bool PetsOpen { get; private set; }
     public int ChapterIndex { get { return ci; } }
+    public string CurrentChapterId { get { return ci >= 0 && ci < chapters.Count ? chapters[ci].id : ""; } }
+    public string CurrentChapterPhase { get { return phase.ToString(); } }
+    public int SupplyDelivered { get { return supply != null ? supply.delivered : 0; } }
+    public bool TaskAccepted { get { return phase == Phase.Do; } }
     public event Action ChaptersFinished;
 
     // ------------------------------------------------------------ главы
@@ -306,6 +316,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
         if (idleSeq == seq) idleSeq = null;   // теперь у NPC настоящий разговор главы
         talk = seq;
+        seq.isQuestReminder = false;
         seq.SetTrigger(DialogueSequence.Trigger.OnInteract);
         seq.once = true;
         seq.SetLines(lines, true);
@@ -425,17 +436,17 @@ public class StoryFlow : MonoBehaviour, ISaveable
         });
 
         // 7. Первая продажа
-        // Торговец включается в onComplete главы «Рынок» (ShowMerchant). Знакомство: E на нём (пока оно не прозвучало,
-        // TradingStall окно не открывает), потом цель «продай» и стрелка к нему. Сам NPC после главы молчит: E у него только торговля
+        // В новом оформлении E у самой лавки сразу открывает продажу. Отдельного знакомства нет.
+        // Старый NPC-режим остаётся запасным вариантом для сцен, где новый сборщик ещё не запускали.
         chapters.Add(new Chapter
         {
-            id = "firstSale", giver = merchantName,
-            offer = MerchantIntro(),
-            talkText = "Подойди к торговцу: <color=#6BCB5A>E</color>",
-            skip = () => market == null || firstSale || merchant == null,   // без торговца продавать некому, главу не зависаем
-            objective = () => "Продай брёвна или доски торговцу: <color=#6BCB5A>E</color> у прилавка",
+            id = "firstSale", giver = tradeAtBuilding ? null : merchantName,
+            offer = tradeAtBuilding ? null : MerchantIntro(),
+            talkText = "Подойди к прилавку: <color=#6BCB5A>E</color>",
+            skip = () => market == null || firstSale || (!tradeAtBuilding && merchant == null),
+            objective = () => "Продай лишние брёвна или доски: <color=#6BCB5A>E</color> у прилавка",
             done = () => firstSale,
-            target = () => merchant != null ? merchant.transform : null
+            target = () => tradeAtBuilding ? (marketTrading != null ? marketTrading.transform : market != null ? market.transform : null) : merchant != null ? merchant.transform : null
         });
 
         // 8. Палатка (Оскар, ур. 3)
@@ -516,24 +527,24 @@ public class StoryFlow : MonoBehaviour, ISaveable
     // ------------------------------------------------------------ глава «Звери-помощники»
     DialogueSequence.Line[] PetsOffer()
     {
-        return new[]
+        return DialogueStorybook.Lines("pets_offer", playerName, new[]
         {
             L(false, "Лагерь стоит, а рук всё мало. Помощники нужны не только людям."),
             L(true,  "Помощники? Это кто?"),
             L(false, "Звери. Гуннар прислал клеть, она у палатки. Первая задаром, дальше за монеты."),
             L(true,  "И что они умеют?"),
             L(false, "Ворчат и помогают. Кто выпадет, того и бери. Иди, открывай.")
-        };
+        });
     }
 
     DialogueSequence.Line[] PetsReport()
     {
-        return new[]
+        return DialogueStorybook.Lines("pets_report", playerName, new[]
         {
             L(false, "Вот и зверь у тебя. В слот его, пусть бежит следом."),
             L(true,  "Кормить по расписанию, как в записке?"),
             L(false, "Именно. А теперь мост, малец. Монеты копи.")
-        };
+        });
     }
 
     // пропуск: нет PetManager или базы питомцев, нет клети в сцене, либо бесплатную клеть уже открывали (сохранение)
@@ -577,7 +588,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
     DialogueSequence.Line[] UpgradeOffer()
     {
-        return new[]
+        return DialogueStorybook.Lines("upgrade_offer", playerName, new[]
         {
             L(false, "Второй уровень! Вот теперь можно говорить о настоящем деле."),
             L(true,  "О каком?"),
@@ -585,23 +596,23 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(true,  "И что улучшать первым?"),
             L(false, "Рюкзак. Четыре бревна за рейс, курам на смех. Бегаешь туда-сюда."),
             L(true,  "Окно на U. Берусь.")
-        };
+        });
     }
 
     DialogueSequence.Line[] UpgradeReport()
     {
-        return new[]
+        return DialogueStorybook.Lines("upgrade_report", playerName, new[]
         {
             L(false, "Шесть брёвен за рейс, совсем другое дело! Топор и ноги подкачаешь позже."),
             L(true,  "А теперь куда?"),
             L(false, "К Оскару, он у хижины, где брёвна лежат. Друг Гуннара, доски делать умеет."),
             L(true,  "Иду к Оскару.")
-        };
+        });
     }
 
     DialogueSequence.Line[] HutOffer()
     {
-        return new[]
+        return DialogueStorybook.Lines("hut_offer", playerName, new[]
         {
             L(false, "Гуннаров племянник? Вылитый дядя, даже хмуришься так же."),
             L(true,  "Вы Оскар? Мира сказала, вы научите делать доски."),
@@ -609,12 +620,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(true,  "Сколько нужно брёвен?"),
             L(false, "Десять на стены, десять на крышу. Топор не обманет, как говорил Гуннар."),
             L(true,  "Понял. Несу брёвна.")
-        };
+        });
     }
 
     DialogueSequence.Line[] HutReport()
     {
-        return new[]
+        return DialogueStorybook.Lines("hut_report", playerName, new[]
         {
             L(false, "Стоит и не скрипит! Гуннар бы кивнул."),
             L(true,  "А пила?"),
@@ -622,12 +633,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(true,  "Куда мне доски?"),
             L(false, "Мира без них лавку не поставит. Шести ей хватит для начала."),
             L(true,  "Шесть так шесть. Займусь.")
-        };
+        });
     }
 
     DialogueSequence.Line[] MarketOffer()
     {
-        return new[]
+        return DialogueStorybook.Lines("market_offer", playerName, new[]
         {
             L(false, "Доски! Настоящие! Ну-ка, дай посмотреть."),
             L(true,  "Оскар сказал, они нужны для прилавка."),
@@ -636,13 +647,13 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(false, "Помост, потом стойки с прилавком. Брёвна и твои доски."),
             L(true,  "А кто будет стоять за прилавком?"),
             L(false, "Торговец. Он берёт брёвна и доски по честной цене.")
-        };
+        });
     }
 
     // знакомство с торговцем: первая реплика его (NPC), Лео отвечает
     DialogueSequence.Line[] MerchantIntro()
     {
-        return new[]
+        return DialogueStorybook.Lines("merchant_intro", playerName, new[]
         {
             L(false, "Новенький? Ты, видать, племянник Гуннара. Мира про тебя говорила."),
             L(true,  "Лео. Так это вы теперь за прилавком?"),
@@ -650,12 +661,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(true,  "Доски лучше оставить на стройку, да?"),
             L(false, "Умно. Лишнее продавай, нужное придержи. Окно подскажет, сколько оставить."),
             L(true,  "Понял. Сейчас продам, что есть.")
-        };
+        });
     }
 
     DialogueSequence.Line[] MarketReport()
     {
-        return new[]
+        return DialogueStorybook.Lines("market_report", playerName, new[]
         {
             L(false, "Красота! Теперь у торговца настоящая лавка."),
             L(true,  "Дядя бы оценил."),
@@ -663,12 +674,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(true,  "Доска втрое дороже?"),
             L(false, "Труд стоит денег. Монеты пригодятся: на палатку, на людей, на мост."),
             L(true,  "Мост... Да. Гуннар ждёт.")
-        };
+        });
     }
 
     DialogueSequence.Line[] TentOffer()
     {
-        return new[]
+        return DialogueStorybook.Lines("tent_offer", playerName, new[]
         {
             L(false, "Монеты звенят, доски лежат. Пора звать людей."),
             L(true,  "Каких людей?"),
@@ -676,23 +687,23 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(true,  "Палатка у костра?"),
             L(false, "Она самая. Брёвна, доски и немного монет. Лагерь задаром не строят."),
             L(true,  "Принято. Соберу всё.")
-        };
+        });
     }
 
     DialogueSequence.Line[] TentReport()
     {
-        return new[]
+        return DialogueStorybook.Lines("tent_report", playerName, new[]
         {
             L(false, "Вот и лагерь. Костёр, хижина, лавка, палатка."),
             L(true,  "А где люди?"),
             L(false, "Придут, когда будет чем платить. Копи монеты, мост ждёт."),
             L(true,  "Значит, дальше мост.")
-        };
+        });
     }
 
     DialogueSequence.Line[] BridgeOffer()
     {
-        return new[]
+        return DialogueStorybook.Lines("bridge_offer", playerName, new[]
         {
             L(false, "Лагерь стоит, монеты звенят. Теперь мост, малец. Гуннар по ту сторону реки."),
             L(true,  "Он правда там? Три дня ни слова."),
@@ -700,7 +711,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
             L(true,  "Что нужно?"),
             L(false, "Брёвен сорок, досок семьдесят и монет восемьсот. Три этапа, по порядку."),
             L(true,  "Опоры, настил, тросы. Понял. Берусь.")
-        };
+        });
     }
 
     // записка Гуннара: читает Лео вслух. ТЕКСТ ЧЕРНОВОЙ, замени на авторский из GDD (до 120 символов в реплике)
@@ -708,7 +719,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     {
         return new[]
         {
-            "Под перилами привязана записка. Почерк дяди Гуннара.",
+            "На камне под аркой лежит записка. Почерк дяди Гуннара.",
             "«Лео. Раз читаешь это, мост снова стоит, а ты не побоялся топора.»",
             "«Я ушёл за кедром для большой работы. Вернусь, когда лес позволит.»",
             "«Лагерь не бросай. Ты справишься лучше, чем думаешь. Гуннар.»",
@@ -788,6 +799,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (tent == null) tent = FindSite(Site.Tent, all);
         if (bridge == null) bridge = FindSite(Site.Bridge, all);
         if (riverBridge == null) riverBridge = FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
+        if (noteSpot == null)
+        {
+            // записка лежит на площадке дальнего острова: её точку ставит сборка GateBridge, руками привязывать не нужно
+            var gateBridge = FindFirstObjectByType<GateBridge>(FindObjectsInactive.Include);
+            if (gateBridge != null) noteSpot = gateBridge.noteSpot;
+        }
 
         if (workshop == null && hut != null)
         {
@@ -957,7 +974,9 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
     string NoteObjective()
     {
-        return noteStarted ? "Записка Гуннара…" : "Подойди к мосту: под перилами записка";
+        if (noteStarted) return "Записка Гуннара…";
+        // мост готов: игроку надо перейти на дальний остров к площадке с запиской (стрелка ведёт туда же, см. NoteTarget)
+        return noteSpot != null ? "Перейди мост: записка Гуннара у арки на дальнем острове" : "Подойди к мосту: под перилами записка";
     }
 
     // вызывается из опроса главы. Записка читается один раз, только когда мост достроен и Лео рядом
@@ -972,8 +991,15 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (player != null && at != null)
         {
             Vector3 d = player.position - at.position;
+            float dy = Mathf.Abs(d.y);
             d.y = 0f;
-            if (d.magnitude > 8f) return false;
+            // записка на дальнем острове: узкий радиус и проверка высоты, чтобы финал не запустился с главного берега или с середины моста.
+            // Точки записки нет (старая сцена): прежние 8 м от моста
+            if (noteSpot != null)
+            {
+                if (d.magnitude > noteRadius || dy > 3f) { endingAt = -1f; return false; }   // отошёл во время паузы: пауза начнётся заново
+            }
+            else if (d.magnitude > 8f) return false;
         }
 
         // финал: небольшая пауза, чтобы игрок увидел достроенный мост, потом экран уходит в чёрное
@@ -1198,6 +1224,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     // находит торговца и прячет его до конца постройки рынка
     void SetupMerchant()
     {
+        if (tradeAtBuilding) { SetupMarketTrading(); return; }
         if (merchant == null)
         {
             foreach (var sp in FindObjectsByType<Speaker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -1224,8 +1251,22 @@ public class StoryFlow : MonoBehaviour, ISaveable
     // включает торговца (onComplete главы «Рынок»); повторный вызов ничего не делает
     void ShowMerchant()
     {
+        if (tradeAtBuilding) { SetupMarketTrading(); return; }
         if (merchant == null && !merchantWarned) SetupMerchant();
         if (merchant != null && !merchant.activeSelf) merchant.SetActive(true);
+    }
+
+    void SetupMarketTrading()
+    {
+        if (marketTrading == null && market != null) marketTrading = market.GetComponentInChildren<TradingStall>(true);
+        if (marketTrading != null && !marketTrading.enabled) marketTrading.enabled = true;
+        // Never hide a parent of the market itself. The builder handles component-only migrations there.
+        if (merchant != null && merchant.activeSelf && (market == null || (merchant != market.gameObject && !market.transform.IsChildOf(merchant.transform))))
+        {
+            var oldSpeaker = merchant.GetComponent<Speaker>();
+            if (oldSpeaker == null) oldSpeaker = merchant.GetComponentInChildren<Speaker>(true);
+            if (oldSpeaker != null && string.Equals(oldSpeaker.displayName, merchantName, StringComparison.OrdinalIgnoreCase)) merchant.SetActive(false);
+        }
     }
 
     void SetupOskar()
@@ -1276,6 +1317,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         var sp = Speaker.Find(giver);
         var seq = sp != null ? sp.GetComponent<DialogueSequence>() : null;
         if (seq == null || seq.IsPlaying) return;
+        seq.isQuestReminder = true;
         idleSeq = seq;
         idleText = text;
         ApplyIdle();
@@ -1478,3 +1520,4 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
     static void Arrow(Transform t) { QuestEdgeArrow.Target = t; }
 }
+

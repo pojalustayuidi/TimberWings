@@ -121,6 +121,13 @@ public class ImpactFx : MonoBehaviour
     {
         if (!chopImpact || player == null) return;
         Vector3 p = ImpactPoint();
+        Vector3 dustPoint = GroundPoint(p);
+        if (pi != null && pi.TryReadLeoImpact(out Vector3 bark))
+        {
+            dustPoint.x = bark.x;
+            dustPoint.z = bark.z;
+            p = bark;
+        }
         var lib = reduced ? null : FxLibrary.Get();
         if (lib != null && lib.chopHit != null) FxLibrary.Spawn(lib.chopHit, p, 1f, 2.5f);   // готовый префаб (Cartoon FX): без своей вспышки и искр
         else
@@ -129,7 +136,7 @@ public class ImpactFx : MonoBehaviour
             Emit(sparks, p, Mathf.Max(2, Mathf.RoundToInt(7 * M)));
         }
         Emit(chips, p, Mathf.Max(2, Mathf.RoundToInt(5 * M)));
-        Emit(dust, GroundPoint(p), Mathf.Max(1, Mathf.RoundToInt(3 * M)));
+        Emit(dust, dustPoint, Mathf.Max(1, Mathf.RoundToInt(3 * M)));
         if (fallingLeaves && !reduced) DropLeaves(2 + Random.Range(0, 3));
     }
 

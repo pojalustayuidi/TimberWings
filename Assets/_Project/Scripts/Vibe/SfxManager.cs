@@ -281,7 +281,7 @@ public class SfxManager : MonoBehaviour
         char c = text[index];
         if (!char.IsLetter(c) || index % 3 != 0) return;
         float vv = GameAudio.VoiceLevel;                   // бормотание = голос персонажа, регулируется ползунком «Голоса»
-        if (!GameAudio.Babble || vv <= 0.001f) return;
+        if (!GameAudio.UseBabble || vv <= 0.001f) return;
 
         AudioClip clip = Get("blip:" + speaker);
         if (clip == null) return;
@@ -294,9 +294,16 @@ public class SfxManager : MonoBehaviour
 
     void PreviewVoiceInternal()
     {
+        blipSrc.Stop();
         float vv = GameAudio.VoiceLevel;
         if (vv <= 0.001f) return;
-        AudioClip clip = Get("blip:Лео");
+        var library = DialogueAudioLibrary.Current;
+        AudioClip clip = GameAudio.UseRecordedVoices && library != null ? library.Find("leo_5c45e50c") : null;
+        if (clip == null && GameAudio.UseBabble)
+        {
+            var actor = library != null ? library.Actor("Лео") : null;
+            clip = actor != null && actor.syllables != null && actor.syllables.Length > 0 ? actor.syllables[0] : Get("blip:Лео");
+        }
         if (clip == null) return;
         blipSrc.Stop();
         blipSrc.clip = clip;

@@ -6,6 +6,8 @@
 //   рынок (v2): пока игрок реально строит, бригады Stage1_Crew / Stage2_Crew (HutBuildSite) стучат молотками, кран таскает груз,
 //            а полоска на табличке растёт вместе с прогрессом стройки (сигнал берётся из BuildingController.IsBuilding);
 //   мост:    RiverBridge.SetBuildProgress по этапам, после последнего открывается проход (стена GateWalls у FloatingIsland).
+//            Загрузка сохранения: BuildingController.ApplyRestore не шлёт StageBuilt/Finished, только GameEvents.BuildingRestored.
+//            Его слушаем здесь и ставим мост в сохранённую стадию без наград и без показа стройки (ворота открывает сам FloatingIsland).
 // StoryFlow добавляет его сам, руками вешать не нужно.
 using UnityEngine;
 
@@ -16,16 +18,28 @@ public class BuildStageLink : MonoBehaviour
     public TentStages tent;
     public RiverBridge bridge;
 
-    bool subscribed;
+    bool subscribed, restoreSubscribed;
 
-    void OnEnable() { Subscribe(); }
+    void OnEnable()
+    {
+        Subscribe();
+        if (!restoreSubscribed) { GameEvents.BuildingRestored += OnRestored; restoreSubscribed = true; }
+    }
 
     void OnDisable()
     {
+        if (restoreSubscribed) { GameEvents.BuildingRestored -= OnRestored; restoreSubscribed = false; }
         if (build == null || !subscribed) return;
         build.StageBuilt -= Apply;
         build.Finished -= Apply;
         subscribed = false;
+    }
+
+    // Загрузка сохранения: стройка встала в сохранённый этап. Вид и проход моста берём из неё, награды и показ не трогаем
+    void OnRestored(string id, int stage)
+    {
+        if (build == null || bridge == null || id != build.SaveId) return;
+        bridge.SetBuildProgress(build.StepsDone, build.StepsTotal);
     }
 
     void Start()
@@ -34,7 +48,8 @@ public class BuildStageLink : MonoBehaviour
         // игра всегда начинается с первой стадии (ShopStages по умолчанию показывает готовую лавку)
         if (shop != null) shop.SetStage(1);
         if (tent != null) tent.SetStage(1, false);
-        if (bridge != null) bridge.SetBuildProgress(0, build != null ? build.StepsTotal : 3);
+        // не 0, а реальное число сданных этапов: если Start случился после загрузки, готовый мост не должен снова стать сломанным
+        if (bridge != null) bridge.SetBuildProgress(build != null ? build.StepsDone : 0, build != null ? build.StepsTotal : 3);
     }
 
     // сигнал «идёт стройка» для бригад лавки: HutBuildSite сам ищет себя среди детей ShopStages, если HutStages нет

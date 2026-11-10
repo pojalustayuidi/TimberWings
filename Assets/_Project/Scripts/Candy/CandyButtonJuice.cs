@@ -91,6 +91,7 @@ public class CandyButtonJuice : MonoBehaviour,
     {
         float dt = Mathf.Min(Time.unscaledDeltaTime, 0.05f);
         bool ok = Interactable;
+        if (VibeSettings.ReduceEffects) { Rt.localScale = baseScale; Rt.localRotation = baseRot; return; }
 
         if (attention && ok && !hover && !down)
         {
@@ -125,7 +126,7 @@ public class CandyButtonJuice : MonoBehaviour,
         hover = true;
         if (!Interactable) return;
         if (onHover != null) onHover.Invoke();
-        if (twinkleOnHover && kit != null) CandyFx.Twinkle(kit, Rt, fxColor);
+        if (!VibeSettings.ReduceEffects && twinkleOnHover && kit != null) CandyFx.Twinkle(kit, Rt, fxColor);
     }
 
     public void OnPointerExit(PointerEventData e) { hover = false; down = false; }
@@ -145,7 +146,7 @@ public class CandyButtonJuice : MonoBehaviour,
             return;
         }
         if (onClick != null) onClick.Invoke();
-        if (kit == null) return;
+        if (kit == null || VibeSettings.ReduceEffects) return;
         if (burstOnClick) CandyFx.Burst(kit, Rt, fxColor, burstCount);
         if (ringOnClick) CandyFx.Ring(kit, Rt, fxColor);
     }

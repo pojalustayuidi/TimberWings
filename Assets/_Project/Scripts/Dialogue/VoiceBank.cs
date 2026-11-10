@@ -9,6 +9,9 @@ using UnityEngine;
 public static class VoiceBank
 {
     public const string Folder = "Voice/";
+    // Новая озвучка 2.1 хранится отдельно от старых записей и не требует
+    // редактировать бинарный AudioLibrary.asset или перенастраивать NPC в Inspector.
+    public const string Voice21Folder = "Voice21/";
     public static bool Enabled = true;
 
     static readonly Dictionary<string, AudioClip> cache = new Dictionary<string, AudioClip>();
@@ -24,6 +27,17 @@ public static class VoiceBank
         Record(id, speakerDisplayName, text);
 #endif
         if (!Enabled) return null;
+        // Проверяем записи 2.1 ПЕРЕД старой AudioLibrary: в старых проектах
+        // replaceLegacyVoices=true, поэтому обычный fallback Resources/Voice
+        // для новых строк был бы недоступен.
+        var newer = Resources.Load<AudioClip>(Voice21Folder + id);
+        if (newer != null) return newer;
+        var library = DialogueAudioLibrary.Current;
+        if (library != null)
+        {
+            var replacement = library.Find(id);
+            if (replacement != null || library.replaceLegacyVoices) return replacement;
+        }
         AudioClip clip;
         if (cache.TryGetValue(id, out clip)) return clip;
         clip = Resources.Load<AudioClip>(Folder + id);      // null, если файла ещё нет

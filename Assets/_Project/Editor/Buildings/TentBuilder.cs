@@ -430,6 +430,11 @@ public class TentBuilder : EditorWindow
         // масштаб (в игровой сцене 0.5) и TentStages с UnityEvent-подписками.
         // Заменяются ТОЛЬКО созданные генератором Stage1/Stage2 и их содержимое.
         var old = FindTent();
+        if (old != null && old.GetComponent<WorkyardArtState>() != null)
+        {
+            Debug.LogWarning("WORKYARD ART установлен: обновляй рабочий двор через Tools/BuilderSim/Здания/WORKYARD ART. Старый Tent Builder не заменяет его стадии.");
+            return;
+        }
         if (old == null && S.followPad) SnapToPad();
 
         EnsureFolder(Dir);

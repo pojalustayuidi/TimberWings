@@ -118,14 +118,14 @@ public partial class PlayerHeadHud
         tl.pivot = new Vector2(0.5f, 0f);
         tl.anchoredPosition = Vector2.zero;
         tl.sizeDelta = new Vector2(26f, 26f * 22f / 36f);
-        MakeImage(tl, CandyTag.Tail, Color.white, false);
+        MakeImage(tl, HudPolishRoot.Skin != null ? HudPolishRoot.Skin.tail : CandyTag.Tail, Color.white, false);
 
         packRt = NewUI("Pack", root, typeof(Image));
         packRt.anchorMin = packRt.anchorMax = new Vector2(0.5f, 0f);
         packRt.pivot = new Vector2(0.5f, 0f);
         packRt.anchoredPosition = new Vector2(0f, Tail);
         packRt.sizeDelta = new Vector2(PackW, PackH);
-        MakeImage(packRt, CandyTag.Panel, Color.white, true).pixelsPerUnitMultiplier = 1f / 0.4f;
+        MakeImage(packRt, HudPolishRoot.Skin != null ? HudPolishRoot.Skin.chip : CandyTag.Panel, Color.white, true).pixelsPerUnitMultiplier = HudPolishRoot.Skin != null ? 1.15f : 2.5f;
 
         var fr = NewUI("Frame", packRt, typeof(Image));
         Stretch(fr, 0, 0, 0, 0);
@@ -137,21 +137,23 @@ public partial class PlayerHeadHud
         med.pivot = new Vector2(0.5f, 0.5f);
         med.anchoredPosition = new Vector2(12f, 2f);
         med.sizeDelta = new Vector2(MedSize, MedSize);
-        packMed = MakeImage(med, CandyTag.Medallion, Color.white, false);
+        packMed = MakeImage(med, HudPolishRoot.Skin != null ? HudPolishRoot.Skin.medal : CandyTag.Medallion, Color.white, false);
 
         var ic = NewUI("Icon", med, typeof(Image));
         ic.anchorMin = ic.anchorMax = new Vector2(0.5f, 0.5f);
         ic.pivot = new Vector2(0.5f, 0.5f);
         ic.anchoredPosition = Vector2.zero;
         ic.sizeDelta = new Vector2(MedSize * 0.58f, MedSize * 0.58f);
-        packIcon = MakeImage(ic, CandyTag.Icon(UiIcon.Backpack), Color.white, false);
+        packIcon = MakeImage(ic, HudPolishRoot.Skin != null ? HudPolishRoot.Skin.backpack : CandyTag.Icon(UiIcon.Backpack), Color.white, false);
         packIcon.preserveAspect = true;
 
-        packText = Txt(packRt, "Count", 46f, CandyTag.Ink, TextAlignmentOptions.MidlineLeft);
-        Stretch(packText.rectTransform, SegX, SegY + SegH + 2f, 14f, 4f);   // слева, снизу (над сегментами), справа, сверху
+        packStatus = Txt(packRt, "Status", 14f, CandyTag.Muted, TextAlignmentOptions.MidlineLeft);
+        Place(packStatus.rectTransform, SegX, PackH - 24f, PackW - SegX - 18f, 20f);
+        packText = Txt(packRt, "Count", 42f, CandyTag.Ink, TextAlignmentOptions.MidlineLeft);
+        Stretch(packText.rectTransform, SegX, SegY + SegH + 1f, 14f, 22f);   // слева, снизу (над сегментами), справа, сверху
         packText.enableAutoSizing = true;
         packText.fontSizeMin = 22f;
-        packText.fontSizeMax = 46f;
+        packText.fontSizeMax = 42f;
         packText.fontStyle = FontStyles.Bold;
 
         segHost = NewUI("Segments", packRt);
@@ -165,9 +167,10 @@ public partial class PlayerHeadHud
         segCap = cap;
 
         float w = PackW - SegX - 16f;
-        float gap = cap > 10 ? 2f : 3f;
-        float cw = (w - gap * (cap - 1)) / cap;
-        while (segs.Count < cap)
+        int visibleCap = Mathf.Min(cap, 12);
+        float gap = 3f;
+        float cw = (w - gap * (visibleCap - 1)) / visibleCap;
+        while (segs.Count < visibleCap)
         {
             var r = NewUI("Seg" + segs.Count, segHost, typeof(Image));
             segs.Add(MakeImage(r, UiDraw.Pill, Track, false));
@@ -175,7 +178,7 @@ public partial class PlayerHeadHud
         }
         for (int i = 0; i < segs.Count; i++)
         {
-            bool on = i < cap;
+            bool on = i < visibleCap;
             segs[i].gameObject.SetActive(on);
             if (!on) continue;
             var rt = segs[i].rectTransform;
@@ -190,7 +193,9 @@ public partial class PlayerHeadHud
     {
         LayoutSegments();
         Color empty = Track;              // пустой сегмент: мягкая ямка Candy
-        for (int i = 0; i < cap && i < segs.Count; i++) segs[i].color = i < wood ? fill : empty;
+        int visibleCap = Mathf.Min(cap, 12);
+        for (int i = 0; i < visibleCap && i < segs.Count; i++)
+            segs[i].color = Color.Lerp(empty, fill, Mathf.Clamp01(wood / (float)cap * visibleCap - i));
     }
 
     void BuildChop()
@@ -200,7 +205,7 @@ public partial class PlayerHeadHud
         chopRt.pivot = new Vector2(0.5f, 0f);
         chopRt.anchoredPosition = new Vector2(0f, Tail + PackH + Gap);
         chopRt.sizeDelta = new Vector2(ChopW, ChopH);
-        MakeImage(chopRt, CandyTag.Panel, Color.white, true).pixelsPerUnitMultiplier = 1f / 0.4f;
+        MakeImage(chopRt, HudPolishRoot.Skin != null ? HudPolishRoot.Skin.chip : CandyTag.Panel, Color.white, true).pixelsPerUnitMultiplier = HudPolishRoot.Skin != null ? 1.15f : 2.5f;
         chopCg = chopRt.GetComponent<CanvasGroup>();
         chopCg.blocksRaycasts = false;
         chopCg.interactable = false;
@@ -253,7 +258,7 @@ public partial class PlayerHeadHud
         rhythmRt.pivot = new Vector2(0.5f, 0f);
         rhythmRt.anchoredPosition = new Vector2(0f, Tail + PackH + Gap + ChopH + Gap);
         rhythmRt.sizeDelta = new Vector2(ChopW, RhythmH);
-        MakeImage(rhythmRt, CandyTag.Panel, Color.white, true).pixelsPerUnitMultiplier = 1f / 0.4f;
+        MakeImage(rhythmRt, HudPolishRoot.Skin != null ? HudPolishRoot.Skin.chip : CandyTag.Panel, Color.white, true).pixelsPerUnitMultiplier = HudPolishRoot.Skin != null ? 1.15f : 2.5f;
         rhythmCg = rhythmRt.GetComponent<CanvasGroup>();
         rhythmCg.blocksRaycasts = false;
         rhythmCg.interactable = false;

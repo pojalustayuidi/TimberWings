@@ -23,9 +23,53 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     // с кем сейчас говорим: игрок поворачивается к этому объекту
     public static Transform Focus { get; private set; }
     public bool Priority { get { return true; } }
+    public string conversationTitle = "";
+    [HideInInspector] public bool isQuestReminder;
+    // Optional presentation owner. Reset by its OnDisable; never suppresses a real story conversation.
+    [NonSerialized] public bool reminderHandledExternally;
+    public static int ActiveLine { get; private set; }
+    public static int ActiveLineCount { get; private set; }
+    public static string ActiveTitle { get; private set; }
+    static DialogueSequence presenting;
+    static Speaker facingA,facingB;
+    // Pair is updated on every line, so Leo/Mira/Oskar and future speakers
+    // can face the actual interlocutor, not just the Player transform.
+    public static bool TryGetFacingTarget(Speaker actor,out Speaker target)
+    {
+        target=null;
+        if(presenting==null||!presenting.playing||actor==null)return false;
+        if(actor==facingA)target=facingB;
+        else if(actor==facingB)target=facingA;
+        return target!=null&&target.isActiveAndEnabled;
+    }
+    Speaker SpeakerForLine(int index)
+    {
+        if(lines==null||index<0||index>=lines.Length||lines[index]==null)return null;
+        return string.IsNullOrEmpty(lines[index].speaker)?own:Speaker.Find(lines[index].speaker);
+    }
+    void SetFacingPair(int index,Speaker actor)
+    {
+        if(presenting!=this)return;
+        facingA=actor;facingB=null;if(actor==null)return;
+        // The previous distinct voice is the likely addressee. On the first
+        // line, look ahead to the reply instead. Works for NPC-NPC dialogue.
+        for(int i=index-1;i>=0;i--){var s=SpeakerForLine(i);if(s!=null&&s!=actor){facingB=s;break;}}
+        if(facingB==null)for(int i=index+1;i<lines.Length;i++){var s=SpeakerForLine(i);if(s!=null&&s!=actor){facingB=s;break;}}
+        if(facingB==null&&own!=null&&own!=actor)facingB=own;
+        if(facingB==null&&PlayerMovement.Instance!=null)
+        {
+            var playerSpeaker=PlayerMovement.Instance.GetComponent<Speaker>();
+            if(playerSpeaker!=actor)facingB=playerSpeaker;
+        }
+    }
+    void ClearProgress()
+    {
+        if (presenting != this) return;
+        presenting = null; facingA=facingB=null; ActiveLine = ActiveLineCount = 0; ActiveTitle = "";
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetActive() { activeCount = 0; lockCount = 0; Focus = null; }
+    static void ResetActive() { activeCount = 0; lockCount = 0; Focus = null; presenting = null; facingA=facingB=null; ActiveLine = ActiveLineCount = 0; ActiveTitle = ""; }
 
     public enum Trigger { Manual, OnStart, PlayerNear, OnInteract }
 
@@ -86,6 +130,9 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     {
         get
         {
+            if (isQuestReminder && reminderHandledExternally) return false;
+            if (NpcConversationPolicy.DeliveryPending(this)) return false;
+            if (isQuestReminder && NpcConversationPolicy.TaskInProgress) return false;
             return trigger == Trigger.OnInteract && !playing && lines != null && lines.Length > 0 && (!played || !once);
         }
     }
@@ -108,6 +155,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     void OnDisable()
     {
         Interactables.Unregister(this);
+        ClearProgress();
         if (playing)
         {
             // корутина остановилась вместе с объектом: не оставляем «вечный» разговор
@@ -177,6 +225,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     public void Play()
     {
         if (playing || lines == null || lines.Length == 0) return;
+        if (trigger == Trigger.OnInteract && !CanInteract) return;
         StartCoroutine(Run());
     }
 
@@ -185,6 +234,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     {
         if (playing) return;
         lines = newLines;
+        conversationTitle = DialogueStorybook.TitleFor(newLines);
         if (rearm) Rearm();
     }
 
@@ -205,6 +255,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
         played = true;
         DialogueSeen.Mark(PersistId);   // запоминаем сразу: выход посреди реплики тоже считается «звучало»
         activeCount++;
+        presenting = this; facingA=facingB=null; ActiveLine = 0; ActiveLineCount = lines.Length; ActiveTitle = conversationTitle;
         DialogueManager.BeginConversation();
         Freeze();
         if (marker != null) marker.SetVisible(false);
@@ -214,10 +265,12 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
             var l = lines[i];
             if (l == null || string.IsNullOrEmpty(l.text)) continue;
 
-            Speaker who = string.IsNullOrEmpty(l.speaker) ? own : Speaker.Find(l.speaker);
+            Speaker who = SpeakerForLine(i);
+            SetFacingPair(i,who);
             if (who == null)
                 Debug.LogWarning("DialogueSequence (" + name + "): не найден говорящий \"" + l.speaker + "\". Реплика пойдёт только субтитрами.");
 
+            ActiveLine = i + 1;
             if (onLineStarted != null) onLineStarted.Invoke(i);
 
             // разговор пропущен (удержание E): реплика не показывается, но её событие уже сработало,
@@ -229,7 +282,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
             }
 
             bool done = false;
-            DialogueManager.Say(who, l.text, l.voice, () => done = true);
+            DialogueManager.Say(who, l.text, l.voice, () => done = true, who != null ? who.displayName : l.speaker);
             while (!done) yield return null;
             if (l.pauseAfter > 0f && !DialogueManager.SkipAllRequested) yield return new WaitForSecondsRealtime(l.pauseAfter);
         }
@@ -237,6 +290,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
 
         playing = false;
         activeCount = Mathf.Max(0, activeCount - 1);
+        ClearProgress();
         Unfreeze();
         if (marker != null) marker.SetVisible(!once);
         GameEvents.RaiseDialogueFinished(this);

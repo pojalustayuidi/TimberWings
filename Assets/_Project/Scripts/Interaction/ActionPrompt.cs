@@ -42,7 +42,7 @@ public class ActionPrompt : MonoBehaviour
 
     void Start()
     {
-        ApplyCandy();
+        if (HudPolishRoot.Skin == null) ApplyCandy();
         if (group != null) group.alpha = 0f;
         Find();
     }
@@ -155,13 +155,13 @@ public class ActionPrompt : MonoBehaviour
         shown = Mathf.MoveTowards(shown, has ? 1f : 0f, dt / 0.18f);
         if (group != null) group.alpha = shown;
 
-        float s = Mathf.Lerp(0.88f, 1f, UiDraw.EaseOutBack(shown));
+        float s = VibeSettings.ReduceEffects ? 1f : Mathf.Lerp(0.88f, 1f, UiDraw.EaseOutBack(shown));
         transform.localScale = Vector3.one * s;
 
         if (keyRect != null)
         {
             punch = Mathf.Min(1f, punch + dt / 0.3f);
-            float shake = Mathf.Sin(punch * Mathf.PI * 6f) * (1f - punch) * 6f;
+            float shake = VibeSettings.ReduceEffects ? 0f : Mathf.Sin(punch * Mathf.PI * 6f) * (1f - punch) * 4f;
             bool held = interaction != null && has && !full && Input.GetKey(interaction.chopKey);
             keyRect.localScale = Vector3.one * (held ? 0.9f : 1f);
             keyRect.localRotation = Quaternion.Euler(0f, 0f, shake);

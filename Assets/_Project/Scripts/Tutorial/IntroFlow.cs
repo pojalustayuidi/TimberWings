@@ -464,7 +464,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
     // Разговор 1: знакомство и задание «построить костёр» (каждая реплика до 120 символов)
     DialogueSequence.Line[] TaskLines()
     {
-        return new[]
+        return DialogueStorybook.Lines("intro_task", playerName, new[]
         {
             L(false, "О, новенький! Ты ведь племянник Гуннара? Лео, да?"),
             L(true,  "Да. Он писал, что нужна помощь. Где он?"),
@@ -473,13 +473,13 @@ public class IntroFlow : MonoBehaviour, ISaveable
             L(false, "С огня. Нарубай дров и разожги костёр на каменном круге. Там сердце лагеря."),
             L(true,  "Дрова так дрова. Топор при мне, берусь."),
             L(false, "Вот это разговор! Принесёшь дров, поговорим дальше.")
-        };
+        });
     }
 
     // Разговор 2: костёр достроен (обе стадии). Мира даёт следующее задание (8 брёвен, глава «Припасы» в StoryFlow)
     DialogueSequence.Line[] RewardLines()
     {
-        return new[]
+        return DialogueStorybook.Lines("intro_reward", playerName, new[]
         {
             L(false, "Горит! Впервые за три дня в лагере тепло."),
             L(true,  "Дядя бы гордился... Что дальше?"),
@@ -487,7 +487,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
             L(true,  "Восемь? Рюкзак вмещает только четыре."),
             L(false, "Значит, два рейса. За труд подкину опыта на новый уровень, а там покажу прокачку."),
             L(true,  "Договорились. Две ходки.")
-        };
+        });
     }
 
     // ------------------------------------------------------------ прогресс костра в панели цели

@@ -13,6 +13,8 @@ using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+public enum DialogueSpeechMode { Recorded = 0, Babble = 1, Off = 2 }
+
 public static class GameAudio
 {
     const string KMuted = "tw_audio_muted";
@@ -22,6 +24,8 @@ public static class GameAudio
     const string KVoice = "tw_vol_voice";
     const string KAmb = "tw_vol_amb";
     const string KBabble = "tw_babble";
+    const string KSpeech = "tw_dialogue_speech";
+    static DialogueSpeechMode speech;
 
     static bool loaded;
     static bool muted, babble = true;
@@ -38,6 +42,7 @@ public static class GameAudio
         loaded = true;
         muted = PlayerPrefs.GetInt(KMuted, 0) == 1;
         babble = PlayerPrefs.GetInt(KBabble, 1) == 1;
+        speech = (DialogueSpeechMode)Mathf.Clamp(PlayerPrefs.GetInt(KSpeech, 0), 0, 2);
         master = Mathf.Clamp01(PlayerPrefs.GetFloat(KMaster, 1f));
         music = Mathf.Clamp01(PlayerPrefs.GetFloat(KMusic, 1f));
         sfx = Mathf.Clamp01(PlayerPrefs.GetFloat(KSfx, 0.8f));
@@ -60,6 +65,20 @@ public static class GameAudio
         set { Load(); if (babble == value) return; babble = value; PlayerPrefs.SetInt(KBabble, value ? 1 : 0); Raise(); }
     }
 
+    public static DialogueSpeechMode Speech
+    {
+        get { Load(); return speech; }
+        set
+        {
+            Load(); speech = (DialogueSpeechMode)Mathf.Clamp((int)value, 0, 2);
+            // An explicit mode selection replaces the old fallback-only toggle.
+            if (speech != DialogueSpeechMode.Off) { babble = true; PlayerPrefs.SetInt(KBabble, 1); }
+            PlayerPrefs.SetInt(KSpeech, (int)speech); Raise();
+        }
+    }
+    public static bool UseRecordedVoices { get { return DialogueSpeechRules.AllowsRecorded(Speech); } }
+    public static bool UseBabble { get { return DialogueSpeechRules.AllowsBabble(Speech, Babble); } }
+
     public static float Master { get { Load(); return master; } set { Set(ref master, KMaster, value); } }
     public static float Music { get { Load(); return music; } set { Set(ref music, KMusic, value); } }
     public static float Sfx { get { Load(); return sfx; } set { Set(ref sfx, KSfx, value); } }
@@ -79,7 +98,7 @@ public static class GameAudio
     // ------------------------------------------------------------ итоговая громкость групп
     public static float MusicLevel { get { Load(); return muted ? 0f : master * music; } }
     public static float SfxLevel { get { Load(); return muted ? 0f : master * sfx; } }
-    public static float VoiceLevel { get { Load(); return muted ? 0f : master * voice; } }
+    public static float VoiceLevel { get { Load(); return muted || speech == DialogueSpeechMode.Off ? 0f : master * voice; } }
     public static float AmbientLevel { get { Load(); return muted ? 0f : master * amb; } }
 
     public static void Save() { PlayerPrefs.Save(); }

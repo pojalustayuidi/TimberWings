@@ -34,11 +34,11 @@ public partial class PlayerHeadHud : MonoBehaviour
     public float completeHold = 0.35f;        // сколько держится «Готово!» после последнего удара, с
 
     // размеры в единицах канваса (1920x1080)
-    const float PackW = 252f, PackH = 74f;
+    const float PackW = 280f, PackH = 88f;
     const float Tail = 14f;                          // хвостик-указатель под табличкой рюкзака: кончик касается головы
     const float MedSize = 86f;                       // медальон с рюкзаком выступает за левый край панели
     const float SegX = 76f, SegY = 12f, SegH = 11f;    // сегменты вместимости под числом
-    const float ChopW = 224f, ChopH = 64f;
+    const float ChopW = 280f, ChopH = 72f;
     const float RhythmH = 56f;                       // плашка ритм-шкалы над таймером
     const float RhythmPad = 18f, RhythmTrackW = ChopW - 36f;
     const float Gap = 8f;
@@ -69,7 +69,7 @@ public partial class PlayerHeadHud : MonoBehaviour
     readonly System.Collections.Generic.List<float> segPop = new System.Collections.Generic.List<float>(16);
     int segCap = -1;
     float packBob;
-    TMP_Text packText, timeText, gainText, doneText;
+    TMP_Text packText, packStatus, timeText, gainText, doneText;
     GameObject timeGo, gainGo, gainIconGo, doneGo;
     Camera cam;
 
@@ -122,7 +122,7 @@ public partial class PlayerHeadHud : MonoBehaviour
     public void SetPackIcon(Sprite s)
     {
         if (packIcon == null) return;
-        packIcon.sprite = s != null ? s : CandyTag.Icon(UiIcon.Backpack);
+        packIcon.sprite = HudPolishRoot.Skin != null ? HudPolishRoot.Skin.backpack : (s != null ? s : CandyTag.Icon(UiIcon.Backpack));
     }
 
     public void SetBackpack(int carried, int capacity, bool grew)
@@ -134,7 +134,7 @@ public partial class PlayerHeadHud : MonoBehaviour
         if (grew)
         {
             PunchPack(0.2f);
-            int idx = Mathf.Min(wood, segPop.Count) - 1;      // только что заполненный сегмент выпрыгивает
+            int idx = Mathf.Clamp(Mathf.CeilToInt(wood / (float)cap * Mathf.Min(cap, 12)) - 1, 0, segPop.Count - 1);      // только что заполненный сегмент выпрыгивает
             if (idx >= 0) segPop[idx] = 1f;
         }
     }
@@ -334,12 +334,17 @@ public partial class PlayerHeadHud : MonoBehaviour
         bool warm = !full && wood / (float)cap >= 0.75f;
 
         string num = wood.ToString();
-        string capS = "<color=#5E6A96>/" + cap + "</color>";
+        string capS = "<color=#5E6A96> / " + cap + "</color>";
+        if (packStatus != null)
+        {
+            packStatus.text = full ? "ПОЛОН" : warm ? "ПОЧТИ ПОЛОН" : "РЮКЗАК";
+            packStatus.color = full ? CandyTag.Danger : warm ? CandyTag.GoldText : CandyTag.Muted;
+        }
         Color frame = FrameNormal, fill = Green;
 
         if (full)
         {
-            packText.text = "<color=#C8365C>" + num + "</color>" + capS + " <size=60%><color=#C8365C>полон</color></size>";
+            packText.text = "<color=#C8365C>" + num + "</color>" + capS;
             frame = Red; fill = Red;
         }
         else if (warm)
@@ -378,7 +383,7 @@ public partial class PlayerHeadHud : MonoBehaviour
         rhythmShown = Mathf.MoveTowards(rhythmShown, rhythmOn ? 1f : 0f, dt / 0.18f);
         if (rFlashK > 0f) rFlashK = Mathf.Max(0f, rFlashK - dt * 4f);
         if (rhythmShown > 0.001f) UpdateRhythmVisual();
-        rhythmRt.localScale = Vector3.one * (rhythmShown > 0.001f ? UiDraw.EaseOutBack(rhythmShown) : 0f);
+        rhythmRt.localScale = Vector3.one * (rhythmShown > 0.001f ? (VibeSettings.ReduceEffects ? 1f : UiDraw.EaseOutBack(rhythmShown)) : 0f);
         rhythmCg.alpha = Mathf.Clamp01(rhythmShown * 1.6f);
         if (chopPunch > 0f) chopPunch = Mathf.Max(0f, chopPunch - dt / 0.3f);
         if (packPunch > 0f) packPunch = Mathf.Max(0f, packPunch - dt / 0.3f);
@@ -386,33 +391,33 @@ public partial class PlayerHeadHud : MonoBehaviour
         chopFill.fillAmount = chopProgShown;
         chopFill.color = Color.Lerp(Amber, Green, chopProgShown);
         chopFrame.color = Color.Lerp(FrameNormal, Green, chopComplete ? 1f : 0f);
-        chopFlash.color = new Color(1f, 0.93f, 0.55f, chopFlashK * 0.6f);     // тёплая вспышка (белая на светлой плашке не видна)
+        chopFlash.color = new Color(1f, 0.93f, 0.55f, (VibeSettings.ReduceEffects ? 0f : chopFlashK * 0.6f));     // тёплая вспышка (белая на светлой плашке не видна)
 
         // сегменты: свежезаполненный выпрыгивает
         for (int i = 0; i < segPop.Count; i++)
         {
             if (segPop[i] <= 0f) { if (segs[i].rectTransform.localScale.x != 1f) segs[i].rectTransform.localScale = Vector3.one; continue; }
             segPop[i] = Mathf.Max(0f, segPop[i] - dt / 0.3f);
-            float ps = 1f + 0.9f * Mathf.Sin((1f - segPop[i]) * Mathf.PI);
+            float ps = VibeSettings.ReduceEffects ? 1f : 1f + 0.45f * Mathf.Sin((1f - segPop[i]) * Mathf.PI);
             segs[i].rectTransform.localScale = new Vector3(1f, ps, 1f);
         }
 
         // лёгкое покачивание таблички; при полном рюкзаке красная рамка дышит
         packBob += dt;
-        packRt.anchoredPosition = new Vector2(0f, Tail + Mathf.Sin(packBob * 2.2f) * 1.6f);
+        packRt.anchoredPosition = new Vector2(0f, Tail + (VibeSettings.ReduceEffects ? 0f : Mathf.Sin(packBob * 2.2f) * 0.8f));
         if (wood >= cap)
         {
             Color fc = packFrame.color;
-            fc.a = 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Sin(packBob * 6f));
+            fc.a = VibeSettings.ReduceEffects ? .8f : .65f + .2f * (0.5f + 0.5f * Mathf.Sin(packBob * 3.5f));
             packFrame.color = fc;
         }
 
         float packScale = 1f + packPunchAmount * Mathf.Sin((1f - packPunch) * Mathf.PI) * (packPunch > 0f ? 1f : 0f);
-        packRt.localScale = Vector3.one * packScale;
+        packRt.localScale = Vector3.one * (VibeSettings.ReduceEffects ? 1f : packScale);
 
         float chopScale = chopShown > 0.001f ? UiDraw.EaseOutBack(chopShown) : 0f;
         chopScale *= 1f + chopPunchAmount * Mathf.Sin((1f - chopPunch) * Mathf.PI) * (chopPunch > 0f ? 1f : 0f);
-        chopRt.localScale = Vector3.one * chopScale;
+        chopRt.localScale = Vector3.one * (VibeSettings.ReduceEffects ? (chopShown > .001f ? 1f : 0f) : chopScale);
         chopCg.alpha = Mathf.Clamp01(chopShown * 1.6f);
 
         // --- положение на экране

@@ -53,6 +53,8 @@ public partial class AchievementsWindow
         dotLabel = UiKit.MakeLabel(dot.transform, "!", 22f, Color.white, TextAlignmentOptions.Center, true);
         Stretch(dotLabel.rectTransform);
         hudDot.gameObject.SetActive(false);
+        HudPolishRoot.SetupShortcut(btn, 2, "Достижения · K", "Испытания и готовые награды");
+        if (HudPolishRoot.Skin != null) hudIcon.sprite = HudPolishRoot.Skin.trophy;
     }
 
     void UpdateHud(float dt)
@@ -78,9 +80,9 @@ public partial class AchievementsWindow
         {
             Set(dotLabel, n > 9 ? "9+" : n.ToString());
             dotT += dt;
-            hudDot.localScale = Vector3.one * (1f + 0.12f * Mathf.Sin(dotT * 5f));
+            hudDot.localScale = Vector3.one * (1f + (VibeSettings.ReduceEffects ? 0f : 0.06f * Mathf.Sin(dotT * 3f)));
             // кубок встряхивается раз в пару секунд: «забери меня»
-            float kick = Mathf.Clamp01(Mathf.Sin(dotT * 1.6f) * 3f - 1.5f);
+            float kick = VibeSettings.ReduceEffects ? 0f : Mathf.Clamp01(Mathf.Sin(dotT * .8f) * 3f - 1.5f);
             hudIcon.rectTransform.localEulerAngles = new Vector3(0f, 0f, Mathf.Sin(dotT * 18f) * 10f * kick);
         }
         else if (hudIcon != null) hudIcon.rectTransform.localEulerAngles = Vector3.zero;

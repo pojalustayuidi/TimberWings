@@ -1,5 +1,5 @@
 // Assets/_Project/Editor/TWRiver/TWRiverKit.cs
-// Timber Wings: единая система «исток - русло - водопад». Общий набор: граненый меш, шум, палитра, ear-clipping, зонд по мешу обрыва, контекст сборки.
+// Timber Wings: ось реки, гранёные меши, растительность, шум и контекст сборки.
 // Ничего не меняет в сцене сам по себе. Только геометрия и вспомогательные расчёты.
 using System;
 using System.Collections.Generic;
@@ -87,41 +87,20 @@ namespace IslandV2
         }
     }
 
-    // ------------------------------------------------------------------ палитра: та же логика, что у обрыва и стен русла
+    // Shared foliage colours; rock shapes/materials come from authored project assets.
     internal sealed class TWRiverPalette
     {
-        public readonly Color wet, mid, top, dark, lipTop, lipDark;
-
-        public TWRiverPalette(IslandLayout L)
+        readonly Color light, dark;
+        public TWRiverPalette(IslandLayout layout)
         {
-            wet = L.riverWallWet; mid = L.rockMid; top = L.rockTop; dark = L.rockDark;
-            lipTop = L.lipTop; lipDark = L.lipDark;
+            light = Color.Lerp(layout.lipTop, new Color(0.63f, 0.76f, 0.46f), 0.65f);
+            dark = Color.Lerp(layout.lipDark, new Color(0.29f, 0.51f, 0.37f), 0.65f);
         }
-
-        static Color Mul(Color c, float k) { return new Color(Mathf.Clamp01(c.r * k), Mathf.Clamp01(c.g * k), Mathf.Clamp01(c.b * k), 1f); }
-        static Color Mix(Color a, Color b, float t) { Color r = Color.Lerp(a, b, Mathf.Clamp01(t)); r.a = 1f; return r; }
-
-        // hAbove: высота грани над водой, n: нормаль грани, hash: 0..1 (оттенок), moss: 0..1 (мох на верхних гранях)
-        public Color Rock(float hAbove, Vector3 n, float hash, float moss)
-        {
-            float wetK = 1f - Mathf.SmoothStep(0.12f, 1.35f, hAbove);
-            Color c = Mix(mid, top, Mathf.SmoothStep(0.8f, 4.8f, hAbove));
-            c = Mix(c, wet, wetK);
-            float up = Mathf.Clamp01(n.y);
-            c = Mix(Mul(c, 0.88f), Mul(c, 1.07f), up);
-            c = Mul(c, 0.93f + 0.14f * hash);
-            if (moss > 0.01f) c = Mix(c, Mix(lipDark, lipTop, hash), moss * Mathf.Clamp01(up * 1.3f - 0.2f));
-            return c;
-        }
-
-        public Color Cave(float depth01)   // 0 у входа, 1 в глубине
-        {
-            return Mix(Mul(dark, 0.62f), Mul(dark, 0.13f), Mathf.Pow(Mathf.Clamp01(depth01), 0.8f));
-        }
-
         public Color Green(float hash, float tip)
         {
-            return Mix(Mix(lipDark, lipTop, hash), Mul(lipTop, 1.12f), tip * 0.6f);
+            Color colour = Color.Lerp(dark, light, Mathf.Clamp01(hash * 0.75f + tip * 0.25f));
+            colour.a = 1f;
+            return colour;
         }
     }
 
@@ -132,7 +111,6 @@ namespace IslandV2
         readonly List<Vector3> n = new List<Vector3>();
         readonly List<Color> c = new List<Color>();
         readonly List<int> t = new List<int>();
-        public readonly List<Vector3> anchors = new List<Vector3>();   // точки, которые обязаны лежать в земле, воде или обрыве
         public int Tris { get { return t.Count / 3; } }
 
         void Add(Vector3 a, Vector3 b, Vector3 cc, Vector3 nn, Color col)
@@ -257,111 +235,6 @@ namespace IslandV2
         }
     }
 
-    // ------------------------------------------------------------------ геометрия
-    internal static class TWGeo
-    {
-        static float Cross2(Vector2 a, Vector2 b) { return a.x * b.y - a.y * b.x; }
-
-        static bool InTri(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
-        {
-            float d1 = Cross2(b - a, p - a), d2 = Cross2(c - b, p - b), d3 = Cross2(a - c, p - c);
-            bool neg = d1 < -1e-7f || d2 < -1e-7f || d3 < -1e-7f;
-            bool pos = d1 > 1e-7f || d2 > 1e-7f || d3 > 1e-7f;
-            return !(neg && pos);
-        }
-
-        // триангуляция простого многоугольника (любая ориентация). Индексы относятся к исходному списку
-        public static List<int> EarClip(List<Vector2> p)
-        {
-            var res = new List<int>();
-            int n = p.Count;
-            if (n < 3) return res;
-            float area = 0f;
-            for (int i = 0; i < n; i++) area += Cross2(p[i], p[(i + 1) % n]);
-            bool ccw = area > 0f;
-            var idx = new List<int>(n);
-            for (int i = 0; i < n; i++) idx.Add(ccw ? i : n - 1 - i);
-            int guard = 0;
-            while (idx.Count > 3 && guard++ < 2000)
-            {
-                bool clipped = false;
-                for (int i = 0; i < idx.Count; i++)
-                {
-                    int ia = idx[(i + idx.Count - 1) % idx.Count], ib = idx[i], ic = idx[(i + 1) % idx.Count];
-                    Vector2 a = p[ia], b = p[ib], c = p[ic];
-                    if (Cross2(b - a, c - b) <= 1e-6f) continue;   // вогнутая или вырожденная вершина
-                    bool inside = false;
-                    for (int k = 0; k < idx.Count; k++)
-                    {
-                        int ik = idx[k];
-                        if (ik == ia || ik == ib || ik == ic) continue;
-                        if (InTri(p[ik], a, b, c)) { inside = true; break; }
-                    }
-                    if (inside) continue;
-                    res.Add(ia); res.Add(ib); res.Add(ic);
-                    idx.RemoveAt(i);
-                    clipped = true;
-                    break;
-                }
-                if (!clipped) break;
-            }
-            if (idx.Count >= 3)
-            {
-                // остаток: веер (для вырожденных случаев хуже не будет)
-                for (int i = 1; i + 1 < idx.Count; i++) { res.Add(idx[0]); res.Add(idx[i]); res.Add(idx[i + 1]); }
-            }
-            return res;
-        }
-    }
-
-    // ------------------------------------------------------------------ зонд по мешу обрыва (чтобы прижимать камни к настоящей скале)
-    internal sealed class TWCliffProbe
-    {
-        readonly Vector3[] verts;
-        readonly int[] tris;
-
-        TWCliffProbe(Vector3[] v, int[] t) { verts = v; tris = t; }
-
-        public static TWCliffProbe Find(Transform gen)
-        {
-            if (gen == null) return null;
-            var cl = gen.Find(IslandCliff.ObjectName);
-            if (cl == null) return null;
-            var mf = cl.GetComponent<MeshFilter>();
-            if (mf == null || mf.sharedMesh == null) return null;
-            var m = mf.sharedMesh;
-            var lv = m.vertices;
-            var wv = new Vector3[lv.Length];
-            for (int i = 0; i < lv.Length; i++) wv[i] = cl.TransformPoint(lv[i]);
-            return new TWCliffProbe(wv, m.triangles);
-        }
-
-        // Горизонтальный луч из origin в сторону dir (XZ). Возвращает расстояние до ближайшей грани обрыва или -1
-        public float Ray(Vector3 origin, Vector2 dir, float maxDist)
-        {
-            Vector3 d = new Vector3(dir.x, 0f, dir.y).normalized;
-            float best = float.MaxValue;
-            for (int i = 0; i + 2 < tris.Length; i += 3)
-            {
-                Vector3 a = verts[tris[i]], b = verts[tris[i + 1]], c = verts[tris[i + 2]];
-                Vector3 e1 = b - a, e2 = c - a;
-                Vector3 pv = Vector3.Cross(d, e2);
-                float det = Vector3.Dot(e1, pv);
-                if (Mathf.Abs(det) < 1e-8f) continue;
-                float inv = 1f / det;
-                Vector3 tv = origin - a;
-                float u = Vector3.Dot(tv, pv) * inv;
-                if (u < 0f || u > 1f) continue;
-                Vector3 qv = Vector3.Cross(tv, e1);
-                float w = Vector3.Dot(d, qv) * inv;
-                if (w < 0f || u + w > 1f) continue;
-                float tt = Vector3.Dot(e2, qv) * inv;
-                if (tt > 0.001f && tt < best) best = tt;
-            }
-            return best < maxDist ? best : -1f;
-        }
-    }
-
     // ------------------------------------------------------------------ камень: низкополигональный неровный эллипсоид
     internal static class TWStone
     {
@@ -415,8 +288,6 @@ namespace IslandV2
                     m.TriAway(a, b, botPole, color(a.y, Vector3.down, 0.2f), centre);
                 }
             }
-            for (int j = 0; j < S; j++) m.anchors.Add(P[0, j]);
-            m.anchors.Add(botPole);
         }
     }
 
@@ -426,16 +297,12 @@ namespace IslandV2
         public IslandField f;
         public IslandLayout L;
         public TWRiverAxis ax;
-        public TWCliffProbe cliff;
         public TWRiverPalette pal;
         public TWFaceted rocks = new TWFaceted();   // камень и растения: один меш и один материал
         public TWFoam foam = new TWFoam();
         public float half;
         public int rockSide = 1;                    // +1: скалистый берег слева по течению, -1: справа
-        public float outletEdgeS;                   // длина оси
-        public Vector2 outletTail;                  // направление течения в точке порога
         public readonly List<Vector3> exclusions = new List<Vector3>();   // x,y = центр (XZ), z = радиус
-        public readonly List<Vector4> mossSpots = new List<Vector4>();    // xyz = позиция, w = радиус
         public readonly List<Vector4> stones = new List<Vector4>();       // камни в воде: x = s вдоль оси, y = смещение поперёк, z = высота воды, w = радиус (для пены-следа)
         public int seed;
         public bool hasSource;
@@ -466,18 +333,22 @@ namespace IslandV2
             {
                 Vector3 e = exclusions[i];
                 float d = Vector2.Distance(p, new Vector2(e.x, e.y));
-                float k = 1f - Mathf.SmoothStep(e.z, e.z + pad, d);
+                float k = 1f - TWRiverSpec.Smooth(e.z, e.z + pad, d);
                 if (k > w) w = k;
             }
             return w;
         }
 
-        public bool Grounded(Vector3 p)
+        public readonly List<Bounds> protectedBounds = new List<Bounds>();
+
+        public bool Protected(Vector3 p, float padding = 0.6f)
         {
-            if (!f.Inside(p.x, p.z)) return true;   // у кромки держит обрыв (проверяется зондом)
-            if (p.y <= f.Height(p.x, p.z) + 0.08f) return true;
-            if (f.RiverDistance(p.x, p.z) <= half + 0.2f && p.y <= f.RiverSurfaceAt(p.x, p.z) + 0.01f) return true;
+            if (ExclusionWeight(new Vector2(p.x, p.z), padding) > 0.01f) return true;
+            foreach (var b in protectedBounds)
+                if (p.x > b.min.x - padding && p.x < b.max.x + padding &&
+                    p.z > b.min.z - padding && p.z < b.max.z + padding) return true;
             return false;
         }
     }
 }
+

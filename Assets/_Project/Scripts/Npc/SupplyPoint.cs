@@ -16,6 +16,7 @@ public class SupplyPoint : MonoBehaviour, IInteractable, IPriorityInteractable
     public int need;
     public int delivered;
     public int xpPerLog;
+    public bool Accepting { get { return active && delivered < need; } }
 
     Speaker own;
     PlayerInventory inv;
@@ -41,7 +42,7 @@ public class SupplyPoint : MonoBehaviour, IInteractable, IPriorityInteractable
 
     public bool CanInteract
     {
-        get { return active && delivered < need && FindPlayer() && inv.woodCount > 0; }
+        get { return Accepting && !DialogueSequence.AnyPlaying && !DialogueManager.IsBusy && FindPlayer() && inv.woodCount > 0; }
     }
 
     void Awake() { own = GetComponent<Speaker>(); }

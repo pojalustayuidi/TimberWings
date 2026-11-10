@@ -95,19 +95,64 @@ public class OrbitCamera : MonoBehaviour
     public float scrollStep = 1.2f;          // метров на щелчок колёсика
 
     [Header("Положение")]
-    public float distance = 9f;
-    public float distMin = 3f;
+    public float distance = 6.5f;            // уютная дистанция: Лео крупнее (было 9)
+    public float distMin = 2.5f;
     public float distMax = 18f;
-    public float pitch = 22f;                // угол сверху вниз, градусы
+    public float pitch = 15f;                // угол сверху вниз, градусы: ниже, лес «стоит» стеной за героем (было 22)
     public float pitchMin = -5f;
     public float pitchMax = 70f;
-    public float fov = 60f;
-    public Vector3 focusOffset = new Vector3(0f, 1.6f, 0f);   // на что смотрим: грудь/голова, а не ноги
-    public float followSmooth = 0.06f;       // у Роблокс камера почти жёсткая
+    public float fov = 50f;                  // уже, чем было (60): меньше «рыбьего» плоского кадра, лес собирается в слои
+    public Vector3 focusOffset = new Vector3(0f, 1.3f, 0f);   // на что смотрим: грудь, Лео ближе к центру кадра (было 1.6)
+    public float followSmooth = 0.08f;       // отзывчивая камера в покое
+
+    [Header("Camera Polish: плавность следования")]
+    [Tooltip("Небольшая инерция фокуса при беге, без задержки вращения мышью")]
+    [Range(.05f,.3f)] public float movingFollowSmooth = .13f;
+    [Tooltip("Отдельное сглаживание высоты: убирает подпрыгивание камеры на неровной земле")]
+    [Range(.05f,.4f)] public float verticalFollowSmooth = .19f;
+    [Tooltip("Насколько камера показывает пространство впереди бегущего Лео, метры")]
+    [Range(0f,.8f)] public float movingLookAhead = .35f;
+    [Tooltip("Плавность смещения фокуса в сторону движения")]
+    [Range(.08f,.6f)] public float lookAheadSmooth = .24f;
+    [Tooltip("Скорость, при которой смещение вперёд достигает максимума, м/с")]
+    [Min(1f)] public float lookAheadFullSpeed = 4.5f;
+
+    [Header("Camera Polish: плавность зума")]
+    [Tooltip("Сглаживание намеренного зума колёсиком, не задерживает спасение от стен")]
+    [Range(.06f,.4f)] public float manualZoomSmooth = .16f;
+
+    [Header("Camera Polish: остановка, прицел, возврат управления")]
+    [Tooltip("Как плавно следование переключается между «стоим» и «бежим», с. Больше = мягче остановка, без подбегания камеры")]
+    [Range(.05f,.8f)] public float followStopBlend = .35f;
+    [Tooltip("Во сколько раз слабее тряска, пока включён прицел: цель не уходит из-под него")]
+    [Range(.1f,1f)] public float aimShakeScale = .5f;
+    [Tooltip("Пауза перед возвращением вращения мышью после окна, диалога, показа стройки и Alt+Tab, с")]
+    [Range(0f,.5f)] public float lookResumeDelay = .12f;
+    [Tooltip("Фокус не заходит в стену: плечо и взгляд вперёд укорачиваются, если рядом коллайдер")]
+    public bool focusWallClamp = true;
+    [Tooltip("Запас до стены для смещённого фокуса, м")]
+    [Range(0f,.4f)] public float focusWallPadding = .12f;
+
+    [Tooltip("Добавка к FOV на бегу, градусы: ощущение скорости и глубины. В режиме уменьшенных эффектов выключена")]
+    [Range(0f,6f)] public float runFovBoost = 2.5f;
+
+    [Header("Camera Polish: дуга в покое")]
+    [Tooltip("Лео стоит, вокруг есть место: камера проходит небольшую дугу туда и обратно. Выключается в режиме уменьшенных эффектов")]
+    public bool idleArc = true;
+    [Tooltip("Сколько секунд полного покоя до дуги")]
+    [Min(1f)] public float idleArcDelay = 6f;
+    [Tooltip("Размах дуги в одну сторону, градусы")]
+    [Range(4f,30f)] public float idleArcAngle = 14f;
+    [Tooltip("Длительность дуги, с")]
+    [Range(2f,10f)] public float idleArcDuration = 5f;
+    [Tooltip("Пауза до следующей дуги, с")]
+    [Min(0f)] public float idleArcCooldown = 25f;
+    [Tooltip("Как быстро камера возвращается, если дугу отменили движением, мышью или стеной, с")]
+    [Range(.1f,.6f)] public float idleArcCancelSmooth = .25f;
 
     [Header("Прицел")]
-    public float shoulderOffset = 0.55f;     // метров вбок: камера «за плечом», персонаж слева, прицел свободен
-    public float shoulderLift = 0.35f;       // метров вверх: персонаж чуть ниже центра, прицел над головой
+    public float shoulderOffset = 0.7f;      // метров вбок: камера «за плечом», персонаж слева, прицел свободен
+    public float shoulderLift = 0.2f;        // метров вверх: персонаж чуть ниже центра, прицел над головой
     public float crosshairSize = 56f;        // размер в единицах канваса 1920x1080
 
     [Header("Кино")]
@@ -124,9 +169,16 @@ public class OrbitCamera : MonoBehaviour
 
     [Header("Столкновения")]
     public float collisionRadius = 0.3f;
+    [Tooltip("Минимальная дистанция на открытом месте. Препятствие может поджать камеру ближе.")]
     public float minCamDistance = 0.9f;
     public float ignoreSmallerThan = 0.8f;   // колайдеры меньше (размер bounds) камеру не двигают: цветы, камешки
     public LayerMask collisionMask = ~0;
+    [Tooltip("Небольшой безопасный зазор перед стеной или стволом")]
+    [Range(0f,.3f)] public float collisionPadding = .08f;
+    [Tooltip("Пауза после выхода из-за препятствия, чтобы камера не дёргалась возле края")]
+    [Range(0f,.3f)] public float collisionClearDelay = .10f;
+    [Tooltip("Плавность возвращения камеры назад после столкновения")]
+    [Range(.08f,.8f)] public float collisionReturnSmooth = .30f;
 
     [Header("ISL-016: видимость героя под кронами")]
     [Tooltip("Мягкое окно в объектах с Project/TreeToon перед героем. В первую очередь помогает с кронами; коллайдеры не трогает.")]
@@ -152,6 +204,7 @@ public class OrbitCamera : MonoBehaviour
     Camera cam;
     CameraFollow follow;
     PlayerMovement player;
+    Rigidbody playerBody;
     PlayerInteraction interaction;
     float nextFind;
 
@@ -163,9 +216,13 @@ public class OrbitCamera : MonoBehaviour
 
     float yaw;
     float curDist;
+    float manualDist,manualDistVel,curDistVel,collisionHold;
     Vector3 focus, focusVel;
+    Vector3 ahead,aheadVel;
     int touchId = -1;
     bool cursorHeld;
+    bool wasConversation;
+    float resumeLookAt, dialogueYawOffset;
     bool crosshairOn;
     float aimT, chT;
     GameObject chGo;
@@ -174,6 +231,10 @@ public class OrbitCamera : MonoBehaviour
     static Sprite reticle;
 
     float chopT, introElapsed;
+    float moveBlend;
+    bool wasModal;
+    Vector3 lastPlayerPos;
+    float idleT, arcT = -1f, arcSide = 1f, arcCool, arcOffset, arcOffsetVel;
     float shakeT, shakeDur, shakeAmp;
 
     static readonly RaycastHit[] hits = new RaycastHit[16];
@@ -217,7 +278,7 @@ public class OrbitCamera : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(toggleKey) && !MobileInput.ModalOpen)
+        if (Input.GetKeyDown(toggleKey) && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera)
         {
             Enabled = !Enabled;
             PlayerPrefs.Save();
@@ -247,6 +308,7 @@ public class OrbitCamera : MonoBehaviour
             nextFind = Time.unscaledTime + 1f;
             player = PlayerMovement.Instance;
             if (player == null) return;
+            playerBody = player.GetComponent<Rigidbody>();
             interaction = player.GetComponent<PlayerInteraction>();
         }
 
@@ -270,8 +332,16 @@ public class OrbitCamera : MonoBehaviour
         // старт за спиной персонажа
         yaw = player.model != null ? player.model.eulerAngles.y : follow.yaw;
         curDist = distance;
+        manualDist = Mathf.Clamp(distance, distMin, distMax);
+        manualDistVel = curDistVel = collisionHold = 0f;
         focus = player.transform.position + focusOffset;
         focusVel = Vector3.zero;
+        ahead = aheadVel = Vector3.zero;
+        moveBlend = 0f;
+        idleT = 0f; arcT = -1f; arcOffset = arcOffsetVel = 0f; arcCool = 0f;
+        lastPlayerPos = player.transform.position;
+        wasModal = true;   // вход в режим: мышь оживает после короткой паузы, без рывка курсора
+        playerBody = player.GetComponent<Rigidbody>();
         shakeT = 0f;
 
         // вступительный наезд только в начале сцены, а не при переключении в настройках
@@ -289,6 +359,7 @@ public class OrbitCamera : MonoBehaviour
         applied = false;
         Active = false;
         shakeT = 0f;
+        collisionHold = 0f;
         ReleaseCursor();
 
         if (follow != null) follow.enabled = true;
@@ -318,6 +389,7 @@ public class OrbitCamera : MonoBehaviour
     {
         if (!applied) return;
         if (VibeSettings.ReduceEffects) amp *= 0.3f;   // GDD 9.3: «Уменьшить тряску и эффекты»
+        if (crosshairOn) amp *= aimShakeScale;          // с прицелом цель должна оставаться под ним
         float current = shakeDur > 0f ? shakeAmp * Mathf.Clamp01(shakeT / shakeDur) : 0f;
         shakeAmp = Mathf.Max(current, amp);
         shakeDur = Mathf.Max(0.05f, dur);
@@ -345,12 +417,12 @@ public class OrbitCamera : MonoBehaviour
         img.layer = 5;
         img.transform.SetParent(chGo.transform, false);
         chImg = img.GetComponent<Image>();
-        chImg.sprite = Reticle();
+        chImg.sprite = HudPolishRoot.Skin != null ? HudPolishRoot.Skin.reticle : Reticle();
         chImg.raycastTarget = false;
         chRt = chImg.rectTransform;
         chRt.anchorMin = chRt.anchorMax = chRt.pivot = new Vector2(0.5f, 0.5f);
         chRt.anchoredPosition = Vector2.zero;
-        chRt.sizeDelta = new Vector2(crosshairSize, crosshairSize);
+        chRt.sizeDelta = new Vector2(HudPolishRoot.Skin != null ? 38f : crosshairSize, HudPolishRoot.Skin != null ? 38f : crosshairSize);
         chGo.SetActive(false);
     }
 
@@ -365,8 +437,8 @@ public class OrbitCamera : MonoBehaviour
         // на дереве, которое можно рубить, прицел светится золотом и чуть растёт
         bool hover = interaction != null && interaction.HoverItem != null;
         chT = Mathf.MoveTowards(chT, hover ? 1f : 0f, dt / 0.12f);
-        chImg.color = Color.Lerp(Color.white, new Color32(0xF5, 0xC5, 0x42, 255), chT);
-        chRt.localScale = Vector3.one * Mathf.Lerp(1f, 1.35f, Mathf.SmoothStep(0f, 1f, chT));
+        chImg.color = Color.Lerp(Color.white, HudPolishRoot.Skin != null ? new Color32(164, 255, 213, 255) : new Color32(0xF5, 0xC5, 0x42, 255), chT);
+        chRt.localScale = Vector3.one * Mathf.Lerp(1f, VibeSettings.ReduceEffects ? 1f : 1.18f, Mathf.SmoothStep(0f, 1f, chT));
     }
 
     // кольцо с точкой в центре и тёмной обводкой в цвет UI (#1C2A3A), нарисовано кодом: картинок в проект добавлять не нужно
@@ -435,29 +507,127 @@ public class OrbitCamera : MonoBehaviour
             new Vector4(vp.z - treePeekDepthMargin, cam.aspect, treePeekBlend, treePeekMinOpacity));
     }
 
+    // Ближайшее препятствие на луче (хит-дистанция) или +inf. Те же правила, что у камеры: мелочь, питомцы, игрок и собеседник не мешают
+    float CastLimit(Vector3 origin, float radius, Vector3 dir, float castDist, Transform target, bool revealHold)
+    {
+        float limit = float.PositiveInfinity;
+        int n = Physics.SphereCastNonAlloc(origin, radius, dir, hits, castDist, collisionMask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < n; i++)
+        {
+            var h = hits[i];
+            var col = h.collider;
+            if (col == null || h.distance <= 0.0001f) continue;          // уже внутри (например, земля под ногами)
+            if (CameraVibe.DialogueShown > .01f && CameraVibe.DialoguePartner != null && col.transform.IsChildOf(CameraVibe.DialoguePartner)) continue;
+            if (col.transform.IsChildOf(target)) continue;               // сам игрок
+            if (col.attachedRigidbody != null) continue;                 // питомцы, рабочие
+            if (col.bounds.size.magnitude < ignoreSmallerThan) continue; // мелочь
+            // на показе само здание (и летящие детали) камеру не двигает: иначе она дёргается, пока облетает стройку
+            if (revealHold && col.bounds.SqrDistance(CameraVibe.RevealPoint) < CameraVibe.RevealRadius * CameraVibe.RevealRadius) continue;
+            if (h.distance < limit) limit = h.distance;
+        }
+        return limit;
+    }
+
+    // Смещение фокуса от головы героя (плечо, взгляд вперёд, подъём) обрезается у стены, чтобы камера не смотрела из-за неё
+    Vector3 ClampFocusOffset(Vector3 pivot, Vector3 offset, Transform target)
+    {
+        float len = offset.magnitude;
+        if (len < .05f) return offset;
+        Vector3 dir = offset / len;
+        float hit = CastLimit(pivot, .15f, dir, len + focusWallPadding, target, false);
+        if (hit == float.PositiveInfinity) return offset;
+        return dir * Mathf.Clamp(hit - focusWallPadding, 0f, len);
+    }
+
+    // Дуга в покое: смещение yaw 0 -> max -> 0 (только вид, yaw управления не меняется). Любое движение, ввод, эффект или стена отменяют её
+    void TickIdleArc(bool calm, float dt, float wantDist)
+    {
+        arcCool = Mathf.Max(0f, arcCool - dt);
+        if (!calm)
+        {
+            idleT = 0f;
+            arcT = -1f;
+        }
+        else if (arcT < 0f)
+        {
+            idleT += dt;
+            if (idleT >= idleArcDelay && arcCool <= 0f)
+            {
+                if (curDist >= wantDist - .15f && PickArcSide(wantDist)) arcT = 0f;
+                else arcCool = 3f;   // нет места: проверим позже
+            }
+        }
+        else
+        {
+            arcT += dt / Mathf.Max(1f, idleArcDuration);
+            if (arcT >= 1f) { arcT = -1f; arcCool = idleArcCooldown; idleT = 0f; }
+        }
+
+        if (arcT >= 0f)
+        {
+            arcOffset = arcSide * idleArcAngle * .5f * (1f - Mathf.Cos(arcT * 2f * Mathf.PI));   // нулевая скорость на концах
+            arcOffsetVel = 0f;
+        }
+        else arcOffset = Mathf.SmoothDamp(arcOffset, 0f, ref arcOffsetVel, Mathf.Max(.05f, idleArcCancelSmooth), Mathf.Infinity, dt);
+    }
+
+    // сторона дуги: чередуем; нужна свободная дорога на половине и на полном размахе, иначе пробуем другую
+    bool PickArcSide(float wantDist)
+    {
+        float dist = Mathf.Max(minCamDistance, wantDist);
+        for (int k = 0; k < 2; k++)
+        {
+            float sign = k == 0 ? -arcSide : arcSide;
+            bool free = true;
+            for (int j = 1; j <= 2 && free; j++)
+            {
+                Vector3 back = Quaternion.Euler(pitch, yaw + sign * idleArcAngle * j * .5f, 0f) * Vector3.back;
+                free = CastLimit(focus, collisionRadius, back, dist + .3f, player.transform, false) > dist + collisionPadding + .05f;
+            }
+            if (free) { arcSide = sign; return true; }
+        }
+        return false;
+    }
+
     void Step()
     {
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
-        if (dt < 0.0001f) return;
-
+        // Cursor ownership is updated even when Settings pauses Time.timeScale.
+        bool conversation = DialoguePreferences.ConversationOwnsCamera;
+        if (conversation != wasConversation)
+        {
+            resumeLookAt = Time.unscaledTime + lookResumeDelay;
+            if (conversation)
+            {
+                Vector3 d = DialogueSequence.Focus.position - player.transform.position; d.y = 0;
+                float side = d.sqrMagnitude > .01f ? Vector3.Dot(d.normalized, Quaternion.Euler(0,yaw,0) * Vector3.right) : 1f;
+                dialogueYawOffset = Mathf.Abs(side) < .4f ? (side < 0 ? -28f : 28f) : 0f;
+            }
+            wasConversation = conversation;
+        }
         // ---------- ввод
         Vector2 delta = Vector2.zero;
-        bool modal = MobileInput.ModalOpen;
+        bool modal = MobileInput.ModalOpen || conversation || !Application.isFocused;
+        // окно, диалог, показ стройки или возврат фокуса закончились: мышь оживает через короткую паузу
+        if (wasModal && !modal) resumeLookAt = Mathf.Max(resumeLookAt, Time.unscaledTime + lookResumeDelay);
+        wasModal = modal;
         bool altHeld = Input.GetKey(freeCursorKey) || Input.GetKey(KeyCode.RightAlt);
         bool mouseLook = MouseLook;
 
         // мышь крутит камеру: всегда (курсор скрыт; Alt, окна и пауза его освобождают) или только с зажатой ПКМ
-        bool wantLock = !modal && Application.isFocused && (mouseLook ? !altHeld : Input.GetMouseButton(1));
+        bool wantLock = !modal && Time.unscaledTime >= resumeLookAt && (mouseLook ? !altHeld : Input.GetMouseButton(1));
         bool lockChanged = wantLock != cursorHeld;
         if (lockChanged) SetCursorLocked(wantLock);
         crosshairOn = wantLock && mouseLook;   // прицел только в режиме «мышью» (с ПКМ курсор нужен как был)
+
+        if (dt < .0001f) { UpdateCrosshair(Mathf.Min(Time.unscaledDeltaTime,.05f)); return; }
 
         if (!modal)
         {
             // кадр смены режима пропускаем: курсор «прыгает» в центр, это не движение мыши
             if (wantLock && !lockChanged)
             {
-                delta += new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * mouseSensitivity;
+                delta += new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * (mouseSensitivity * PerformanceBoot.MouseMultiplier);
                 delta = Vector2.ClampMagnitude(delta, 45f);
             }
 
@@ -498,8 +668,28 @@ public class OrbitCamera : MonoBehaviour
         // ---------- показ здания: плавно уходим в «кинокадр» (доля rv ведёт CameraVibe, она уже сглажена и в начале, и в конце)
         float rv = Mathf.Clamp01(CameraVibe.RevealShown);
         bool reveal = rv > 0.001f;
+        // Мягкий режим столкновений нужен, пока показ идёт. В хвосте возврата (rv ещё не 0) работают обычные столкновения и окно в кронах
+        bool revealHold = CameraVibe.RevealActive;
 
-        float wantDist = distance * Mathf.Max(0.3f, follow.zoomBias) * chopMul * introMul;
+        // Зум колёсиком должен быть плавным. Без этого уменьшение distance
+        // воспринималось как столкновение и камера мгновенно прыгала вперёд.
+        manualDist = Mathf.SmoothDamp(manualDist, Mathf.Clamp(distance, distMin, distMax),
+            ref manualDistVel, Mathf.Max(.01f, manualZoomSmooth), Mathf.Infinity, dt);
+
+        // Лёгкий взгляд вперёд зависит от реальной скорости, а не от нажатой
+        // клавиши. При разговоре, рубке и показе здания он плавно исчезает.
+        Vector3 velocity = playerBody != null ? playerBody.linearVelocity : Vector3.zero;
+        velocity.y = 0f;
+        float speed = velocity.magnitude;
+        float move01 = Mathf.Clamp01(speed / Mathf.Max(1f, lookAheadFullSpeed));
+        // режим следования («стоим» / «бежим») меняется плавно: при остановке камера не подбегает рывком
+        moveBlend = Mathf.Lerp(moveBlend, move01, 1f - Mathf.Exp(-dt / Mathf.Max(.05f, followStopBlend)));
+        Vector3 wantedAhead = speed > .2f && !conversation && !reveal && !chopping
+            ? velocity / speed * (movingLookAhead * move01) : Vector3.zero;
+        ahead = Vector3.SmoothDamp(ahead, wantedAhead, ref aheadVel,
+            Mathf.Max(.01f, lookAheadSmooth), Mathf.Infinity, dt);
+
+        float wantDist = manualDist * Mathf.Max(0.3f, follow.zoomBias) * chopMul * introMul;
         if (reveal)
         {
             // дистанция, на которой здание целиком влезает в кадр при revealFov
@@ -510,44 +700,84 @@ public class OrbitCamera : MonoBehaviour
             wantDist = Mathf.Lerp(wantDist, fitDist, rv);
         }
 
+        // ---------- дуга в покое: стоим, нет ввода и эффектов, вокруг свободно
+        float movedSpeed = (player.transform.position - lastPlayerPos).magnitude / dt;
+        lastPlayerPos = player.transform.position;
+        bool anyInput = delta.sqrMagnitude > .0001f || Mathf.Abs(Input.mouseScrollDelta.y) > .01f || Input.anyKey || Input.touchCount > 0;
+        bool calm = idleArc && !VibeSettings.ReduceEffects && !modal && !reveal && !chopping && shakeT <= 0f
+                    && Mathf.Max(speed, movedSpeed) < .15f && !anyInput && introMul > .999f
+                    && !CameraVibe.PeekActive && !CameraVibe.AccentActive && CameraVibe.DialogueShown < .01f;
+        TickIdleArc(calm, dt, wantDist);
+
         // ---------- точка, на которую смотрим (+ сдвиг от CameraVibe: говорящий, NPC, здание при показе)
         Transform target = player.transform;
         aimT = Mathf.MoveTowards(aimT, crosshairOn ? 1f : 0f, dt / 0.25f);
         float aim = Mathf.SmoothStep(0f, 1f, aimT);
-        float yawBias = follow.yawBias * (reveal ? Mathf.Lerp(1f, revealSweepMul, rv) : 1f);
+        float dialogueMix = reveal || VibeSettings.ReduceEffects ? 0f : Mathf.Clamp01(CameraVibe.DialogueShown);
+        float yawBias = follow.yawBias * (reveal ? Mathf.Lerp(1f, revealSweepMul, rv) : 1f) + dialogueYawOffset * dialogueMix + arcOffset;
         Vector3 shoulder = Quaternion.Euler(0f, yaw + yawBias, 0f) * Vector3.right * (shoulderOffset * aim);
-        Vector3 wantFocus = target.position + focusOffset + follow.focusBias + shoulder + Vector3.up * (shoulderLift * aim);
-        float focusSmooth = reveal ? Mathf.Lerp(followSmooth, revealFocusSmooth, rv) : followSmooth;
+        Vector3 pivot = target.position + focusOffset;
+        Vector3 personal = ahead + shoulder + Vector3.up * (shoulderLift * aim);
+        if (focusWallClamp && !reveal) personal = ClampFocusOffset(pivot, personal, target);   // плечо и взгляд вперёд не уводят фокус в стену
+        Vector3 wantFocus = pivot + personal + follow.focusBias;
+        float horizontalSmooth = Mathf.Lerp(followSmooth, movingFollowSmooth, moveBlend);
+        float heightSmooth = verticalFollowSmooth;
+        if (reveal)
+        {
+            horizontalSmooth = Mathf.Lerp(horizontalSmooth, revealFocusSmooth, rv);
+            heightSmooth = Mathf.Lerp(heightSmooth, revealFocusSmooth, rv);
+        }
         if (snapPending) { focus = wantFocus; focusVel = Vector3.zero; snapPending = false; }
-        focus = Vector3.SmoothDamp(focus, wantFocus, ref focusVel, Mathf.Max(0.01f, focusSmooth), Mathf.Infinity, dt);
+        focus.x = Mathf.SmoothDamp(focus.x, wantFocus.x, ref focusVel.x, Mathf.Max(.01f, horizontalSmooth), Mathf.Infinity, dt);
+        focus.z = Mathf.SmoothDamp(focus.z, wantFocus.z, ref focusVel.z, Mathf.Max(.01f, horizontalSmooth), Mathf.Infinity, dt);
+        focus.y = Mathf.SmoothDamp(focus.y, wantFocus.y, ref focusVel.y, Mathf.Max(.01f, heightSmooth), Mathf.Infinity, dt);
 
         // yawBias: облёт здания при показе стадии. Только на вид, на управление не влияет
-        float shownPitch = reveal ? Mathf.Lerp(pitch, revealPitch, rv) : pitch;   // pitch игрока не трогаем: после показа вернётся
+        float shownPitch = reveal ? Mathf.Lerp(pitch, revealPitch, rv) : Mathf.Lerp(pitch, Mathf.Clamp(pitch,14f,38f),dialogueMix);   // pitch игрока не трогаем: после показа вернётся
         Quaternion rot = Quaternion.Euler(shownPitch, yaw + yawBias, 0f);
         Vector3 back = rot * Vector3.back;
 
         // ---------- столкновения: камера подъезжает к игроку
-        float allowed = wantDist;
-        int n = Physics.SphereCastNonAlloc(focus, collisionRadius, back, hits, wantDist, collisionMask, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < n; i++)
-        {
-            var h = hits[i];
-            var col = h.collider;
-            if (col == null || h.distance <= 0.0001f) continue;          // уже внутри (например, земля под ногами)
-            if (col.transform.IsChildOf(target)) continue;               // сам игрок
-            if (col.attachedRigidbody != null) continue;                 // питомцы, рабочие
-            if (col.bounds.size.magnitude < ignoreSmallerThan) continue; // мелочь
-            // на показе само здание (и летящие детали) камеру не двигает: иначе она дёргается, пока облетает стройку
-            if (reveal && col.bounds.SqrDistance(CameraVibe.RevealPoint) < CameraVibe.RevealRadius * CameraVibe.RevealRadius) continue;
-            if (h.distance < allowed) allowed = h.distance;
-        }
-        allowed = Mathf.Max(minCamDistance, allowed);
+        if (!revealHold) wantDist = Mathf.Max(minCamDistance, wantDist);
+        // Во время плавного зума камера ещё может стоять дальше новой цели.
+        // Проверяем весь этот отрезок, чтобы по дороге не оказаться за стеной.
+        float castDist = revealHold ? wantDist : Mathf.Max(wantDist, curDist);
+        float collisionLimit = castDist;
+        float hitDist = CastLimit(focus, collisionRadius, back, castDist, target, revealHold);
+        if (hitDist < float.PositiveInfinity) collisionLimit = Mathf.Min(castDist, hitDist - collisionPadding);
+        // стена или ствол на пути дуги отменяют её: камера плавно возвращается
+        if (arcT >= 0f && collisionLimit < Mathf.Min(wantDist, curDist) - .2f) { arcT = -1f; arcCool = idleArcCooldown * .5f; }
+        float allowed = Mathf.Clamp(collisionLimit, 0f, wantDist);
 
-        // ближе к игроку сразу (чтобы не просвечивало), дальше обратно плавно
-        // на показе в обе стороны плавно: резкий наезд от препятствия на облёте был бы виден как рывок
-        if (reveal) curDist = Mathf.Lerp(curDist, allowed, 1f - Mathf.Exp(-3f * dt));
-        else if (allowed < curDist) curDist = allowed;
-        else curDist = Mathf.Lerp(curDist, allowed, 1f - Mathf.Exp(-4f * dt));
+        // Разделяем ЗУМ пользователя и защиту от столкновения:
+        // камера отпрыгивает от стены сразу, но намеренный зум не телепортирует её.
+        // Короткая задержка после выхода из-за ствола убирает постоянные
+        // скачки «приблизилась — отдалилась» при движении по краю коллайдера.
+        if (revealHold)
+        {
+            collisionHold = 0f;
+            curDistVel = 0f;
+            curDist = Mathf.Lerp(curDist, Mathf.Max(minCamDistance, allowed), 1f - Mathf.Exp(-3f * dt));
+        }
+        else if (collisionLimit < curDist)
+        {
+            collisionHold = collisionClearDelay;
+            curDistVel = 0f;
+            curDist = Mathf.Max(0f, collisionLimit);
+        }
+        else
+        {
+            bool blocked = allowed < wantDist - .03f;
+            if (blocked) collisionHold = collisionClearDelay;
+            else if (collisionHold > 0f)
+            {
+                collisionHold = Mathf.Max(0f, collisionHold - dt);
+                if (allowed > curDist) allowed = curDist;
+            }
+            float smooth = allowed < curDist ? Mathf.Min(.12f, collisionReturnSmooth) : collisionReturnSmooth;
+            curDist = Mathf.SmoothDamp(curDist, allowed, ref curDistVel,
+                Mathf.Max(.01f, smooth), Mathf.Infinity, dt);
+        }
 
         // ---------- тряска: поверх готового положения, чтобы не копилась
         Vector3 shake = Vector3.zero;
@@ -559,10 +789,11 @@ public class OrbitCamera : MonoBehaviour
             shake = rot * new Vector3(r.x, r.y, 0f);
         }
 
-        cam.fieldOfView = reveal ? Mathf.Lerp(fov, revealFov, rv) : fov;
+        float runFov = VibeSettings.ReduceEffects || chopping || conversation ? 0f : runFovBoost * moveBlend;
+        cam.fieldOfView = reveal ? Mathf.Lerp(fov, revealFov, rv) : fov + runFov;
         cam.transform.SetPositionAndRotation(focus + back * curDist + shake, rot);
 
-        UpdateTreePeek(reveal, dt);
+        UpdateTreePeek(revealHold, dt);
         UpdateCrosshair(dt);
 
         // движение персонажа теперь относительно камеры (без облёта yawBias)

@@ -55,7 +55,7 @@ public class HudPop : MonoBehaviour
 
         float dur = Mathf.Max(0.01f, time);
         timer += Time.unscaledDeltaTime;
-        float k = timer / dur;
+        float k = VibeSettings.ReduceEffects ? 1f : timer / dur;
         if (k >= 1f)
         {
             transform.localScale = baseScale;

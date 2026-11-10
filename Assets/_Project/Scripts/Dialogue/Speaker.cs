@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+[DefaultExecutionOrder(450)]
 public class Speaker : MonoBehaviour
 {
     [Header("Кто это")]
@@ -19,17 +20,21 @@ public class Speaker : MonoBehaviour
     public Transform turnRoot;            // что поворачивать (модель). Пусто = этот объект
     public float faceRadius = 5f;
     public float turnSpeed = 6f;
+    [Tooltip("Скорость доворота к собеседнику во время диалога, градусов/с")]
+    public float dialogueTurnDegrees = 720f;
 
     static readonly List<Speaker> all = new List<Speaker>();
 
     AudioSource voice;
     Transform player;
     float findTimer;
+    Quaternion dialogueRotation;
+    bool facingConversation,returningFromConversation;
 
     public Vector3 BubblePoint { get { return transform.position + bubbleOffset; } }
 
     void OnEnable() { if (!all.Contains(this)) all.Add(this); }
-    void OnDisable() { all.Remove(this); }
+    void OnDisable() { all.Remove(this); facingConversation=returningFromConversation=false; }
 
     public static Speaker Find(string name)
     {
@@ -39,12 +44,26 @@ public class Speaker : MonoBehaviour
         return null;
     }
 
+    public static bool TryGetConversationPartner(Speaker actor,out Speaker partner)
+    {
+        if(DialogueSequence.TryGetFacingTarget(actor,out partner))return true;
+        partner=null;
+        if(actor==null||DialogueSequence.AnyPlaying||DialogueManager.CurrentSpeaker!=actor||actor.GetComponent<PlayerMovement>()!=null)return false;
+        var movement=PlayerMovement.Instance;
+        if(movement==null)return false;
+        partner=movement.GetComponent<Speaker>();
+        return partner!=null&&partner.isActiveAndEnabled;
+    }
+
     // токен затухания: каждый новый PlayVoice / StopVoice / FadeOutVoice делает старое затухание недействительным
     int fadeToken;
     float fadeGain = 1f;     // 1 = голос на полную, 0 = затух; итоговая громкость = fadeGain * GameAudio.VoiceLevel
 
+    public bool IsSpeaking { get { return voice != null && voice.isPlaying && GameAudio.UseRecordedVoices && GameAudio.VoiceLevel > .001f; } }
+
     public void PlayVoice(AudioClip clip)
     {
+        if (!GameAudio.UseRecordedVoices) { StopVoice(); return; }
         if (clip == null) return;
         if (voice == null)
         {
@@ -103,8 +122,13 @@ public class Speaker : MonoBehaviour
     void Update()
     {
         // ползунок «Голоса» и «Звук ВЫКЛ» действуют на реплику, которая звучит прямо сейчас
-        if (voice != null && voice.isPlaying) voice.volume = fadeGain * GameAudio.VoiceLevel;
+        if (voice != null && voice.isPlaying)
+        { if (!GameAudio.UseRecordedVoices || GameAudio.VoiceLevel <= .001f) StopVoice(); else voice.volume = fadeGain * GameAudio.VoiceLevel; }
 
+        // The dialogue override is applied after NPC animation scripts. Do not
+        // also steer this model toward the player from Update.
+        Speaker addressee;
+        if (TryGetConversationPartner(this,out addressee)) return;
         if (!faceNearbyPlayer) return;
 
         if (player == null)
@@ -124,6 +148,42 @@ public class Speaker : MonoBehaviour
 
         var t = turnRoot != null ? turnRoot : transform;
         t.rotation = Quaternion.Slerp(t.rotation, Quaternion.LookRotation(d), 1f - Mathf.Exp(-turnSpeed * Time.deltaTime));
+    }
+
+    void LateUpdate()
+    {
+        // Mira/Oskar pose their heads and torsos in LateUpdate. Override the
+        // visual root *after* those poses, so a head-yaw limit cannot leave a
+        // speaker looking 60-120 degrees away from their partner.
+        var movement=GetComponent<PlayerMovement>();
+        Transform visual=turnRoot!=null?turnRoot:movement!=null?movement.model:transform;
+        // Never rotate the player's Rigidbody root merely for eye contact.
+        if(visual==null||movement!=null&&visual==transform)return;
+        Speaker partner;
+        if(TryGetConversationPartner(this,out partner))
+        {
+            Vector3 direction=partner.transform.position-transform.position;
+            direction.y=0;
+            if(direction.sqrMagnitude>.0001f)
+            {
+                if(!facingConversation){dialogueRotation=visual.rotation;facingConversation=true;}
+                returningFromConversation=false;
+                dialogueRotation=Quaternion.RotateTowards(dialogueRotation,Quaternion.LookRotation(direction),
+                    Mathf.Max(120f,dialogueTurnDegrees)*Mathf.Min(Time.deltaTime,.1f));
+                visual.rotation=dialogueRotation;
+            }
+        }
+        else if(facingConversation||returningFromConversation)
+        {
+            // NPC procedural animators may have restored their authored root
+            // this frame. Blend the final orientation back, without snapping.
+            facingConversation=false;returningFromConversation=true;
+            Quaternion normal=visual.rotation;
+            dialogueRotation=Quaternion.RotateTowards(dialogueRotation,normal,
+                Mathf.Max(120f,dialogueTurnDegrees)*Mathf.Min(Time.deltaTime,.1f));
+            visual.rotation=dialogueRotation;
+            if(Quaternion.Angle(dialogueRotation,normal)<.35f)returningFromConversation=false;
+        }
     }
 
     void OnDrawGizmosSelected()

@@ -588,10 +588,12 @@ public partial class HudMinimap
                 }
             }
             if (!hideTerrain) DrawIslandBase();                  // запасной путь: земли из Terrain нет, рисуем траву под контуром FloatingIsland
+            DrawDistanceGroup.BeginCapture();                    // декор, скрытый по дальности прорисовки, на карте остаётся
             bakeCam.Render();
         }
         finally
         {
+            DrawDistanceGroup.EndCapture();
             RestoreMaterials();
             if (terrainHm != null)
                 for (int i = 0; i < terrains.Length; i++)

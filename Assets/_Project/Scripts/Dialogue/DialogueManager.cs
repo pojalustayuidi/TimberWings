@@ -28,6 +28,7 @@ public partial class DialogueManager : MonoBehaviour
     class Req
     {
         public Speaker who;
+        public string displayName;
         public string text;
         public AudioClip clip;
         public Action onDone;
@@ -42,12 +43,15 @@ public partial class DialogueManager : MonoBehaviour
         {
             if (inst == null && Application.isPlaying)
             {
-                var go = new GameObject("DialogueManager");
-                inst = go.AddComponent<DialogueManager>();
+                inst = FindFirstObjectByType<DialogueManager>();
+                if (inst == null) { var go = new GameObject("DialogueManager"); inst = go.AddComponent<DialogueManager>(); }
             }
             return inst;
         }
     }
+
+    public DialoguePolishView presentation;
+    public DialogueBabble babble;
 
     const string PrefSubs = "BuilderSim.Subtitles";
     public static bool SubtitlesEnabled
@@ -57,6 +61,8 @@ public partial class DialogueManager : MonoBehaviour
     }
 
     public static bool IsBusy { get { return inst != null && (inst.cur != null || inst.queue.Count > 0); } }
+    // Also exposes the active speaker of short NPC barks (which do not use a DialogueSequence).
+    public static Speaker CurrentSpeaker { get { return inst != null && inst.cur != null ? inst.cur.who : null; } }
 
     [Header("Настройки")]
     public KeyCode skipKey = KeyCode.E;
@@ -72,16 +78,16 @@ public partial class DialogueManager : MonoBehaviour
     public int fullHintLines = 6;            // сколько первых реплик в игре показывают полную подсказку
 
     // ------------------------------------------------------------ API
-    public static void Say(Speaker who, string text, AudioClip clip = null, Action onDone = null)
+    public static void Say(Speaker who, string text, AudioClip clip = null, Action onDone = null, string displayName = null)
     {
         var m = Instance;
         if (m == null) { if (onDone != null) onDone(); return; }
-        m.Enqueue(who, text, clip, onDone);
+        m.Enqueue(who, text, clip, onDone, displayName);
     }
 
     public static void SayAs(string speakerName, string text, AudioClip clip = null, Action onDone = null)
     {
-        Say(Speaker.Find(speakerName), text, clip, onDone);
+        Say(Speaker.Find(speakerName), text, clip, onDone, speakerName);
     }
 
     // пропуск разговора целиком (удержание E). DialogueSequence смотрит этот флаг между репликами
@@ -93,7 +99,7 @@ public partial class DialogueManager : MonoBehaviour
     public static void RequestSkipAll() { if (inst != null) inst.DoSkipAll(); }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatic() { SkipAllRequested = false; BlocksUntilRelease = false; }
+    static void ResetStatic() { inst = null; SkipAllRequested = false; BlocksUntilRelease = false; }
 
     public static void Clear()
     {
@@ -108,6 +114,9 @@ public partial class DialogueManager : MonoBehaviour
     float t, typed, shown, gap;
     int total;
     bool typedDone;
+    DialogueSpeechMode speechAtLine;
+    bool HistoryOpen { get { return presentation != null && presentation.HistoryOpen; } }
+    bool AutoLine { get { return DialoguePreferences.AutoAdvance || !DialogueSequence.AnyPlaying; } }
 
     // пропуск и подсказка
     bool pressing;
@@ -120,13 +129,16 @@ public partial class DialogueManager : MonoBehaviour
     CandySpring pop;   // пружина появления пузыря
 
     // ------------------------------------------------------------ очередь
-    void Enqueue(Speaker who, string text, AudioClip clip, Action onDone)
+    void Enqueue(Speaker who, string text, AudioClip clip, Action onDone, string displayName)
     {
         if (string.IsNullOrEmpty(text)) { if (onDone != null) onDone(); return; }
         // нет своего клипа: ищем файл озвучки по id реплики (Resources/Voice), иначе будет бормотание
-        if (clip == null) clip = VoiceBank.Find(who != null ? who.displayName : "", text);
+        string name = displayName ?? (who != null ? who.displayName : "");
+        var library = DialogueAudioLibrary.Current;
+        var recorded = VoiceBank.Find(name, text);
+        if (clip == null || (library != null && library.replaceLegacyVoices)) clip = recorded;
         // голоса выключены ползунком: реплика идёт по тексту, без ожидания длины невидимой озвучки
-        if (GameAudio.VoiceLevel <= 0.001f) clip = null;
+        if (!GameAudio.UseRecordedVoices || GameAudio.VoiceLevel <= 0.001f) clip = null;
         if (text.Length > maxChars)
         {
             Debug.LogWarning("Dialogue: реплика длиннее " + maxChars + " символов, обрезана: " + text);
@@ -135,9 +147,9 @@ public partial class DialogueManager : MonoBehaviour
 
         float dur = clip != null
             ? Mathf.Max(4f, clip.length + 0.5f)
-            : Mathf.Clamp(3.2f + text.Length * 0.02f, 4f, 5f);   // 4-5 секунд
+            : (presentation != null ? Mathf.Clamp(1.4f + text.Length / 17f, 3.6f, 9f) : Mathf.Clamp(3.2f + text.Length * 0.02f, 4f, 5f));   // 4-5 секунд
 
-        queue.Enqueue(new Req { who = who, text = text, clip = clip, onDone = onDone, dur = dur });
+        queue.Enqueue(new Req { who = who, displayName = name, text = text, clip = clip, onDone = onDone, dur = dur });
     }
 
     // запасной голос для реплик без Speaker (раньше такая озвучка молча пропадала)
@@ -145,7 +157,7 @@ public partial class DialogueManager : MonoBehaviour
 
     void PlayOrphanVoice(AudioClip c)
     {
-        if (c == null) return;
+        if (c == null || !GameAudio.UseRecordedVoices) return;
         if (orphanVoice == null)
         {
             orphanVoice = gameObject.AddComponent<AudioSource>();
@@ -161,9 +173,11 @@ public partial class DialogueManager : MonoBehaviour
     void Begin(Req r)
     {
         cur = r;
+        PlayerThoughtController.CancelActive();
+        speechAtLine = GameAudio.Speech;
         t = 0f; typed = 0f; typedDone = false; shown = 0f; blipShown = 0;
         pressing = false; holdProgress = 0f; hintAlpha = 0f; outTime = 0.3f;
-        DialogueLog.Add(r.who != null ? r.who.displayName : "", r.text, false);
+        DialogueLog.Add(r.displayName, r.text, false);
 
         // подсказка: первые реплики в игре с полным текстом, потом короткая «E: дальше»
         int seen = PlayerPrefs.GetInt(PrefHintLines, 0);
@@ -171,7 +185,7 @@ public partial class DialogueManager : MonoBehaviour
         if (hintFull) PlayerPrefs.SetInt(PrefHintLines, seen + 1);
         hintTxt.text = HintText(hintFull);
 
-        string who = r.who != null ? r.who.displayName : "";
+        string who = r.displayName;
         Color col = r.who != null ? r.who.nameColor : Color.white;
 
         // ----- пузырь
@@ -190,9 +204,14 @@ public partial class DialogueManager : MonoBehaviour
         // ----- субтитры
         string hex = ColorUtility.ToHtmlStringRGB(NameInk(col));
         string line = who.Length > 0 ? "<color=#" + hex + "><b>" + who + ":</b></color> " + r.text : r.text;
-        subTxt.text = line;
-        Vector2 sp = subTxt.GetPreferredValues(line, 1000f, 0f);
-        subRt.sizeDelta = new Vector2(Mathf.Min(1080f, sp.x + 76f), sp.y + SubPadTop + SubPadBottom);
+        if (subTxt != null)
+        {
+            subTxt.text = line;
+            Vector2 sp = subTxt.GetPreferredValues(line, 1000f, 0f);
+            subRt.sizeDelta = new Vector2(Mathf.Min(1080f, sp.x + 76f), sp.y + SubPadTop + SubPadBottom);
+        }
+        if (presentation != null) presentation.SetLine(who, r.text, col);
+        if (babble != null) babble.BeginLine(who, r.clip != null);
 
         Speaker.StopAllVoices(r.who);                 // хвост предыдущей реплики не должен накладываться на новую
         if (orphanVoice != null && r.who != null) orphanVoice.Stop();
@@ -207,6 +226,7 @@ public partial class DialogueManager : MonoBehaviour
         cur = null;
         gap = 0.2f;
         if (r == null) return;
+        if (babble != null) babble.EndLine();
         if (skipped && r.who != null) r.who.FadeOutVoice(0.14f);
         else if (skipped && orphanVoice != null) orphanVoice.Stop();
         if (r.onDone != null) r.onDone();
@@ -223,10 +243,11 @@ public partial class DialogueManager : MonoBehaviour
         }
         else
         {
-            t += dt;
+            if (speechAtLine != GameAudio.Speech) RefreshSpeech();
+            if (!HistoryOpen) t += dt;
 
             // typed растёт ещё SoftChars букв после конца текста: так последние буквы успевают мягко проявиться
-            if (typed < total + SoftChars)
+            if (!HistoryOpen && typed < total + SoftChars)
             {
                 typed += typeSpeed * dt;
                 if (!typedDone)
@@ -235,7 +256,11 @@ public partial class DialogueManager : MonoBehaviour
                     // бормотание вместо озвучки (GDD 12.3): звук на новые буквы, если у реплики нет своего клипа
                     while (blipShown < vis)
                     {
-                        if (cur.who != null && cur.clip == null) SfxManager.Blip(cur.who.displayName, cur.text, blipShown);
+                        if (cur.clip == null)
+                        {
+                            if (babble != null) babble.Letter(cur.text, blipShown);
+                            else SfxManager.Blip(cur.displayName, cur.text, blipShown);
+                        }
                         blipShown++;
                     }
                     bodyTxt.maxVisibleCharacters = vis;
@@ -245,20 +270,20 @@ public partial class DialogueManager : MonoBehaviour
             SoftType();
 
             HandleInput(dt);
-            if (cur != null && t >= cur.dur) Finish(false);
+            if (cur != null && !HistoryOpen && AutoLine && t >= cur.dur) Finish(false);
         }
 
         if (BlocksUntilRelease && !MobileInput.ActionHeld) BlocksUntilRelease = false;
 
         // плавное появление и исчезновение
-        bool want = cur != null && t < cur.dur - 0.3f;
+        bool want = cur != null && (HistoryOpen || !AutoLine || t < cur.dur - 0.3f);
         shown = Mathf.MoveTowards(shown, want ? 1f : 0f, dt / (want ? 0.18f : outTime));
 
-        bool hasBubble = cur != null && cur.who != null;
+        bool hasBubble = cur != null && (presentation != null || cur.who != null);
         bubbleGroup.alpha = hasBubble || shown > 0f ? Mathf.Clamp01(shown * 1.6f) : 0f;
-        subGroup.alpha = SubtitlesEnabled ? Mathf.Clamp01(shown * 1.6f) : 0f;
+        if (subGroup != null) subGroup.alpha = presentation == null && SubtitlesEnabled ? Mathf.Clamp01(shown * 1.6f) : 0f;
         pop.Step(want ? 1f : 0.9f, 260f, 15f, Mathf.Min(dt, 0.05f));
-        bubbleRt.localScale = Vector3.one * pop.x * (1f - 0.035f * holdProgress);
+        bubbleRt.localScale = VibeSettings.ReduceEffects ? Vector3.one : Vector3.one * pop.x * (1f - 0.035f * holdProgress);
 
         // подсказка проявляется, когда реплику уже можно пропустить; кольцо удержания следует за прогрессом
         float wantHint = cur != null && showSkipHint && t > minShowBeforeSkip ? 1f : 0f;
@@ -276,11 +301,20 @@ public partial class DialogueManager : MonoBehaviour
         else noteGroup.alpha = 0f;
 
         if (cur != null) PlaceBubble();
+        if (presentation != null)
+            presentation.Tick(cur != null, typedDone, cur != null && t > minShowBeforeSkip,
+                (cur != null && (cur.who != null ? cur.who.IsSpeaking : orphanVoice != null && orphanVoice.isPlaying && GameAudio.UseRecordedVoices && GameAudio.VoiceLevel > .001f)) || (babble != null && babble.Speaking));
     }
 
     // тап = «дальше», удержание = пропустить разговор. «Дальше» срабатывает при отпускании, иначе тап нельзя отличить от удержания
     void HandleInput(float dt)
     {
+        if (HistoryOpen)
+        {
+            pressing = false; holdProgress = 0;
+            if (MobileInput.ActionDown) presentation.CloseHistory();
+            return;
+        }
         bool canSkip = t > minShowBeforeSkip;
         if (canSkip && !pressing && MobileInput.ActionDown) { pressing = true; pressT = 0f; }
         if (!pressing) { holdProgress = 0f; return; }
@@ -301,13 +335,37 @@ public partial class DialogueManager : MonoBehaviour
         // отпустил раньше: обычное «дальше»
         pressing = false;
         holdProgress = 0f;
+        AdvanceLine();
+    }
+
+    public static void Advance() { if (inst != null) inst.AdvanceLine(); }
+    public static void SkipFromUI() { if (inst != null && inst.cur != null && inst.t > inst.minShowBeforeSkip) inst.DoSkipAll(); }
+    void AdvanceLine()
+    {
+        if (HistoryOpen) { presentation.CloseHistory(); return; }
+        if (cur == null || t <= minShowBeforeSkip) return;
         if (!typedDone)
         {
             bodyTxt.maxVisibleCharacters = total;
-            typed = total + SoftChars;   // без мягкого проявления: сразу весь текст
-            typedDone = true;      // первое нажатие: дописать, второе: убрать
+            typed = total + SoftChars;
+            typedDone = true;
+            if (babble != null) babble.EndLine();
         }
         else Finish(true);
+    }
+
+    void RefreshSpeech()
+    {
+        speechAtLine = GameAudio.Speech;
+        Speaker.StopAllVoices(null); if (orphanVoice != null) orphanVoice.Stop();
+        if (cur == null) return;
+        cur.clip = GameAudio.UseRecordedVoices && GameAudio.VoiceLevel > .001f ? VoiceBank.Find(cur.displayName,cur.text) : null;
+        if (cur.clip != null)
+        {
+            if (cur.who != null) cur.who.PlayVoice(cur.clip); else PlayOrphanVoice(cur.clip);
+            cur.dur = Mathf.Max(cur.dur,t + cur.clip.length + .5f);
+        }
+        if (babble != null) babble.BeginLine(cur.displayName,cur.clip != null);
     }
 
     string HintText(bool full)
@@ -331,7 +389,7 @@ public partial class DialogueManager : MonoBehaviour
         if (cur != null) Finish(true);
         foreach (var r in pending)
         {
-            DialogueLog.Add(r.who != null ? r.who.displayName : "", r.text, true);
+            DialogueLog.Add(r.displayName, r.text, true);
             if (r.onDone != null) r.onDone();
         }
         gap = 0f;
@@ -342,6 +400,7 @@ public partial class DialogueManager : MonoBehaviour
     // пузырь живёт в экранных координатах: размер постоянный, за деревьями не прячется, у края экрана не вылезает
     void PlaceBubble()
     {
+        if (presentation != null) return;
         if (cur == null || cur.who == null) { bubbleGroup.alpha = 0f; return; }
         var cam = Camera.main;
         if (cam == null) return;

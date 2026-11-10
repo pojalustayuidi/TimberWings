@@ -53,7 +53,7 @@ public class UIManager : MonoBehaviour
         {
             if (t == null || p >= 1f) return;
             p = Mathf.Min(1f, p + dt / Mathf.Max(0.01f, duration));
-            float k = 1f + (amount - 1f) * Mathf.Sin(p * Mathf.PI);
+            float k = VibeSettings.ReduceEffects ? 1f : 1f + (amount - 1f) * Mathf.Sin(p * Mathf.PI);
             t.localScale = p >= 1f ? baseScale : baseScale * k;
         }
     }

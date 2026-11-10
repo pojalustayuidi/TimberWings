@@ -1,429 +1,335 @@
-// Assets/_Project/Editor/TWRiver/TWRiverArt.cs
-// Timber Wings / ISL-004: ЕДИНЫЙ запуск новой системы «исток - русло - водопад».
-// Собирает Source + Banks + Rapids + FallFrame + Flora + Foam в один корень IslandV2/_Manual/TW_RIVER_ART (2 меша, 2 материала, 0 коллайдеров).
-// Водопад: авторитетная геометрия остаётся River_Fall (одно полотно, IslandRiverWater.AddFall). Здесь второго полотна НЕТ,
-// только скальная рамка по бокам порога, камни-разделители струй и пена. Стык River_Water / River_Fall проверяет пункт QA.
-// Безопасность: НЕ вызывает IslandBlockout.Build / IslandAll, не трогает IslandLayout, Terrain, коллайдеры, мост, WaterVolume, Nav, сейвы.
-// Перед Apply делается копия сцены и IslandLayout в Library/TW_RiverArt/Backups. Откат: пункт 3 (удаляет только этот арт и его ассеты).
-// Старые TW_RIVER_OVERHAUL_V1..V3 в сцене удаляются в том же Apply, но только ПОСЛЕ успешной сборки нового арта.
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
-using Debug = UnityEngine.Debug;
+using Object = UnityEngine.Object;
 
 namespace IslandV2
 {
+    // Owns the river zone only. No IslandAll/IslandBlockout.Build, terrain edits,
+    // bridge edits, save IDs, NPCs or changes to the other four zones.
     public static class TWRiverArt
     {
         const string Menu = "Tools/BuilderSim/Локация/Остров v2/RIVER ART/";
-        const string RocksAsset = TWRiverSpec.AssetFolder + "/TW_RiverRocks.asset";
-        const string FoamAsset = TWRiverSpec.AssetFolder + "/TW_RiverFoamMesh.asset";
-        const string FoamMatAsset = TWRiverSpec.AssetFolder + "/TW_RiverFoam.mat";
+        const string WaterShader = "Project/IslandV2/TW_RiverRibbon";
         const string FoamShader = "Project/IslandV2/TW_RiverFoam";
-        const int Seed = 4004;
 
-        sealed class Ctx
+        sealed class Context
         {
             public Scene scene;
-            public GameObject root;
-            public Transform gen, man;
+            public Transform manual, generated, bridge;
             public IslandLayout layout;
-            public IslandField field;
-            public List<Vector2> piece;
-            public IslandField.RiverEdge outlet;
-            public bool hasInlet;
-            public IslandField.RiverEdge inlet;
+            public TWRiverCtx river;
+            public Material groundMaterial;
+            public RiverArtState previous;
         }
 
-        static string[] AssetPaths() { return new[] { RocksAsset, FoamAsset, FoamMatAsset }; }
-        static string ProjectRoot { get { return Directory.GetParent(Application.dataPath).FullName; } }
-
-        // ================================================================ 1. аудит
         [MenuItem(Menu + "1. Audit (без изменений)", false, 181)]
         public static void Audit()
         {
-            Ctx c; string report;
-            bool ok = Inspect(out c, out report);
-            Directory.CreateDirectory(Path.Combine(ProjectRoot, "Library/TW_RiverArt"));
-            File.WriteAllText(Path.Combine(ProjectRoot, "Library/TW_RiverArt/Audit.txt"), report, Encoding.UTF8);
-            if (ok) Debug.Log("TW RIVER ART AUDIT: ГОТОВО к Apply.\n" + report);
-            else Debug.LogError("TW RIVER ART AUDIT: Apply запрещён.\n" + report);
-        }
-
-        // ================================================================ 2. Apply
-        [MenuItem(Menu + "2. Apply (исток + русло + рамка водопада, убрать старые V1-V3)", false, 182)]
-        public static void Apply()
-        {
-            Ctx c; string report;
-            if (!Inspect(out c, out report)) { Debug.LogError("TW RIVER ART: Apply остановлен.\n" + report); return; }
-            if (c.man.Find(TWRiverSpec.RootName) != null) { Debug.LogError("TW RIVER ART: арт уже установлен. Сначала пункт 3 (Rollback)."); return; }
-            foreach (var p in AssetPaths())
-                if (AssetDatabase.LoadMainAssetAtPath(p) != null) { Debug.LogError("TW RIVER ART: конфликт ассета " + p + ". Ничего не заменено."); return; }
-
-            var legacy = TWRiverSpec.LegacyRoots.Select(n => c.man.Find(n)).Where(t => t != null).ToList();
-            string legacyText = legacy.Count == 0 ? "старых слоёв V1-V3 в сцене нет" : "будут удалены старые слои: " + string.Join(", ", legacy.Select(t => t.name).ToArray());
-            if (!EditorUtility.DisplayDialog("TW RIVER ART — Apply",
-                "Сцена: " + c.scene.name + "\nИсток: " + (c.hasInlet ? "скальный массив с гротом у края острова" : "не нужен (река начинается внутри острова)") + "\n" +
-                "Создаётся только IslandV2/_Manual/" + TWRiverSpec.RootName + " (2 меша, 2 материала, без коллайдеров).\n" +
-                "River_Water / River_Fall, Terrain, мост, WaterVolume, IslandLayout не меняются.\n" + legacyText + " (после успешной сборки).\n\n" +
-                "Сначала будет сделана копия сцены и IslandLayout в Library/TW_RiverArt/Backups.", "Backup + Apply", "Отмена")) return;
-
-            string backup;
-            try { backup = Backup(c); }
-            catch (Exception ex) { Debug.LogError("TW RIVER ART: бэкап не создан, Apply отменён. " + ex); return; }
-
-            Undo.IncrementCurrentGroup();
-            Undo.SetCurrentGroupName("TW River Art: Apply");
-            int group = Undo.GetCurrentGroup();
-            GameObject made = null;
             try
             {
-                var rockMat = AssetDatabase.LoadAssetAtPath<Material>(IslandCliff.MaterialPath);
-                var foamSh = Shader.Find(FoamShader);
-                IslandLayout.EnsureFolder(TWRiverSpec.AssetFolder);
+                var c = Inspect(false);
+                Debug.Log("RIVER ART: сцена " + c.scene.path + ", река " + c.river.ax.Length.ToString("F1") +
+                          " м. Река, исток, песчаный берег и водопад готовы к сборке. " +
+                          (c.previous != null ? "Установлена ревизия " + c.previous.revision + "." : "Новый речной комплект пока не установлен."));
+            }
+            catch (Exception e) { Debug.LogError("RIVER ART: " + e.Message); }
+        }
 
-                var x = MakeCtx(c);
-                if (x.hasSource) TWRiverSource.Build(x);
-                TWRiverBanks.Build(x);
-                TWRiverBanks.BuildRapids(x);
-                TWRiverBanks.BuildFallFrame(x);
-                TWRiverFlora.Build(x);     // после камней: мох ставится на уже известные точки
-                TWRiverFoam.Build(x);      // после камней: следы за каждым камнем в воде
+        [MenuItem(Menu + "2. Собрать реку — исток, пляж, водопад", false, 182)]
+        public static void Apply()
+        {
+            Context c;
+            try { c = Inspect(true); }
+            catch (Exception e) { Debug.LogError("RIVER ART: " + e.Message); return; }
 
-                // заземление: якоря обязаны лежать в земле, воде или обрыве
-                int hanging = 0; var bad = new List<Vector3>();
-                foreach (var a in x.rocks.anchors) if (!x.Grounded(a)) { hanging++; if (bad.Count < 6) bad.Add(a); }
-                int total = Mathf.Max(1, x.rocks.anchors.Count);
-                if (hanging * 4 > total)
-                    throw new InvalidOperationException("слишком много висящих точек (" + hanging + " из " + total + "): ось реки или сторона берега определены неверно");
-                if (hanging > 0)
-                    Debug.LogWarning("TW RIVER ART: висящих опорных точек " + hanging + " из " + total + ". Первые: " + string.Join("; ", bad.Select(v => v.ToString("F1")).ToArray()));
+            string folder = null;
+            int group = -1;
+            try
+            {
+                string backup = Backup(c.scene);
+                Undo.IncrementCurrentGroup(); group = Undo.GetCurrentGroup();
+                Undo.SetCurrentGroupName("Timber Wings — cohesive river zone");
+                EditorUtility.DisplayProgressBar("Timber Wings", "Скальный исток и песчаные берега", 0.1f);
+                string sceneID = AssetDatabase.AssetPathToGUID(c.scene.path);
+                folder = TWRiverSpec.AssetFolder + "/Scenes/" + sceneID + "/Build_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                IslandLayout.EnsureFolder(folder);
 
-                made = new GameObject(TWRiverSpec.RootName);
-                Undo.RegisterCreatedObjectUndo(made, "TW River Art root");
-                made.transform.SetParent(c.man, false);
+                var root = new GameObject("TW_RIVER_ART__building");
+                Undo.RegisterCreatedObjectUndo(root, "Create river zone");
+                root.transform.SetParent(c.manual, false);
+                var state = root.AddComponent<RiverArtState>();
+                state.revision = TWRiverSpec.Revision; state.generatedFolder = folder;
+                state.bridge = c.bridge; state.bridgeMatrix = c.bridge.localToWorldMatrix;
+                var x = c.river;
 
-                var rocksMesh = x.rocks.ToMesh("TW_RiverRocks");
-                AssetDatabase.CreateAsset(rocksMesh, RocksAsset);
-                var rgo = new GameObject("River_Rocks_Source_Banks_FallFrame");
-                rgo.transform.SetParent(made.transform, false);
-                rgo.isStatic = true;
-                rgo.AddComponent<MeshFilter>().sharedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(RocksAsset);
-                var rmr = rgo.AddComponent<MeshRenderer>();
-                rmr.sharedMaterial = rockMat;
-                rmr.shadowCastingMode = ShadowCastingMode.On;
-                rmr.receiveShadows = true;
+                var ground = new Material(c.groundMaterial) { name = "River_Island_Material" };
+                AssetDatabase.CreateAsset(ground, folder + "/Ground.mat");
+                var data = c.generated.parent.GetComponent<IslandV2Data>();
+                float cliff = data != null && data.depth > 3f ? data.depth : 1f + Mathf.Max(2f, c.layout.cliffWall) + Mathf.Max(3f, c.layout.cliffTaper);
+                Material[] stoneMaterials = TWRiverDetails.RockMaterials(folder);
+                Mesh sourceMesh = SaveMesh(TWRiverSource.Build(x, cliff), folder, "Source", false);
+                TWRiverValidation.CheckClosed(sourceMesh);
+                var source = MeshObject(root.transform, "Source_Rock", sourceMesh, stoneMaterials[0], true);
+                source.GetComponent<MeshRenderer>().sharedMaterials = stoneMaterials;
+                // All visible masses, including the deep foundation, collide.
+                source.AddComponent<MeshCollider>().sharedMesh = sourceMesh;
+                Mesh shadowMesh = SaveMesh(TWRiverSource.Shadow(x), folder, "SourceShadow", true);
+                Material fissureMaterial = TWRiverDetails.Lit(folder, "Spring_Fissure", new Color(0.095f, 0.16f, 0.18f));
+                var shadow = MeshObject(root.transform, "Source_Shadow", shadowMesh, fissureMaterial, false);
+                shadow.AddComponent<MeshCollider>().sharedMesh = shadowMesh;
+                state.source = x.P(TWRiverSpec.MouthDist, 0f, x.Yw(TWRiverSpec.MouthDist));
+                x.rocks = new TWFaceted();
+                TWRiverBanks.Dress(root.transform, x);
+                TWRiverFlora.Build(x); TWRiverFoam.Build(x);
+                if (x.rocks.Tris > 0)
+                    MeshObject(root.transform, "River_Plant_Clusters", SaveMesh(x.rocks.ToMesh("River_Plants"), folder, "Plants", true), ground, true);
+                MeshObject(root.transform, "Sand_Shore", SaveMesh(TWRiverShore.Build(x), folder, "Shore", false), ground, false);
 
-                int foamTris = x.foam.Tris;
-                if (foamTris > 0)
+                EditorUtility.DisplayProgressBar("Timber Wings", "Каменная кромка и полотно водопада", 0.6f);
+                Mesh ends = SaveMesh(TWRiverSource.OutletBanks(x, cliff), folder, "WaterfallBanks", false);
+                TWRiverValidation.CheckClosed(ends);
+                var outletBanks = MeshObject(root.transform, "Waterfall_Rock_Edges", ends, stoneMaterials[0], true);
+                outletBanks.GetComponent<MeshRenderer>().sharedMaterials = stoneMaterials;
+                outletBanks.AddComponent<MeshCollider>().sharedMesh = ends;
+                var water = TWRiverWater.Build(x, cliff);
+                TWRiverValidation.CheckRibbon(water.mesh, water.lipRow);
+                var waterMat = new Material(Shader.Find(WaterShader)) { name = "River_Turquoise" };
+                waterMat.SetColor("_DeepColor", new Color(0.035f, 0.52f, 0.84f));
+                waterMat.SetColor("_ShallowColor", new Color(0.28f, 0.86f, 0.91f));
+                waterMat.SetColor("_FoamColor", new Color(0.94f, 0.99f, 1.0f));
+                waterMat.SetFloat("_FlowSpeed", Mathf.Clamp(c.layout.riverFlowSpeed, 0.5f, 2f));
+                AssetDatabase.CreateAsset(waterMat, folder + "/Water.mat");
+                MeshObject(root.transform, "Water_Source_To_Clouds", SaveMesh(water.mesh, folder, "Water", false), waterMat, false);
+                state.lipRow = water.lipRow; state.columns = TWRiverWater.Columns;
+                state.outlet = x.P(x.ax.Length, 0f, x.Yw(x.ax.Length));
+                if (x.foam.Tris > 0)
                 {
-                    var foamMat = new Material(foamSh) { name = "TW_RiverFoam" };
-                    foamMat.SetColor("_Tint", c.layout.riverFoam);
-                    AssetDatabase.CreateAsset(foamMat, FoamMatAsset);
-                    var foamMesh = x.foam.ToMesh("TW_RiverFoamMesh");
-                    AssetDatabase.CreateAsset(foamMesh, FoamAsset);
-                    var fgo = new GameObject("River_Foam_Flow");
-                    fgo.transform.SetParent(made.transform, false);
-                    fgo.isStatic = true;
-                    fgo.AddComponent<MeshFilter>().sharedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(FoamAsset);
-                    var fmr = fgo.AddComponent<MeshRenderer>();
-                    fmr.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(FoamMatAsset);
-                    fmr.shadowCastingMode = ShadowCastingMode.Off;
-                    fmr.receiveShadows = false;
-                    fmr.lightProbeUsage = LightProbeUsage.Off;
-                    fmr.reflectionProbeUsage = ReflectionProbeUsage.Off;
+                    var foam = new Material(Shader.Find(FoamShader)) { name = "River_Quiet_Wakes" };
+                    foam.SetColor("_Tint", new Color(0.93f, 0.98f, 0.93f, 0.72f));
+                    AssetDatabase.CreateAsset(foam, folder + "/Foam.mat");
+                    MeshObject(root.transform, "Boulder_Wakes", SaveMesh(x.foam.ToMesh("River_Wakes"), folder, "Foam", false), foam, false);
                 }
+                AddMist(root.transform, water.mistPosition, x.half);
+                TWRiverBirds.Build(root.transform, x, ground, folder);
+                EditorUtility.DisplayProgressBar("Timber Wings", "Тёплые береговые фонари и небольшие секреты", 0.85f);
+                int lanterns = TWRiverDetails.Build(root.transform, x, c.generated.parent.GetComponentsInChildren<TerrainCollider>(true), ground, folder);
+                foreach (var mf in root.GetComponentsInChildren<MeshFilter>())
+                    if (AssetDatabase.GetAssetPath(mf.sharedMesh).StartsWith(folder + "/", StringComparison.Ordinal))
+                        TWRiverValidation.CheckMesh(mf.sharedMesh);
 
-                // старые слои убираем только теперь, когда новый арт собран
-                foreach (var t in legacy) if (t != null) Undo.DestroyObjectImmediate(t.gameObject);
-
+                // No scene mutation before geometry and persistent assets have succeeded.
+                CaptureAndHide(c, state);
+                if (c.previous != null) Undo.DestroyObjectImmediate(c.previous.gameObject);
+                root.name = TWRiverSpec.RootName;
+                EditorUtility.SetDirty(state);
                 AssetDatabase.SaveAssets();
                 EditorSceneManager.MarkSceneDirty(c.scene);
-                Selection.activeGameObject = made;
                 Undo.CollapseUndoOperations(group);
-                Debug.Log("TW RIVER ART APPLY: скал " + x.rocks.Tris + " tris, пены " + foamTris + " tris, камней в воде " + x.stones.Count +
-                          ", источник " + (x.hasSource ? "да" : "нет") + ", скалистый берег " + (x.rockSide > 0 ? "левый" : "правый") + " по течению, " +
-                          "убрано старых слоёв " + legacy.Count + ". Бэкап: " + backup + ". Дальше: Ctrl+S, пункт 4 (QA), снимки Game View.");
+                Physics.SyncTransforms();
+                Selection.activeGameObject = root;
+                Debug.Log("RIVER ART v3: готово. Гранёный скальный исток, закрытое основание, каменные края водопада. Фонарей: " +
+                          lanterns + ". Уточек: " + root.GetComponentsInChildren<RiverDuckMotion>().Length + ". " +
+                          "Сохрани сцену Ctrl+S. Проверка — пункт 4; откат — пункт 3. Копия исходной сцены: " + backup);
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                if (made != null) Undo.DestroyObjectImmediate(made);
-                foreach (var p in AssetPaths()) if (AssetDatabase.LoadMainAssetAtPath(p) != null) AssetDatabase.DeleteAsset(p);
-                Debug.LogError("TW RIVER ART: Apply прерван, созданное очищено, старые слои НЕ тронуты. Бэкап: " + backup + ". " + ex);
+                if (group >= 0) Undo.RevertAllDownToGroup(group);
+                if (!string.IsNullOrEmpty(folder) && AssetDatabase.IsValidFolder(folder)) AssetDatabase.DeleteAsset(folder);
+                Debug.LogError("RIVER ART: сборка отменена, состояние сцены восстановлено. " + e);
             }
+            finally { EditorUtility.ClearProgressBar(); }
         }
 
-        // ================================================================ 3. Rollback
-        [MenuItem(Menu + "3. Rollback (удалить только этот арт)", false, 183)]
+        [MenuItem(Menu + "3. Rollback — вернуть прежний вид", false, 183)]
         public static void Rollback()
         {
-            if (Application.isPlaying) { Debug.LogError("TW RIVER ART: выйди из Play Mode."); return; }
-            var root = IslandBlockout.FindRoot();
-            var art = root != null ? root.transform.Find(IslandBlockout.ManualName + "/" + TWRiverSpec.RootName) : null;
-            if (art == null) { Debug.LogWarning("TW RIVER ART: арт в сцене не найден, ничего не изменено."); return; }
-            if (!EditorUtility.DisplayDialog("TW RIVER ART — Rollback",
-                "Удалить ТОЛЬКО " + TWRiverSpec.RootName + " и его 3 ассета?\nСтарые слои V1-V3 это не вернёт: для них есть копия сцены в Library/TW_RiverArt/Backups.", "Rollback", "Отмена")) return;
-            Undo.DestroyObjectImmediate(art.gameObject);
-            foreach (var p in AssetPaths()) if (AssetDatabase.LoadMainAssetAtPath(p) != null) AssetDatabase.DeleteAsset(p);
-            AssetDatabase.SaveAssets();
-            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-            Debug.Log("TW RIVER ART ROLLBACK: арт и ассеты удалены. Сохрани сцену (Ctrl+S).");
+            var scene = SceneManager.GetActiveScene();
+            if (EditorApplication.isPlayingOrWillChangePlaymode) { Debug.LogError("Сначала останови Play Mode."); return; }
+            var states = scene.GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<RiverArtState>(true)).ToArray();
+            if (states.Length != 1) { Debug.LogError("RIVER ART: в активной сцене должен быть один установленный комплект."); return; }
+            var state = states[0];
+            Undo.IncrementCurrentGroup(); int group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Restore previous river");
+            foreach (var entry in state.renderers)
+                if (entry.renderer != null) { Undo.RecordObject(entry.renderer, "Restore native water"); entry.renderer.enabled = entry.enabled; }
+            foreach (var entry in state.objects)
+                if (entry.target != null)
+                {
+                    Undo.RecordObject(entry.target, "Restore previous river art");
+                    entry.target.name = entry.originalName; entry.target.SetActive(entry.active);
+                }
+            Undo.DestroyObjectImmediate(state.gameObject);
+            Undo.CollapseUndoOperations(group);
+            EditorSceneManager.MarkSceneDirty(scene);
+            Debug.Log("RIVER ART: прежний вид восстановлен. Ctrl+S. Меши сохранены для Ctrl+Z; исходные материалы не менялись.");
         }
 
-        // ================================================================ 4. QA
-        [MenuItem(Menu + "4. QA (дубли, шов вода-водопад, коллайдеры)", false, 184)]
+        [MenuItem(Menu + "4. QA — геометрия, коллизия, мост", false, 184)]
         public static void QA()
         {
-            var root = IslandBlockout.FindRoot();
-            if (root == null) { Debug.LogError("TW RIVER ART QA: нет IslandV2 в сцене."); return; }
-            var sb = new StringBuilder();
-            int problems = 0;
-            Action<string> bad = s => { problems++; sb.AppendLine("ПРОБЛЕМА: " + s); };
-            Action<string> ok = s => sb.AppendLine("ок: " + s);
-
-            var man = root.transform.Find(IslandBlockout.ManualName);
-            var gen = root.transform.Find(IslandBlockout.GeneratedName);
-            var art = man != null ? man.Find(TWRiverSpec.RootName) : null;
-            if (art == null) bad("TW_RIVER_ART не установлен (пункт 2)");
-            else
+            try
             {
-                var mrs = art.GetComponentsInChildren<MeshRenderer>(true);
-                int tris = 0;
-                foreach (var m in mrs) { var mf = m.GetComponent<MeshFilter>(); if (mf != null && mf.sharedMesh != null) tris += (int)(mf.sharedMesh.GetIndexCount(0) / 3); }
-                ok("арт: рендереров " + mrs.Length + ", треугольников " + tris + ", коллайдеров " + art.GetComponentsInChildren<Collider>(true).Length + ", Light " + art.GetComponentsInChildren<Light>(true).Length);
-                if (art.GetComponentsInChildren<Collider>(true).Length > 0) bad("в арте появились коллайдеры");
+                var c = Inspect(false);
+                if (c.previous == null) throw new InvalidOperationException("Сначала собери новый комплект (пункт 2).");
+                TWRiverValidation.CheckInstalled(c.previous);
+                Debug.Log("RIVER ART QA: замкнутая скала, края водопада, фонари, общий перегиб и неизменность моста проверены. " +
+                          "Далее в Play Mode: мост, берега, плавание, обе стороны истока, день/ночь, сохранение/загрузка.");
             }
+            catch (Exception e) { Debug.LogError("RIVER ART QA: " + e.Message); }
+        }
 
-            foreach (var n in TWRiverSpec.LegacyRoots)
+        [MenuItem(Menu + "5. Показать всю реку", false, 185)]
+        static void Frame()
+        {
+            try
             {
-                var all = root.GetComponentsInChildren<Transform>(true).Where(t => t.name == n).ToList();
-                if (all.Count > 0) bad("остался старый слой " + n + " (Apply уберёт, либо FINAL CLEANUP пункт 2)");
+                var c = Inspect(false);
+                Vector3 a = c.river.P(c.river.ax.Length * 0.5f, 0f, 0f);
+                SceneView.lastActiveSceneView?.LookAt(a, Quaternion.Euler(48f, 35f, 0f), c.river.ax.Length * 0.62f);
             }
-            int veils = root.GetComponentsInChildren<Transform>(true).Count(t => t.name.IndexOf("Veil", StringComparison.OrdinalIgnoreCase) >= 0);
-            if (veils > 0) bad("найдено объектов с «Veil» в имени: " + veils + " (второе полотно водопада)"); else ok("лишних полотен водопада (Veil) нет");
-
-            Transform water = gen != null ? gen.Find(IslandRiverWater.ObjectName) : null;
-            Transform fall = gen != null ? gen.Find(IslandRiverWater.FallObjectName) : null;
-            if (water == null || fall == null) bad("нет River_Water или River_Fall");
-            else
-            {
-                var wm = water.GetComponent<MeshFilter>().sharedMesh;
-                var fm = fall.GetComponent<MeshFilter>().sharedMesh;
-                int per = IslandRiverWater.FallRows * IslandRiverWater.FallCols;
-                if (fm == null || wm == null) bad("у River_Water или River_Fall нет меша");
-                else if (fm.vertexCount % per != 0) bad("число вершин River_Fall (" + fm.vertexCount + ") не кратно одному полотну (" + per + ")");
-                else
-                {
-                    int falls = fm.vertexCount / per;
-                    ok("River_Fall: полотен " + falls + " (одно на выход реки)");
-                    var wv = wm.vertices; var fv = fm.vertices;
-                    float worst = 0f;
-                    for (int k = 0; k < falls; k++)
-                    {
-                        int a = k * per, b = k * per + IslandRiverWater.FallCols - 1;   // два крайних угла верхнего ряда полотна
-                        foreach (int vi in new[] { a, b })
-                        {
-                            Vector3 p = fall.TransformPoint(fv[vi]);
-                            float best = float.MaxValue;
-                            for (int i = 0; i < wv.Length; i++) { float d = (water.TransformPoint(wv[i]) - p).sqrMagnitude; if (d < best) best = d; }
-                            worst = Mathf.Max(worst, Mathf.Sqrt(best));
-                        }
-                    }
-                    if (worst > 0.05f) bad("шов River_Water / River_Fall: зазор до " + worst.ToString("F3") + " м (допуск 0.05)");
-                    else ok("шов River_Water / River_Fall: зазор " + worst.ToString("F3") + " м");
-                }
-            }
-            var tcs = root.GetComponentsInChildren<TerrainCollider>(true).Length;
-            if (tcs == 0) bad("нет TerrainCollider"); else ok("TerrainCollider " + tcs + ", Collider на острове " + root.GetComponentsInChildren<Collider>(true).Length);
-            var vols = root.GetComponentsInChildren<WaterVolume>(true).Length;
-            if (vols == 0) bad("нет WaterVolume (плавание)"); else ok("WaterVolume " + vols);
-
-            string text = "TW RIVER ART QA: проблем " + problems + "\n" + sb;
-            if (problems == 0) Debug.Log(text + "\nДальше: запусти «Река: проверить стык воды и водопада» и сними Game View (день/ночь).");
-            else Debug.LogWarning(text);
+            catch (Exception e) { Debug.LogError(e.Message); }
         }
 
-        // ================================================================ 5-8. ракурсы Scene View
-        [MenuItem(Menu + "5. Frame: вся река", false, 185)]
-        static void FrameOverview()
+        static Context Inspect(bool requireSaved)
         {
-            Ctx c; string r; Inspect(out c, out r);
-            if (c == null || c.piece == null) { Debug.LogError(r); return; }
-            Vector2 a = c.piece[0], b = c.piece[c.piece.Count - 1], m = (a + b) * 0.5f;
-            Look(new Vector3(m.x, 0f, m.y), new Vector3(0.35f, -0.82f, 0.45f), Mathf.Max(70f, Vector2.Distance(a, b) * 0.95f));
-        }
-
-        [MenuItem(Menu + "6. Frame: исток спереди", false, 186)]
-        static void FrameSource()
-        {
-            Ctx c; string r; Inspect(out c, out r);
-            if (c == null || c.piece == null) { Debug.LogError(r); return; }
-            var ax = new TWRiverAxis(c.piece, 0.8f);
-            Vector2 p = ax.At(TWRiverSpec.MouthDist), t = ax.Tangent(TWRiverSpec.MouthDist);
-            float y = c.field.RiverSurfaceAt(p.x, p.y) + 1.6f;
-            Look(new Vector3(p.x, y, p.y), new Vector3(-t.x, -0.30f, -t.y), 13f);   // камера ниже по течению, смотрит против течения в проём
-        }
-
-        [MenuItem(Menu + "7. Frame: порог водопада сверху", false, 187)]
-        static void FrameFallTop() { FrameFall(-0.62f, 1f, 14f); }
-
-        [MenuItem(Menu + "8. Frame: водопад сбоку", false, 188)]
-        static void FrameFallSide() { FrameFall(-0.10f, 0f, 22f); }
-
-        static void FrameFall(float pitch, float alongWeight, float size)
-        {
-            Ctx c; string r; Inspect(out c, out r);
-            if (c == null || c.piece == null) { Debug.LogError(r); return; }
-            Vector2 e = c.outlet.pos, o = c.outlet.outward.normalized, side = new Vector2(-o.y, o.x);
-            Vector2 dir = Vector2.Lerp(side, o, alongWeight).normalized;
-            float y = c.field.RiverSurfaceAt(e.x, e.y) - 2.2f;
-            Look(new Vector3(e.x + o.x * 1.0f, y, e.y + o.y * 1.0f), new Vector3(dir.x, pitch, dir.y), size);
-        }
-
-        static void Look(Vector3 pivot, Vector3 forward, float size)
-        {
-            var sv = SceneView.lastActiveSceneView;
-            if (sv == null) { Debug.LogWarning("TW RIVER ART: нет открытого окна Scene."); return; }
-            sv.LookAt(pivot, Quaternion.LookRotation(forward.normalized, Vector3.up), size);
-            sv.Repaint();
-        }
-
-        // ================================================================ контекст сборки
-        static TWRiverCtx MakeCtx(Ctx c)
-        {
-            var L = c.layout; var f = c.field;
-            var x = new TWRiverCtx();
-            x.f = f; x.L = L; x.seed = Seed;
-            x.half = L.riverWidth * 0.5f;
-            x.ax = new TWRiverAxis(c.piece, 0.8f);
-            x.pal = new TWRiverPalette(L);
-            x.cliff = TWCliffProbe.Find(c.gen);
-            x.hasSource = TWRiverSpec.HasSource(f);
-            x.outletEdgeS = x.ax.Length;
-            x.outletTail = c.outlet.outward;
-            x.rockSide = PickRockSide(x);
-            if (L.crossings != null)
-                foreach (var cr in L.crossings)
-                    x.exclusions.Add(new Vector3(cr.pos.x, cr.pos.y, cr.halfLength + x.half + 3f));   // брод и мост: ничего не ставим
-            return x;
-        }
-
-        // скалистым делаем более высокий берег: скала продолжает естественный рельеф, мягкий берег остаётся травяным
-        static int PickRockSide(TWRiverCtx x)
-        {
-            float sum = 0f;
-            float off = x.half + 5f;
-            for (float s = 4f; s < x.ax.Length - 4f; s += 3f)
-            {
-                Vector2 a = x.ax.At(s), cs = x.ax.Side(s);
-                sum += x.f.Height(a.x + cs.x * off, a.y + cs.y * off) - x.f.Height(a.x - cs.x * off, a.y - cs.y * off);
-            }
-            return sum >= 0f ? 1 : -1;
-        }
-
-        // ================================================================ проверка сцены
-        static bool Inspect(out Ctx c, out string report)
-        {
-            c = new Ctx();
-            var lines = new List<string>();
-            bool blocked = false;
-            Action<string> Fail = s => { lines.Add("BLOCK: " + s); blocked = true; };
-            Action<string> Note = s => lines.Add("INFO: " + s);
-
-            c.scene = SceneManager.GetActiveScene();
-            if (Application.isPlaying) Fail("Play Mode");
-            if (!c.scene.IsValid() || string.IsNullOrEmpty(c.scene.path)) Fail("сцена не сохранена в Assets");
-            if (c.scene.isDirty) Fail("в сцене несохранённые изменения: сначала Ctrl+S");
-
-            c.root = IslandBlockout.FindRoot();
-            if (c.root == null || c.root.scene != c.scene) Fail("в активной сцене нет IslandV2");
-            else
-            {
-                if (c.root.transform.position.sqrMagnitude > 1e-5f || Quaternion.Angle(c.root.transform.rotation, Quaternion.identity) > 0.01f ||
-                    Vector3.Distance(c.root.transform.lossyScale, Vector3.one) > 0.001f)
-                    Fail("IslandV2 не в нуле / не в единичном масштабе: меши считаются в координатах IslandField");
-                c.gen = c.root.transform.Find(IslandBlockout.GeneratedName);
-                c.man = c.root.transform.Find(IslandBlockout.ManualName);
-                if (c.gen == null || c.man == null) Fail("нет _Generated или _Manual");
-                else
-                {
-                    if (c.man.localPosition.sqrMagnitude > 1e-5f || c.man.localRotation != Quaternion.identity || c.man.localScale != Vector3.one)
-                        Fail("_Manual смещён: арт ляжет не туда");
-                    foreach (string n in new[] { IslandCliff.ObjectName, IslandRiverWater.ObjectName, IslandRiverWater.FallObjectName, IslandBlockout.BridgeName })
-                        if (c.gen.Find(n) == null) Fail("нет нативного узла _Generated/" + n + " (полную регенерацию НЕ запускаем)");
-                    foreach (var n in TWRiverSpec.LegacyRoots)
-                        if (c.man.Find(n) != null) Note("найден старый слой " + n + ": Apply удалит его после успешной сборки");
-                    if (c.man.Find(TWRiverSpec.RootName) != null) Note("арт уже установлен: Apply запрещён, доступен Rollback");
-                }
-                if (c.root.GetComponentsInChildren<TerrainCollider>(true).Length == 0) Fail("нет TerrainCollider: география не подтверждена");
-            }
-
+            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling)
+                throw new InvalidOperationException("Останови Play Mode и дождись компиляции.");
+            var c = new Context { scene = SceneManager.GetActiveScene() };
+            if (!c.scene.IsValid() || string.IsNullOrEmpty(c.scene.path)) throw new InvalidOperationException("Открой сохранённую сцену острова.");
+            if (requireSaved && c.scene.isDirty) throw new InvalidOperationException("Сначала сохрани текущую сцену Ctrl+S.");
+            var roots = c.scene.GetRootGameObjects().Where(g => g.name == IslandBlockout.RootName).ToArray();
+            if (roots.Length != 1) throw new InvalidOperationException("В активной сцене нужен ровно один IslandV2.");
+            var root = roots[0].transform;
+            if (root.position.sqrMagnitude > 0.00001f || Quaternion.Angle(root.rotation, Quaternion.identity) > 0.01f ||
+                Vector3.Distance(root.lossyScale, Vector3.one) > 0.001f) throw new InvalidOperationException("IslandV2 должен иметь исходный Transform (0,0,0; масштаб 1).");
+            c.manual = root.Find(IslandBlockout.ManualName); c.generated = root.Find(IslandBlockout.GeneratedName);
+            if (c.manual == null || c.generated == null) throw new InvalidOperationException("Не найдены _Manual / _Generated.");
+            if (c.manual.position.sqrMagnitude > 0.00001f || Quaternion.Angle(c.manual.rotation, Quaternion.identity) > 0.01f ||
+                Vector3.Distance(c.manual.lossyScale, Vector3.one) > 0.001f) throw new InvalidOperationException("_Manual имеет нестандартный Transform.");
+            foreach (string name in new[] { IslandRiverWater.ObjectName, IslandRiverWater.FallObjectName, IslandCliff.ObjectName, IslandBlockout.BridgeName })
+                if (c.generated.Find(name) == null) throw new InvalidOperationException("В _Generated нет " + name + ". Открой актуальную игровую сцену.");
+            c.bridge = c.generated.Find(IslandBlockout.BridgeName);
+            if (root.GetComponentsInChildren<TerrainCollider>(true).Length == 0) throw new InvalidOperationException("Не найден TerrainCollider.");
             c.layout = AssetDatabase.LoadAssetAtPath<IslandLayout>(IslandLayout.AssetPath);
-            if (c.layout == null) Fail("нет " + IslandLayout.AssetPath);
+            c.groundMaterial = AssetDatabase.LoadAssetAtPath<Material>(IslandBlockout.MaterialPath);
+            if (c.layout == null || c.groundMaterial == null || !c.groundMaterial.HasProperty("_GroundTex"))
+                throw new InvalidOperationException("Нет IslandLayout / материала земли. Проверь загрузку Git LFS.");
+            if (c.groundMaterial.GetTexture("_GroundTex") == null) throw new InvalidOperationException("Не загружена текстура земли (Git LFS).");
+            var waterShader = Shader.Find(WaterShader); var foamShader = Shader.Find(FoamShader);
+            if (waterShader == null || foamShader == null || !waterShader.isSupported || !foamShader.isSupported)
+                throw new InvalidOperationException("Речные шейдеры ещё не импортированы или не поддерживаются. Проверь Console.");
+            var poolShader = Shader.Find(TWRiverDetails.PoolShader);
+            var stoneShader = Shader.Find("Universal Render Pipeline/Simple Lit");
+            if (poolShader == null || stoneShader == null || !poolShader.isSupported || !stoneShader.isSupported)
+                throw new InvalidOperationException("Не импортирован TW_LanternPool / URP Simple Lit. Скопируй все файлы пакета и дождись компиляции.");
+            var f = new IslandField(c.layout); var pieces = f.RiverInsidePieces();
+            var outlets = f.RiverEdges.Where(e => e.isOutlet).ToArray();
+            if (pieces.Count != 1 || outlets.Length != 1 || !TWRiverSpec.HasSource(f))
+                throw new InvalidOperationException("Нужна одна река с входом у скалы и одним выходом с острова.");
+            var x = new TWRiverCtx { f = f, L = c.layout, half = c.layout.riverWidth * 0.5f, seed = 4004,
+                hasSource = true, pal = new TWRiverPalette(c.layout), ax = new TWRiverAxis(pieces[0], 0.7f) };
+            if (x.ax.Length < 35f || x.half < 2.5f || x.half > 9f) throw new InvalidOperationException("Неожиданные размеры реки: нужна длина от 35 м, ширина 5–18 м.");
+            // Never dress a stale layout over a different saved water mesh.
+            var native = c.generated.Find(IslandRiverWater.ObjectName).GetComponent<MeshFilter>();
+            if (native == null || native.sharedMesh == null || native.sharedMesh.vertexCount < 4)
+                throw new InvalidOperationException("Не загружен исходный меш воды.");
+            var nv = native.sharedMesh.vertices;
+            Vector3 first = native.transform.TransformPoint((nv[0] + nv[1]) * 0.5f);
+            Vector3 last = native.transform.TransformPoint((nv[nv.Length - 2] + nv[nv.Length - 1]) * 0.5f);
+            if (Vector3.Distance(first, x.P(0f, 0f, x.Yw(0f) + 0.03f)) > 0.2f ||
+                Vector3.Distance(last, x.P(x.ax.Length, 0f, x.Yw(x.ax.Length) + 0.03f)) > 0.2f)
+                throw new InvalidOperationException("IslandLayout не совпадает с сохранённой рекой. Сборка остановлена без изменения сцены.");
+            if (c.layout.crossings != null)
+                foreach (var crossing in c.layout.crossings) x.exclusions.Add(new Vector3(crossing.pos.x, crossing.pos.y, crossing.halfLength + x.half + 2f));
+            foreach (var col in c.bridge.GetComponentsInChildren<Collider>(true)) x.protectedBounds.Add(col.bounds);
+            float heightDifference = 0f;
+            for (float s = 12f; s < x.ax.Length - 8f; s += 4f)
+            {
+                Vector2 a = x.ax.At(s), side = x.ax.Side(s) * (x.half + 4f);
+                heightDifference += f.Height(a.x + side.x, a.y + side.y) - f.Height(a.x - side.x, a.y - side.y);
+            }
+            x.rockSide = heightDifference >= 0f ? 1 : -1;
+            c.river = x;
+            var installed = c.manual.GetComponentsInChildren<RiverArtState>(true);
+            if (installed.Length > 1) throw new InvalidOperationException("Найдено несколько RiverArtState — сначала устрани дубли комплектов.");
+            c.previous = installed.FirstOrDefault();
+            return c;
+        }
+
+        static void CaptureAndHide(Context c, RiverArtState state)
+        {
+            if (c.previous != null)
+            {
+                state.renderers = c.previous.renderers.ToArray(); state.objects = c.previous.objects.ToArray();
+                state.bridgeMatrix = c.previous.bridgeMatrix;
+            }
             else
             {
-                if (!c.layout.buildRiverWater || !c.layout.buildCliff) Fail("выключены buildRiverWater или buildCliff");
-                if (c.layout.riverPoints == null || c.layout.riverPoints.Count < 2) Fail("нет riverPoints");
-                else
+                var renderers = new List<RiverArtState.RendererState>();
+                foreach (string name in new[] { IslandRiverWater.ObjectName, IslandRiverWater.FallObjectName })
+                    foreach (var r in c.generated.Find(name).GetComponentsInChildren<Renderer>(true))
+                        renderers.Add(new RiverArtState.RendererState { renderer = r, enabled = r.enabled });
+                var objects = new List<RiverArtState.ObjectState>();
+                foreach (Transform child in c.generated)
+                    if (child.name.StartsWith("Spray_Fall", StringComparison.Ordinal))
+                        objects.Add(new RiverArtState.ObjectState { target = child.gameObject, active = child.gameObject.activeSelf, originalName = child.name });
+                foreach (string name in TWRiverSpec.LegacyRoots.Concat(new[] { TWRiverSpec.RootName }))
                 {
-                    c.field = new IslandField(c.layout);
-                    var pieces = c.field.RiverInsidePieces();
-                    var edges = c.field.RiverEdges;
-                    var outs = edges.Where(e => e.isOutlet).ToList();
-                    var ins = edges.Where(e => !e.isOutlet).ToList();
-                    Note("кусков реки " + pieces.Count + ", входов " + ins.Count + ", выходов " + outs.Count);
-                    if (pieces.Count != 1 || outs.Count != 1 || ins.Count > 1) Fail("нужна одна непрерывная река: один кусок, один выход, не более одного входа");
-                    else
-                    {
-                        c.piece = pieces[0]; c.outlet = outs[0];
-                        c.hasInlet = ins.Count == 1; if (c.hasInlet) c.inlet = ins[0];
-                        float len = 0f; for (int i = 1; i < c.piece.Count; i++) len += Vector2.Distance(c.piece[i - 1], c.piece[i]);
-                        Note("длина реки внутри острова " + len.ToString("F1") + " м, ширина " + c.layout.riverWidth.ToString("F1"));
-                        if (len < 25f) Fail("река слишком короткая");
-                        if (c.hasInlet && len < TWRiverSpec.MouthDist + 20f) Fail("слишком мало места между истоком и водопадом");
-                    }
+                    var t = c.manual.Find(name);
+                    if (t != null) objects.Add(new RiverArtState.ObjectState { target = t.gameObject, active = t.gameObject.activeSelf, originalName = t.name });
                 }
+                state.renderers = renderers.ToArray(); state.objects = objects.ToArray();
             }
-            if (AssetDatabase.LoadAssetAtPath<Material>(IslandCliff.MaterialPath) == null) Fail("нет материала обрыва " + IslandCliff.MaterialPath);
-            if (Shader.Find(FoamShader) == null) Fail("нет шейдера " + FoamShader);
-
-            if (c.gen != null)
+            foreach (var e in state.renderers)
+                if (e.renderer != null) { Undo.RecordObject(e.renderer, "Hide native river renderer"); e.renderer.enabled = false; }
+            foreach (var e in state.objects)
             {
-                var fall = c.gen.Find(IslandRiverWater.FallObjectName);
-                var mf = fall != null ? fall.GetComponent<MeshFilter>() : null;
-                if (mf != null && mf.sharedMesh != null && c.field != null)
-                {
-                    int expect = c.field.RiverEdges.Count(e => e.isOutlet) * IslandRiverWater.FallRows * IslandRiverWater.FallCols;
-                    if (mf.sharedMesh.vertexCount != expect) Fail("River_Fall имеет " + mf.sharedMesh.vertexCount + " вершин, ожидалось " + expect + " (лишний слой водопада?). Пересобери воду.");
-                    else Note("River_Fall: одно полотно, " + expect + " вершин");
-                }
+                if (e.target == null) continue;
+                Undo.RecordObject(e.target, "Hide previous river art");
+                if (e.target.name == TWRiverSpec.RootName) e.target.name += "__previous";
+                e.target.SetActive(false);
             }
-            report = "TW RIVER ART / Unity " + Application.unityVersion + " / " + DateTime.UtcNow.ToString("O") + "\n" + string.Join("\n", lines.ToArray()) + "\n";
-            return !blocked;
         }
 
-        // ================================================================ бэкап
-        static string Backup(Ctx c)
+        static Mesh SaveMesh(Mesh mesh, string folder, string name, bool linearColours)
         {
-            string dir = Path.Combine(ProjectRoot, "Library/TW_RiverArt/Backups/" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+            TWRiverValidation.CheckMesh(mesh);
+            if (linearColours) mesh.colors = mesh.colors.Select(col => col.linear).ToArray();
+            AssetDatabase.CreateAsset(mesh, folder + "/" + name + ".asset");
+            return mesh;
+        }
+
+        static GameObject MeshObject(Transform parent, string name, Mesh mesh, Material material, bool castShadow)
+        {
+            var go = new GameObject(name); go.transform.SetParent(parent, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>(); r.sharedMaterial = material;
+            r.shadowCastingMode = castShadow ? ShadowCastingMode.On : ShadowCastingMode.Off;
+            r.receiveShadows = true;
+            return go;
+        }
+
+        static void AddMist(Transform root, Vector3 position, float half)
+        {
+            var material = AssetDatabase.LoadAssetAtPath<Material>(IslandRiverWater.SprayMaterialPath);
+            if (material != null) CandyWaterFx.Create(root, "Waterfall_Cloud_Mist", root.InverseTransformPoint(position), 0.85f, half * 0.6f, 2, material);
+        }
+
+        static string Backup(Scene scene)
+        {
+            string project = Directory.GetParent(Application.dataPath).FullName;
+            string dir = Path.Combine(project, "UserSettings/TW_RiverBackups", AssetDatabase.AssetPathToGUID(scene.path));
             Directory.CreateDirectory(dir);
-            Copy(c.scene.path, dir, true); Copy(c.scene.path + ".meta", dir, false);
-            Copy(IslandLayout.AssetPath, dir, true); Copy(IslandLayout.AssetPath + ".meta", dir, false);
-            return dir;
-        }
-
-        static void Copy(string assetPath, string dir, bool required)
-        {
-            string src = Path.Combine(ProjectRoot, assetPath.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(src)) { if (required) throw new FileNotFoundException("для бэкапа нет " + src); return; }
-            File.Copy(src, Path.Combine(dir, Path.GetFileName(src)), false);
+            string path = Path.Combine(dir, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + ".unity");
+            File.Copy(Path.Combine(project, scene.path), path, false);
+            return path;
         }
     }
 }

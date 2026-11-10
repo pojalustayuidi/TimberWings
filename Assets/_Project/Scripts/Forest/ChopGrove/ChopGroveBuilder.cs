@@ -74,6 +74,7 @@ public partial class ChopGroveBuilder : MonoBehaviour
 
     void Start()
     {
+        if (GroveArtState.HasAuthoredArt(gameObject)) return;
         if (buildOnStart && Application.isPlaying && transform.Find(RootName) == null) Build();
         else if (Application.isPlaying) EnsureOldDecorHidden();
     }
@@ -100,6 +101,7 @@ public partial class ChopGroveBuilder : MonoBehaviour
     [ContextMenu("Собрать поляну")]
     public void Build()
     {
+        if (GroveArtState.HasAuthoredArt(gameObject)) return;
         Clear();
         Physics.SyncTransforms();
 

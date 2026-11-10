@@ -1,0 +1,327 @@
+{
+  "version": 1,
+  "clips": [
+    {
+      "id": "greet",
+      "duration": 1.8,
+      "leftReference": "model",
+      "leftPoint": [
+        -0.405,
+        1.0,
+        0.27
+      ],
+      "holdStart": 0.3,
+      "holdEnd": 0.7,
+      "frames": [
+        {
+          "t": 0
+        },
+        {
+          "t": 0.3,
+          "head": [
+            6,
+            0,
+            -2
+          ],
+          "leftWeight": 0.35
+        },
+        {
+          "t": 0.7,
+          "head": [
+            6,
+            0,
+            -2
+          ],
+          "leftWeight": 0.35
+        },
+        {
+          "t": 1
+        }
+      ]
+    },
+    {
+      "id": "plane",
+      "duration": 5.8,
+      "leftReference": "planerGrip",
+      "leftPoint": [
+        0,
+        0.02,
+        -0.015
+      ],
+      "holdStart": 0.3,
+      "holdEnd": 0.7,
+      "frames": [
+        {
+          "t": 0
+        },
+        {
+          "t": 0.3,
+          "head": [
+            13,
+            8,
+            0
+          ],
+          "spine": [
+            2,
+            0,
+            0
+          ],
+          "leftWeight": 1,
+          "rightWeight": 1,
+          "rightWrist": [
+            4,
+            -3,
+            0
+          ],
+          "planerGrip": [
+            0,
+            0,
+            3
+          ]
+        },
+        {
+          "t": 0.7,
+          "head": [
+            13,
+            8,
+            0
+          ],
+          "spine": [
+            2,
+            0,
+            0
+          ],
+          "leftWeight": 1,
+          "rightWeight": 1,
+          "rightWrist": [
+            4,
+            -3,
+            0
+          ],
+          "planerGrip": [
+            0,
+            0,
+            3
+          ]
+        },
+        {
+          "t": 1
+        }
+      ],
+      "rightPoint": [
+        0.04,
+        1.08,
+        0.405
+      ]
+    },
+    {
+      "id": "think",
+      "duration": 4.8,
+      "leftReference": "beard",
+      "leftPoint": [
+        -0.19,
+        -0.09,
+        0.22
+      ],
+      "holdStart": 0.3,
+      "holdEnd": 0.7,
+      "frames": [
+        {
+          "t": 0
+        },
+        {
+          "t": 0.3,
+          "head": [
+            2,
+            -4,
+            -4
+          ],
+          "leftWeight": 1,
+          "leftWrist": [
+            0,
+            0,
+            -8
+          ]
+        },
+        {
+          "t": 0.7,
+          "head": [
+            2,
+            -4,
+            -4
+          ],
+          "leftWeight": 1,
+          "leftWrist": [
+            0,
+            0,
+            -8
+          ]
+        },
+        {
+          "t": 1
+        }
+      ]
+    },
+    {
+      "id": "squirrel",
+      "duration": 4.6,
+      "leftReference": "squirrel",
+      "leftPoint": [
+        -0.14,
+        0.09,
+        0.055
+      ],
+      "holdStart": 0.3,
+      "holdEnd": 0.7,
+      "frames": [
+        {
+          "t": 0
+        },
+        {
+          "t": 0.3,
+          "head": [
+            12,
+            -5,
+            2
+          ],
+          "leftWeight": 1,
+          "squirrel": [
+            0,
+            0,
+            2
+          ]
+        },
+        {
+          "t": 0.7,
+          "head": [
+            12,
+            -5,
+            2
+          ],
+          "leftWeight": 1,
+          "squirrel": [
+            0,
+            0,
+            2
+          ]
+        },
+        {
+          "t": 1
+        }
+      ]
+    },
+    {
+      "id": "blueprint",
+      "duration": 7.2,
+      "leftReference": "paper",
+      "leftPoint": [
+        0,
+        0.16,
+        0.076
+      ],
+      "holdStart": 0.4,
+      "holdEnd": 0.7,
+      "frames": [
+        {
+          "t": 0,
+          "leftWeight": 0,
+          "carry": 0,
+          "grip": 0,
+          "head": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "t": 0.18,
+          "leftWeight": 1,
+          "carry": 0,
+          "grip": 0,
+          "head": [
+            8,
+            -3,
+            1
+          ]
+        },
+        {
+          "t": 0.2,
+          "leftWeight": 1,
+          "carry": 0,
+          "grip": 0,
+          "head": [
+            10,
+            -4,
+            1
+          ]
+        },
+        {
+          "t": 0.26,
+          "leftWeight": 1,
+          "carry": 0,
+          "grip": 1,
+          "head": [
+            12,
+            -5,
+            2
+          ]
+        },
+        {
+          "t": 0.4,
+          "leftWeight": 1,
+          "carry": 1,
+          "grip": 1,
+          "head": [
+            15,
+            -6,
+            2
+          ]
+        },
+        {
+          "t": 0.7,
+          "leftWeight": 1,
+          "carry": 1,
+          "grip": 1,
+          "head": [
+            15,
+            -6,
+            2
+          ]
+        },
+        {
+          "t": 0.87,
+          "leftWeight": 1,
+          "carry": 0,
+          "grip": 1,
+          "head": [
+            8,
+            -2,
+            1
+          ]
+        },
+        {
+          "t": 0.92,
+          "leftWeight": 1,
+          "carry": 0,
+          "grip": 0,
+          "head": [
+            4,
+            0,
+            0
+          ]
+        },
+        {
+          "t": 1,
+          "leftWeight": 0,
+          "carry": 0,
+          "grip": 0,
+          "head": [
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ]
+}

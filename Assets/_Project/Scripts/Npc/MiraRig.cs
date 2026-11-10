@@ -46,7 +46,9 @@ public class MiraRig : MonoBehaviour
     public void Bind()
     {
         var map = new Dictionary<string, Transform>();
-        foreach (var t in GetComponentsInChildren<Transform>(true)) map[t.name] = t;
+        // EyeR/EyeL exist twice: joint and mesh. Animation needs the parent joint so the shine blinks too.
+        foreach (var t in GetComponentsInChildren<Transform>(true))
+            if (!map.ContainsKey(t.name) || t.GetComponent<MeshFilter>() == null) map[t.name] = t;
         Transform T(string n) { Transform r; return map.TryGetValue(n, out r) ? r : null; }
 
         hips = T("Hips"); spine = T("Spine"); head = T("Head");

@@ -1,6 +1,6 @@
 // Assets/_Project/Editor/UI/UiKitTools.cs   (в папке Editor)
 // Tools > BuilderSim > UI Kit:
-//   «Образец в сцене»          добавляет объект UiKitShowcase (показывается в Play)
+//   «Каталог и предпросмотр»   открывает Candy UI Studio без создания объектов в сцене
 //   «Экспорт спрайтов в PNG»   сохраняет весь кит в Assets/_Project/UI/Kit с правильным 9-slice и PPU, чтобы можно было
 //                              открыть PNG, подкрасить в редакторе или использовать как обычные спрайты в префабах
 using System.IO;
@@ -11,17 +11,10 @@ public static class UiKitTools
 {
     const string Dir = "Assets/_Project/UI/Kit";
 
-    [MenuItem("Tools/BuilderSim/UI/UI Kit/Образец в сцене (нажми Play)", false, 910)]
-    static void Showcase()
-    {
-        var go = new GameObject("UiKitShowcase");
-        go.AddComponent<UiKitShowcase>();
-        Undo.RegisterCreatedObjectUndo(go, "UiKit Showcase");
-        Selection.activeObject = go;
-        Debug.Log("UiKitShowcase добавлен в сцену. Нажми Play: образец появится поверх экрана. Esc закрывает.");
-    }
+    [MenuItem("Tools/BuilderSim/UI/UI Kit/Каталог и предпросмотр (без Play)", false, 910)]
+    static void Showcase() { CandyKitStudio.ShowWindow(); }
 
-    [MenuItem("Tools/BuilderSim/UI/UI Kit/Экспорт спрайтов в PNG", false, 911)]
+    [MenuItem("Tools/BuilderSim/UI/UI Kit/Экспорт процедурного UiKit в PNG", false, 911)]
     static void Export()
     {
         Directory.CreateDirectory(Dir);

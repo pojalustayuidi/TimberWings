@@ -1,0 +1,657 @@
+{
+  "projectName": "Game Dialogue Voiceover Assets (Gemini Neural 24kHz)",
+  "exportDate": "2026-10-25T11:40:17.149Z",
+  "totalFiles": 31,
+  "lines": [
+    {
+      "id": "leo_5c45e50c",
+      "file": "leo_5c45e50c.wav",
+      "character": "Лео",
+      "text": "Дядя? ...Никого. Ладно, осмотрюсь.",
+      "trigger": "Старт игры",
+      "chapter": "0 Пролог",
+      "actingDirection": "тихо, себе под нос, чуть растерянно",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_92f5be5a",
+      "file": "mira_92f5be5a.wav",
+      "character": "Мира",
+      "text": "О, новенький! Ты ведь племянник Гуннара? Лео, да?",
+      "trigger": "Подошёл к Мире (E)",
+      "chapter": "1 Вступление",
+      "actingDirection": "радостно-удивлённо, как старому знакомому",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_c65a1bf5",
+      "file": "leo_c65a1bf5.wav",
+      "character": "Лео",
+      "text": "Да. Он писал, что нужна помощь. Где он?",
+      "trigger": "Подошёл к Мире (E)",
+      "chapter": "1 Вступление",
+      "actingDirection": "сдержанно, с тревогой за дядю",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_31b23902",
+      "file": "mira_31b23902.wav",
+      "character": "Мира",
+      "text": "Пропал три дня назад. А мост к его мастерской шторм разнёс в щепки.",
+      "trigger": "Подошёл к Мире (E)",
+      "chapter": "1 Вступление",
+      "actingDirection": "мрачнее, но держится бодро",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_71d1450a",
+      "file": "leo_71d1450a.wav",
+      "character": "Лео",
+      "text": "Значит, будем строить новый. С чего начать?",
+      "trigger": "Подошёл к Мире (E)",
+      "chapter": "1 Вступление",
+      "actingDirection": "решительно, берёт себя в руки",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_8f03fcfd",
+      "file": "mira_8f03fcfd.wav",
+      "character": "Мира",
+      "text": "С огня. Нарубай дров и разожги костёр на каменном круге. Там сердце лагеря.",
+      "trigger": "Подошёл к Мире (E)",
+      "chapter": "1 Вступление",
+      "actingDirection": "тепло и по-хозяйски, ставит первую задачу",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_29da6c4d",
+      "file": "leo_29da6c4d.wav",
+      "character": "Лео",
+      "text": "Дрова так дрова. Топор при мне, берусь.",
+      "trigger": "Подошёл к Мире (E)",
+      "chapter": "1 Вступление",
+      "actingDirection": "с улыбкой, согласен",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_2621e08e",
+      "file": "mira_2621e08e.wav",
+      "character": "Мира",
+      "text": "Вот это разговор! Принесёшь дров, поговорим дальше.",
+      "trigger": "Подошёл к Мире (E)",
+      "chapter": "1 Вступление",
+      "actingDirection": "довольно, подбадривает",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_1fa5ec5d",
+      "file": "mira_1fa5ec5d.wav",
+      "character": "Мира",
+      "text": "Горит! Впервые за три дня в лагере тепло.",
+      "trigger": "Костёр горит, вернулся к Мире",
+      "chapter": "1 Вступление",
+      "actingDirection": "тепло, с облегчением",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_6e16771b",
+      "file": "leo_6e16771b.wav",
+      "character": "Лео",
+      "text": "Дядя бы гордился... Что дальше?",
+      "trigger": "Костёр горит, вернулся к Мире",
+      "chapter": "1 Вступление",
+      "actingDirection": "тихо, с грустью и гордостью",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_f779356a",
+      "file": "mira_f779356a.wav",
+      "character": "Мира",
+      "text": "Теперь про запас. Принеси мне восемь брёвен, пригодятся на холода.",
+      "trigger": "Костёр горит, вернулся к Мире",
+      "chapter": "1 Вступление",
+      "actingDirection": "деловито, как будто между делом",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_d71c13a5",
+      "file": "leo_d71c13a5.wav",
+      "character": "Лео",
+      "text": "Восемь? Рюкзак вмещает только четыре.",
+      "trigger": "Костёр горит, вернулся к Мире",
+      "chapter": "1 Вступление",
+      "actingDirection": "удивлённо, с лёгким возмущением",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_f858feca",
+      "file": "mira_f858feca.wav",
+      "character": "Мира",
+      "text": "Значит, два рейса. За труд подкину опыта на новый уровень, а там покажу прокачку.",
+      "trigger": "Костёр горит, вернулся к Мире",
+      "chapter": "1 Вступление",
+      "actingDirection": "хитро, подбадривает",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_f329d32e",
+      "file": "leo_f329d32e.wav",
+      "character": "Лео",
+      "text": "Договорились. Две ходки.",
+      "trigger": "Костёр горит, вернулся к Мире",
+      "chapter": "1 Вступление",
+      "actingDirection": "бодро, коротко",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_dd0ecab5",
+      "file": "mira_dd0ecab5.wav",
+      "character": "Мира",
+      "text": "Второй уровень! Вот теперь можно говорить о настоящем деле.",
+      "trigger": "Мира, ур. 2",
+      "chapter": "3 Прокачка",
+      "actingDirection": "радостно, торжественно",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_3d9c512e",
+      "file": "leo_3d9c512e.wav",
+      "character": "Лео",
+      "text": "О каком?",
+      "trigger": "Мира, ур. 2",
+      "chapter": "3 Прокачка",
+      "actingDirection": "заинтересованно",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_58311756",
+      "file": "mira_58311756.wav",
+      "character": "Мира",
+      "text": "О прокачке. Я открыла тебе окно, монеты за уровень уже в кармане.",
+      "trigger": "Мира, ур. 2",
+      "chapter": "3 Прокачка",
+      "actingDirection": "оживлённо, делится секретом",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_ba6b6af4",
+      "file": "leo_ba6b6af4.wav",
+      "character": "Лео",
+      "text": "И что улучшать первым?",
+      "trigger": "Мира, ур. 2",
+      "chapter": "3 Прокачка",
+      "actingDirection": "быстро, с интересом",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_86f95349",
+      "file": "mira_86f95349.wav",
+      "character": "Мира",
+      "text": "Рюкзак. Четыре бревна за рейс, курам на смех. Бегаешь туда-сюда.",
+      "trigger": "Мира, ур. 2",
+      "chapter": "3 Прокачка",
+      "actingDirection": "с юмором, чуть ворчливо",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_93a9c9c0",
+      "file": "leo_93a9c9c0.wav",
+      "character": "Лео",
+      "text": "Окно на U. Берусь.",
+      "trigger": "Мира, ур. 2",
+      "chapter": "3 Прокачка",
+      "actingDirection": "коротко, готов действовать",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_79b6cc0b",
+      "file": "mira_79b6cc0b.wav",
+      "character": "Мира",
+      "text": "Шесть брёвен за рейс, совсем другое дело! Топор и ноги подкачаешь позже.",
+      "trigger": "Рюкзак улучшен, вернулся к Мире",
+      "chapter": "3 Прокачка",
+      "actingDirection": "довольно, горячо хвалит",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_d438f972",
+      "file": "leo_d438f972.wav",
+      "character": "Лео",
+      "text": "А теперь куда?",
+      "trigger": "Рюкзак улучшен, вернулся к Мире",
+      "chapter": "3 Прокачка",
+      "actingDirection": "бодро, коротко",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_993371e7",
+      "file": "mira_993371e7.wav",
+      "character": "Мира",
+      "text": "К Оскару, он у хижины, где брёвна лежат. Друг Гуннара, доски делать умеет.",
+      "trigger": "Рюкзак улучшен, вернулся к Мире",
+      "chapter": "3 Прокачка",
+      "actingDirection": "по-деловому, чуть шутливо",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_23a88bb0",
+      "file": "leo_23a88bb0.wav",
+      "character": "Лео",
+      "text": "Иду к Оскару.",
+      "trigger": "Рюкзак улучшен, вернулся к Мире",
+      "chapter": "3 Прокачка",
+      "actingDirection": "коротко, решительно",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_73225232",
+      "file": "oskar_73225232.wav",
+      "character": "Оскар",
+      "text": "Гуннаров племянник? Вылитый дядя, даже хмуришься так же.",
+      "trigger": "Оскар, ур. 2",
+      "chapter": "4 Хижина",
+      "actingDirection": "добродушно-ворчливо, растроганно в конце",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_a30b2385",
+      "file": "leo_a30b2385.wav",
+      "character": "Лео",
+      "text": "Вы Оскар? Мира сказала, вы научите делать доски.",
+      "trigger": "Оскар, ур. 2",
+      "chapter": "4 Хижина",
+      "actingDirection": "вежливо, чуть смущённо",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_51b467dd",
+      "file": "oskar_51b467dd.wav",
+      "character": "Оскар",
+      "text": "Научу. Но пила стоит в хижине, а крыша там как решето. Сначала чиним.",
+      "trigger": "Оскар, ур. 2",
+      "chapter": "4 Хижина",
+      "actingDirection": "спокойно, с сухим юмором",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_0f399bad",
+      "file": "leo_0f399bad.wav",
+      "character": "Лео",
+      "text": "Сколько нужно брёвен?",
+      "trigger": "Оскар, ур. 2",
+      "chapter": "4 Хижина",
+      "actingDirection": "деловито",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_2f2f0561",
+      "file": "oskar_2f2f0561.wav",
+      "character": "Оскар",
+      "text": "Десять на стены, десять на крышу. Топор не обманет, как говорил Гуннар.",
+      "trigger": "Оскар, ур. 2",
+      "chapter": "4 Хижина",
+      "actingDirection": "неспешно, как старую поговорку",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_20fd1eac",
+      "file": "leo_20fd1eac.wav",
+      "character": "Лео",
+      "text": "Понял. Несу брёвна.",
+      "trigger": "Оскар, ур. 2",
+      "chapter": "4 Хижина",
+      "actingDirection": "коротко, согласен",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_814f5d20",
+      "file": "oskar_814f5d20.wav",
+      "character": "Оскар",
+      "text": "Стоит и не скрипит! Гуннар бы кивнул.",
+      "trigger": "Хижина построена, вернулся к Оскару",
+      "chapter": "4 Хижина",
+      "actingDirection": "довольно, тихо рад",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_3c6851ca",
+      "file": "leo_3c6851ca.wav",
+      "character": "Лео",
+      "text": "А пила?",
+      "trigger": "Хижина построена, вернулся к Оскару",
+      "chapter": "4 Хижина",
+      "actingDirection": "живо, заинтересованно",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_60c47dca",
+      "file": "oskar_60c47dca.wav",
+      "character": "Оскар",
+      "text": "Работает. Клади брёвна на верстак, потом забирай доски. Два бревна дают одну.",
+      "trigger": "Хижина построена, вернулся к Оскару",
+      "chapter": "4 Хижина",
+      "actingDirection": "терпеливо, объясняет по шагам",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_f8a657ca",
+      "file": "leo_f8a657ca.wav",
+      "character": "Лео",
+      "text": "Куда мне доски?",
+      "trigger": "Хижина построена, вернулся к Оскару",
+      "chapter": "4 Хижина",
+      "actingDirection": "практично",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_56f2fdb8",
+      "file": "oskar_56f2fdb8.wav",
+      "character": "Оскар",
+      "text": "Мира без них лавку не поставит. Шести ей хватит для начала.",
+      "trigger": "Хижина построена, вернулся к Оскару",
+      "chapter": "4 Хижина",
+      "actingDirection": "по-доброму, подталкивает",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_6e819631",
+      "file": "leo_6e819631.wav",
+      "character": "Лео",
+      "text": "Шесть так шесть. Займусь.",
+      "trigger": "Хижина построена, вернулся к Оскару",
+      "chapter": "4 Хижина",
+      "actingDirection": "с улыбкой, согласен",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_3a993d0e",
+      "file": "mira_3a993d0e.wav",
+      "character": "Мира",
+      "text": "Доски! Настоящие! Ну-ка, дай посмотреть.",
+      "trigger": "Мира, 6 досок сделано",
+      "chapter": "6 Рынок",
+      "actingDirection": "восторженно, быстро",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_21f6211c",
+      "file": "leo_21f6211c.wav",
+      "character": "Лео",
+      "text": "Оскар сказал, они нужны для прилавка.",
+      "trigger": "Мира, 6 досок сделано",
+      "chapter": "6 Рынок",
+      "actingDirection": "спокойно, с уважением",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_b205cfb6",
+      "file": "mira_b205cfb6.wav",
+      "character": "Мира",
+      "text": "Ещё как. Торгую с телеги, а хочу нормальную лавку.",
+      "trigger": "Мира, 6 досок сделано",
+      "chapter": "6 Рынок",
+      "actingDirection": "оживлённо, мечтательно",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_7f9cb1c4",
+      "file": "leo_7f9cb1c4.wav",
+      "character": "Лео",
+      "text": "Что строим?",
+      "trigger": "Мира, 6 досок сделано",
+      "chapter": "6 Рынок",
+      "actingDirection": "заинтересованно",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_1fd1d005",
+      "file": "mira_1fd1d005.wav",
+      "character": "Мира",
+      "text": "Помост, потом стойки с прилавком. Брёвна и твои доски.",
+      "trigger": "Мира, 6 досок сделано",
+      "chapter": "6 Рынок",
+      "actingDirection": "быстро, перечисляет, в предвкушении",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_9592f243",
+      "file": "leo_9592f243.wav",
+      "character": "Лео",
+      "text": "А потом будешь у меня всё скупать?",
+      "trigger": "Мира, 6 досок сделано",
+      "chapter": "6 Рынок",
+      "actingDirection": "с шуткой, подначивает",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_206895c4",
+      "file": "mira_206895c4.wav",
+      "character": "Мира",
+      "text": "Брёвна и доски, по честной цене.",
+      "trigger": "Мира, 6 досок сделано",
+      "chapter": "6 Рынок",
+      "actingDirection": "сухо-весело, торгуется",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_45bd16de",
+      "file": "mira_45bd16de.wav",
+      "character": "Мира",
+      "text": "Красота! Теперь у меня настоящая лавка.",
+      "trigger": "Прилавок построен, вернулся к Мире",
+      "chapter": "6 Рынок",
+      "actingDirection": "радостно, с гордостью",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_5a91cb72",
+      "file": "leo_5a91cb72.wav",
+      "character": "Лео",
+      "text": "Дядя бы оценил.",
+      "trigger": "Прилавок построен, вернулся к Мире",
+      "chapter": "6 Рынок",
+      "actingDirection": "тихо, тепло",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_fd002c58",
+      "file": "mira_fd002c58.wav",
+      "character": "Мира",
+      "text": "Неси брёвна и доски, плачу сразу. Бревно за 2 монеты, доска за 6.",
+      "trigger": "Прилавок построен, вернулся к Мире",
+      "chapter": "6 Рынок",
+      "actingDirection": "быстро, по-деловому, как торговка",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_4e8659cf",
+      "file": "leo_4e8659cf.wav",
+      "character": "Лео",
+      "text": "Доска втрое дороже?",
+      "trigger": "Прилавок построен, вернулся к Мире",
+      "chapter": "6 Рынок",
+      "actingDirection": "удивлённо",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_7294aa07",
+      "file": "mira_7294aa07.wav",
+      "character": "Мира",
+      "text": "Труд стоит денег. Монеты пригодятся: на палатку, на людей, на мост.",
+      "trigger": "Прилавок построен, вернулся к Мире",
+      "chapter": "6 Рынок",
+      "actingDirection": "поучительно, но с улыбкой",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_2af9343f",
+      "file": "leo_2af9343f.wav",
+      "character": "Лео",
+      "text": "Мост... Да. Гуннар ждёт.",
+      "trigger": "Прилавок построен, вернулся к Мире",
+      "chapter": "6 Рынок",
+      "actingDirection": "тише, задумчиво, с решимостью",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_a36c22e6",
+      "file": "oskar_a36c22e6.wav",
+      "character": "Оскар",
+      "text": "Монеты звенят, доски лежат. Пора звать людей.",
+      "trigger": "Оскар, ур. 3",
+      "chapter": "8 Палатка",
+      "actingDirection": "довольно, неспешно",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_048dc0ea",
+      "file": "leo_048dc0ea.wav",
+      "character": "Лео",
+      "text": "Каких людей?",
+      "trigger": "Оскар, ур. 3",
+      "chapter": "8 Палатка",
+      "actingDirection": "осторожно",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_3715bb97",
+      "file": "oskar_3715bb97.wav",
+      "character": "Оскар",
+      "text": "Лесорубов. После шторма многие разбрелись. Будет крыша, вернутся.",
+      "trigger": "Оскар, ур. 3",
+      "chapter": "8 Палатка",
+      "actingDirection": "спокойно, с лёгкой грустью",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_abfe0d12",
+      "file": "leo_abfe0d12.wav",
+      "character": "Лео",
+      "text": "Палатка у костра?",
+      "trigger": "Оскар, ур. 3",
+      "chapter": "8 Палатка",
+      "actingDirection": "уточняет",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_92b4fff6",
+      "file": "oskar_92b4fff6.wav",
+      "character": "Оскар",
+      "text": "Она самая. Брёвна, доски и немного монет. Лагерь задаром не строят.",
+      "trigger": "Оскар, ур. 3",
+      "chapter": "8 Палатка",
+      "actingDirection": "добродушно, с поговоркой в конце",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_139552be",
+      "file": "leo_139552be.wav",
+      "character": "Лео",
+      "text": "Принято. Соберу всё.",
+      "trigger": "Оскар, ур. 3",
+      "chapter": "8 Палатка",
+      "actingDirection": "коротко, принято",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_ef5fc2c9",
+      "file": "oskar_ef5fc2c9.wav",
+      "character": "Оскар",
+      "text": "Вот и лагерь. Костёр, хижина, лавка, палатка.",
+      "trigger": "Палатка построена, вернулся к Оскару",
+      "chapter": "8 Палатка",
+      "actingDirection": "тихо, с теплотой, оглядывает лагерь",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_80d434b1",
+      "file": "leo_80d434b1.wav",
+      "character": "Лео",
+      "text": "А где люди?",
+      "trigger": "Палатка построена, вернулся к Оскару",
+      "chapter": "8 Палатка",
+      "actingDirection": "осторожно, озирается",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_9657664b",
+      "file": "oskar_9657664b.wav",
+      "character": "Оскар",
+      "text": "Придут, когда будет чем платить. Копи монеты, мост ждёт.",
+      "trigger": "Палатка построена, вернулся к Оскару",
+      "chapter": "8 Палатка",
+      "actingDirection": "неспешно, с надеждой",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_1269d6e7",
+      "file": "leo_1269d6e7.wav",
+      "character": "Лео",
+      "text": "Значит, дальше мост.",
+      "trigger": "Палатка построена, вернулся к Оскару",
+      "chapter": "8 Палатка",
+      "actingDirection": "задумчиво, ставит точку",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "oskar_a52513fe",
+      "file": "oskar_a52513fe.wav",
+      "character": "Оскар",
+      "text": "Погоди, малец. Сначала костёр и разговор с Мирой. Тогда приходи.",
+      "trigger": "Оскар до начала его главы (E)",
+      "chapter": "4 Хижина (ожидание)",
+      "actingDirection": "отмахивается, по-стариковски",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "oskar_1c4cb380",
+      "file": "oskar_1c4cb380.wav",
+      "character": "Оскар",
+      "text": "Десять брёвен на стены, десять на крышу. Не стой, неси.",
+      "trigger": "Оскар во время задания «хижина» (E)",
+      "chapter": "4 Хижина (напоминание)",
+      "actingDirection": "подгоняет, ворчливо",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "oskar_60840863",
+      "file": "oskar_60840863.wav",
+      "character": "Оскар",
+      "text": "Бревна на верстак: из двух выйдет доска. Шесть досок отнеси Мире.",
+      "trigger": "Оскар после хижины (E)",
+      "chapter": "4 Хижина (после)",
+      "actingDirection": "объясняет, терпеливо",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "oskar_dc43aa08",
+      "file": "oskar_dc43aa08.wav",
+      "character": "Оскар",
+      "text": "Брёвна, доски и монеты. Лагерь задаром не строят.",
+      "trigger": "Оскар во время задания «палатка» (E)",
+      "chapter": "8 Палатка (напоминание)",
+      "actingDirection": "по-хозяйски, весело",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "oskar_3fd284cc",
+      "file": "oskar_3fd284cc.wav",
+      "character": "Оскар",
+      "text": "Лагерь стоит. Копи монеты, дальше мост.",
+      "trigger": "Оскар после палатки (E)",
+      "chapter": "8 Палатка (после)",
+      "actingDirection": "довольно, чуть назидательно",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "leo_73c04c4c",
+      "file": "leo_73c04c4c.wav",
+      "character": "Лео",
+      "text": "Сначала надо поговорить с Мирой.",
+      "trigger": "Лео пытается рубить до разговора с Мирой",
+      "chapter": "1 Вступление (подсказка)",
+      "actingDirection": "себе под нос, досадливо",
+      "voiceUsed": "Puck"
+    }
+  ]
+}

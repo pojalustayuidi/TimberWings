@@ -24,8 +24,10 @@ public static class ChopGroveBootstrap
         foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             if (t == null || System.Array.IndexOf(padNames, t.name) < 0) continue;
+            if (GroveArtState.HasAuthoredArt(t.gameObject)) continue;
             if (t.GetComponent<ChopGroveBuilder>() != null) continue;
             t.gameObject.AddComponent<ChopGroveBuilder>();
         }
     }
 }
+

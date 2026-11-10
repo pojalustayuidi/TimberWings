@@ -10,6 +10,7 @@ public static class VibeSettings
 {
     const string KReduce = "tw_reduce_fx";
     const string KGuide = "tw_guide";
+    const string KDrawDistance = "tw_draw_distance";
 
     // GDD 9.3: «Уменьшить тряску и эффекты»: меньше частиц, без конфетти, слабая тряска камеры
     public static bool ReduceEffects
@@ -29,6 +30,27 @@ public static class VibeSettings
     {
         get { return GameAudio.Ambient; }
         set { GameAudio.Ambient = value; }
+    }
+
+    // «Дальность прорисовки» (Ближняя / Средняя / Дальняя). Применяется сразу (DrawDistanceChanged), хранится в PlayerPrefs, по умолчанию Средняя
+    public static event System.Action DrawDistanceChanged;
+
+    public static DrawDistanceLevel DrawDistance
+    {
+        get { return (DrawDistanceLevel)Mathf.Clamp(PlayerPrefs.GetInt(KDrawDistance, (int)DrawDistanceLevel.Medium), 0, 2); }
+        set
+        {
+            if (DrawDistance == value && PlayerPrefs.HasKey(KDrawDistance)) return;
+            PlayerPrefs.SetInt(KDrawDistance, (int)value);
+            PlayerPrefs.Save();
+            var h = DrawDistanceChanged;
+            if (h == null) return;
+            foreach (System.Delegate d in h.GetInvocationList())
+            {
+                try { ((System.Action)d)(); }
+                catch (System.Exception e) { Debug.LogException(e); }
+            }
+        }
     }
 
     // автоподсказки и дорожка к цели (клавиша H работает всегда)

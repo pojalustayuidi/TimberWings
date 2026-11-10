@@ -30,6 +30,40 @@ public class ChopRewards : MonoBehaviour
     [Header("XP")]
     public float xpDelay = 0.25f;
 
+    [Header("Пул иконок (создаёт редакторский сборщик полировки)")]
+    public RectTransform logPoolRoot;
+    public Image[] logPool;
+    bool[] poolUsed;
+
+    Image Rent(Canvas canvas)
+    {
+        if (logPool == null || logPoolRoot == null) return null;
+        var poolCanvas = logPoolRoot.GetComponentInParent<Canvas>();
+        if (poolCanvas == null || poolCanvas.rootCanvas != canvas) return null;
+        if (poolUsed == null || poolUsed.Length != logPool.Length) poolUsed = new bool[logPool.Length];
+        for (int i = 0; i < logPool.Length; i++)
+        {
+            if (poolUsed[i] || logPool[i] == null) continue;
+            poolUsed[i] = true; logPool[i].enabled = true; logPool[i].color = Color.white;
+            return logPool[i];
+        }
+        return null; // A rare overflow follows the original flight path/timing.
+    }
+    void Return(Image image)
+    {
+        if (image == null || logPool == null) return;
+        for (int i = 0; i < logPool.Length; i++) if (logPool[i] == image)
+        {
+            if (poolUsed != null && i < poolUsed.Length) poolUsed[i] = false;
+            image.enabled = false;
+            if (logPoolRoot != null) image.transform.SetParent(logPoolRoot, false);
+            image.rectTransform.localScale = Vector3.one; image.rectTransform.localRotation = Quaternion.identity;
+            return;
+        }
+    }
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatic() { inst = null; quitting = false; }
+
     static ChopRewards inst;
     static bool quitting;
 
@@ -136,6 +170,7 @@ public class ChopRewards : MonoBehaviour
     IEnumerator FlyLog(Canvas canvas, Camera cam, Vector3 worldPos, HudGainAnchor target, float delay, Action onLog)
     {
         GameObject go = null;
+        Image pooled = null;
         bool landed = false;
         try
         {
@@ -151,7 +186,8 @@ public class ChopRewards : MonoBehaviour
             Vector3 p0;
             RectTransformUtility.ScreenPointToWorldPointInRectangle(crt, sp, uiCam, out p0);
 
-            go = new GameObject("FlyLog", typeof(RectTransform), typeof(Image));
+            pooled = Rent(canvas);
+            go = pooled != null ? pooled.gameObject : new GameObject("FlyLog", typeof(RectTransform), typeof(Image));
             go.layer = canvas.gameObject.layer;
             go.transform.SetParent(crt, false);
             go.transform.SetAsLastSibling();
@@ -177,14 +213,16 @@ public class ChopRewards : MonoBehaviour
                 t += dt;
                 float a = Mathf.Clamp01(t / popTime);
                 rt.position = Vector3.Lerp(p0, burst, UiDraw.EaseOutCubic(a));
-                rt.localScale = Vector3.one * Mathf.Max(0f, UiDraw.EaseOutBack(a));
-                rt.Rotate(0f, 0f, spin * dt);
+                rt.localScale = Vector3.one * Mathf.SmoothStep(0f, 1f, a);
+                rt.Rotate(0f, 0f, spin * .35f * dt);
                 yield return null;
             }
 
             // 2) полёт по дуге в панель дерева
             float dur = UnityEngine.Random.Range(flyMin, flyMax);
             Vector3 side = crt.right * UnityEngine.Random.Range(-0.18f, 0.18f);
+            Vector3 smoothTarget = target.FlyPoint;
+            float burstAngle = rt.localEulerAngles.z;
             t = 0f;
             while (t < dur)
             {
@@ -192,13 +230,14 @@ public class ChopRewards : MonoBehaviour
                 float dt = Time.unscaledDeltaTime;
                 t += dt;
                 float u = Mathf.Clamp01(t / dur);
-                Vector3 tp = target.FlyPoint;
+                smoothTarget = Vector3.Lerp(smoothTarget, target.FlyPoint, 1f - Mathf.Exp(-18f * dt));
+                Vector3 tp = Vector3.Lerp(smoothTarget, target.FlyPoint, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.82f, 1f, u)));
                 float dist = (tp - burst).magnitude;
                 Vector3 ctrl = (burst + tp) * 0.5f + crt.up * dist * 0.22f + side * dist;
-                float e = Mathf.Pow(u, 1.7f);
-                rt.position = Bez(burst, ctrl, tp, e);
+                float e = TreeFocusRules.Smooth(u);
+                rt.position = TreeFocusRules.Flight(burst, ctrl, tp, u);
                 rt.localScale = Vector3.one * (Mathf.Lerp(1f, 0.65f, e) * (1f + 0.2f * Mathf.Sin(Mathf.PI * u)));
-                rt.Rotate(0f, 0f, spin * dt);
+                rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.LerpAngle(burstAngle, 0f, e));
                 yield return null;
             }
 
@@ -213,7 +252,8 @@ public class ChopRewards : MonoBehaviour
         }
         finally
         {
-            if (go != null) Destroy(go);
+            if (pooled != null) Return(pooled);
+            else if (go != null) Destroy(go);
             if (!landed) Safe(onLog);   // прервали (канвас/сцена исчезли) — бревно всё равно засчитываем
         }
     }

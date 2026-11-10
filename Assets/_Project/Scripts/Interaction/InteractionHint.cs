@@ -34,6 +34,7 @@ public class InteractionHint : MonoBehaviour
 
     void Start()
     {
+        if (TreePolishController.Active != null) { enabled = false; return; }
         backpack = GetComponent<BackpackTag>();
         interaction = GetComponent<PlayerInteraction>();
 

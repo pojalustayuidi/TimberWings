@@ -41,6 +41,8 @@ public class PlayerMovement : MonoBehaviour
     Transform autoTarget;
     float autoStop, autoStartedAt, autoCheckAt, autoSteerSign = 1f;
     int autoStuck;
+    bool brakeOnArrival;
+    float autoSpeedLimit;
     Vector3 autoLastPos;
     System.Action autoArrive;
     static readonly RaycastHit[] castBuf = new RaycastHit[10];
@@ -48,11 +50,16 @@ public class PlayerMovement : MonoBehaviour
 
     // stopDistance: на каком расстоянии от центра цели остановиться; onArrive вызовется один раз, когда дошли
     public void WalkTo(Transform target, float stopDistance, System.Action onArrive)
+        => WalkTo(target, stopDistance, onArrive, false);
+
+    internal void WalkTo(Transform target, float stopDistance, System.Action onArrive, bool softArrival)
     {
         if (target == null) { CancelWalk(); return; }
         autoTarget = target;
         autoStop = Mathf.Max(0.3f, stopDistance);
         autoArrive = onArrive;
+        brakeOnArrival = softArrival;
+        autoSpeedLimit = float.PositiveInfinity;
         autoStartedAt = Time.time;
         autoCheckAt = Time.time + 0.5f;
         autoLastPos = transform.position;
@@ -75,7 +82,8 @@ public class PlayerMovement : MonoBehaviour
         to.y = 0f;
         float dist = to.magnitude;
 
-        if (dist <= autoStop)
+        float remaining = dist - autoStop;
+        if (remaining <= (brakeOnArrival ? .016f : 0f))
         {
             var cb = autoArrive;
             CancelWalk();
@@ -101,6 +109,8 @@ public class PlayerMovement : MonoBehaviour
             autoLastPos = transform.position;
         }
 
+        if (brakeOnArrival)
+            autoSpeedLimit = Mathf.Max(.42f, Mathf.Sqrt(2f * 11f * remaining));
         dir = Steer(to / dist);
         return true;
     }
@@ -325,7 +335,10 @@ public class PlayerMovement : MonoBehaviour
         bool dashing = IsDashing;
         Vector3 dir = moveDirection;
         if (dashing && dir == Vector3.zero) dir = dashDir;   // рывок с места: вперёд, куда смотрит персонаж
-        Vector3 targetVel = dir * CurrentSpeed;
+        float targetSpeed = CurrentSpeed;
+        if (AutoWalking && brakeOnArrival && !dashing)
+            targetSpeed = Mathf.Min(targetSpeed, autoSpeedLimit);
+        Vector3 targetVel = dir * targetSpeed;
 
         // плавный разгон и торможение вместо мгновенного старта (в рывке разгон резкий)
         horizontal = Vector3.MoveTowards(horizontal, targetVel, acceleration * (dashing ? 4f : 1f) * Time.fixedDeltaTime);

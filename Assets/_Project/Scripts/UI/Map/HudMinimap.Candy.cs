@@ -90,6 +90,13 @@ public partial class HudMinimap
             SwapArrow(bigPlayer);
         }
 
+        if (HudPolishRoot.Skin != null)
+        {
+            var frame = transform.Find("Frame");
+            var image = frame != null ? frame.GetComponent<Image>() : null;
+            if (image != null) { image.sprite = HudPolishRoot.Skin.mapRing; image.color = Color.white; }
+        }
+
         // «День N»: табличка становится персиковой, текст индиго
         if (dayBanner != null) StyleDayBanner(dayBanner);
         if (dayText != null)
@@ -134,7 +141,7 @@ public partial class HudMinimap
             if (body != null) body.offsetMin = body.offsetMax = Vector2.zero;
             var im = body != null ? body.GetComponent<Image>() : rt.GetComponent<Image>();
             if (im == null) return;
-            im.sprite = UiKit.Plaque;
+            im.sprite = HudPolishRoot.Skin != null ? HudPolishRoot.Skin.chip : UiKit.Plaque;
             im.type = Image.Type.Sliced;
             im.pixelsPerUnitMultiplier = 1f / 0.55f;
             im.color = Color.white;

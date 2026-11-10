@@ -1,5 +1,5 @@
 // Assets/_Project/Editor/Forest/MysticGladeMenu.cs
-// Превью зоны в Edit Mode: Tools > BuilderSim > Лес > Таинственная поляна. Превью в сцену не сохраняется (DontSave), деревья появляются только в Play Mode.
+// Compatibility menu: builds persistent editor-authored scenery, never a DontSave preview.
 using UnityEditor;
 using UnityEngine;
 
@@ -14,9 +14,9 @@ public static class MysticGladeMenu
         return b;
     }
 
-    [MenuItem("Tools/BuilderSim/Лес/Таинственная поляна/Собрать превью", false, 260)]
-    static void Build() { var b = Get(true); if (b != null) b.Build(); }
+    [MenuItem("Tools/BuilderSim/Лес/Таинственная поляна/Собрать в сцене", false, 260)]
+    static void Build() { IslandV2.TWMysticArt.Apply(); }
 
-    [MenuItem("Tools/BuilderSim/Лес/Таинственная поляна/Убрать превью", false, 261)]
-    static void Clear() { var b = Get(false); if (b != null) b.Clear(); }
+    [MenuItem("Tools/BuilderSim/Лес/Таинственная поляна/Откатить окружение", false, 261)]
+    static void Clear() { IslandV2.TWMysticArt.Rollback(); }
 }

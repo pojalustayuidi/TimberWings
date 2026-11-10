@@ -1,18 +1,23 @@
 // Assets/_Project/Editor/TWRiver/TWRiverSpec.cs
-// Общие числа нового арта реки. Их читают и генератор воды (IslandRiverWater: затемнение воды в гроте), и скальный исток.
+// Общие числа речной зоны: длина скального истока и затенение воды у родника.
 using UnityEngine;
 
 namespace IslandV2
 {
     internal static class TWRiverSpec
     {
+        public const int Revision = 4;
         public const string RootName = "TW_RIVER_ART";
         public const string AssetFolder = "Assets/_Project/IslandV2/RiverArt";
 
-        public const float MouthDist = 7.0f;     // от кромки острова до устья грота вдоль течения, м
-        public const float MouthHalf = 3.25f;    // полуширина проёма
-        public const float MouthHeight = 3.3f;   // высота проёма над водой
+        public const float MouthDist = 9.0f;     // протяжённость скального истока вдоль реки
         public const float CaveFade = 3.0f;      // на каком расстоянии за устьем темнота воды сходит на нет
+
+        // Unity Mathf.SmoothStep interpolates VALUES; it does not normalize a range.
+        public static float Smooth(float from, float to, float value)
+        {
+            return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(from, to, value));
+        }
 
         public static readonly string[] LegacyRoots =
         {
@@ -33,7 +38,8 @@ namespace IslandV2
         {
             if (caveLen <= 0.1f) return 0f;
             if (along <= caveLen) return 1f;
-            return 1f - Mathf.SmoothStep(0f, 1f, (along - caveLen) / CaveFade);
+            return 1f - Smooth(caveLen, caveLen + CaveFade, along);
         }
     }
 }
+

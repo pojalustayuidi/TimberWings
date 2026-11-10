@@ -85,7 +85,7 @@ public sealed class SaveIndicator : MonoBehaviour
         Image icon;
         using (UiKit.UseSkin(UiSkin.Candy))
         {
-            bg = UiKit.MakeImage(transform, name, UiKit.Panel, true, 0.5f);   // светлое облачко Candy
+            bg = UiKit.MakeImage(transform, name, HudPolishRoot.Skin != null ? HudPolishRoot.Skin.chip : UiKit.Panel, true, 0.8f);   // светлое облачко Candy
             var rt0 = bg.rectTransform;
             rt0.anchorMin = rt0.anchorMax = anchor;
             rt0.pivot = pivot;

@@ -392,6 +392,15 @@ public class CandyTaskView : MonoBehaviour
         panel.sizeDelta = new Vector2(w, y + bottomPad);
     }
 
+    // HUD presentation may reflow after CanvasScaler/safe-area changes. Quest state is untouched.
+    public void SetPresentationLayout(Vector2 position, float presentationWidth)
+    {
+        panelPos = position;
+        width = Mathf.Max(320f, presentationWidth);
+        if (panel != null) panel.anchoredPosition = position;
+        Layout();
+    }
+
     // ---------------------------------------------------------------- живые счётчики
     static float Frac(ObjectiveReq q) { return q.need > 0 ? Mathf.Clamp01((float)q.Shown / q.need) : 0f; }
 
@@ -453,7 +462,7 @@ public class CandyTaskView : MonoBehaviour
         if (appear < 1f)
         {
             appear = Mathf.Min(1f, appear + dt / 0.35f);
-            float e = UiDraw.EaseOutBack(appear);
+            float e = VibeSettings.ReduceEffects ? 1f : UiDraw.EaseOutBack(appear);
             panel.localScale = Vector3.one * Mathf.LerpUnclamped(0.88f, 1f, e);
             panel.anchoredPosition = panelPos + new Vector2(0f, SlideDist * (1f - e));
             a *= Mathf.Clamp01(appear * 2.5f);
@@ -485,7 +494,7 @@ public class CandyTaskView : MonoBehaviour
             if (r.punch > 0f)
             {
                 r.punch = Mathf.Max(0f, r.punch - dt / 0.3f);
-                float k = 1f + r.punchAmp * Mathf.Sin(r.punch * Mathf.PI);
+                float k = VibeSettings.ReduceEffects ? 1f : 1f + r.punchAmp * Mathf.Sin(r.punch * Mathf.PI);
                 r.countRt.localScale = new Vector3(k, k, 1f);
                 r.countRt.pivot = new Vector2(1f, 0.5f);
             }

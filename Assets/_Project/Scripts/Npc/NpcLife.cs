@@ -207,14 +207,17 @@ public class NpcLife : MonoBehaviour
     // голову поворачиваем в LateUpdate: Animator к этому моменту уже выставил позу, мы добавляем поверх
     void LateUpdate()
     {
-        if (!lookAtPlayer || head == null || model == null || !FindPlayer()) return;
+        var actor = GetComponent<Speaker>();
+        Speaker partner;
+        bool facingPartner = actor != null && Speaker.TryGetConversationPartner(actor, out partner);
+        if (!lookAtPlayer || head == null || model == null || (!facingPartner && !FindPlayer())) return;
 
         float targetYaw = 0f, targetPitch = 0f;
-        Vector3 eye = player.position + Vector3.up * playerEyeHeight;
+        Vector3 eye = facingPartner ? head.position : player.position + Vector3.up * playerEyeHeight;
         Vector3 to = eye - head.position;
         Vector3 flat = new Vector3(to.x, 0f, to.z);
 
-        if (flat.sqrMagnitude <= lookRadius * lookRadius && flat.sqrMagnitude > 0.01f)
+        if (!facingPartner && flat.sqrMagnitude <= lookRadius * lookRadius && flat.sqrMagnitude > 0.01f)
         {
             Vector3 fwd = model.forward;
             fwd.y = 0f;

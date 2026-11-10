@@ -26,7 +26,7 @@
 //   2) UIManager.SetObjective / UpdateObjective: если CandyTaskView.Instance != null, отдавать цель ему, а не ObjectiveView.
 // Точный код правок смотри в сообщении, с которым пришёл этот файл.
 //
-// Нужные спрайты: сначала запусти Tools > BuilderSim > UI > Candy Kit > Сгенерировать спрайты и лист.
+// Нужные спрайты: сначала запусти Tools > BuilderSim > UI > Candy Kit > Настроить импорт спрайтов набора.
 // Две иконки, которых в наборе пока нет (галочка и шеврон), сборщик дорисовывает сам и кладёт рядом:
 //   Icons/icon_check.png, Extra/icon_chevron.png  (в Candy Kit v2 они уже есть, поэтому здесь не рисуются; запасная отрисовка осталась на случай удаления файлов).
 using System.Collections.Generic;
@@ -108,7 +108,7 @@ public static class CandyHudBuilder
         if (kit == null)
         {
             Info("Не нашёл спрайты Candy Kit в " + Dir + ":\n\n" + string.Join("\n", missing) +
-                 "\n\nСначала запусти Tools > BuilderSim > UI > Candy Kit > Сгенерировать спрайты и лист, потом повтори.");
+                 "\n\nСначала запусти Tools > BuilderSim > UI > Candy Kit > Настроить импорт спрайтов набора, потом повтори.");
             return;
         }
 

@@ -10,8 +10,8 @@
 //   - кольцо было непрозрачным диском. Теперь прозрачный материал;
 //   - подсказка и контур прячутся, когда E занята разговором (InteractionHub.OwnsInput);
 //   - слабые кольца зажигает IntroFlow (шаг Chop), а не поле currentStep в TutorialManager.
-// Задача 3: с навыком lumber_fastgrow («Быстрый рост») ближайшее спелое дерево подсвечено мятным кольцом и контуром,
-//   даже если оно далеко. Считается раз в scanInterval, гаснет сразу при сбросе навыка.
+// Задача 3: с навыком lumber_fastgrow («Быстрый рост») ближайшее спелое дерево подсвечено мятным кольцом и контуром
+//   только в локальном радиусе 18 м. Считается раз в scanInterval, гаснет сразу при сбросе навыка.
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -65,6 +65,7 @@ public class ResourceHighlighter : MonoBehaviour
 
     void Awake()
     {
+        if (TreePolishController.Active != null) { enabled = false; return; }
         if (inst != null && inst != this) { Destroy(this); return; }
         inst = this;
         inter = FindFirstObjectByType<PlayerInteraction>();
@@ -136,7 +137,9 @@ public class ResourceHighlighter : MonoBehaviour
         if (target == null && !owned)
         {
             var hv = inter.HoverItem;
-            if (hv != null && hv.gameObject.activeInHierarchy) { target = hv.transform; tItem = hv; hoverOnly = true; }
+            if (hv != null && hv.gameObject.activeInHierarchy
+                && TreeFocusRules.InRange(inter.transform.position,hv.transform.position,inter.hoverHighlightDistance))
+            { target = hv.transform; tItem = hv; hoverOnly = true; }
         }
 
         if (target != nearest)
@@ -176,7 +179,8 @@ public class ResourceHighlighter : MonoBehaviour
         if (inter != null && !InteractionHub.OwnsInput && PlayerSkills.Has(SkillIds.LumberFastGrow))
         {
             want = growTarget;
-            if (want != null && (!want.gameObject.activeInHierarchy || inter.TargetItem == want)) want = null;
+            if (want != null && (!want.gameObject.activeInHierarchy || inter.TargetItem == want
+                || !TreeFocusRules.InRange(inter.transform.position,want.transform.position,18f))) want = null;
         }
 
         if (want != glowItem)

@@ -127,6 +127,7 @@ public class LightingRig : MonoBehaviour
     float nextRescan;
 
     UniversalRenderPipelineAsset urp;
+    float configuredShadowDistance;
     float urpShadowDistOrig = -1f;
     float qsShadowDistOrig = -1f;
 
@@ -258,7 +259,8 @@ public class LightingRig : MonoBehaviour
         var budgetStyle = CloudCandyStyle.Current;
         if (budgetStyle != null && budgetStyle.useBudgetShadowDistance)
             dist = Mathf.Max(10f, budgetStyle.GetBudget(GameSettings.LightQuality).shadowDistance);
-        SetShadowDistance(dist);
+        configuredShadowDistance = dist;
+        RefreshShadowDistance();
     }
 
     static Light FindSun()
@@ -287,8 +289,9 @@ public class LightingRig : MonoBehaviour
         return 50f;
     }
 
-    void SetShadowDistance(float d)
+    internal void RefreshShadowDistance()
     {
+        float d = PerformanceBoot.Shadows ? configuredShadowDistance : 0f;
         if (urp == null) urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
         if (urp != null)
         {
@@ -314,7 +317,7 @@ public class LightingRig : MonoBehaviour
         RenderSettings.ambientEquatorColor = aEq * ambientScale;
         RenderSettings.ambientGroundColor = aGr * ambientScale;
 
-        RenderSettings.fog = true;
+        RenderSettings.fog = PerformanceBoot.DistanceFog;
         RenderSettings.fogMode = cs != null ? cs.fogMode : FogMode.ExponentialSquared;
         RenderSettings.fogColor = fCol;
         RenderSettings.fogDensity = cs != null ? cs.fogDensityDay : fogDensity;

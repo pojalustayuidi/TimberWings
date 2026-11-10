@@ -89,6 +89,7 @@ public class HudGainAnchor : MonoBehaviour
     // «подпрыгнуть» панелью (вызывается при прилёте бревна / получении XP)
     public void Punch()
     {
+        if (VibeSettings.ReduceEffects) return;
         if (!punching) baseScale = transform.localScale;
         punching = true;
         punch = 1f;
@@ -97,6 +98,7 @@ public class HudGainAnchor : MonoBehaviour
     void Update()
     {
         if (!punching) return;
+        if (VibeSettings.ReduceEffects) { transform.localScale = baseScale; punching = false; return; }
         punch -= Time.unscaledDeltaTime / 0.25f;
         if (punch <= 0f)
         {

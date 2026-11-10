@@ -26,8 +26,18 @@ public class CameraVibe : MonoBehaviour
     public bool chopFeel = true;
     public float chopShake = 0.07f;
     public float chopPunch = 0.03f;              // доля зума, на которую «щёлкает» камера
-    public float levelUpShake = 0.1f;
-    public float levelUpPunch = 0.07f;
+    public float levelUpShake = 0.1f;            // тряска уровня: теперь множится на levelUpShakeShare
+    public float levelUpPunch = 0.07f;           // размах праздничного акцента: на эту долю дистанция «вдыхает» ближе и возвращается
+
+    [Header("Camera Polish: акцент уровня")]
+    [Tooltip("Один короткий мягкий наезд-вдох при новом уровне вместо удара с тряской. Плашка и звук идут отдельно")]
+    public bool levelUpAccent = true;
+    [Tooltip("Длительность акцента, с")]
+    [Range(.2f, 1.2f)] public float levelUpAccentTime = .55f;
+    [Tooltip("Доля старой тряски levelUpShake, добавляемая к акценту (0 = только наезд)")]
+    [Range(0f, 1f)] public float levelUpShakeShare = 0f;
+    [Tooltip("Во время рубки, диалога и показа стройки акцент ждёт конца не дольше этого времени, потом пропускается, с")]
+    [Range(0f, 3f)] public float levelUpMaxWait = 1.5f;
 
     [Header("Плавность")]
     public float focusSmooth = 0.45f;
@@ -37,12 +47,22 @@ public class CameraVibe : MonoBehaviour
     CameraFollow cf;
     Speaker[] speakers = new Speaker[0];
     float refreshT;
-    Speaker dlgSpeaker;
-    bool wasBusy;
+    float dialogueShown, dialogueShownVelocity;
+    Transform dialoguePartner;
+    public static float DialogueShown { get { return inst != null ? inst.dialogueShown : 0f; } }
+    public static Transform DialoguePartner { get { return inst != null ? inst.dialoguePartner : null; } }
 
     Vector3 bias, biasVel;
     float zoomVal = 1f, zoomVel;
     float punch, punchVel;
+
+    // идёт ли «загляни туда» или праздничный акцент: другие необязательные движения камеры в это время молчат
+    public static bool PeekActive { get { return inst != null && inst.peekT > 0f; } }
+    public static bool AccentActive { get { return inst != null && inst.accentT >= 0f; } }
+
+    float accentT = -1f;          // -1 = не идёт, 0..1 = прогресс
+    float accentWait;             // сколько ещё ждать подходящего момента, с
+    PlayerInteraction interaction;
 
     // «Загляни туда»: камера на пару секунд сдвигается к точке и возвращается. Зовёт QuestGuide, когда цель далеко за кадром
     static CameraVibe inst;
@@ -94,6 +114,7 @@ public class CameraVibe : MonoBehaviour
 
     void OnDisable()
     {
+        dialogueShown = 0f; dialogueShownVelocity = 0f; dialoguePartner = null;
         GameEvents.TreeChopped -= OnChop;
         GameEvents.LevelUp -= OnLevelUp;
         if (cf != null) { cf.focusBias = Vector3.zero; cf.zoomBias = 1f; cf.yawBias = 0f; }
@@ -102,15 +123,28 @@ public class CameraVibe : MonoBehaviour
     void OnChop()
     {
         if (!chopFeel) return;
-        CameraFollow.Shake(chopShake, 0.14f);
-        punch = Mathf.Max(punch, chopPunch);
+        CameraFollow.Shake(chopShake, 0.14f);                                      // OrbitCamera уже ослабляет тряску в режиме эффектов и с прицелом
+        if (!VibeSettings.ReduceEffects) punch = Mathf.Max(punch, chopPunch);      // зум-«щелчок» вдоль взгляда не уводит цель из-под прицела
     }
 
     void OnLevelUp(int level)
     {
-        if (!chopFeel) return;
-        CameraFollow.Shake(levelUpShake, 0.3f);
-        punch = Mathf.Max(punch, levelUpPunch);
+        if (!chopFeel || VibeSettings.ReduceEffects) return;   // «Уменьшить эффекты»: остаётся только плашка и звук
+        if (!levelUpAccent)
+        {
+            CameraFollow.Shake(levelUpShake, 0.3f);
+            punch = Mathf.Max(punch, levelUpPunch);
+            return;
+        }
+        accentWait = levelUpMaxWait;   // акцент проиграется, когда рубка, диалог и показ стройки закончатся
+    }
+
+    // можно ли сейчас показывать акцент: при рубке, диалоге и показе стройки хватает плашки и звука
+    bool AccentAllowed()
+    {
+        if (DialoguePreferences.ConversationOwnsCamera || DialogueManager.IsBusy || BuildingController.AnyRevealing || revealOn || revealShown > 0.01f) return false;
+        if (interaction == null && cf != null && cf.target != null) interaction = cf.target.GetComponent<PlayerInteraction>();
+        return interaction == null || !interaction.IsChopping;
     }
 
     Speaker Nearest(Vector3 pos, float maxDist, Transform self)
@@ -148,20 +182,22 @@ public class CameraVibe : MonoBehaviour
         Vector3 wantBias = Vector3.zero;
         float wantZoom = 1f;
 
-        bool busy = dialogueFocus && DialogueManager.IsBusy;
+        // A whole sequence owns one partner, including the pauses between its lines.
+        bool busy = dialogueFocus && DialoguePreferences.ConversationOwnsCamera;
+        if (busy) dialoguePartner = DialogueSequence.Focus;
+        dialogueShown = Mathf.SmoothDamp(dialogueShown, busy ? 1f : 0f, ref dialogueShownVelocity, .4f, Mathf.Infinity, dt);
+        if (!busy && dialogueShown < .001f) dialoguePartner = null;
         if (busy)
         {
-            if (!wasBusy || dlgSpeaker == null) dlgSpeaker = Nearest(pos, dialogueMaxDist, t);
-            if (dlgSpeaker != null)
+            if (dialoguePartner != null)
             {
-                Vector3 d = dlgSpeaker.transform.position - pos; d.y = 0f;
-                wantBias = d * dialogueFocusShare;
-                wantZoom = dialogueZoom;
+                Vector3 d = dialoguePartner.position - pos; d.y = 0f;
+                wantBias = Vector3.ClampMagnitude(d, dialogueMaxDist) * dialogueFocusShare;
+                wantZoom = VibeSettings.ReduceEffects ? 1f : dialogueZoom;
             }
         }
         else
         {
-            dlgSpeaker = null;
             if (npcPull)
             {
                 Speaker s = Nearest(pos, npcPullRadius, t);
@@ -187,13 +223,35 @@ public class CameraVibe : MonoBehaviour
             }
         }
 
-        wasBusy = busy;
+        // праздничный акцент уровня: ждёт подходящего момента, играется один раз, мягко туда и обратно
+        if (accentT < 0f && accentWait > 0f)
+        {
+            accentWait -= dt;
+            if (VibeSettings.ReduceEffects) accentWait = 0f;
+            else if (AccentAllowed())
+            {
+                accentWait = 0f;
+                accentT = 0f;
+                if (levelUpShakeShare > 0f) CameraFollow.Shake(levelUpShake * levelUpShakeShare, 0.2f);
+            }
+        }
+        float accent = 0f;
+        if (accentT >= 0f)
+        {
+            if (revealOn || DialoguePreferences.ConversationOwnsCamera || VibeSettings.ReduceEffects) accentT = -1f;   // началось что-то важнее: акцент не доигрываем
+            else
+            {
+                accentT += dt / Mathf.Max(0.2f, levelUpAccentTime);
+                if (accentT >= 1f) accentT = -1f;
+                else accent = levelUpPunch * 0.5f * (1f - Mathf.Cos(accentT * 2f * Mathf.PI));
+            }
+        }
 
         bias = Vector3.SmoothDamp(bias, wantBias, ref biasVel, Mathf.Max(0.05f, focusSmooth), Mathf.Infinity, dt);
         zoomVal = Mathf.SmoothDamp(zoomVal, wantZoom, ref zoomVel, Mathf.Max(0.05f, zoomSmooth), Mathf.Infinity, dt);
         punch = Mathf.SmoothDamp(punch, 0f, ref punchVel, Mathf.Max(0.03f, punchRelax), Mathf.Infinity, dt);
 
-        float zoomNow = zoomVal * (1f - punch);
+        float zoomNow = zoomVal * (1f - punch - accent);
 
         // показ стадии: поверх обычного вида. Пока BuildReveal зовёт SetReveal, берём его долю как есть (она уже плавная),
         // после ClearReveal доля мягко уходит в ноль сама, чтобы камера не дёрнулась

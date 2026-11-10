@@ -57,7 +57,11 @@ namespace IslandV2
 
         // ================================================================ меню
         [MenuItem("Tools/BuilderSim/Здания/Костёр Candy (облачный): собрать", false, 303)]
-        static void MenuBuild() { Build(true); }
+        static void MenuBuild()
+        {
+            if (TWHearthBuilder.HasExisting()) TWHearthBuilder.Apply();
+            else Build(true);
+        }
 
         // высота пола на радиусе r от костра: земля у костра, дальше плиты площадки (+0.07) и мозаика (+0.10)
         static float Gy(float r) { return r < 1.45f ? 0f : (r < 4.0f ? 0.10f : 0.07f); }
@@ -108,6 +112,7 @@ namespace IslandV2
             if (select) Selection.activeGameObject = rootGo;
             Debug.Log("Костёр Candy собран: Tris этап 1 = " + t1 + ", этап 2 = " + t2 + ", этап 3 = " + t3 + ". Позиция " + rootGo.transform.position
                       + ". В игре стартует с этапа 1; посмотреть этапы: компонент HutStages на «Campfire».");
+            TWHearthBuilder.AfterLegacyBuild(rootGo);
             return rootGo;
         }
 

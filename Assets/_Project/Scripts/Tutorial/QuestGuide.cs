@@ -4,10 +4,10 @@
 //
 // Прогрессом считается: поменялся текст цели (счётчик 3/8, новый шаг), поменялись бревна или доски в рюкзаке,
 // крупный скачок монет, игрок стал ближе к цели на 3 м. Пока идёт разговор или игра на паузе, таймер стоит.
-//   нет прогресса hintAfter (20 с)  -> плашка внизу с подсказкой именно под эту цель (+ взгляд камеры к цели, если она за кадром)
+//   нет прогресса hintAfter (20 с)  -> плашка внизу с подсказкой именно под эту цель
 //   нет прогресса trailAfter (40 с) -> ещё и лимонная дорожка из шевронов по земле от героя к цели
 //   дальше раз в repeatEvery (30 с) повтор дорожки
-//   клавиша H в любой момент: плашка + дорожка сразу
+//   клавиша H в свободной игре: плашка + дорожка сразу
 // Выключается в настройках: VibeSettings.GuideEnabled (H работает всегда).
 // Дорожка идёт по прямой: NavMesh в проекте нет. Если на пути река или обрыв, шевроны всё равно показывают сторону.
 using TMPro;
@@ -38,7 +38,7 @@ public class QuestGuide : MonoBehaviour
     Camera cam;
     float stuck, bestDist = -1f, pollAt, findAt;
     int level;
-    bool peeked, invInit;
+    bool invInit;
     int lastWood, lastPlanks, lastCoins;
     string lastObj;
 
@@ -59,6 +59,13 @@ public class QuestGuide : MonoBehaviour
 
     void Awake() { Instance = this; }
 
+    void OnDisable() { ResetGuidance(null); }
+
+    void OnApplicationFocus(bool hasFocus)
+    {
+        if (!hasFocus) ResetGuidance(null);
+    }
+
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
@@ -69,33 +76,26 @@ public class QuestGuide : MonoBehaviour
     // ------------------------------------------------------------ каждый кадр
     void Update()
     {
-        float dt = Time.deltaTime;
+        // Не оставляем старую подсказку под окном и не копим таймер в фоне.
+        if (!Application.isFocused || Time.timeScale <= 0.001f || SaveSystem.IsLoading ||
+            DialogueManager.IsBusy || DialogueSequence.AnyPlaying || MobileInput.ModalOpen)
+        {
+            ResetGuidance(null);
+            return;
+        }
+
         Transform tgt = QuestEdgeArrow.Target;
-
         if (player == null || inv == null) FindRefs();
-        bool active = tgt != null && tgt.gameObject.activeInHierarchy && player != null;
-
-        if (!active)
+        if (tgt == null || !tgt.gameObject.activeInHierarchy || player == null)
         {
-            lastTarget = null;
-            ResetStuck();
-            bestDist = -1f;
-            trailT = 0f;
-        }
-        else
-        {
-            if (tgt != lastTarget)
-            {
-                lastTarget = tgt;
-                ResetStuck();
-                bestDist = -1f;
-                peeked = false;
-            }
-            Track(tgt, dt);
-            if (Input.GetKeyDown(helpKey)) ShowHelp(tgt, true, true);
+            ResetGuidance(null);
+            return;
         }
 
-        TickTrail(tgt, active, dt);
+        if (tgt != lastTarget) ResetGuidance(tgt);
+        float dt = Time.deltaTime;
+        Track(tgt, dt);
+        TickTrail(tgt, dt);
         TickToast();
     }
 
@@ -114,12 +114,26 @@ public class QuestGuide : MonoBehaviour
 
     void ResetStuck() { stuck = 0f; level = 0; }
 
+    void ResetGuidance(Transform target)
+    {
+        lastTarget = target;
+        bestDist = -1f;
+        ResetStuck();
+        HideHelp();
+    }
+
+    void HideHelp()
+    {
+        trailT = 0f;
+        if (trailAlpha > 0f) HideMarks();
+        trailAlpha = 0f;
+        toastUntil = toastK = 0f;
+        if (panel != null && panel.gameObject.activeSelf) panel.gameObject.SetActive(false);
+    }
+
     // ------------------------------------------------------------ слежение за прогрессом
     void Track(Transform tgt, float dt)
     {
-        // разговор, пауза: игрок не завис, он занят
-        if (DialogueManager.IsBusy || DialogueSequence.FreezesPlayer || Time.timeScale <= 0.001f) return;
-
         if (Time.unscaledTime >= pollAt)
         {
             pollAt = Time.unscaledTime + 0.25f;
@@ -136,12 +150,18 @@ public class QuestGuide : MonoBehaviour
         }
         else if (dist > bestDist + 10f) bestDist = dist;      // ушёл далеко в сторону: отсчёт от новой точки
 
-        stuck += dt;
+        if (Input.GetKeyDown(helpKey))
+        {
+            ResetStuck();
+            ShowHelp(tgt, true);
+            return;
+        }
         if (!VibeSettings.GuideEnabled) return;
+        stuck += dt;
 
-        if (level == 0 && stuck >= hintAfter) { level = 1; ShowHelp(tgt, false, false); }
-        else if (level == 1 && stuck >= trailAfter) { level = 2; ShowHelp(tgt, true, false); }
-        else if (level >= 2 && stuck >= trailAfter + repeatEvery) { stuck = trailAfter; ShowHelp(tgt, true, false); }
+        if (level == 0 && stuck >= hintAfter) { level = 1; ShowHelp(tgt, false); }
+        else if (level == 1 && stuck >= trailAfter) { level = 2; ShowHelp(tgt, true); }
+        else if (level >= 2 && stuck >= trailAfter + repeatEvery) { stuck = trailAfter; ShowHelp(tgt, true); }
     }
 
     void Poll()
@@ -149,7 +169,12 @@ public class QuestGuide : MonoBehaviour
         // цель в HUD поменялась: игрок что-то сделал или квест перешёл на следующий шаг
         string o = null;
         if (UIManager.Instance != null && UIManager.Instance.objectiveText != null) o = UIManager.Instance.objectiveText.text;
-        if (o != lastObj) { lastObj = o; ResetStuck(); }
+        if (o != lastObj)
+        {
+            lastObj = o;
+            ResetStuck();
+            HideHelp();
+        }
 
         if (inv == null) return;
         if (!invInit)
@@ -172,7 +197,7 @@ public class QuestGuide : MonoBehaviour
     }
 
     // ------------------------------------------------------------ показать помощь
-    void ShowHelp(Transform tgt, bool withTrail, bool manual)
+    void ShowHelp(Transform tgt, bool withTrail)
     {
         float dist = FlatDist(tgt);
         if (withTrail) trailT = trailSeconds;
@@ -183,13 +208,6 @@ public class QuestGuide : MonoBehaviour
         toastSub.text = "Цель: " + Mathf.RoundToInt(dist) + " м" + (onScreen ? "" : ", " + Side(tgt)) + "   ·   " + helpKey + ": показать путь";
         toastUntil = Time.unscaledTime + (withTrail ? 7f : 6f);
         SfxManager.Play("hint", 0.7f);
-
-        // цель далеко за кадром: камера на пару секунд заглядывает в её сторону
-        if (!onScreen && dist > 8f && (manual || !peeked))
-        {
-            peeked = true;
-            CameraVibe.Peek(tgt.position);
-        }
     }
 
     bool OnScreen(Transform tgt)
@@ -276,14 +294,13 @@ public class QuestGuide : MonoBehaviour
             if (marks[i] != null && marks[i].gameObject.activeSelf) marks[i].gameObject.SetActive(false);
     }
 
-    void TickTrail(Transform tgt, bool active, float dt)
+    void TickTrail(Transform tgt, float dt)
     {
         if (trailT > 0f) trailT -= dt;
-        bool want = active && trailT > 0f;
+        bool want = trailT > 0f;
         trailAlpha = Mathf.MoveTowards(trailAlpha, want ? 1f : 0f, dt * 3f);
 
         if (trailAlpha <= 0.01f) { HideMarks(); return; }
-        if (!active) { HideMarks(); return; }
         if (marks == null) BuildTrail();
 
         Vector3 from = player.position;

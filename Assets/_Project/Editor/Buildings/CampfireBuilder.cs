@@ -190,7 +190,12 @@ public class CampfireBuilder : EditorWindow
         EditorGUILayout.EndScrollView();
     }
 
-    void DoBuild() { if (this != null) Build(); }
+    void DoBuild()
+    {
+        if (this == null) return;
+        if (IslandV2.TWHearthBuilder.HasExisting()) IslandV2.TWHearthBuilder.Apply();
+        else { Build(); IslandV2.TWHearthBuilder.AfterLegacyBuild(FindRoot()); }
+    }
     void DoDelete() { if (this != null) Delete(); }
 
     void ShowStage(int stage)

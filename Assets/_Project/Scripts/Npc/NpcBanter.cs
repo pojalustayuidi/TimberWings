@@ -113,7 +113,7 @@ public class NpcBanter : MonoBehaviour, IInteractable, IPriorityInteractable
     {
         get
         {
-            if (!pokeEnabled || Time.time < nextPoke) return false;
+            if (!pokeEnabled || Time.time < nextPoke || !NpcConversationPolicy.SmallTalkAllowed(this)) return false;
             if (DialogueSequence.AnyPlaying || DialogueManager.IsBusy) return false;
             // пока главный разговор не состоялся (или может повториться), E принадлежит ему
             if (dialogue != null && (!dialogue.Played || dialogue.IsPlaying || dialogue.CanInteract)) return false;
@@ -123,6 +123,7 @@ public class NpcBanter : MonoBehaviour, IInteractable, IPriorityInteractable
 
     public void Interact()
     {
+        if (!CanInteract) return;
         float now = Time.time;
         streak = (now - lastPoke <= streakWindow) ? streak + 1 : 1;
         lastPoke = now;
@@ -201,7 +202,7 @@ public class NpcBanter : MonoBehaviour, IInteractable, IPriorityInteractable
     // можно ли сейчас что-то сказать «от себя»
     bool CanBark()
     {
-        if (speaker == null || !FindPlayer()) return false;
+        if (speaker == null || !FindPlayer() || !NpcConversationPolicy.SmallTalkAllowed(this)) return false;
         if (DialogueSequence.AnyPlaying || DialogueManager.IsBusy) return false;
         if (dialogue != null && !dialogue.Played) return false;     // до знакомства молчит: главный разговор важнее
         return true;
@@ -245,6 +246,7 @@ public class NpcBanter : MonoBehaviour, IInteractable, IPriorityInteractable
     // ------------------------------------------------------------ реакции от NpcLife
     void OnGreeted()
     {
+        if (!NpcConversationPolicy.SmallTalkAllowed(this)) return;
         Emote("!", new Color(1f, 0.9f, 0.3f, 1f));
         if (CanBark() && Random.value < greetBarkChance) Say(Next(greetLines, ref lastGreet));
     }

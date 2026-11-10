@@ -340,7 +340,7 @@ public class UpgradeWindow : MonoBehaviour
             if (showPts)
             {
                 hudPtsText.text = pts > 99 ? "99+" : pts.ToString();
-                hudPtsRt.localScale = Vector3.one * (1f + 0.10f * Mathf.Sin(t * 5f));
+                hudPtsRt.localScale = Vector3.one * (1f + (VibeSettings.ReduceEffects ? 0f : 0.06f * Mathf.Sin(t * 3f)));
             }
         }
         if (!hudStyleSet || style != hudStyle)
@@ -348,6 +348,7 @@ public class UpgradeWindow : MonoBehaviour
             hudStyle = style;
             hudStyleSet = true;
             using (UiKit.UseSkin(UiSkin.Candy)) hudImg.sprite = UiKit.BtnSprite(style, style == UiBtn.Gray ? UiBtnState.Disabled : UiBtnState.Normal);
+            HudPolishRoot.Palette(hudImg, style);
             if (hudJuice != null)
             {
                 hudJuice.fxColor = UiCandy.FxColor(style);
@@ -413,6 +414,9 @@ public class UpgradeWindow : MonoBehaviour
         hudPtsText = UiKit.MakeLabel(hudPts.transform, "0", 22f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         Stretch(hudPtsText.rectTransform);
         hudPtsRt.gameObject.SetActive(false);
+
+        HudPolishRoot.SetupShortcut(hudImg.GetComponent<Button>(), 0, "Прокачка · U", "Улучшения за монеты и свободные очки уровня");
+        if (HudPolishRoot.Skin != null) med.sprite = HudPolishRoot.Skin.medal;
 
         // --- затемнение: мягкий индиго, только гасит клики по миру
         var ov = UiKit.MakeImage(cgo.transform, "Overlay", null, false);

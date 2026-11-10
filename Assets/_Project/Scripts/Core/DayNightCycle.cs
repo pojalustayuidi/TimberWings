@@ -367,7 +367,7 @@ public class DayNightCycle : MonoBehaviour
         moon.enabled = false;
 
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.fog = true;
+        RenderSettings.fog = PerformanceBoot.DistanceFog;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
 
         BuildVolumes();
@@ -551,7 +551,7 @@ public class DayNightCycle : MonoBehaviour
         // --- туман и фон камеры
         Color fogTw = Color.Lerp(fogDawn, fogDusk, dusk);
         Color fog = Mix(fogDay, fogTw, fogNight, wd, wt, wn);
-        RenderSettings.fog = true;
+        RenderSettings.fog = PerformanceBoot.DistanceFog;
         RenderSettings.fogMode = st != null ? st.fogMode : FogMode.ExponentialSquared;
         RenderSettings.fogColor = fog;
         RenderSettings.fogDensity = Mathf.Lerp(fogDensityDay, fogDensityNight, wn);

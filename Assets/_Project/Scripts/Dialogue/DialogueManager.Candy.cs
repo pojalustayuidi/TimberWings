@@ -86,6 +86,19 @@ public partial class DialogueManager
     // ------------------------------------------------------------ сборка интерфейса
     void BuildUi()
     {
+        if (presentation == null) presentation = GetComponentInChildren<DialoguePolishView>(true);
+        if (babble == null) babble = GetComponent<DialogueBabble>();
+        if (presentation != null)
+        {
+            canvasRt = (RectTransform)presentation.canvas.transform;
+            bubbleRt = presentation.panel; bubbleGroup = presentation.group;
+            bodyTxt = presentation.body; bodyRt = bodyTxt.rectTransform;
+            hintTxt = presentation.hint; hintGroup = presentation.hintGroup;
+            holdRing = presentation.holdRing; holdGroup = presentation.holdGroup;
+            noteGroup = presentation.noteGroup; noteTxt = presentation.noteText;
+            bubbleGroup.alpha = 0;
+            return;
+        }
         using (UiKit.UseSkin(UiSkin.Candy)) BuildCandyUi();
     }
 
@@ -232,6 +245,7 @@ public partial class DialogueManager
     // Красит ленту с именем, подгоняет ширину. Возвращает верхний отступ текста: с именем больше, без имени меньше
     float ApplySpeaker(string who, Color col)
     {
+        if (presentation != null) return 96f;
         bool named = !string.IsNullOrEmpty(who);
         namePillRt.gameObject.SetActive(named);
         float topPad = named ? PillOver + 16f : 22f;

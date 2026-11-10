@@ -76,7 +76,7 @@ public class EndingSequence : MonoBehaviour
         new Beat { text = "Шторм разнёс его в щепки.\nЛагерь собрал его заново.", size = 58f, color = Soft, fly = 1.1f, hold = 1.9f, rise = 46f, scale = 1.25f },
         new Beat { text = "Но за рекой — тишина.\nНи дыма над мастерской. Ни стука топора.", size = 54f, color = Soft, fly = 1.1f, hold = 2.0f, rise = 46f, scale = 1.25f },
         new Beat { text = "А в кронах кедров что-то скрипнуло,\nбудто раскрылись огромные крылья.", size = 54f, color = Soft, fly = 1.2f, hold = 2.1f, rise = 46f, scale = 1.25f },
-        new Beat { text = "Под перилами моста — записка.\nПочерк Гуннара.", size = 54f, color = Soft, fly = 1.0f, hold = 1.5f, rise = 46f, scale = 1.25f }
+        new Beat { text = "На дальнем острове — записка.\nПочерк Гуннара.", size = 54f, color = Soft, fly = 1.0f, hold = 1.5f, rise = 46f, scale = 1.25f }
     };
 
     // загадка Гуннара (4 строки, подпись отдельно)

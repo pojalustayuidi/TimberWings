@@ -18,7 +18,7 @@ using UnityEngine;
 
 [RequireComponent(typeof(PlayerInventory))]
 [RequireComponent(typeof(BackpackTag))]
-public class PlayerInteraction : MonoBehaviour
+public partial class PlayerInteraction : MonoBehaviour
 {
     [Header("Ввод")]
     public KeyCode chopKey = KeyCode.E;
@@ -31,6 +31,8 @@ public class PlayerInteraction : MonoBehaviour
     public bool mouseChop = true;
     [Tooltip("Как близко к дереву на экране должен быть курсор, в долях высоты экрана (крона кликается, не только ствол)")]
     public float mousePickScreen = 0.10f;
+    [Tooltip("Дальность подсветки дерева под курсором, в метрах от Лео. Клик по дальнему дереву и автоподход работают отдельно.")]
+    [Min(1f)] public float hoverHighlightDistance = 12f;
 
     [Header("Ход к дереву (клик по дальнему дереву / E без дерева рядом)")]
     [Tooltip("Клик по дереву вдали или E, когда рядом нет дерева: персонаж идёт к нему, дерево подпрыгивает и подсвечивается")]
@@ -244,7 +246,7 @@ public class PlayerInteraction : MonoBehaviour
     // Сначала деревья в досягаемости; если рядом с курсором только далёкие, возвращаем ближайшее из них и far = true.
     readonly RaycastHit[] rayBuf = new RaycastHit[24];
 
-    ResourceItem PickUnderMouse(out bool far)
+    ResourceItem PickUnderMouse(out bool far, float maxPlanarDistance = 0f)
     {
         far = false;
         var cam = Camera.main;
@@ -253,6 +255,7 @@ public class PlayerInteraction : MonoBehaviour
         if (m.x < 0f || m.y < 0f || m.x > Screen.width || m.y > Screen.height) return null;
 
         float reach = radius + 0.5f;
+        float maxSqr = maxPlanarDistance > 0f ? maxPlanarDistance * maxPlanarDistance : float.PositiveInfinity;
 
         // 1) луч
         int rn = Physics.RaycastNonAlloc(cam.ScreenPointToRay(m), rayBuf, 200f, ~0, QueryTriggerInteraction.Collide);
@@ -264,6 +267,9 @@ public class PlayerInteraction : MonoBehaviour
             if (col == null) continue;
             var it = col.GetComponentInParent<ResourceItem>();
             if (it == null || !it.gameObject.activeInHierarchy) continue;
+            Vector3 delta = it.transform.position - transform.position;
+            delta.y = 0f;
+            if (delta.sqrMagnitude > maxSqr) continue;
             if (rayBuf[i].distance < rayDist) { rayDist = rayBuf[i].distance; rayBest = it; }
         }
         if (rayBest != null)
@@ -286,13 +292,14 @@ public class PlayerInteraction : MonoBehaviour
             if (it == null || !it.gameObject.activeInHierarchy) continue;
 
             Vector3 p = it.transform.position;
+            Vector3 dp = p - transform.position;
+            dp.y = 0f;
+            if (dp.sqrMagnitude > maxSqr) continue;
             Vector3 sb = cam.WorldToScreenPoint(p + Vector3.up * 0.2f);
             Vector3 st = cam.WorldToScreenPoint(p + Vector3.up * (3.4f * Mathf.Max(0.5f, it.ScaleMul)));
             if (sb.z <= 0f || st.z <= 0f) continue;
             float px = DistToSegment(m, sb, st);
 
-            Vector3 dp = p - transform.position;
-            dp.y = 0f;
             if (dp.magnitude <= reach)
             {
                 if (px < nearPx) { nearPx = px; nearBest = it; }
@@ -323,7 +330,7 @@ public class PlayerInteraction : MonoBehaviour
         {
             hoverAt = Time.unscaledTime + 0.05f;
             bool hf;
-            HoverItem = (ChoppingEnabled && !OverUiButton(OrbitCamera.PointerPos)) ? PickUnderMouse(out hf) : null;
+            HoverItem = (ChoppingEnabled && !OverUiButton(OrbitCamera.PointerPos)) ? PickUnderMouse(out hf, hoverHighlightDistance) : null;
         }
 
         if (Input.GetMouseButtonDown(0))
@@ -383,12 +390,18 @@ public class PlayerInteraction : MonoBehaviour
     void OnDisable()
     {
         clickArmed = false;
+        leoWalkArrival = leoApproachAttempt = null;
+        leoEnterRhythmOnArrival = false;
         StopChop();
     }
 
     void Update()
     {
         UpdateClick();
+        ResourceItem arrived = leoWalkArrival;
+        bool enterRhythm = leoEnterRhythmOnArrival;
+        leoWalkArrival = null;
+        leoEnterRhythmOnArrival = false;
 
         // цель хода пропадает, когда дошли, прервали ход (WASD, разговор, рубка) или дерево срубили
         if (WalkTarget != null && (movement == null || !movement.AutoWalking || !WalkTarget.gameObject.activeInHierarchy))
@@ -419,7 +432,8 @@ public class PlayerInteraction : MonoBehaviour
             return;
         }
 
-        FindTarget(false);
+        ResourceItem preferred = (RhythmChop ? enterRhythm : PressHeld) ? arrived : null;
+        FindTarget(preferred != null, preferred);
 
         bool hasTarget = CurrentTarget != null && TargetItem != null && TargetItem.gameObject.activeInHierarchy;
         bool isFull = backpack != null && backpack.NoRoom;   // места нет вообще (с учётом брёвен, что ещё летят в HUD)
@@ -440,12 +454,14 @@ public class PlayerInteraction : MonoBehaviour
             return;
         }
 
+        if (TryApproachLeoTree()) return;
+
         if (RhythmChop)
         {
             if (!rhythmActive)
             {
                 if (IsChopping) StopChop();                       // переключили режим посреди рубки «зажми E»
-                if (PressDown) BeginRhythm();        // первое нажатие только входит в рубку, удара нет
+                if (PressDown || (enterRhythm && arrived != null && arrived == TargetItem)) BeginRhythm();        // первое нажатие только входит в рубку, удара нет
             }
             else
             {
@@ -465,7 +481,7 @@ public class PlayerInteraction : MonoBehaviour
 
     // ------------------------------------------------------------ ход к дереву
     // Идём к дереву it. false = не пошли (выключено, дерево срублено, дальше maxRange)
-    bool StartWalk(ResourceItem it, float maxRange)
+    bool StartWalk(ResourceItem it, float maxRange, bool enterRhythm = false)
     {
         if (!walkToTree || movement == null || it == null || !it.gameObject.activeInHierarchy) return false;
         Vector3 d = it.transform.position - transform.position;
@@ -474,12 +490,14 @@ public class PlayerInteraction : MonoBehaviour
 
         // встаём у ствола, но так, чтобы дерево было в радиусе рубки (radius) и мы не упёрлись в сплошной ствол
         float stop = Mathf.Clamp(it.TrunkRadius + 1.05f, 1.2f, Mathf.Max(1.2f, radius - 0.35f));
+        bool leo = LeoVisual != null;
+        if (leo) stop = LeoStopDistance(it);
         if (d.magnitude <= stop) { it.Poke(); return true; }   // уже стоим где надо: просто «тык»
 
         WalkTarget = it;
         it.Poke();
         SfxManager.Play("hint", 0.45f, 1.25f);
-        movement.WalkTo(it.transform, stop, () => OnWalkArrived(it));
+        movement.WalkTo(it.transform, stop, () => OnWalkArrived(it, enterRhythm), leo);
         return true;
     }
 
@@ -497,15 +515,20 @@ public class PlayerInteraction : MonoBehaviour
             float s = d.sqrMagnitude;
             if (s < bestSqr) { bestSqr = s; best = it; }
         }
-        if (best != null) StartWalk(best, walkRangeE);
+        if (best != null) StartWalk(best, walkRangeE, RhythmChop && LeoVisual != null);
     }
 
     // дошли: дерево подпрыгивает ещё раз («я здесь»), цель рубки пересчитывается сразу
-    void OnWalkArrived(ResourceItem it)
+    void OnWalkArrived(ResourceItem it, bool enterRhythm)
     {
         WalkTarget = null;
         if (it == null || !it.gameObject.activeInHierarchy) return;
-        it.Poke();
+        if (LeoVisual != null)
+        {
+            leoWalkArrival = it;
+            leoEnterRhythmOnArrival = enterRhythm;
+        }
+        else it.Poke();
         findTimer = 0f;
     }
 
@@ -535,11 +558,10 @@ public class PlayerInteraction : MonoBehaviour
         var th = TargetItem.GetComponent<TreeHits>();
         if (th == null) th = TargetItem.GetComponentInChildren<TreeHits>();
         if (th == null) th = TargetItem.gameObject.AddComponent<TreeHits>();   // TreeHits нигде не добавлялся, дерево не реагировало на удары
-        th.Shake();
-        GameEvents.RaiseChopHit();
+        RaiseChopContact(th, 1f);
     }
 
-    void FindTarget(bool force)
+    void FindTarget(bool force, ResourceItem preferred = null)
     {
         findTimer -= Time.deltaTime;
         if (!force && findTimer > 0f && lastTarget == CurrentTarget) return;
@@ -555,11 +577,11 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         // дерево под курсором (ПК): оно и есть цель, пока в зоне досягаемости; курсор мимо: цель = ближайшее, как раньше
-        ResourceItem hov = null;
-        if (MouseActive() && !OverUiButton(OrbitCamera.PointerPos))
+        ResourceItem hov = preferred;
+        if (hov == null && MouseActive() && !OverUiButton(OrbitCamera.PointerPos))
         {
             bool hovFar;
-            hov = PickUnderMouse(out hovFar);
+            hov = PickUnderMouse(out hovFar, radius + .5f);
             if (hovFar) hov = null;
         }
         Transform hovT = null;
@@ -673,8 +695,7 @@ public class PlayerInteraction : MonoBehaviour
                 RegisterBonusHit();
                 Hud.ShowBonusResult(true, saved);                        // «Отлично! −0,3 с» на шкале
                 var th = TargetItem != null ? GetTreeHits(TargetItem) : null;
-                if (th != null) th.Shake(1.5f);                          // сильнее качается, больше щепок
-                GameEvents.RaiseChopHit();
+                RaiseChopContact(th, 1.5f);
                 GameEvents.RaiseChopQuality(1);
                 Progress = Mathf.Clamp01(holdTime / Mathf.Max(0.1f, GatherTime));
                 if (progressUI != null) progressUI.Show(Progress, hitsDone, GameBalance.HitsPerTree);
@@ -734,6 +755,7 @@ public class PlayerInteraction : MonoBehaviour
         ResourceItem echo = null;
         if (backpack == null || backpack.Free >= GameBalance.SkillEchoBonusWood) echo = LumberSkills.RollEcho(item);
         // событие для IntroFlow / квестов - кидаем сразу, не ждем полета
+        if (leoImpactFrame != Time.frameCount) ReadLeoImpact(item);
         GameEvents.RaiseTreeChopped();
         if (wasGolden) SfxManager.Play("coin", 0.9f, 0.9f);
 
@@ -933,8 +955,7 @@ public class PlayerInteraction : MonoBehaviour
         Progress = rhythmTree.rhythmProgress;
         bool fells = before + amount >= 0.999f;
 
-        rhythmTree.Shake(q == 2 ? 1.5f : q == 1 ? 1f : 0.5f);
-        GameEvents.RaiseChopHit();
+        RaiseChopContact(rhythmTree, q == 2 ? 1.5f : q == 1 ? 1f : 0.5f);
         GameEvents.RaiseChopQuality(q);
 
         if (fells)

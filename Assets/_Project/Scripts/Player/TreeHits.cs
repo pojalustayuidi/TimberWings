@@ -27,11 +27,13 @@ public class TreeHits : MonoBehaviour
     }
 
     // strength: 1 = обычный удар, 0.5 = слабый, 1.5 = идеальный (сильнее качается и больше щепок)
-    public void Shake(float strength = 1f)
+    public void Shake(float strength = 1f) => Shake(strength, null);
+
+    internal void Shake(float strength, Vector3? contact)
     {
         if (shake != null) StopCoroutine(shake);
         shake = StartCoroutine(ShakeRoutine(strength));
-        Chips(strength);
+        Chips(strength, contact);
     }
 
     IEnumerator ShakeRoutine(float strength)
@@ -50,10 +52,10 @@ public class TreeHits : MonoBehaviour
     }
 
     // Щепки: маленький взрыв частиц, создаётся из кода, префабы не нужны
-    void Chips(float strength)
+    void Chips(float strength, Vector3? contact)
     {
         var go = new GameObject("Chips");
-        go.transform.position = transform.position + Vector3.up * 1.2f;
+        go.transform.position = contact ?? (transform.position + Vector3.up * 1.2f);
 
         var ps = go.AddComponent<ParticleSystem>();
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); // иначе нельзя менять duration
@@ -63,7 +65,7 @@ public class TreeHits : MonoBehaviour
         main.duration = 0.3f;
         main.startLifetime = 0.6f;
         main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 4f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.18f);
+        main.startSize = contact.HasValue ? new ParticleSystem.MinMaxCurve(.028f, .080f) : new ParticleSystem.MinMaxCurve(.08f, .18f);
         main.startColor = new Color(0.65f, 0.45f, 0.25f);
         main.gravityModifier = 1.5f;
 
@@ -74,7 +76,7 @@ public class TreeHits : MonoBehaviour
 
         var sh = ps.shape;
         sh.shapeType = ParticleSystemShapeType.Sphere;
-        sh.radius = 0.2f;
+        sh.radius = contact.HasValue ? .045f : .2f;
 
         var r = go.GetComponent<ParticleSystemRenderer>();
         if (chipMat == null) chipMat = VibeGfx.ParticleMat(VibeGfx.Square);   // Sprites/Default: цвет частицы = тон щепки

@@ -46,6 +46,15 @@ public class ForestLook : MonoBehaviour
     public float fogDensityMul = 1.5f;
     public Color fogTint = new Color(0.74f, 0.80f, 0.60f);
     [Range(0f, 1f)] public float fogTintAmount = 0.5f;
+    [Header("Дальняя дымка в глубине леса")]
+    [Tooltip("В чаще дальний лес мягко растворяется в дымке. На поляне сохраняется исходный туман сцены.")]
+    public bool softDistanceFog = true;
+    [Tooltip("Минимальная плотность тумана в густом лесу. Сохраняет туман от DayNightCycle, если он уже плотнее.")]
+    [Range(.005f,.04f)] public float deepForestFogDensity = .018f;
+    [Tooltip("Доля дополнительного оттенка: 0 — только старые цвета, 1 — максимальный атмосферный цвет.")]
+    [Range(0f,1f)] public float distanceFogTintStrength = .35f;
+    public Color distanceFogDayColor = new Color(.65f,.79f,.78f);
+    public Color distanceFogNightColor = new Color(.35f,.40f,.56f);
 
     [Header("Лучи")]
     public bool shafts = true;
@@ -315,8 +324,19 @@ public class ForestLook : MonoBehaviour
         {
             fogBaseD = curD; fogBaseC = curC; fogHave = true;
         }
-        RenderSettings.fogDensity = fogBaseD * Mathf.Lerp(1f, fogDensityMul, k);
-        RenderSettings.fogColor = Color.Lerp(fogBaseC, fogTint, fogTintAmount * k);
+        float density = fogBaseD * Mathf.Lerp(1f, fogDensityMul, k);
+        Color tint = Color.Lerp(fogBaseC, fogTint, fogTintAmount * k);
+        if (softDistanceFog)
+        {
+            // Keep the current day/night controller's atmospheric baseline.
+            // Only enrich fog where the forest weight is nonzero; no sudden wall
+            // follows the player when entering a clearing.
+            density = Mathf.Max(density, Mathf.Lerp(fogBaseD, Mathf.Max(fogBaseD, deepForestFogDensity), k));
+            Color forestTint = Color.Lerp(distanceFogDayColor, distanceFogNightColor, DayNightCycle.Night01);
+            tint = Color.Lerp(tint, forestTint, distanceFogTintStrength * k);
+        }
+        RenderSettings.fogDensity = density;
+        RenderSettings.fogColor = tint;
         fogLastD = RenderSettings.fogDensity;
         fogLastC = RenderSettings.fogColor;
     }

@@ -143,7 +143,7 @@ public static class WorkerProductionSelfTest
             for (int i = 0; i < 3; i++) Add(sim2, "j" + i, WorkerRole.Lumberjack, WorkerRarity.Common, WorkerPerk.HeavyHand);
             Check(Near(sim2.LumberRate(sim2.SlotAt(0)), 0.28, 1e-4), "3 × «Тяжёлая рука» (+45%) режется до +40%", sim2.LumberRate(sim2.SlotAt(0)).ToString("F3") + " бр/с (нужно 0.280)");
 
-            var sim3 = NewSim();   // обычный режим: перк только у владельца
+            var sim3 = NewSim(); sim3.stackAcrossRole = false; // явно проверяем личный режим; баланс по умолчанию не меняем
             Add(sim3, "a", WorkerRole.Sawyer, WorkerRarity.Common, WorkerPerk.FastSaw);
             Add(sim3, "b", WorkerRole.Sawyer, WorkerRarity.Common);
             Check(Near(sim3.SawTime(sim3.SlotAt(0)), 8.5, 1e-3) && Near(sim3.SawTime(sim3.SlotAt(1)), 10.0, 1e-3),

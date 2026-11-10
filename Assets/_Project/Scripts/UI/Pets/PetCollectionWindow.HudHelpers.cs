@@ -59,6 +59,8 @@ public partial class PetCollectionWindow
         Stretch(bang.rectTransform);
         hudBang = bang;
         hudDot.gameObject.SetActive(false);
+        HudPolishRoot.SetupShortcut(btn, 1, "Питомцы · P", "Коллекция, активные слоты и бонусы");
+        if (HudPolishRoot.Skin != null) paw.sprite = HudPolishRoot.Skin.paw;
     }
 
     void UpdateHud(float dt)
@@ -87,7 +89,7 @@ public partial class PetCollectionWindow
         {
             Set(hudBang, fresh > 0 ? (fresh > 9 ? "9+" : fresh.ToString()) : "!");
             dotT += dt;
-            hudDot.localScale = Vector3.one * (1f + 0.12f * Mathf.Sin(dotT * 5f));
+            hudDot.localScale = Vector3.one * (1f + (VibeSettings.ReduceEffects ? 0f : 0.06f * Mathf.Sin(dotT * 3f)));
         }
     }
 

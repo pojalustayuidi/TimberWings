@@ -24,6 +24,12 @@ public class HudShine : MonoBehaviour
 
     void Update()
     {
+        if (VibeSettings.ReduceEffects)
+        {
+            if (breathe != null) breathe.localScale = breatheBase;
+            if (shine != null) shine.gameObject.SetActive(false);
+            return;
+        }
         float now = Time.unscaledTime;
 
         if (shine != null)

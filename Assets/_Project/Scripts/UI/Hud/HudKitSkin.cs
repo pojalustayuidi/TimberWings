@@ -17,6 +17,7 @@ public class HudKitSkin : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Boot()
     {
+        if (HudPolishRoot.Skin != null) return;
         if (FindFirstObjectByType<HudKitSkin>() != null) return;
         new GameObject("HudKitSkin").AddComponent<HudKitSkin>();
     }
@@ -52,6 +53,7 @@ public class HudKitSkin : MonoBehaviour
 
     void Apply()
     {
+        if (HudPolishRoot.Skin != null) return; // The authored HUD already has its final style.
         var ui = UIManager.Instance;
         if (ui == null) return;
 
