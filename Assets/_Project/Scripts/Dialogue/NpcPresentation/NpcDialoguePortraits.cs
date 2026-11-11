@@ -11,7 +11,7 @@ public sealed class NpcDialoguePortraits : MonoBehaviour
     public Image portrait,progressFill;
     public RectTransform progressRoot;
     public Image[] pips;
-    public Sprite mira,oskar;
+    public Sprite mira,oskar,leo,rico;
     public string miraName="Мира",oskarName="Оскар";
     string lastSpeaker;
     float pop,fill;
@@ -29,6 +29,7 @@ public sealed class NpcDialoguePortraits : MonoBehaviour
     {
         if(string.Equals(name,miraName,StringComparison.OrdinalIgnoreCase))return mira;
         if(string.Equals(name,oskarName,StringComparison.OrdinalIgnoreCase))return oskar;
+        if(string.Equals(name,RicoMerchant.DisplayName,StringComparison.OrdinalIgnoreCase))return Resources.Load<Sprite>("Rico/RicoPortrait");
         return null;
     }
     void Initialize()

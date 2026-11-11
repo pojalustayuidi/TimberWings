@@ -55,6 +55,7 @@ public sealed class MiraPresence : MonoBehaviour, IInteractable, IPriorityIntera
     string taskKey, statusText, lastLine;
     float nextPoll, nextManual, quietUntil, lineUntil, typed;
     int letters, delivered=-1, chatCounter;
+    int freeTalkStreak; float lastFreeTalk = -999f; bool alternateAnnoyed;
     bool ready, automaticLine;
     DialogueSpeechMode speech;
     void Awake()
@@ -121,7 +122,8 @@ public sealed class MiraPresence : MonoBehaviour, IInteractable, IPriorityIntera
                 (automaticLine&&(!DialoguePreferences.PlayerComments||(current.kind=="task"&&!VibeSettings.GuideEnabled)))))StopLine();
             if(entered&&approachComments&&DialoguePreferences.PlayerComments&&current==null)
             {
-                if(mode==MiraInteractionRules.Mode.Free){var greeting=NextGreeting();if(greeting!=null)Show(greeting,true);}
+                if(story!=null&&story.bridge!=null&&story.bridge.IsFinished&&!DialogueSeen.Has("mira_bridge_voice_once")){var greeting=Find("greet_bridge_done_new");if(greeting!=null){Show(greeting,true);DialogueSeen.Mark("mira_bridge_voice_once");}}
+                else if(mode==MiraInteractionRules.Mode.Free){var greeting=NextGreeting();if(greeting!=null)Show(greeting,true);}
                 else if(mode==MiraInteractionRules.Mode.Reminder&&VibeSettings.GuideEnabled){var reminder=Find(taskKey);if(reminder!=null)Show(reminder,true);}
             }
             if(current!=null)TickSpeech(dt);
@@ -142,7 +144,7 @@ public sealed class MiraPresence : MonoBehaviour, IInteractable, IPriorityIntera
         taskKey=TaskKey();var line=Find(taskKey);statusText=line!=null?line.text:"Загляни в список заданий — там следующий шаг.";
         if(pending)
         {
-            statusText="Сдано "+supply.delivered+"/"+supply.need+" брёвен · в рюкзаке "+(inventory!=null?inventory.woodCount:0)+"\n"+(inventory!=null&&inventory.woodCount>0?"Передай брёвна по E.":"Наруби ещё и принеси сюда.");
+            statusText="Сдано "+supply.delivered+"/"+supply.need+" брёвен · в рюкзаке "+(inventory!=null?inventory.woodCount:0)+"\n"+(inventory!=null&&inventory.woodCount>0?"Нажми E, чтобы передать брёвна.":"Наруби ещё и принеси сюда.");
             if(delivered>=0&&supply.delivered>delivered){if(motion!=null)motion.Thank();if(!Blocked){var thanks=Find("thanks");if(thanks!=null)Show(thanks);}}
         }
         // Also detect the final delivery after Accepting turns false; never react on load.

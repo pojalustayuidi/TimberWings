@@ -26,7 +26,7 @@ public class NpcBanter : MonoBehaviour, IInteractable, IPriorityInteractable
     {
         "Ох, пахнет дымком. Или это мои носки?",
         "Если слышишь скрип, это не лес. Это моя спина.",
-        "Знаешь, в лагере тихо только до первой щепки.",
+        "Знаешь, в лагере тихо только до первого удара топора.",
         "Не забывай пить воду, Лео. И не пей из реки.",
         "Говорят, у этих деревьев есть характер. Вот и проверим.",
         "Один топор хорошо, а два лагеря лучше.",
@@ -172,6 +172,54 @@ public class NpcBanter : MonoBehaviour, IInteractable, IPriorityInteractable
         {
             life.Greeted -= OnGreeted;
             life.DialogueEnded -= OnDialogueEnded;
+        }
+    }
+
+    void ConfigureRecordedCharacterPools()
+    {
+        if (speaker == null) return;
+        string key = VoiceId.SpeakerKey(speaker.displayName);
+        if (key == "oskar")
+        {
+            // Scene-serialized arrays override C# default initializers; repair the old line at runtime too.
+            if (idleLines != null)
+                for (int i = 0; i < idleLines.Length; i++)
+                    if (idleLines[i] == "Знаешь, в лагере тихо только до первой щепки.")
+                        idleLines[i] = "Знаешь, в лагере тихо только до первого удара топора.";
+            annoyedLines = new[]
+            {
+                "Лео, я чертёж держу. Не отвлекай меня каждые пять секунд.",
+                "Ещё раз отвлечёшь - сам будешь считать доски!"
+            };
+        }
+        else if (key == "mira")
+        {
+            // MiraPresence owns her quest reminders and idle greetings; do not duplicate them.
+            idleBarks = false; reactToChopping = false; greetBarkChance = 0f;
+            pokeLines = new[]
+            {
+                "Я с цветами разговариваю. Они хотя бы не перебивают.",
+                "Не кружка, а маленький сад. Просто сад с ручкой."
+            };
+            annoyedLines = new[]
+            {
+                "Лео, я тебя вижу. Дай мне хоть минутку, ладно?",
+                "Ещё раз ткнёшь - отправлю тебя за новой партией брёвен!"
+            };
+        }
+        else if (key == "rico" || key == "merchant")
+        {
+            idleBarks = false; reactToChopping = false; greetBarkChance = 0f;
+            pokeLines = new[]
+            {
+                "Вот именно! Беру брёвна и доски. Цены увидишь у прилавка, нажми E.",
+                "Молодец, думаешь. Оставь запас на стройку. Монеты тоже понадобятся — за мост никто не заплатит."
+            };
+            annoyedLines = new[]
+            {
+                "Бесплатные разговоры закончились. Следующий - за монету!",
+                "Ещё раз ткнёшь - выпишу счёт за консультацию!"
+            };
         }
     }
 

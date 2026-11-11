@@ -1,0 +1,1660 @@
+{
+  "projectName": "Game Dialogue Voiceover Assets (Gemini Neural 24kHz)",
+  "exportDate": "2026-11-11T18:20:23.161Z",
+  "totalFiles": 172,
+  "lines": [
+    {
+      "id": "leo_5c45e50c",
+      "file": "leo_5c45e50c.wav",
+      "character": "Лео",
+      "text": "Дядя? ...Никого. Ладно, осмотрюсь.",
+      "trigger": "prologue:1 / Приезд Лео",
+      "chapter": "Сюжет",
+      "actingDirection": "Тихо себе под нос, растерянно, без паники"
+    },
+    {
+      "id": "mira_92f5be5a",
+      "file": "mira_92f5be5a.wav",
+      "character": "Мира",
+      "text": "О, новенький! Ты ведь племянник Гуннара? Лео, да?",
+      "trigger": "intro_task:1 / Первый разговор с Мирой",
+      "chapter": "Сюжет",
+      "actingDirection": "Тёплое удивление, узнаёт гостя"
+    },
+    {
+      "id": "leo_c65a1bf5",
+      "file": "leo_c65a1bf5.wav",
+      "character": "Лео",
+      "text": "Да. Он писал, что нужна помощь. Где он?",
+      "trigger": "intro_task:2 / Первый разговор с Мирой",
+      "chapter": "Сюжет",
+      "actingDirection": "Вопрос прямой, с настоящим беспокойством"
+    },
+    {
+      "id": "mira_31b23902",
+      "file": "mira_31b23902.wav",
+      "character": "Мира",
+      "text": "Пропал три дня назад. А мост к его мастерской шторм разнёс в щепки.",
+      "trigger": "intro_task:3 / Первый разговор с Мирой",
+      "chapter": "Сюжет",
+      "actingDirection": "Чуть тише и серьёзнее, без трагического надрыва"
+    },
+    {
+      "id": "leo_71d1450a",
+      "file": "leo_71d1450a.wav",
+      "character": "Лео",
+      "text": "Значит, будем строить новый. С чего начать?",
+      "trigger": "intro_task:4 / Первый разговор с Мирой",
+      "chapter": "Сюжет",
+      "actingDirection": "Собрался, отвечает решительно"
+    },
+    {
+      "id": "mira_8f03fcfd",
+      "file": "mira_8f03fcfd.wav",
+      "character": "Мира",
+      "text": "С огня. Нарубай дров и разожги костёр на каменном круге. Там сердце лагеря.",
+      "trigger": "intro_task:5 / Первый разговор с Мирой",
+      "chapter": "Сюжет",
+      "actingDirection": "Спокойно, ободряюще, ясно произнести задачу"
+    },
+    {
+      "id": "leo_29da6c4d",
+      "file": "leo_29da6c4d.wav",
+      "character": "Лео",
+      "text": "Дрова так дрова. Топор при мне, берусь.",
+      "trigger": "intro_task:6 / Первый разговор с Мирой",
+      "chapter": "Сюжет",
+      "actingDirection": "Лёгкая улыбка, согласие"
+    },
+    {
+      "id": "mira_1fa5ec5d",
+      "file": "mira_1fa5ec5d.wav",
+      "character": "Мира",
+      "text": "Горит! Впервые за три дня в лагере тепло.",
+      "trigger": "intro_reward:1 / Костёр горит, нужны припасы",
+      "chapter": "Сюжет",
+      "actingDirection": "Искренняя радость с облегчением"
+    },
+    {
+      "id": "leo_6e16771b",
+      "file": "leo_6e16771b.wav",
+      "character": "Лео",
+      "text": "Дядя бы гордился... Что дальше?",
+      "trigger": "intro_reward:2 / Костёр горит, нужны припасы",
+      "chapter": "Сюжет",
+      "actingDirection": "На миг тихо и грустно, затем собраться"
+    },
+    {
+      "id": "mira_f779356a",
+      "file": "mira_f779356a.wav",
+      "character": "Мира",
+      "text": "Теперь про запас. Принеси мне восемь брёвен, пригодятся на холода.",
+      "trigger": "intro_reward:3 / Костёр горит, нужны припасы",
+      "chapter": "Сюжет",
+      "actingDirection": "Забота о лагере, по-деловому"
+    },
+    {
+      "id": "leo_d71c13a5",
+      "file": "leo_d71c13a5.wav",
+      "character": "Лео",
+      "text": "Восемь? Рюкзак вмещает только четыре.",
+      "trigger": "intro_reward:4 / Костёр горит, нужны припасы",
+      "chapter": "Сюжет",
+      "actingDirection": "Лёгкое удивление, не жалоба"
+    },
+    {
+      "id": "mira_29a10f2d",
+      "file": "mira_29a10f2d.wav",
+      "character": "Мира",
+      "text": "Приноси по четыре. Подойди ко мне с дровами и нажми E — приму обе ходки.",
+      "trigger": "intro_reward:5 / Костёр горит, нужны припасы",
+      "chapter": "Сюжет",
+      "actingDirection": "Очень понятно, доброжелательно"
+    },
+    {
+      "id": "mira_dd0ecab5",
+      "file": "mira_dd0ecab5.wav",
+      "character": "Мира",
+      "text": "Второй уровень! Вот теперь можно говорить о настоящем деле.",
+      "trigger": "upgrade_offer:1 / Улучшение рюкзака",
+      "chapter": "Сюжет",
+      "actingDirection": "Ободряюще, с улыбкой"
+    },
+    {
+      "id": "leo_f17d352b",
+      "file": "leo_f17d352b.wav",
+      "character": "Лео",
+      "text": "Надеюсь, речь про рюкзак. У меня плечи уже знают каждое дерево.",
+      "trigger": "upgrade_offer:2 / Улучшение рюкзака",
+      "chapter": "Сюжет",
+      "actingDirection": "Сухая добрая шутка, устало"
+    },
+    {
+      "id": "mira_174d53a5",
+      "file": "mira_174d53a5.wav",
+      "character": "Мира",
+      "text": "Угадал. Открой «Прокачку» на U и увеличь вместимость. Монет на первое улучшение хватит.",
+      "trigger": "upgrade_offer:3 / Улучшение рюкзака",
+      "chapter": "Сюжет",
+      "actingDirection": "Коротко и чётко, не как диктор туториала"
+    },
+    {
+      "id": "leo_93a9c9c0",
+      "file": "leo_93a9c9c0.wav",
+      "character": "Лео",
+      "text": "Окно на U. Берусь.",
+      "trigger": "upgrade_offer:4 / Улучшение рюкзака",
+      "chapter": "Сюжет",
+      "actingDirection": "Короткое уверенное согласие"
+    },
+    {
+      "id": "mira_79b6cc0b",
+      "file": "mira_79b6cc0b.wav",
+      "character": "Мира",
+      "text": "Шесть брёвен за рейс, совсем другое дело! Топор и ноги подкачаешь позже.",
+      "trigger": "upgrade_report:1 / К Оскару",
+      "chapter": "Сюжет",
+      "actingDirection": "Довольна результатом"
+    },
+    {
+      "id": "mira_993371e7",
+      "file": "mira_993371e7.wav",
+      "character": "Мира",
+      "text": "К Оскару, он у хижины, где брёвна лежат. Друг Гуннара, доски делать умеет.",
+      "trigger": "upgrade_report:2 / К Оскару",
+      "chapter": "Сюжет",
+      "actingDirection": "Тепло, с уважением к другу"
+    },
+    {
+      "id": "leo_872aa583",
+      "file": "leo_872aa583.wav",
+      "character": "Лео",
+      "text": "Может, он знает, зачем дядя рисовал крылья на полях писем?",
+      "trigger": "upgrade_report:3 / К Оскару",
+      "chapter": "Сюжет",
+      "actingDirection": "Впервые появляется любопытство и тревога"
+    },
+    {
+      "id": "oskar_73225232",
+      "file": "oskar_73225232.wav",
+      "character": "Оскар",
+      "text": "Гуннаров племянник? Вылитый дядя, даже хмуришься так же.",
+      "trigger": "hut_offer:1 / Ремонт хижины",
+      "chapter": "Сюжет",
+      "actingDirection": "Улыбка старого мастера, чуть грубовато, но тепло"
+    },
+    {
+      "id": "leo_a30b2385",
+      "file": "leo_a30b2385.wav",
+      "character": "Лео",
+      "text": "Вы Оскар? Мира сказала, вы научите делать доски.",
+      "trigger": "hut_offer:2 / Ремонт хижины",
+      "chapter": "Сюжет",
+      "actingDirection": "Вежливо и по делу"
+    },
+    {
+      "id": "oskar_51b467dd",
+      "file": "oskar_51b467dd.wav",
+      "character": "Оскар",
+      "text": "Научу. Но пила стоит в хижине, а крыша там как решето. Сначала чиним.",
+      "trigger": "hut_offer:3 / Ремонт хижины",
+      "chapter": "Сюжет",
+      "actingDirection": "Мастер ворчит о состоянии крыши"
+    },
+    {
+      "id": "leo_0f399bad",
+      "file": "leo_0f399bad.wav",
+      "character": "Лео",
+      "text": "Сколько нужно брёвен?",
+      "trigger": "hut_offer:4 / Ремонт хижины",
+      "chapter": "Сюжет",
+      "actingDirection": "Деловито"
+    },
+    {
+      "id": "oskar_2f2f0561",
+      "file": "oskar_2f2f0561.wav",
+      "character": "Оскар",
+      "text": "Десять на стены, десять на крышу. Топор не обманет, как говорил Гуннар.",
+      "trigger": "hut_offer:5 / Ремонт хижины",
+      "chapter": "Сюжет",
+      "actingDirection": "Уверенно, с тёплой памятью"
+    },
+    {
+      "id": "leo_20fd1eac",
+      "file": "leo_20fd1eac.wav",
+      "character": "Лео",
+      "text": "Понял. Несу брёвна.",
+      "trigger": "hut_offer:6 / Ремонт хижины",
+      "chapter": "Сюжет",
+      "actingDirection": "Кратко"
+    },
+    {
+      "id": "oskar_814f5d20",
+      "file": "oskar_814f5d20.wav",
+      "character": "Оскар",
+      "text": "Стоит и не скрипит! Гуннар бы кивнул.",
+      "trigger": "hut_report:1 / Пила и чертежи",
+      "chapter": "Сюжет",
+      "actingDirection": "Гордость мастера"
+    },
+    {
+      "id": "leo_cbbd7a76",
+      "file": "leo_cbbd7a76.wav",
+      "character": "Лео",
+      "text": "Дядя тоже начинал с такой хижины?",
+      "trigger": "hut_report:2 / Пила и чертежи",
+      "chapter": "Сюжет",
+      "actingDirection": "Узнаёт о прошлом дяди"
+    },
+    {
+      "id": "oskar_8d901f57",
+      "file": "oskar_8d901f57.wav",
+      "character": "Оскар",
+      "text": "С неё. Потом на каждом клочке бумаги рисовал крылья. Будто уже видел их готовыми.",
+      "trigger": "hut_report:3 / Пила и чертежи",
+      "chapter": "Сюжет",
+      "actingDirection": "Чуть задумчивее, тихий намёк на загадку"
+    },
+    {
+      "id": "oskar_60c47dca",
+      "file": "oskar_60c47dca.wav",
+      "character": "Оскар",
+      "text": "Работает. Клади брёвна на верстак, потом забирай доски. Два бревна дают одну.",
+      "trigger": "hut_report:4 / Пила и чертежи",
+      "chapter": "Сюжет",
+      "actingDirection": "Практично, объясняет работу пилы"
+    },
+    {
+      "id": "oskar_56f2fdb8",
+      "file": "oskar_56f2fdb8.wav",
+      "character": "Оскар",
+      "text": "Мира без них лавку не поставит. Шести ей хватит для начала.",
+      "trigger": "hut_report:5 / Пила и чертежи",
+      "chapter": "Сюжет",
+      "actingDirection": "Деловито"
+    },
+    {
+      "id": "leo_6e819631",
+      "file": "leo_6e819631.wav",
+      "character": "Лео",
+      "text": "Шесть так шесть. Займусь.",
+      "trigger": "hut_report:6 / Пила и чертежи",
+      "chapter": "Сюжет",
+      "actingDirection": "Лёгкая улыбка, рабочий настрой"
+    },
+    {
+      "id": "mira_3a993d0e",
+      "file": "mira_3a993d0e.wav",
+      "character": "Мира",
+      "text": "Доски! Настоящие! Ну-ка, дай посмотреть.",
+      "trigger": "market_offer:1 / Лавка для Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Удивлённая радость, коротко"
+    },
+    {
+      "id": "leo_21f6211c",
+      "file": "leo_21f6211c.wav",
+      "character": "Лео",
+      "text": "Оскар сказал, они нужны для прилавка.",
+      "trigger": "market_offer:2 / Лавка для Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Спокойно"
+    },
+    {
+      "id": "mira_da582724",
+      "file": "mira_da582724.wav",
+      "character": "Мира",
+      "text": "Поставим лавку для Рико: помост, стойки и крышу. Материалы сдавай прямо на стройку.",
+      "trigger": "market_offer:3 / Лавка для Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Упомянуть Рико как знакомого лагерю"
+    },
+    {
+      "id": "leo_58a2bd25",
+      "file": "leo_58a2bd25.wav",
+      "character": "Лео",
+      "text": "Рико? Надеюсь, он хотя бы честно считает.",
+      "trigger": "market_offer:4 / Лавка для Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "С любопытством, подшучивает"
+    },
+    {
+      "id": "mira_f328f32d",
+      "file": "mira_f328f32d.wav",
+      "character": "Мира",
+      "text": "Лавка готова! Рико уже у прилавка. Подойди к нему и нажми E, чтобы продать ресурсы.",
+      "trigger": "market_report:1 / Лавка готова",
+      "chapter": "Сюжет",
+      "actingDirection": "Радостно, чуть энергичнее обычного",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_7b3c0edd",
+      "file": "leo_7b3c0edd.wav",
+      "character": "Лео",
+      "text": "Пойду знакомиться. Он, кажется, уже пересчитал все мои брёвна.",
+      "trigger": "market_report:2 / Лавка готова",
+      "chapter": "Сюжет",
+      "actingDirection": "Улыбка, наблюдательность"
+    },
+    {
+      "id": "rico_d0aab7b6",
+      "file": "rico_d0aab7b6.wav",
+      "character": "Рико",
+      "text": "О! Племянник Гуннара! Я Рико. Добро пожаловать в самую честную лавку этого берега.",
+      "trigger": "merchant_intro:1 / Знакомство с Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Быстро, дружелюбно, гордится лавкой"
+    },
+    {
+      "id": "leo_2cf7bc99",
+      "file": "leo_2cf7bc99.wav",
+      "character": "Лео",
+      "text": "Единственную лавку этого берега?",
+      "trigger": "merchant_intro:2 / Знакомство с Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Сдержанный сарказм"
+    },
+    {
+      "id": "rico_8fb8ed71",
+      "file": "rico_8fb8ed71.wav",
+      "character": "Рико",
+      "text": "Вот именно! Беру брёвна и доски. Цены увидишь у прилавка, нажми E.",
+      "trigger": "merchant_intro:3 / Знакомство с Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Пауза после «именно», деловой азарт"
+    },
+    {
+      "id": "leo_5a12e9df",
+      "file": "leo_5a12e9df.wav",
+      "character": "Лео",
+      "text": "А если продам все доски? На мост ведь не останется.",
+      "trigger": "merchant_intro:4 / Знакомство с Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Проверяет торговца"
+    },
+    {
+      "id": "rico_0c7b22a5",
+      "file": "rico_0c7b22a5.wav",
+      "character": "Рико",
+      "text": "Молодец, думаешь. Оставь запас на стройку. Монеты тоже понадобятся — за мост никто не заплатит.",
+      "trigger": "merchant_intro:5 / Знакомство с Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "Искренний совет, понижает тон"
+    },
+    {
+      "id": "leo_e4b75294",
+      "file": "leo_e4b75294.wav",
+      "character": "Лео",
+      "text": "Ладно, господин честный торговец. Давай посмотрим на цены.",
+      "trigger": "merchant_intro:6 / Знакомство с Рико",
+      "chapter": "Сюжет",
+      "actingDirection": "С улыбкой, без злости"
+    },
+    {
+      "id": "oskar_0f89da2e",
+      "file": "oskar_0f89da2e.wav",
+      "character": "Оскар",
+      "text": "Лавка работает, монеты пошли. Теперь вернём людей.",
+      "trigger": "tent_offer:1 / Возвращение артели",
+      "chapter": "Сюжет",
+      "actingDirection": "Деловито, удовлетворён"
+    },
+    {
+      "id": "leo_ddf4b265",
+      "file": "leo_ddf4b265.wav",
+      "character": "Лео",
+      "text": "Они все ушли после шторма?",
+      "trigger": "tent_offer:2 / Возвращение артели",
+      "chapter": "Сюжет",
+      "actingDirection": "Искренний вопрос"
+    },
+    {
+      "id": "oskar_9473469c",
+      "file": "oskar_9473469c.wav",
+      "character": "Оскар",
+      "text": "Разбрелись. Починим артель — будет где работать и хранить доски.",
+      "trigger": "tent_offer:3 / Возвращение артели",
+      "chapter": "Сюжет",
+      "actingDirection": "Тёплая грусть, затем дело"
+    },
+    {
+      "id": "leo_41b7f586",
+      "file": "leo_41b7f586.wav",
+      "character": "Лео",
+      "text": "Значит, мы не просто строим лагерь. Мы собираем людей обратно.",
+      "trigger": "tent_offer:4 / Возвращение артели",
+      "chapter": "Сюжет",
+      "actingDirection": "Осознание важности работы"
+    },
+    {
+      "id": "oskar_a5220791",
+      "file": "oskar_a5220791.wav",
+      "character": "Оскар",
+      "text": "Вот теперь правильно сказал. Материалы и монеты — у стройки. Начинай.",
+      "trigger": "tent_offer:5 / Возвращение артели",
+      "chapter": "Сюжет",
+      "actingDirection": "Одобрение мастера"
+    },
+    {
+      "id": "oskar_c19f9a25",
+      "file": "oskar_c19f9a25.wav",
+      "character": "Оскар",
+      "text": "Слышишь? Пила работает, лагерь оживает. Гуннар бы сейчас улыбнулся.",
+      "trigger": "tent_report:1 / Артель готова",
+      "chapter": "Сюжет",
+      "actingDirection": "Доволен, чуть растроган"
+    },
+    {
+      "id": "leo_cd1c283c",
+      "file": "leo_cd1c283c.wav",
+      "character": "Лео",
+      "text": "А мне что делать, когда рабочие всё заполнят?",
+      "trigger": "tent_report:2 / Артель готова",
+      "chapter": "Сюжет",
+      "actingDirection": "Практичный вопрос"
+    },
+    {
+      "id": "oskar_00fa5e56",
+      "file": "oskar_00fa5e56.wav",
+      "character": "Оскар",
+      "text": "За складом следить. Заполнится — работа встанет. Забирай запас или продавай Рико.",
+      "trigger": "tent_report:3 / Артель готова",
+      "chapter": "Сюжет",
+      "actingDirection": "Спокойное объяснение"
+    },
+    {
+      "id": "leo_eefb9db9",
+      "file": "leo_eefb9db9.wav",
+      "character": "Лео",
+      "text": "Понял. Значит, теперь мы команда.",
+      "trigger": "tent_report:4 / Артель готова",
+      "chapter": "Сюжет",
+      "actingDirection": "Уверенно"
+    },
+    {
+      "id": "oskar_8138523a",
+      "file": "oskar_8138523a.wav",
+      "character": "Оскар",
+      "text": "Гуннар оставил у артели лесную клеть. Первую можно открыть бесплатно.",
+      "trigger": "pets_offer:1 / Первый попутчик",
+      "chapter": "Сюжет",
+      "actingDirection": "Спокойно, с теплом"
+    },
+    {
+      "id": "leo_69807717",
+      "file": "leo_69807717.wav",
+      "character": "Лео",
+      "text": "Он и зверей в свой большой план записал?",
+      "trigger": "pets_offer:2 / Первый попутчик",
+      "chapter": "Сюжет",
+      "actingDirection": "Удивлённая улыбка"
+    },
+    {
+      "id": "oskar_7d31d3ff",
+      "file": "oskar_7d31d3ff.wav",
+      "character": "Оскар",
+      "text": "Говорил: хорошему делу нужен попутчик. Открой клеть и выбери питомца в активный слот.",
+      "trigger": "pets_offer:3 / Первый попутчик",
+      "chapter": "Сюжет",
+      "actingDirection": "Чётко произнести действие"
+    },
+    {
+      "id": "oskar_d95454a6",
+      "file": "oskar_d95454a6.wav",
+      "character": "Оскар",
+      "text": "Вот и попутчик. Теперь по лесу хотя бы не одному ходить.",
+      "trigger": "pets_report:1 / Попутчик рядом",
+      "chapter": "Сюжет",
+      "actingDirection": "Доброе одобрение"
+    },
+    {
+      "id": "leo_a1535766",
+      "file": "leo_a1535766.wav",
+      "character": "Лео",
+      "text": "Надеюсь, он не потребует зарплату, как Рико.",
+      "trigger": "pets_report:2 / Попутчик рядом",
+      "chapter": "Сюжет",
+      "actingDirection": "Тихо шутит"
+    },
+    {
+      "id": "oskar_8f1bc3f9",
+      "file": "oskar_8f1bc3f9.wav",
+      "character": "Оскар",
+      "text": "Накорми вовремя — и поладите. А нам пора к мосту.",
+      "trigger": "pets_report:3 / Попутчик рядом",
+      "chapter": "Сюжет",
+      "actingDirection": "Дружелюбно, перейти к делу"
+    },
+    {
+      "id": "oskar_c7573729",
+      "file": "oskar_c7573729.wav",
+      "character": "Оскар",
+      "text": "Лагерь держится на ногах. Пора за реку — к мастерской Гуннара.",
+      "trigger": "bridge_offer:1 / К мастерской Гуннара",
+      "chapter": "Сюжет",
+      "actingDirection": "Серьёзнее обычного"
+    },
+    {
+      "id": "leo_76cab225",
+      "file": "leo_76cab225.wav",
+      "character": "Лео",
+      "text": "Ты ведь не знаешь, что он там?",
+      "trigger": "bridge_offer:2 / К мастерской Гуннара",
+      "chapter": "Сюжет",
+      "actingDirection": "Тихое беспокойство"
+    },
+    {
+      "id": "oskar_d887df3d",
+      "file": "oskar_d887df3d.wav",
+      "character": "Оскар",
+      "text": "Не знаю. Знаю другое: перед штормом он просил не трогать старое дерево. Даже мне не объяснил зачем.",
+      "trigger": "bridge_offer:3 / К мастерской Гуннара",
+      "chapter": "Сюжет",
+      "actingDirection": "Сдержанно, загадка без пафоса"
+    },
+    {
+      "id": "leo_68a6960d",
+      "file": "leo_68a6960d.wav",
+      "character": "Лео",
+      "text": "Тогда восстановим мост. С чего начнём?",
+      "trigger": "bridge_offer:4 / К мастерской Гуннара",
+      "chapter": "Сюжет",
+      "actingDirection": "Решимость"
+    },
+    {
+      "id": "oskar_eb94e6b4",
+      "file": "oskar_eb94e6b4.wav",
+      "character": "Оскар",
+      "text": "Опоры, настил, тросы. Материалы и монеты указаны на каждом этапе. А дальше — сами увидим.",
+      "trigger": "bridge_offer:5 / К мастерской Гуннара",
+      "chapter": "Сюжет",
+      "actingDirection": "Чёткие инструкции, в конце надежда"
+    },
+    {
+      "id": "leo_89935244",
+      "file": "leo_89935244.wav",
+      "character": "Лео",
+      "text": "Ну вот, дядя. Дорогу я тебе вернул. Осталось понять, куда ты ушёл.",
+      "trigger": "bridge_ready:1 / Мост готов",
+      "chapter": "Сюжет",
+      "actingDirection": "Спокойно, с тихой решимостью"
+    },
+    {
+      "id": "mira_de191250",
+      "file": "mira_de191250.wav",
+      "character": "Мира",
+      "text": "О, Лео. Как там наш лагерь?",
+      "trigger": "greet_leo / Лагерь",
+      "chapter": "Мира: Приветствия",
+      "actingDirection": "Тепло, естественно, без переигрывания"
+    },
+    {
+      "id": "mira_2f348246",
+      "file": "mira_2f348246.wav",
+      "character": "Мира",
+      "text": "Хороший день. Даже мой цветок решил проснуться.",
+      "trigger": "greet_day / Лагерь",
+      "chapter": "Мира: Приветствия",
+      "actingDirection": "Тепло, естественно, с утренней бодростью"
+    },
+    {
+      "id": "mira_0737ca05",
+      "file": "mira_0737ca05.wav",
+      "character": "Мира",
+      "text": "Не спится? У огня ещё есть место.",
+      "trigger": "greet_night / Лагерь",
+      "chapter": "Мира: Приветствия",
+      "actingDirection": "Мягко, приглушённо, тепло у ночного костра"
+    },
+    {
+      "id": "mira_3720e83c",
+      "file": "mira_3720e83c.wav",
+      "character": "Мира",
+      "text": "Присядь у огня, если устал. Лес никуда не убежит.",
+      "trigger": "greet_rest / Лагерь",
+      "chapter": "Мира: Приветствия",
+      "actingDirection": "Заботливо, спокойно"
+    },
+    {
+      "id": "mira_b81f26c7",
+      "file": "mira_b81f26c7.wav",
+      "character": "Мира",
+      "text": "Лео! Ты построил мост. Гуннар бы тобой гордился.",
+      "trigger": "greet_bridge_done_new / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "greet / bridge_done: с теплотой и гордостью за Лео",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_5c0c040d",
+      "file": "mira_5c0c040d.wav",
+      "character": "Мира",
+      "text": "Подойди поближе и нажми E, чтобы поговорить. Ты ведь Лео?",
+      "trigger": "task_meet / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "Приветливо, без дикторской интонации",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_d90908fa",
+      "file": "mira_d90908fa.wav",
+      "character": "Мира",
+      "text": "Сначала нужны дрова для костра. Выбери дерево и начни рубить.",
+      "trigger": "task_chop / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: чёткая практическая подсказка",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_bef7e446",
+      "file": "mira_bef7e446.wav",
+      "character": "Мира",
+      "text": "Отнеси дрова на каменный круг. Материалы сдавай прямо на костёр.",
+      "trigger": "task_fire / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: спокойно указывает на каменный круг",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_76694499",
+      "file": "mira_76694499.wav",
+      "character": "Мира",
+      "text": "Костёр горит. Подойди ко мне — теперь поговорим о запасах.",
+      "trigger": "task_return / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: радостно, зовёт обратно к костру",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_9cdafe6b",
+      "file": "mira_9cdafe6b.wav",
+      "character": "Мира",
+      "text": "Следующий шаг откроется с уровнем. Пока поруби деревья и разгрузи рюкзак.",
+      "trigger": "task_level / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: ободряюще, задаёт темп",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_3f007e42",
+      "file": "mira_3f007e42.wav",
+      "character": "Мира",
+      "text": "Проверь цель наверху экрана. Там указано, с кем сейчас нужно поговорить.",
+      "trigger": "task_talk / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: мягкая ненавязчивая подсказка игроку",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_504d08b1",
+      "file": "mira_504d08b1.wav",
+      "character": "Мира",
+      "text": "Принёс брёвна? Нажми E, чтобы передать их мне. Приму сколько нужно.",
+      "trigger": "task_supply_carry / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "Доброжелательно, коротко и понятно",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_3c83d19f",
+      "file": "mira_3c83d19f.wav",
+      "character": "Мира",
+      "text": "Для запаса ещё нужны брёвна. Приноси понемногу.",
+      "trigger": "task_supply_empty / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: спокойно подбадривает",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_229a206a",
+      "file": "mira_229a206a.wav",
+      "character": "Мира",
+      "text": "Увеличь вместимость рюкзака в «Прокачке» на U. Потом возвращайся.",
+      "trigger": "task_upgrade / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: советует заглянуть в прокачку",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_7f756c47",
+      "file": "mira_7f756c47.wav",
+      "character": "Мира",
+      "text": "Оскар ждёт у хижины. Материалы сдавай на её стройку, по этапам.",
+      "trigger": "task_hut / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: направляет к Оскару",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_cb991b01",
+      "file": "mira_cb991b01.wav",
+      "character": "Мира",
+      "text": "На верстаке у хижины сделай шесть досок. Оскар уже подготовил пилу.",
+      "trigger": "task_planks / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: деловито, ставит задачу по доскам",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_4fa55fa4",
+      "file": "mira_4fa55fa4.wav",
+      "character": "Мира",
+      "text": "Для лавки нужны помост, стойки и крыша. Материалы сдавай прямо на стройку.",
+      "trigger": "task_market / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: объясняет план строительства лавки",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_a2220579",
+      "file": "mira_a2220579.wav",
+      "character": "Мира",
+      "text": "Для продажи подойди к самой лавке и нажми E. Доски на стройку можешь оставить.",
+      "trigger": "task_sale / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: подсказка о торговле у прилавка",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_4e0ee8cd",
+      "file": "mira_4e0ee8cd.wav",
+      "character": "Мира",
+      "text": "Пора восстановить артель. На стройке указано, что нужно для текущего этапа.",
+      "trigger": "task_tent / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: вдохновляюще, зовёт вернуть рабочих",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_fc2f015f",
+      "file": "mira_fc2f015f.wav",
+      "character": "Мира",
+      "text": "Открой лесную клеть, потом выбери питомца в активный слот.",
+      "trigger": "task_pet / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: с улыбкой, подсказывает про питомца",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_a8f1f8c0",
+      "file": "mira_a8f1f8c0.wav",
+      "character": "Мира",
+      "text": "Мост собирается по этапам: опоры, настил, тросы. Сдавай материалы на стройке.",
+      "trigger": "task_bridge / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "task / always: главная цель, собранно и уверенно",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_49a47a4f",
+      "file": "mira_49a47a4f.wav",
+      "character": "Мира",
+      "text": "Мост готов. Перейди на дальний остров. Кажется, Гуннар оставил там что-то важное.",
+      "trigger": "task_note / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "Тихо, с ощущением приближающейся разгадки",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_1a1d0a86",
+      "file": "mira_1a1d0a86.wav",
+      "character": "Мира",
+      "text": "Спасибо, Лео. Убираю в запас.",
+      "trigger": "thanks / Лагерь",
+      "chapter": "Мира: Задания и подход",
+      "actingDirection": "thanks / always: искренняя благодарность с улыбкой",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_0598915e",
+      "file": "leo_0598915e.wav",
+      "character": "Лео",
+      "text": "Всё, больше не унесу. Пора разгрузиться.",
+      "trigger": "bag_full / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Чуть запыхался, сухая самоирония. Короткое «Всё» — как выдох.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_24258d2b",
+      "file": "leo_24258d2b.wav",
+      "character": "Лео",
+      "text": "Половина есть. Ещё одна ходка.",
+      "trigger": "supply_half / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Доволен первым результатом, деловито и с лёгким оптимизмом.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_c0ac830b",
+      "file": "leo_c0ac830b.wav",
+      "character": "Лео",
+      "text": "Получилось. Уже похоже на стройматериал.",
+      "trigger": "first_plank / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Небольшое удивление и гордость: впервые сделал доску сам.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_76f14ec1",
+      "file": "leo_76f14ec1.wav",
+      "character": "Лео",
+      "text": "Первый доход. Дядя бы сказал: половину не трать.",
+      "trigger": "first_sale / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Тихая радость первой продажи; слова о дяде — тепло, с улыбкой.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_cc66746e",
+      "file": "leo_cc66746e.wav",
+      "character": "Лео",
+      "text": "Склад под самую крышу. Пора забрать запас.",
+      "trigger": "stock_full / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Увидел переполненный склад, быстро оценил ситуацию; без тревоги.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_d24f5470",
+      "file": "leo_d24f5470.wav",
+      "character": "Лео",
+      "text": "Здесь даже ветер тише.",
+      "trigger": "mystic_first / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Сбавил шаг, насторожился, почти шёпотом; ощущение необычного места.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_fa8b4695",
+      "file": "leo_fa8b4695.wav",
+      "character": "Лео",
+      "text": "Тихо-то как. Даже шаги будто не мои.",
+      "trigger": "mystic_night / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Ночь, лёгкий холодок по спине, не паника — завороженная тишина.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_7bd2ea96",
+      "file": "leo_7bd2ea96.wav",
+      "character": "Лео",
+      "text": "Вот какое дерево он берег. Не зря Оскар о нём вспомнил.",
+      "trigger": "old_tree / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Смотрит вверх на старый кедр с уважением, вспоминает разговор.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_962b94ff",
+      "file": "leo_962b94ff.wav",
+      "character": "Лео",
+      "text": "Кто сюда приходит посидеть посреди ночи?",
+      "trigger": "tree_night / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Ночная мысль вслух, лёгкая загадка в интонации, любопытство.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_ca7a3286",
+      "file": "leo_ca7a3286.wav",
+      "character": "Лео",
+      "text": "Первая часть готова. Уже похоже на мост, который выдержит шторм.",
+      "trigger": "bridge_first_stage / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Уверенность в проделанной работе, оценивает результат.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_b7a222e3",
+      "file": "leo_b7a222e3.wav",
+      "character": "Лео",
+      "text": "Осталось совсем немного. Дядя, надеюсь, ты там.",
+      "trigger": "bridge_last_stage / Реакции на события",
+      "chapter": "Мысли Лео",
+      "actingDirection": "Финишная прямая; решимость с примесью скрытой тревоги.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "mira_819cb1e7",
+      "file": "mira_819cb1e7.wav",
+      "character": "Мира",
+      "text": "Я с цветами разговариваю. Они хотя бы не перебивают.",
+      "trigger": "chat_flower / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / always: лёгкая самоирония с доброй улыбкой",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_0a064058",
+      "file": "mira_0a064058.wav",
+      "character": "Мира",
+      "text": "Оскар опять сказал «пять минут»? Значит, до вечера.",
+      "trigger": "chat_oskar / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / always: беззлобная шутка о старом мастере",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_20d5987d",
+      "file": "mira_20d5987d.wav",
+      "character": "Мира",
+      "text": "Вот теперь лагерь снова пахнет домом.",
+      "trigger": "chat_home / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / always: глубокий тёплый вздох, уют и покой",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_c475081c",
+      "file": "mira_c475081c.wav",
+      "character": "Мира",
+      "text": "Не кружка, а маленький сад. Просто сад с ручкой.",
+      "trigger": "chat_mug / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / always: любуется глиняной кружкой с цветком",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_ddabb07b",
+      "file": "mira_ddabb07b.wav",
+      "character": "Мира",
+      "text": "На донышке — komarov. Мастер подписал горшок так, будто я его вверх ногами носить буду.",
+      "trigger": "chat_komarov / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / once: смешливое недоумение",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_802aee9d",
+      "file": "mira_802aee9d.wav",
+      "character": "Мира",
+      "text": "Гуннар всегда оставлял у огня свободное место. Даже когда никого не ждал.",
+      "trigger": "chat_gunnar / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / once: светлая тихая ностальгия",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_5404ddeb",
+      "file": "mira_5404ddeb.wav",
+      "character": "Мира",
+      "text": "Старое дерево он просил не трогать. А почему — каждый раз переводил разговор.",
+      "trigger": "chat_tree / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / once: задумчиво, оставляет вопрос открытым",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_540100cc",
+      "file": "mira_540100cc.wav",
+      "character": "Мира",
+      "text": "К старому дереву ночью я бы одна не пошла.",
+      "trigger": "chat_night / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / night: полушёпотом, ночной трепет",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_59fcc2da",
+      "file": "mira_59fcc2da.wav",
+      "character": "Мира",
+      "text": "Дрова согревают дважды. Оскар считает, что трижды: ещё когда их продаёшь.",
+      "trigger": "chat_logs / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / always: житейская мудрость с улыбкой",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_c416a153",
+      "file": "mira_c416a153.wav",
+      "character": "Мира",
+      "text": "Слышишь пилу? Раньше здесь по утрам всегда так было.",
+      "trigger": "chat_people / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / day: радость возвращения звуков жизни",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_01442f4e",
+      "file": "mira_01442f4e.wav",
+      "character": "Мира",
+      "text": "Верёвка, сухие дрова и хороший сосед. Остальное как-нибудь устроим.",
+      "trigger": "chat_rope / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / always: оптимизм и надёжность",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_e7d05e05",
+      "file": "mira_e7d05e05.wav",
+      "character": "Мира",
+      "text": "Крылья на бумаге я видела. В воздухе — пока нет.",
+      "trigger": "chat_wings / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / once: лёгкое сомнение, но с надеждой",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_7352e58f",
+      "file": "mira_7352e58f.wav",
+      "character": "Мира",
+      "text": "Гуннар мог часами смотреть на дальний берег. Будто ждал оттуда ответа.",
+      "trigger": "chat_gunnar_memory_new / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / once: воспоминание о друге, тихая тайна",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_559c9d63",
+      "file": "mira_559c9d63.wav",
+      "character": "Мира",
+      "text": "Каждый новый дом здесь — ещё одна причина людям вернуться.",
+      "trigger": "chat_camp_return_new / Лагерь",
+      "chapter": "Мира: Разговоры у костра",
+      "actingDirection": "chat / once: искренняя гордость за лагерь",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "leo_4fa0dca8",
+      "file": "leo_4fa0dca8.wav",
+      "character": "Лео",
+      "text": "У Миры метка. Подойду и нажму E.",
+      "trigger": "help_mira / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Спокойно, напоминание о первом шаге.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_ce9b1972",
+      "file": "leo_ce9b1972.wav",
+      "character": "Лео",
+      "text": "Выберу дерево и удержу E. Небольшого пока хватит.",
+      "trigger": "help_chop / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Практичный совет самому себе, деловито.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_13a497cd",
+      "file": "leo_13a497cd.wav",
+      "character": "Лео",
+      "text": "Дрова нужно отнести на каменный круг — прямо к костру.",
+      "trigger": "help_fire / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Чётко, сориентировался на местности.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_2caed87c",
+      "file": "leo_2caed87c.wav",
+      "character": "Лео",
+      "text": "Костёр горит. Теперь обратно к Мире.",
+      "trigger": "help_return / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Довольно, этап завершён.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_3dbd252e",
+      "file": "leo_3dbd252e.wav",
+      "character": "Лео",
+      "text": "Меня ждут у метки задания. Подойду поближе и нажму E.",
+      "trigger": "help_talk / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Внимательно, фокус на сюжетной цели.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_9db8e460",
+      "file": "leo_9db8e460.wav",
+      "character": "Лео",
+      "text": "Следующий шаг откроется с уровнем. Пока порублю деревья и разгружу рюкзак.",
+      "trigger": "help_level / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Без спешки, рабочий настрой.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_128bc910",
+      "file": "leo_128bc910.wav",
+      "character": "Лео",
+      "text": "Рюкзак полон. Сначала отнесу брёвна в лагерь, потом вернусь за деревьями.",
+      "trigger": "help_pack / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Практично, рациональный план.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_a4fcfd42",
+      "file": "leo_a4fcfd42.wav",
+      "character": "Лео",
+      "text": "Брёвна собрал, осталось отдать их Мире.",
+      "trigger": "help_supply_carry / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Короткая мысль самому себе, естественно",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_bed6f699",
+      "file": "leo_bed6f699.wav",
+      "character": "Лео",
+      "text": "Нужны ещё брёвна. Начну с небольшого дерева.",
+      "trigger": "help_supply_empty / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Оценил задачу, берётся за топор.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_6b1f83a0",
+      "file": "leo_6b1f83a0.wav",
+      "character": "Лео",
+      "text": "Прокачка на U. Первым делом — вместимость рюкзака.",
+      "trigger": "help_upgrade / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Уверенно, выбор приоритета развития.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_30aa5898",
+      "file": "leo_30aa5898.wav",
+      "character": "Лео",
+      "text": "К хижине. Там верстак: два бревна превращаются в доску.",
+      "trigger": "help_planks / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Вспомнил совет Оскара, идёт к пиле.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_37ae08e8",
+      "file": "leo_37ae08e8.wav",
+      "character": "Лео",
+      "text": "Ресурсы можно продать у Рико. Загляну к нему.",
+      "trigger": "help_sale / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Задумчиво, без упоминания кнопок",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_64137936",
+      "file": "leo_64137936.wav",
+      "character": "Лео",
+      "text": "Клеть рядом с артелью. Потом выберу попутчика в меню питомцев.",
+      "trigger": "help_pet / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Любопытство, интерес к зверьку.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_0c5033ae",
+      "file": "leo_0c5033ae.wav",
+      "character": "Лео",
+      "text": "Материалы для текущего этапа указаны у моста. Соберу, чего не хватает.",
+      "trigger": "help_bridge / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Собрался с мыслями, масштабная задача.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_c8442bd2",
+      "file": "leo_c8442bd2.wav",
+      "character": "Лео",
+      "text": "Перейду мост и осмотрю дальний остров. Может, найду след дяди.",
+      "trigger": "help_note / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Решительно, с лёгким волнением",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_ffdcb181",
+      "file": "leo_ffdcb181.wav",
+      "character": "Лео",
+      "text": "Материалы сдаются прямо у стройки. Посмотрю, чего не хватает.",
+      "trigger": "help_build / Реакции на события",
+      "chapter": "Подсказки Лео",
+      "actingDirection": "Деловой подход строителя.",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_5b064543",
+      "file": "leo_5b064543.wav",
+      "character": "Лео",
+      "text": "На клети записка от Гуннара.",
+      "trigger": "pet_note:1 / Первое открытие клетки",
+      "chapter": "Записки и финал",
+      "actingDirection": "Вслух, при первом взаимодействии E, с удивлением",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_bea7e77f",
+      "file": "leo_bea7e77f.wav",
+      "character": "Лео",
+      "text": "«Заказ №14. Звери-помощники. Ворчать бесплатно, кормить по расписанию.»",
+      "trigger": "pet_note:2 / Первое открытие клетки",
+      "chapter": "Записки и финал",
+      "actingDirection": "Читает с лёгкой улыбкой, узнаёт юмор дяди",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_73c04c4c",
+      "file": "leo_73c04c4c.wav",
+      "character": "Лео",
+      "text": "Сначала надо поговорить с Мирой.",
+      "trigger": "interaction:1 / Взаимодействие",
+      "chapter": "Записки и финал",
+      "actingDirection": "Короткое предупреждение, когда пытается обогнать сюжет",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_18292311",
+      "file": "leo_18292311.wav",
+      "character": "Лео",
+      "text": "На камне под аркой лежит записка. Почерк дяди Гуннара.",
+      "trigger": "gunnar_note:1 / После моста",
+      "chapter": "Записки и финал",
+      "actingDirection": "Читает Лео: трепетная находка после долгого пути",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_79e667e5",
+      "file": "leo_79e667e5.wav",
+      "character": "Лео",
+      "text": "«Лео. Раз читаешь это, мост снова стоит, а ты не побоялся топора.»",
+      "trigger": "gunnar_note:2 / После моста",
+      "chapter": "Записки и финал",
+      "actingDirection": "Читает Лео: строгий, но тёплый тон дяди в письме",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_53a28183",
+      "file": "leo_53a28183.wav",
+      "character": "Лео",
+      "text": "«Я ушёл за кедром для большой работы. Вернусь, когда лес позволит.»",
+      "trigger": "gunnar_note:3 / После моста",
+      "chapter": "Записки и финал",
+      "actingDirection": "Читает Лео: дядя снова в пути, загадка раскрывается",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_0f9506b4",
+      "file": "leo_0f9506b4.wav",
+      "character": "Лео",
+      "text": "«Лагерь не бросай. Ты справишься лучше, чем думаешь. Гуннар.»",
+      "trigger": "gunnar_note:4 / После моста",
+      "chapter": "Записки и финал",
+      "actingDirection": "Читает Лео: отцовское благословение и вера в племянника",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_361fd83c",
+      "file": "leo_361fd83c.wav",
+      "character": "Лео",
+      "text": "Он жив. И он в меня верит. Значит, рубим дальше.",
+      "trigger": "gunnar_note:5 / После моста",
+      "chapter": "Записки и финал",
+      "actingDirection": "Глубокий выдох, спокойная и твёрдая решимость",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "dynamic_idle_01",
+      "file": "dynamic_idle_01.wav",
+      "character": "NPC (Динамический)",
+      "text": "Ох, пахнет дымком. Или это мои носки?",
+      "trigger": "idleLines:1",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Ворчливо-шутливо у костра",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_idle_02",
+      "file": "dynamic_idle_02.wav",
+      "character": "NPC (Динамический)",
+      "text": "Если слышишь скрип, это не лес. Это моя спина.",
+      "trigger": "idleLines:2",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Суховатый юмор работяги",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_idle_03",
+      "file": "dynamic_idle_03.wav",
+      "character": "NPC (Динамический)",
+      "text": "Знаешь, в лагере тихо только до первого удара топора.",
+      "trigger": "idleLines:3",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "С лёгкой усмешкой; персонаж зависит от сцены",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_idle_04",
+      "file": "dynamic_idle_04.wav",
+      "character": "NPC (Динамический)",
+      "text": "Не забывай пить воду, Лео. И не пей из реки.",
+      "trigger": "idleLines:4",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Дружеское предостережение",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_idle_05",
+      "file": "dynamic_idle_05.wav",
+      "character": "NPC (Динамический)",
+      "text": "Говорят, у этих деревьев есть характер. Вот и проверим.",
+      "trigger": "idleLines:5",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "С азартом, глядя на чащу",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_idle_06",
+      "file": "dynamic_idle_06.wav",
+      "character": "NPC (Динамический)",
+      "text": "Один топор хорошо, а два лагеря лучше.",
+      "trigger": "idleLines:6",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Поговорка с улыбкой",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_idle_07",
+      "file": "dynamic_idle_07.wav",
+      "character": "NPC (Динамический)",
+      "text": "Эй! Я не ленюсь, я наблюдаю за процессом.",
+      "trigger": "idleLines:7",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Оправдывается с хитрой улыбкой",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_greet_01",
+      "file": "dynamic_greet_01.wav",
+      "character": "NPC (Динамический)",
+      "text": "О, Лео! Как дела?",
+      "trigger": "greetLines:1",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Живое искреннее приветствие",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_greet_02",
+      "file": "dynamic_greet_02.wav",
+      "character": "NPC (Динамический)",
+      "text": "Привет, лесоруб!",
+      "trigger": "greetLines:2",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Бодро, машет рукой",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_greet_03",
+      "file": "dynamic_greet_03.wav",
+      "character": "NPC (Динамический)",
+      "text": "Опять ты! Заходи, не стесняйся.",
+      "trigger": "greetLines:3",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Радушно, гостеприимно",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_chop_01",
+      "file": "dynamic_chop_01.wav",
+      "character": "NPC (Динамический)",
+      "text": "Вот это замах! Так держать, Лео!",
+      "trigger": "chopLines:1",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Подбадривает во время рубки",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_chop_02",
+      "file": "dynamic_chop_02.wav",
+      "character": "NPC (Динамический)",
+      "text": "Щепки летят, значит дело идёт!",
+      "trigger": "chopLines:2",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Одобрительно, видит результат",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_chop_03",
+      "file": "dynamic_chop_03.wav",
+      "character": "NPC (Динамический)",
+      "text": "Ты рубишь как настоящий Гуннар. Почти.",
+      "trigger": "chopLines:3",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Сравнивает с мастером, с полуулыбкой",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_chop_04",
+      "file": "dynamic_chop_04.wav",
+      "character": "NPC (Динамический)",
+      "text": "Тихо-тихо, оставь хоть пару деревьев на потом!",
+      "trigger": "chopLines:4",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Шутливое предостережение",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_poke_01",
+      "file": "dynamic_poke_01.wav",
+      "character": "NPC (Динамический)",
+      "text": "Что, соскучился? Тогда руби, а то дров не хватит.",
+      "trigger": "pokeLines:1",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "При тычке игрока: шутливо отсылает к работе",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_poke_02",
+      "file": "dynamic_poke_02.wav",
+      "character": "NPC (Динамический)",
+      "text": "Ты знаешь, что пенёк это просто дерево, которое сдалось?",
+      "trigger": "pokeLines:2",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Философская шутка",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_poke_03",
+      "file": "dynamic_poke_03.wav",
+      "character": "NPC (Динамический)",
+      "text": "Мне снилось, что я белка. Было здорово.",
+      "trigger": "pokeLines:3",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "С мечтательной улыбкой",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_poke_04",
+      "file": "dynamic_poke_04.wav",
+      "character": "NPC (Динамический)",
+      "text": "Если что, я за костёр, а ты за дрова. Командная работа!",
+      "trigger": "pokeLines:4",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Хитровато распределяет роли",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_poke_05",
+      "file": "dynamic_poke_05.wav",
+      "character": "NPC (Динамический)",
+      "text": "Слушай, а ты правда племянник Гуннара? Тогда понятно...",
+      "trigger": "pokeLines:5",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "С понимающим кивком",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_poke_06",
+      "file": "dynamic_poke_06.wav",
+      "character": "NPC (Динамический)",
+      "text": "Не обижайся, но у тебя щепка в волосах. Нет, левее.",
+      "trigger": "pokeLines:6",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Заботливая наблюдательность",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "dynamic_poke_07",
+      "file": "dynamic_poke_07.wav",
+      "character": "NPC (Динамический)",
+      "text": "Хочешь совет? Сначала топор, потом болтовня.",
+      "trigger": "pokeLines:7",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Наставительно, с добрым ворчанием",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "mira_dae37fac",
+      "file": "mira_dae37fac.wav",
+      "character": "Мира",
+      "text": "Лео, я тебя вижу. Дай мне хоть минутку, ладно?",
+      "trigger": "annoyed:mira_1 / Раздражённая реакция 1",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Мягкий женский голос. Доброжелательная шутливая строгость, без настоящей злости.",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "mira_9539cbb4",
+      "file": "mira_9539cbb4.wav",
+      "character": "Мира",
+      "text": "Ещё раз ткнёшь - отправлю тебя за новой партией брёвен!",
+      "trigger": "annoyed:mira_2 / Раздражённая реакция 2",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Мягкий женский голос с лёгкой шутливой угрозой.",
+      "voiceUsed": "Kore"
+    },
+    {
+      "id": "oskar_a16c35ad",
+      "file": "oskar_a16c35ad.wav",
+      "character": "Оскар",
+      "text": "Лео, я чертёж держу. Не отвлекай меня каждые пять секунд.",
+      "trigger": "annoyed:oskar_1 / Раздражённая реакция 1",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Мужской низкий, слегка хрипловатый, невозмутимый. Сухой юмор мастера.",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "oskar_9e5b6210",
+      "file": "oskar_9e5b6210.wav",
+      "character": "Оскар",
+      "text": "Ещё раз отвлечёшь - сам будешь считать доски!",
+      "trigger": "annoyed:oskar_2 / Раздражённая реакция 2",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Мужской низкий, слегка хрипловатый, невозмутимый. Сухой юмор мастера.",
+      "voiceUsed": "Charon"
+    },
+    {
+      "id": "rico_e6e9fb5b",
+      "file": "rico_e6e9fb5b.wav",
+      "character": "Рико",
+      "text": "Бесплатные разговоры закончились. Следующий - за монету!",
+      "trigger": "annoyed:rico_1 / Раздражённая реакция 1",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Живой, быстрый, чуть хитроватый торговец. Улыбка слышна в голосе.",
+      "voiceUsed": "Fenrir"
+    },
+    {
+      "id": "rico_ec6e3c2a",
+      "file": "rico_ec6e3c2a.wav",
+      "character": "Рико",
+      "text": "Ещё раз ткнёшь - выпишу счёт за консультацию!",
+      "trigger": "annoyed:rico_2 / Раздражённая реакция 2",
+      "chapter": "Динамические NPC (NpcBanter)",
+      "actingDirection": "Живой, быстрый, чуть хитроватый торговец. Улыбка слышна в голосе.",
+      "voiceUsed": "Fenrir"
+    },
+    {
+      "id": "leo_b59ece18",
+      "file": "leo_b59ece18.wav",
+      "character": "Лео",
+      "text": "Значит, вот куда ты уходил... Но где же ты сам?",
+      "trigger": "При входе на финальный остров",
+      "chapter": "Портал и финал",
+      "actingDirection": "Удивление, тихая тревога",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "leo_154fa4a8",
+      "file": "leo_154fa4a8.wav",
+      "character": "Лео",
+      "text": "Что это?..",
+      "trigger": "Нажатие E на объекте портала",
+      "chapter": "Портал и финал",
+      "actingDirection": "Шёпот",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "gunnar_4368fdd4",
+      "file": "gunnar_4368fdd4.wav",
+      "character": "Дядя Гуннар",
+      "text": "Лео... Если ты слышишь меня, значит, мост снова стоит.",
+      "trigger": "Пробуждение портала",
+      "chapter": "Портал и финал",
+      "actingDirection": "Низкий тёплый голос, как запись",
+      "voiceUsed": "Fenrir"
+    },
+    {
+      "id": "gunnar_fb58fc32",
+      "file": "gunnar_fb58fc32.wav",
+      "character": "Дядя Гуннар",
+      "text": "Я знал, что ты справишься. Но то, что я нашёл, гораздо больше нашего острова.",
+      "trigger": "Портал раскрывается",
+      "chapter": "Портал и финал",
+      "actingDirection": "Спокойно, загадочно",
+      "voiceUsed": "Fenrir"
+    },
+    {
+      "id": "gunnar_df896b40",
+      "file": "gunnar_df896b40.wav",
+      "character": "Дядя Гуннар",
+      "text": "Если решишь идти дальше... помни: лес всегда подскажет дорогу.",
+      "trigger": "Перед входом",
+      "chapter": "Портал и финал",
+      "actingDirection": "Затухание голоса",
+      "voiceUsed": "Fenrir"
+    },
+    {
+      "id": "leo_196a6880",
+      "file": "leo_196a6880.wav",
+      "character": "Лео",
+      "text": "Ну что, дядя... Похоже, теперь моя очередь.",
+      "trigger": "Перед переходом в портал",
+      "chapter": "Портал и финал",
+      "actingDirection": "Тихая решимость",
+      "voiceUsed": "Puck"
+    },
+    {
+      "id": "finale_intro_narrator_01",
+      "file": "finale_intro_narrator_01.wav",
+      "character": "Рассказчик",
+      "text": "Лес был лишь началом.",
+      "trigger": "1.5–4.0 сек / Первая надпись (Интро)",
+      "chapter": "Финал ролика 27.5с (Интро и аутро)",
+      "actingDirection": "A distant, breathy, intimate storyteller. Quiet confidence, not a horror trailer announcer. Keep it short and understated.",
+      "voiceUsed": "Enceladus"
+    },
+    {
+      "id": "finale_middle_narrator_01",
+      "file": "finale_middle_narrator_01.wav",
+      "character": "Рассказчик",
+      "text": "След обрывается здесь.",
+      "trigger": "11.5–13.5 сек / Тоннель (Необязательно)",
+      "chapter": "Финал ролика 27.5с (Интро и аутро)",
+      "actingDirection": "Exactly the same narrator voice. Sparse, barely above a whisper, a feeling of unease without melodrama.",
+      "voiceUsed": "Enceladus"
+    },
+    {
+      "id": "finale_outro_leo_01",
+      "file": "finale_outro_leo_01.wav",
+      "character": "Лео",
+      "text": "Похоже, я здесь не первый...",
+      "trigger": "15.5–18.5 сек / Лео в пещере (Аутро)",
+      "chapter": "Финал ролика 27.5с (Интро и аутро)",
+      "actingDirection": "Preserve Leo's established Puck voice. Curious and quietly surprised. A small pause after 'Похоже', no shouting.",
+      "voiceUsed": "Puck"
+    }
+  ]
+}

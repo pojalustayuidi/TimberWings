@@ -235,6 +235,7 @@ public partial class DialogueManager : MonoBehaviour
     void Update()
     {
         float dt = Time.unscaledDeltaTime;
+        if (babble != null) babble.SetPaused(HistoryOpen || Time.timeScale <= 0f);
 
         if (cur == null)
         {

@@ -248,22 +248,7 @@ internal sealed class GateBridgeFinaleBaker
         }
         Draw(gate, "PathStonesAndCrystals", rocks.ToMesh("FinalIslandStones"), stoneMaterial);
 
-        var shader = Resources.Load<Shader>("Finale/PortalSurface");
-        MeshRenderer field = null;
-        if (shader != null && shader.isSupported)
-        {
-            var portalMaterial = GateBridgeAssetVault.Material(new Material(shader) { name = "PortalSurface" });
-            var surface = new Mesh { name = "PortalOpening" };
-            surface.vertices = new[]
-            {
-                new Vector3(-OpeningX, .035f, .015f), new Vector3(OpeningX, .035f, .015f),
-                new Vector3(OpeningX, SpringY + OpeningY, .015f), new Vector3(-OpeningX, SpringY + OpeningY, .015f)
-            };
-            surface.uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up };
-            surface.triangles = new[] { 0, 2, 1, 0, 3, 2 };
-            surface.RecalculateBounds();
-            field = Draw(gate, "PortalSurface", surface, portalMaterial, false);
-        }
+        MeshRenderer field = BuildPortalSurface(gate);
 
         var portalLight = Child(gate, "PortalLight", new Vector3(0f, 1.5f, -.45f)).gameObject.AddComponent<Light>();
         portalLight.type = LightType.Point;
@@ -275,6 +260,54 @@ internal sealed class GateBridgeFinaleBaker
         portal = gate.gameObject.AddComponent<FinalIslandPortal>();
         portal.Configure(bridge, bridge.noteSpot, field, portalLight, walkPoint);
         BuildBench(gate);
+    }
+
+    MeshRenderer BuildPortalSurface(Transform gate)
+    {
+        const string path = "Assets/_Project/Resources/Finale/PortalSurface.shader";
+        // Persist the imported asset even when the editor's current graphics device cannot preview it.
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
+        if (shader == null) shader = Shader.Find("TimberWings/PortalSurface");
+        bool fallback = shader == null;
+        if (fallback)
+        {
+            shader = Shader.Find("Universal Render Pipeline/Unlit");
+            Debug.LogWarning("TimberWings: импортируй PortalSurface.shader. Запечён запасной материал портала.", bridge);
+        }
+        if (shader == null) return null;
+
+        var material = new Material(shader) { name = "PortalSurface" };
+        if (fallback) material.SetColor("_BaseColor", new Color(.18f, .77f, .66f, 1f));
+        const int arcSegments = 24;
+        const float bottom = .035f, depth = .015f;
+        var vertices = new List<Vector3>
+        {
+            new Vector3(0f, SpringY, depth),
+            new Vector3(-OpeningX, bottom, depth),
+            new Vector3(OpeningX, bottom, depth)
+        };
+        for (int i = 0; i <= arcSegments; i++)
+        {
+            float a = Mathf.PI * i / arcSegments;
+            vertices.Add(new Vector3(OpeningX * Mathf.Cos(a), SpringY + OpeningY * Mathf.Sin(a), depth));
+        }
+        var uv = new List<Vector2>(vertices.Count);
+        var triangles = new List<int>((vertices.Count - 1) * 3);
+        foreach (var point in vertices)
+            uv.Add(new Vector2(Mathf.InverseLerp(-OpeningX, OpeningX, point.x),
+                Mathf.InverseLerp(bottom, SpringY + OpeningY, point.y)));
+        for (int i = 1; i < vertices.Count; i++)
+        {
+            triangles.Add(0);
+            triangles.Add(i == vertices.Count - 1 ? 1 : i + 1);
+            triangles.Add(i);
+        }
+        var surface = new Mesh { name = "PortalOpening" };
+        surface.SetVertices(vertices);
+        surface.SetUVs(0, uv);
+        surface.SetTriangles(triangles, 0);
+        surface.RecalculateBounds();
+        return Draw(gate, "PortalSurface", surface, GateBridgeAssetVault.Material(material), false);
     }
 
     void BuildArch(Transform gate)

@@ -13,7 +13,12 @@ internal static class GateBridgeBakeCheck
         void Error(string message) { errors++; result.AppendLine("ОШИБКА: " + message); }
 
         if (!bridge.HasFinalIsland) Error("Нет готовой геометрии/ссылок на дальний остров.");
-        if (!bridge.HasBakedFinale) Error("Не сохранён портал, его рендер или финальная механика.");
+        if (!bridge.HasBakedFinale)
+        {
+            var portal = bridge.GetComponentInChildren<FinalIslandPortal>(true);
+            Error(portal != null ? portal.BakeIssue ?? "Портал не привязан к GateBridgeFinale."
+                : "В сцене нет компонента FinalIslandPortal.");
+        }
         if (bridge.walkway == null) Error("Нет прохода с коллайдерами.");
         else if (bridge.walkway.GetComponent<MeshCollider>() == null) Error("На Walkway нет MeshCollider.");
         if (bridge.source == null) Error("Нет RiverBridge: этапы не будут сохраняться.");

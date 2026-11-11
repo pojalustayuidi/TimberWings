@@ -4,6 +4,7 @@ Shader "TimberWings/PortalSurface"
     {
         _Activation ("Activation", Range(0, 1)) = 0
         _Motion ("Motion", Range(0, 1)) = 1
+        _DrawIn ("Draw in", Range(0, 1)) = 0
     }
     SubShader
     {
@@ -25,6 +26,7 @@ Shader "TimberWings/PortalSurface"
             CBUFFER_START(UnityPerMaterial)
                 float _Activation;
                 float _Motion;
+                float _DrawIn;
             CBUFFER_END
 
             struct Attributes { float4 positionOS : POSITION; float2 uv : TEXCOORD0; };
@@ -52,28 +54,37 @@ Shader "TimberWings/PortalSurface"
                 float x = uv.x * 2.0 - 1.0;
                 float crown = max(0.0, (uv.y - 0.449) / 0.551);
                 float border = length(float2(x, crown));
-                float mask = (1.0 - smoothstep(.976, 1.0, border)) * smoothstep(0.0, .055, uv.y);
-                float t = _Time.y * _Motion * (.32 + _Activation * .38);
-                float2 p = float2(x, (uv.y - .53) * 1.83);
+                float mask = (1.0 - smoothstep(.979, 1.0, border)) * smoothstep(0.0, .065, uv.y);
+                float t = _Time.y * _Motion * .64;
+                float2 p = float2(x, (uv.y - .50) * 1.90);
                 float r = length(p);
                 float angle = atan2(p.y, p.x + 0.0001);
-                float warp = sin(p.x * 4.7 + t) * .42 + cos(p.y * 6.0 - t * .75) * .39;
-                float twist = angle * 3.0 + r * 12.0 + warp - t * 2.8;
-                float current = pow(saturate(.5 + .5 * sin(twist)), 4.0);
-                float filaments = pow(saturate(.5 + .5 * sin(twist * 2.0 + warp)), 13.0);
-                float mist = .5 + .5 * sin(p.y * 8.0 - p.x * 2.7 + sin(p.x * 4.0 + t) * 2.0 - t);
-                float rim = pow(saturate(border), 9.0) * (.75 + .25 * cos(angle * 5.0 - t * 2.0));
+                float warp = sin(p.x * 5.1 + t) * .56 + cos(p.y * 7.0 - t * .71) * .40;
+                float phase = 3.0 * angle + 17.0 * r + t * 4.1 + warp + _DrawIn * 3.0;
+                float ribbons = pow(saturate(.5 + .5 * sin(phase)), 3.0);
+                float filament = pow(saturate(.5 + .5 * sin(phase * 2.0 + warp)), 16.0);
+                float mist = .5 + .5 * sin(r * 12.0 + angle * 2.0 + t * 2.0 + warp * 2.1);
+                float inner = smoothstep(.87, .968, border) * (1.0 - smoothstep(.968, 1.0, border));
+                float edgeFlow = .66 + .34 * sin(angle * 5.0 + t * 3.0);
+                float throat = exp(-r * r * 24.0);
 
-                float2 tiles = uv * float2(24.0, 29.0) - float2(0.0, t * 1.5);
-                float2 cell = floor(tiles);
-                float pick = Hash(cell);
-                float2 sparkOffset = float2(.24 + pick * .45, .29 + Hash(cell + 3.17) * .42);
-                float spark = (1.0 - smoothstep(.025, .12, length(frac(tiles) - sparkOffset))) * step(.82, pick);
+                float2 grid = float2(angle * 5.0, (r + t * .26) * 11.0);
+                float2 cell = floor(grid);
+                float rand = Hash(cell);
+                float2 dotCenter = float2(.29 + rand * .41, .29 + Hash(cell + 7.19) * .42);
+                float spark = (1.0 - smoothstep(.025, .115, length(frac(grid) - dotCenter))) * step(.82, rand);
 
-                float3 color = lerp(float3(.012, .050, .089), float3(.035, .27, .29), mist * .68);
-                color += float3(.05, .55, .49) * (current * .55 + filaments * .15);
-                color += float3(.21, .97, .81) * (rim * (.15 + .9 * _Activation) + spark * .65);
-                float alpha = mask * saturate(.04 + .76 * _Activation + rim * .32 + current * .14 + spark * .14);
+                float3 ink = float3(.019, .033, .091);
+                float3 mint = float3(.16, .91, .71);
+                float3 lilac = float3(.54, .43, 1.0);
+                float3 flow = lerp(mint, lilac, .47 + .40 * sin(angle + .8 * r - t * .44));
+                float energy = _Activation * (.50 + .50 * _DrawIn);
+                float3 color = ink + flow * mist * (.10 + .15 * energy);
+                color += flow * (ribbons * .29 + filament * .14 + spark * .68) * (.23 + energy);
+                color += lerp(flow, float3(.71, 1.0, .94), .35) * inner * edgeFlow * (.22 + energy * 1.48);
+                color += float3(.43, .92, .90) * throat * (.10 + _DrawIn * 1.17);
+                float alpha = mask * saturate(.045 + .70 * _Activation + .20 * _DrawIn +
+                    inner * (.18 + energy * .30) + ribbons * (.09 + energy * .14) + throat * .22 * _DrawIn);
                 return half4(MixFog(color, input.fog), alpha);
             }
             ENDHLSL

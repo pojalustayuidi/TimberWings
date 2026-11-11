@@ -65,9 +65,11 @@ public class StoryFlow : MonoBehaviour, ISaveable
     [Header("Торговец")]
     [Tooltip("NPC-торговец у прилавка (Speaker + DialogueSequence + NpcMarker + TradingStall). Пусто = найдётся по merchantName, в том числе среди выключенных. До постройки рынка объект выключается, после главы «Рынок» включается")]
     public GameObject merchant;
-    [Tooltip("Торговля через здание: без знакомства с отдельным NPC")]
+    [Tooltip("Точка продажи у здания. Рико использует эту точку после знакомства.")]
     public bool tradeAtBuilding;
     public TradingStall marketTrading;
+    [Tooltip("Точка у лавки, в которой стоят ноги Рико. Пусто = место за прилавком.")]
+    public Transform ricoSpot;
 
     [Header("Имена говорящих (как в Speaker.displayName)")]
     public string miraName = "Мира";
@@ -140,12 +142,20 @@ public class StoryFlow : MonoBehaviour, ISaveable
     DialogueSequence idleSeq;
     string idleText;
     SupplyPoint supply;
+    RicoMerchant rico;
 
     // ------------------------------------------------------------ жизненный цикл
     void Awake()
     {
         Instance = this;
         ResolveSites();
+        rico = RicoMerchant.Create(this);
+        if (rico != null)
+        {
+            merchant = rico.gameObject;
+            merchantName = RicoMerchant.DisplayName;
+            marketTrading = rico.Stall;
+        }
         BuildChapters();
         SaveSystem.Register(this);   // если Load() уже был, секция придёт сюда, а применится в конце Start
     }
@@ -206,6 +216,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         bool introOver = IntroFinished();
         // рынок без вступления закрыт, даже если прилавок в сцене не найден
         MarketOpen = introOver && (market == null || market.IsFinished);
+        if (rico != null && rico.gameObject.activeSelf != MarketOpen) rico.gameObject.SetActive(MarketOpen);
         // рынка в сцене нет: глава «Рынок» пропущена и её onComplete не сработает, торговец выходит сразу после вступления
         if (market == null && MarketOpen) ShowMerchant();
 
@@ -240,6 +251,30 @@ public class StoryFlow : MonoBehaviour, ISaveable
         int guard = 0;
         while (!AllDone && guard++ < 64) DebugSkipChapter();
     }
+
+#if UNITY_EDITOR
+    // QA-переход через тот же механизм, что загрузка сохранения, без наград и QuestDone.
+    // accepted=true сразу открывает стройку / задание, без разговора с Оскаром.
+    public bool EditorTestJumpToChapter(string chapterId, bool accepted = true)
+    {
+        if (!Application.isPlaying || !started || SaveSystem.IsLoading) return false;
+        // EditorTestMode is supplied by the optional Bridge QA package.
+        var testMode = typeof(SaveSystem).GetProperty("EditorTestMode",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        if (!(testMode?.GetValue(null) is true)) return false;
+        int index = chapters.FindIndex(c => c.id == chapterId);
+        if (index < 0) return false;
+        Load(JsonUtility.ToJson(new SaveData
+        {
+            chapterId = chapterId,
+            chapterIndex = index,
+            phase = accepted ? 1 : 0,
+            firstSale = true
+        }), SaveSystem.FormatVersion);
+        introDone = true;
+        return ci == index && phase == (accepted ? Phase.Do : Phase.Enter);
+    }
+#endif
 
     // ------------------------------------------------------------ автомат
     void Tick()
@@ -437,18 +472,19 @@ public class StoryFlow : MonoBehaviour, ISaveable
             target = () => market.transform
         });
 
-        // 7. Первая продажа
-        // В новом оформлении E у самой лавки сразу открывает продажу. Отдельного знакомства нет.
-        // Старый NPC-режим остаётся запасным вариантом для сцен, где новый сборщик ещё не запускали.
+        // 7. Первая продажа. С Рико здесь проходит знакомство из сценария диалогов.
+        bool merchantIntro = rico != null || !tradeAtBuilding;
         chapters.Add(new Chapter
         {
-            id = "firstSale", giver = tradeAtBuilding ? null : merchantName,
-            offer = tradeAtBuilding ? null : MerchantIntro(),
-            talkText = "Подойди к прилавку: <color=#6BCB5A>E</color>",
-            skip = () => market == null || firstSale || (!tradeAtBuilding && merchant == null),
+            id = "firstSale", giver = merchantIntro ? merchantName : null,
+            offer = merchantIntro ? MerchantIntro() : null,
+            talkText = rico != null ? "Познакомься с Рико: <color=#6BCB5A>E</color>" : "Подойди к прилавку: <color=#6BCB5A>E</color>",
+            skip = () => market == null || (rico == null && firstSale) || (merchantIntro && merchant == null),
             objective = () => "Продай лишние брёвна или доски: <color=#6BCB5A>E</color> у прилавка",
             done = () => firstSale,
-            target = () => tradeAtBuilding ? (marketTrading != null ? marketTrading.transform : market != null ? market.transform : null) : merchant != null ? merchant.transform : null
+            target = () => tradeAtBuilding || rico != null
+                ? (marketTrading != null ? marketTrading.transform : market != null ? market.transform : null)
+                : (merchant != null ? merchant.transform : null)
         });
 
         // 8. Палатка (Оскар, ур. 3)
@@ -1279,6 +1315,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     // находит торговца и прячет его до конца постройки рынка
     void SetupMerchant()
     {
+        if (rico != null) return;
         if (tradeAtBuilding) { SetupMarketTrading(); return; }
         if (merchant == null)
         {
@@ -1306,6 +1343,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     // включает торговца (onComplete главы «Рынок»); повторный вызов ничего не делает
     void ShowMerchant()
     {
+        if (rico != null) return;
         if (tradeAtBuilding) { SetupMarketTrading(); return; }
         if (merchant == null && !merchantWarned) SetupMerchant();
         if (merchant != null && !merchant.activeSelf) merchant.SetActive(true);

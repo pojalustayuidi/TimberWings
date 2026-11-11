@@ -1,0 +1,209 @@
+{
+  "version": 1,
+  "lines": [
+    {
+      "id": "greet_leo",
+      "kind": "greet",
+      "text": "О, Лео. Как там наш лагерь?",
+      "condition": "always"
+    },
+    {
+      "id": "greet_day",
+      "kind": "greet",
+      "text": "Хороший день. Даже мой цветок решил проснуться.",
+      "condition": "day"
+    },
+    {
+      "id": "greet_night",
+      "kind": "greet",
+      "text": "Не спится? У огня ещё есть место.",
+      "condition": "night"
+    },
+    {
+      "id": "greet_rest",
+      "kind": "greet",
+      "text": "Присядь у огня, если устал. Лес никуда не убежит.",
+      "condition": "always"
+    },
+    {
+      "id": "chat_flower",
+      "kind": "chat",
+      "text": "Я с цветами разговариваю. Они хотя бы не перебивают.",
+      "condition": "always"
+    },
+    {
+      "id": "chat_oskar",
+      "kind": "chat",
+      "text": "Оскар опять сказал «пять минут»? Значит, до вечера.",
+      "condition": "always"
+    },
+    {
+      "id": "chat_home",
+      "kind": "chat",
+      "text": "Вот теперь лагерь снова пахнет домом.",
+      "condition": "always"
+    },
+    {
+      "id": "chat_mug",
+      "kind": "chat",
+      "text": "Не кружка, а маленький сад. Просто сад с ручкой.",
+      "condition": "always"
+    },
+    {
+      "id": "chat_komarov",
+      "kind": "chat",
+      "text": "На донышке — komarov. Мастер подписал горшок так, будто я его вверх ногами носить буду.",
+      "condition": "once"
+    },
+    {
+      "id": "chat_gunnar",
+      "kind": "chat",
+      "text": "Гуннар всегда оставлял у огня свободное место. Даже когда никого не ждал.",
+      "condition": "once"
+    },
+    {
+      "id": "chat_tree",
+      "kind": "chat",
+      "text": "Старое дерево он просил не трогать. А почему — каждый раз переводил разговор.",
+      "condition": "once"
+    },
+    {
+      "id": "chat_night",
+      "kind": "chat",
+      "text": "К старому дереву ночью я бы одна не пошла.",
+      "condition": "night"
+    },
+    {
+      "id": "chat_logs",
+      "kind": "chat",
+      "text": "Дрова согревают дважды. Оскар считает, что трижды: ещё когда их продаёшь.",
+      "condition": "always"
+    },
+    {
+      "id": "chat_people",
+      "kind": "chat",
+      "text": "Слышишь пилу? Раньше здесь по утрам всегда так было.",
+      "condition": "day"
+    },
+    {
+      "id": "chat_rope",
+      "kind": "chat",
+      "text": "Верёвка, сухие дрова и хороший сосед. Остальное как-нибудь устроим.",
+      "condition": "always"
+    },
+    {
+      "id": "chat_wings",
+      "kind": "chat",
+      "text": "Крылья на бумаге я видела. В воздухе — пока нет.",
+      "condition": "once"
+    },
+    {
+      "id": "task_meet",
+      "kind": "task",
+      "text": "Подойди поближе и нажми E, чтобы поговорить. Ты ведь Лео?",
+      "condition": "always"
+    },
+    {
+      "id": "task_chop",
+      "kind": "task",
+      "text": "Сначала нужны дрова для костра. Выбери дерево и начни рубить.",
+      "condition": "always"
+    },
+    {
+      "id": "task_fire",
+      "kind": "task",
+      "text": "Отнеси дрова на каменный круг. Материалы сдавай прямо на костёр.",
+      "condition": "always"
+    },
+    {
+      "id": "task_return",
+      "kind": "task",
+      "text": "Костёр горит. Подойди ко мне — теперь поговорим о запасах.",
+      "condition": "always"
+    },
+    {
+      "id": "task_level",
+      "kind": "task",
+      "text": "Следующий шаг откроется с уровнем. Пока поруби деревья и разгрузи рюкзак.",
+      "condition": "always"
+    },
+    {
+      "id": "task_talk",
+      "kind": "task",
+      "text": "Проверь цель наверху экрана. Там указано, с кем сейчас нужно поговорить.",
+      "condition": "always"
+    },
+    {
+      "id": "task_supply_carry",
+      "kind": "task",
+      "text": "Принёс брёвна? Нажми E, чтобы передать их мне. Приму сколько нужно.",
+      "condition": "always"
+    },
+    {
+      "id": "task_supply_empty",
+      "kind": "task",
+      "text": "Для запаса ещё нужны брёвна. Приноси понемногу.",
+      "condition": "always"
+    },
+    {
+      "id": "task_upgrade",
+      "kind": "task",
+      "text": "Увеличь вместимость рюкзака в «Прокачке» на U. Потом возвращайся.",
+      "condition": "always"
+    },
+    {
+      "id": "task_hut",
+      "kind": "task",
+      "text": "Оскар ждёт у хижины. Материалы сдавай на её стройку, по этапам.",
+      "condition": "always"
+    },
+    {
+      "id": "task_planks",
+      "kind": "task",
+      "text": "На верстаке у хижины сделай шесть досок. Оскар уже подготовил пилу.",
+      "condition": "always"
+    },
+    {
+      "id": "task_market",
+      "kind": "task",
+      "text": "Для лавки нужны помост, стойки и крыша. Материалы сдавай прямо на стройку.",
+      "condition": "always"
+    },
+    {
+      "id": "task_sale",
+      "kind": "task",
+      "text": "Для продажи подойди к самой лавке и нажми E. Доски на стройку можешь оставить.",
+      "condition": "always"
+    },
+    {
+      "id": "task_tent",
+      "kind": "task",
+      "text": "Пора восстановить артель. На стройке указано, что нужно для текущего этапа.",
+      "condition": "always"
+    },
+    {
+      "id": "task_pet",
+      "kind": "task",
+      "text": "Открой лесную клеть, потом выбери питомца в активный слот.",
+      "condition": "always"
+    },
+    {
+      "id": "task_bridge",
+      "kind": "task",
+      "text": "Мост собирается по этапам: опоры, настил, тросы. Сдавай материалы на стройке.",
+      "condition": "always"
+    },
+    {
+      "id": "task_note",
+      "kind": "task",
+      "text": "Мост готов. Перейди на дальний остров. Кажется, Гуннар оставил там что-то важное.",
+      "condition": "always"
+    },
+    {
+      "id": "thanks",
+      "kind": "thanks",
+      "text": "Спасибо, Лео. Убираю в запас.",
+      "condition": "always"
+    }
+  ]
+}

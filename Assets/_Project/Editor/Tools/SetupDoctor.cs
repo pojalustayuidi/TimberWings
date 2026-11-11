@@ -135,12 +135,25 @@ public static class SetupDoctor
         }
         // NPC-торговец: отдельный NPC у прилавка, включается после главы «Рынок»
         var storyRef = Object.FindFirstObjectByType<StoryFlow>(FindObjectsInactive.Include);
+        var ricoModel = storyRef != null ? Resources.Load<GameObject>(RicoMerchant.ModelPath) : null;
+        bool hasRico = ricoModel != null && ricoModel.GetComponentInChildren<SkinnedMeshRenderer>(true) != null
+            && (storyRef.market != null || StoryFlow.FindSite(StoryFlow.Site.Market,
+                Object.FindObjectsByType<BuildingController>(FindObjectsInactive.Include, FindObjectsSortMode.None)) != null);
         string merchantName = storyRef != null ? storyRef.merchantName : "Торговец";
         GameObject merchantGo = storyRef != null ? storyRef.merchant : null;
-        if (merchantGo == null)
+        if (!hasRico && merchantGo == null)
             foreach (var ms in Object.FindObjectsByType<Speaker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (ms.displayName == merchantName) { merchantGo = ms.gameObject; break; }
-        if (merchantGo == null) { warns++; sb.AppendLine("WARN нет NPC-торговца «" + merchantName + "» (Speaker + DialogueSequence + NpcMarker + TradingStall): продавать некому, глава «Первая продажа» пропускается."); }
+        if (hasRico)
+        {
+            sb.AppendLine("OK   Модель Рико подключена, торговец появится у готовой лавки.");
+            if (Resources.LoadAll<AnimationClip>(RicoMerchant.ModelPath).Length < 4)
+            {
+                warns++;
+                sb.AppendLine("WARN Рико: в импорте Rico.fbx нужны клипы Idle, Greet, Talk и Trade.");
+            }
+        }
+        else if (merchantGo == null) { warns++; sb.AppendLine("WARN нет NPC-торговца «" + merchantName + "» (Speaker + DialogueSequence + NpcMarker + TradingStall): продавать некому, глава «Первая продажа» пропускается."); }
         else
         {
             sb.AppendLine("OK   Торговец найден: " + merchantGo.name);

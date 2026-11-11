@@ -60,7 +60,7 @@ public sealed class DialoguePolishView : MonoBehaviour
         Color color = actor != null ? actor.tint : Color.Lerp(fallback, Color.white, .6f);
         speakerName.text = lastSpeaker;
         speakerName.color = CandyTag.Ink;
-        role.text = actor != null ? actor.role : "Голос рядом";
+        role.text = actor != null ? actor.role : who == RicoMerchant.DisplayName ? "Торговец у реки" : "Голос рядом";
         avatarBack.color = color;
         monogram.text = lastSpeaker.Substring(0, 1).ToUpperInvariant();
         emblem.sprite = actor != null ? actor.emblem : null;

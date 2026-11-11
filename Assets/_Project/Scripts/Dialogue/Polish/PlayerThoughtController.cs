@@ -24,7 +24,7 @@ public sealed class PlayerThoughtController : MonoBehaviour
     Transform player;
     Line current, pending;
     float nextPoll, pendingUntil, pendingAfter, elapsed, visibleTime, typed;
-    int blips, lastWood, lastPlanks, lastXp, lastSupply, lastStages, initialPlanks;
+    int blips, lastWood, lastPlanks, lastXp, lastSupply, lastStages, lastBridgeStages, initialPlanks;
     bool initialized, wasFull, soldPending;
     Transform distanceTarget;
     float bestDistance = float.MaxValue;
@@ -40,9 +40,26 @@ public sealed class PlayerThoughtController : MonoBehaviour
         if (group == null || body == null || caption == null) { Debug.LogWarning("Player thoughts: нет ссылок карточки. Повтори сборщик диалогов."); enabled = false; return; }
         var data = Resources.Load<TextAsset>("DialoguePolish/PlayerReactions");
         if (data != null) { try { book = JsonUtility.FromJson<Book>(data.text); } catch (Exception ex) { Debug.LogWarning("Player thoughts: " + ex.Message); } }
+        ConfigureCompactCard();
         gate.Reset(Time.unscaledTime); if (group != null) { group.alpha = 0; group.blocksRaycasts = false; group.interactable = false; }
         if (voice != null) { voice.playOnAwake = false; voice.spatialBlend = 0; }
     }
+    // Short caption below the action, not a large dialogue bubble over Leo's head.
+    void ConfigureCompactCard()
+    {
+        if (group == null) return;
+        var rect = group.transform as RectTransform;
+        if (rect != null)
+        {
+            rect.anchorMin = rect.anchorMax = new Vector2(.5f, 0f);
+            rect.pivot = new Vector2(.5f, 0f);
+            rect.anchoredPosition = new Vector2(0f, 148f);
+            rect.sizeDelta = new Vector2(650f, 122f);
+        }
+        if (body != null) body.fontSize = 24f;
+        if (caption != null) caption.fontSize = 17f;
+    }
+
     void OnEnable() { instance = this; TradingStall.Sold += OnSold; SaveSystem.Loaded += OnLoaded; }
     void OnDisable() { TradingStall.Sold -= OnSold; SaveSystem.Loaded -= OnLoaded; Cancel(); if (group != null) group.alpha = 0; if (instance == this) instance = null; }
     void OnLoaded() { initialized = false; pending = null; Cancel(); gate.Reset(Time.unscaledTime); }
@@ -110,7 +127,7 @@ public sealed class PlayerThoughtController : MonoBehaviour
         if (!initialized)
         {
             initialized = true; lastWood = inventory.woodCount; lastPlanks = inventory.planksCount; lastXp = xp; lastSupply = supply; lastStages = stages;
-            initialPlanks = made; wasFull = full; soldPending = false; return;
+            initialPlanks = made; lastBridgeStages = story != null && story.bridge != null ? story.bridge.StepsDone : 0; wasFull = full; soldPending = false; return;
         }
         if (lastWood != inventory.woodCount || lastPlanks != inventory.planksCount || lastXp != xp || lastSupply != supply || lastStages != stages) gate.Progress(now);
         lastWood = inventory.woodCount; lastPlanks = inventory.planksCount; lastXp = xp; lastStages = stages;
@@ -121,6 +138,10 @@ public sealed class PlayerThoughtController : MonoBehaviour
             if (distanceTarget != target) { distanceTarget = target; bestDistance = d; }
             else if (d < bestDistance - 1.5f) { bestDistance = d; gate.Progress(now); }
         }
+        int bridgeStages = story != null && story.bridge != null ? story.bridge.StepsDone : 0;
+        if (bridgeStages > lastBridgeStages && story != null && story.bridge != null && !story.bridge.IsFinished)
+            Queue(bridgeStages == 1 ? "bridge_first_stage" : "bridge_last_stage", now);
+        lastBridgeStages = bridgeStages;
         if (full && !wasFull) Queue("bag_full",now); wasFull = full;
         if (supply > lastSupply && supply > 0 && supply < GameBalance.SupplyLogs) Queue("supply_half",now); lastSupply = supply;
         if (made > initialPlanks && initialPlanks == 0) { Queue("first_plank",now); initialPlanks = made; }

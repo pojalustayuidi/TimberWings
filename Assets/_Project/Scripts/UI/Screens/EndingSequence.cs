@@ -49,6 +49,13 @@ public partial class EndingSequence : MonoBehaviour
         return Begin(null, onShown, true);
     }
 
+#if UNITY_EDITOR
+    public static void PreviewPortalEnding()
+    {
+        if (Application.isPlaying) PlayPortal(null);
+    }
+#endif
+
     static bool Begin(Action onDone, Action onShown, bool fromPortal)
     {
         if (Active) return false;
@@ -106,19 +113,26 @@ public partial class EndingSequence : MonoBehaviour
     // вопрос-крючок перед названием
     static readonly Beat StoryB = new Beat { text = "Что строит Гуннар за рекой?", size = 84f, color = Color.white, gold = true, fly = 1.1f, hold = 1.5f, rise = 40f, scale = 1.5f };
 
-    // титры. Теги TMP: <size>, <color>. Пустые строки = отступы
+    const string CreditAuthor = "Комаров Егор";
+    const string CreditGroup = "группа 241-339";
+    const string CreditSchool = "Московский политехнический университет";
+    const string CreditProgram = "Информационные системы и технологии";
+    const string CreditEngine = "Unity 6";
+    const string CreditThanks = "Спасибо, что дошли до конца моста.";
+    const string CreditSignoff = "Лес помнит всех, кто взялся за топор.";
+
     const string CreditsText =
         "<size=34><color=#F2B134>ИГРА</color></size>\n" +
         "<size=112><color=#FFD66B>TIMBER WINGS</color></size>\n\n\n" +
         "<size=34><color=#F2B134>НАД ИГРОЙ РАБОТАЛ</color></size>\n" +
-        "<size=92>Комаров Егор</size>\n" +
-        "<size=44><color=#B9C3D6>группа 241-339</color></size>\n\n\n" +
-        "<size=34><color=#F2B134>МОСКОВСКИЙ ПОЛИТЕХНИЧЕСКИЙ УНИВЕРСИТЕТ</color></size>\n" +
-        "<size=50>Информационные системы и технологии</size>\n\n\n" +
+        "<size=92>" + CreditAuthor + "</size>\n" +
+        "<size=44><color=#B9C3D6>" + CreditGroup + "</color></size>\n\n\n" +
+        "<size=34><color=#F2B134><uppercase>" + CreditSchool + "</uppercase></color></size>\n" +
+        "<size=50>" + CreditProgram + "</size>\n\n\n" +
         "<size=34><color=#F2B134>СДЕЛАНО НА</color></size>\n" +
-        "<size=50>Unity 6</size>\n\n\n\n" +
-        "<size=56>Спасибо, что дошли до конца моста.</size>\n" +
-        "<size=40><color=#B9C3D6>Лес помнит всех, кто взялся за топор.</color></size>";
+        "<size=50>" + CreditEngine + "</size>\n\n\n\n" +
+        "<size=56>" + CreditThanks + "</size>\n" +
+        "<size=40><color=#B9C3D6>" + CreditSignoff + "</color></size>";
 
     const float CreditsSpeed = 130f;    // px/с (единицы Canvas 1920x1080)
     const float InputGrace = 2.5f;      // первые секунды Пробел/Enter/клик не пропускают паузы
@@ -155,6 +169,7 @@ public partial class EndingSequence : MonoBehaviour
     void OnDestroy()
     {
         if (ducked) { AudioListener.volume = savedListener; ducked = false; }
+        DestroyCandyArt();
         Active = false;
     }
 
@@ -202,6 +217,7 @@ public partial class EndingSequence : MonoBehaviour
         }
 
         TickEmbers(Dt);
+        if (fromPortal) TickCandyBackdrop();
     }
 
     // ============================================================ главный сценарий
@@ -232,11 +248,11 @@ public partial class EndingSequence : MonoBehaviour
             }
             if (!skip) yield return TitleCard();
         }
-        if (!skip) yield return Credits();
+        if (!skip) yield return fromPortal ? CandyCredits() : Credits();
 
         skip = false;
         onShown?.Invoke();
-        yield return FinalCard();
+        yield return fromPortal ? CandyFinalCard() : FinalCard();
     }
 
     // пауза: Пробел/Enter/клик её пропускают
@@ -466,10 +482,14 @@ public partial class EndingSequence : MonoBehaviour
 
         if (restart && fromPortal
             && string.IsNullOrEmpty(SceneUtility.GetScenePathByBuildIndex(MenuFlow.MainMenuScene))) restart = false;
+        if (fromPortal) yield return FadeCandyCard();
         if (restart)
         {
-            yield return FadeOut(live, 0.8f);
-            yield return new WaitForSecondsRealtime(0.4f);
+            if (!fromPortal)
+            {
+                yield return FadeOut(live, 0.8f);
+                yield return new WaitForSecondsRealtime(0.4f);
+            }
             Time.timeScale = 1f;
             if (fromPortal)
             {
@@ -490,7 +510,8 @@ public partial class EndingSequence : MonoBehaviour
         emberRate = 0f;
         dotsOn = false;
         btnGroup.alpha = 0f;
-        yield return FadeOut(live, 0.9f);
+        if (fromPortal) StartCoroutine(FadeCandyBackdrop(0f, 1.35f));
+        else yield return FadeOut(live, 0.9f);
         yield return FadeBg(1f, 0f, 1.6f);
 
         if (ducked) { AudioListener.volume = savedListener; ducked = false; }

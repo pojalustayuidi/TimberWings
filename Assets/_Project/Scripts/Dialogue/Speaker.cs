@@ -20,6 +20,7 @@ public class Speaker : MonoBehaviour
     public Transform turnRoot;            // что поворачивать (модель). Пусто = этот объект
     public float faceRadius = 5f;
     public float turnSpeed = 6f;
+    [System.NonSerialized] public bool externalFacing;
     [Tooltip("Скорость доворота к собеседнику во время диалога, градусов/с")]
     public float dialogueTurnDegrees = 720f;
 
@@ -127,6 +128,7 @@ public class Speaker : MonoBehaviour
 
         // The dialogue override is applied after NPC animation scripts. Do not
         // also steer this model toward the player from Update.
+        if (externalFacing) return;
         Speaker addressee;
         if (TryGetConversationPartner(this,out addressee)) return;
         if (!faceNearbyPlayer) return;
@@ -152,6 +154,7 @@ public class Speaker : MonoBehaviour
 
     void LateUpdate()
     {
+        if (externalFacing) return;
         // Mira/Oskar pose their heads and torsos in LateUpdate. Override the
         // visual root *after* those poses, so a head-yaw limit cannot leave a
         // speaker looking 60-120 degrees away from their partner.

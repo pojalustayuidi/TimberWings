@@ -51,6 +51,7 @@ public partial class ShopBuilderV2 : EditorWindow
         public bool decBunting = true;     // гирлянда флажков по свесу
         public bool decBoard = true;       // меловая доска с ценами
         public bool decPots = true;        // горшки с цветами у входа
+        public bool openCounter = true;   // низкий прилавок с открытым обзором на продавца
 
         public Vector3 position;
         public float yaw;
@@ -327,9 +328,11 @@ public partial class ShopBuilderV2 : EditorWindow
 
         EditorGUILayout.Space(4);
         EditorGUILayout.LabelField("Украшения", EditorStyles.boldLabel);
+        S.openCounter = EditorGUILayout.Toggle("Открытый прилавок для Рико", S.openCounter);
         S.decLawn = EditorGUILayout.Toggle("Трава, цветы, грибы, камни", S.decLawn);
         S.decPath = EditorGUILayout.Toggle("Дорожка из камней", S.decPath);
-        S.decBunting = EditorGUILayout.Toggle("Гирлянда флажков", S.decBunting);
+        using (new EditorGUI.DisabledScope(S.openCounter))
+            S.decBunting = EditorGUILayout.Toggle("Гирлянда флажков", S.decBunting);
         S.decBoard = EditorGUILayout.Toggle("Меловая доска с ценами", S.decBoard);
         S.decPots = EditorGUILayout.Toggle("Горшки с цветами у входа", S.decPots);
 
@@ -507,12 +510,16 @@ public partial class ShopBuilderV2 : EditorWindow
             Undo.RegisterCreatedObjectUndo(s3.gameObject, "Лавка v2");
             BuildStage3(s3);
 
-            EditorUtility.DisplayProgressBar("Лавка v2", "Бригады строителей", 0.84f);
-            BuildCrew(root, 1);
-            BuildCrew(root, 2);
+            if (!S.openCounter)
+            {
+                EditorUtility.DisplayProgressBar("Лавка v2", "Бригады строителей", 0.84f);
+                BuildCrew(root, 1);
+                BuildCrew(root, 2);
+            }
 
             EditorUtility.DisplayProgressBar("Лавка v2", "Компоненты", 0.92f);
             Wire(root, props, s2, s3, flyT);
+            if (S.openCounter) ShopFrontPolish.Apply(root.GetComponent<ShopLife>(), true);
 
             AssetDatabase.SaveAssets();
             Selection.activeGameObject = root.gameObject;
@@ -864,9 +871,12 @@ public partial class ShopBuilderV2 : EditorWindow
         Log(p, "RidgeBeam", new Vector3(-totW / 2f, ridgeY - 0.1f, 0f), new Vector3(totW / 2f, ridgeY - 0.1f, 0f), 0.07f, "WoodDark");
 
         BuildCounter(p);
-        BuildRack(p);
-        Pallet(p, palA);
-        Pallet(p, palB);
+        if (!S.openCounter)
+        {
+            BuildRack(p);
+            Pallet(p, palA);
+            Pallet(p, palB);
+        }
 
         float cw = counterR - counterL;
         Solid(p, "CounterCollider", new Vector3(cx, PlatH + 0.5f, counterZ), new Vector3(cw, 1.0f, 0.6f));
@@ -935,14 +945,14 @@ public partial class ShopBuilderV2 : EditorWindow
         BuildSign(p);
         Lantern(p, "LanternL", new Vector3(-px + 0.15f, top - 0.2f, pz + 0.16f));
         Lantern(p, "LanternR", new Vector3(px - 0.15f, top - 0.2f, pz + 0.16f));
-        if (S.decBunting) BuildBunting(p);
+        if (S.decBunting && !S.openCounter) BuildBunting(p);
         if (S.decBoard) BuildPriceBoard(p);
-        BuildStock(p);
+        if (!S.openCounter) BuildStock(p);
         BuildCounterProps(p);
         BuildEntrance(p);
 
         BuildRainbow(p);    // радуга праздников: группа выключена, включает ShopLife
-        BuildMascot(p);     // облачко-талисман на прилавке
+        if (!S.openCounter) BuildMascot(p);
 
         // точки для ShopLife
         float topY = PlatH + 0.95f;
@@ -972,8 +982,9 @@ public partial class ShopBuilderV2 : EditorWindow
                 bool cream = i % 2 == 0;
                 if (cream) Box(roof, "RoofStripe", c + q * new Vector3(x, t / 2f + 0.012f, 0f), new Vector3(sw, 0.026f, roofL - 0.02f), "Cream", eul);
                 // облачная бахрома на нижней кромке ската: цвет продолжает полосу
-                BlobQ(roof, "Valance", c + q * new Vector3(x, 0.0f, side * roofL / 2f), new Vector3(sw * 1.14f, t + 0.14f, 0.3f),
-                    cream ? "Cream" : "Sky", q, (i % 4));
+                if (!S.openCounter)
+                    BlobQ(roof, "Valance", c + q * new Vector3(x, 0.0f, side * roofL / 2f), new Vector3(sw * 1.14f, t + 0.14f, 0.3f),
+                        cream ? "Cream" : "Sky", q, (i % 4));
             }
             // торцевые доски
             for (int sx = -1; sx <= 1; sx += 2)

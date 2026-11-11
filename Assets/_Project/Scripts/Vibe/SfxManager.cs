@@ -300,10 +300,7 @@ public class SfxManager : MonoBehaviour
         var library = DialogueAudioLibrary.Current;
         AudioClip clip = GameAudio.UseRecordedVoices && library != null ? library.Find("leo_5c45e50c") : null;
         if (clip == null && GameAudio.UseBabble)
-        {
-            var actor = library != null ? library.Actor("Лео") : null;
-            clip = actor != null && actor.syllables != null && actor.syllables.Length > 0 ? actor.syllables[0] : Get("blip:Лео");
-        }
+            clip = DialogueBabble.PreviewClip("Лео");
         if (clip == null) return;
         blipSrc.Stop();
         blipSrc.clip = clip;

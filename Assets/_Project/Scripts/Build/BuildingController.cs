@@ -985,6 +985,36 @@ public class BuildingController : MonoBehaviour
     }
 
 #if UNITY_EDITOR
+    // Для окна QA: воспроизвести реальное завершение этапа, включая события и облёт.
+    // Ресурсы не списываются, награды тестовые (SaveSystem блокирует запись в режиме QA).
+    public bool EditorTestCompleteNextStep()
+    {
+        if (!Application.isPlaying || !started || isFinished || revealing || restorePending || SaveSystem.IsLoading || !SaveSystem.EditorTestMode)
+            return false;
+        CompleteStep(null);
+        return true;
+    }
+
+    // Для окна QA: тихо выставить прогресс без XP, наград, анимации или событий StageBuilt.
+    // Использует тот же путь восстановления, что загрузка сейва: BuildStageLink и RiverBridge
+    // обновят коллайдеры и проход, поэтому просто показать Stage3 недостаточно.
+    public bool EditorTestRestoreSteps(int completedSteps)
+    {
+        if (!Application.isPlaying || !started || SaveSystem.IsLoading || !SaveSystem.EditorTestMode) return false;
+        EnsureData();
+        int done = Mathf.Clamp(completedSteps, 0, costs.Length);
+        QueueRestore(new BuildingSaveEntry
+        {
+            id = SaveId,
+            kind = (int)SiteKind,
+            step = done,
+            isFinished = done == costs.Length,
+            tutorialFired = done == costs.Length
+        });
+        ApplyRestore();
+        return true;
+    }
+
     // Создаёт ассет Build Site Data из запасных полей и сразу назначает его в поле Data
     [ContextMenu("Создать Build Site Data из текущих полей")]
     void CreateDataAsset()

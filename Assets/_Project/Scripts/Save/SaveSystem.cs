@@ -53,6 +53,22 @@ public static class SaveSystem
     static float flushAt = -1f, autoTimer;
     static string filePath;
 
+#if UNITY_EDITOR
+    // В тестовом Play Mode настоящие сохранения только читаются. Любые изменения
+    // (включая автосохранение при выходе и NewGame) остаются в памяти до Stop.
+    public const string EditorTestSessionKey = "TimberWings.QA.IsolatedPlay";
+    static bool editorTestMode;
+    public static bool EditorTestMode => editorTestMode;
+
+    public static void EnableEditorTestMode()
+    {
+        editorTestMode = true;
+        dirty = false;
+        flushAt = -1f;
+        autoTimer = 0f;
+    }
+#endif
+
     public static bool IsLoading { get { return loadDepth > 0; } }
 
     public static SaveLoadNotice PendingNotice { get; private set; }
@@ -86,6 +102,9 @@ public static class SaveSystem
         filePath = null;
         PendingNotice = SaveLoadNotice.None;
         Saved = null; SaveFailed = null; Loaded = null; LoadedFromBackup = null; LoadFailed = null; NewGameStarted = null;
+#if UNITY_EDITOR
+        editorTestMode = UnityEditor.SessionState.GetBool(EditorTestSessionKey, false);
+#endif
     }
 
     // UI забирает итог загрузки, который мог случиться до его создания. Возвращает None, если показывать нечего.
@@ -140,6 +159,9 @@ public static class SaveSystem
     // ------------------------------------------------------------ запись
     public static void RequestSave(string key = null)
     {
+#if UNITY_EDITOR
+        if (editorTestMode) return;
+#endif
         if (loadDepth > 0) return;   // во время загрузки не пишем
         if (!string.IsNullOrEmpty(key) && !KnownKeys.Contains(key) && !IsRegisteredKey(key) && warnedKeys.Add(key))
             Debug.LogWarning("SaveSystem: RequestSave с неизвестным ключом «" + key + "» (в таблице: " + string.Join(", ", new List<string>(KnownKeys).ToArray()) + ")");
@@ -156,6 +178,9 @@ public static class SaveSystem
     // Записать немедленно (кнопка «Сохранить сейчас», выход). false: идёт загрузка, нечего писать или ошибка записи.
     public static bool SaveNow()
     {
+#if UNITY_EDITOR
+        if (editorTestMode) return false;
+#endif
         if (loadDepth > 0) return false;
         dirty = false; flushAt = -1f; autoTimer = 0f;
         if (items.Count == 0) return false;
@@ -276,6 +301,13 @@ public static class SaveSystem
     // Новая игра: все системы в дефолт, файлы удалены. Сцену перезапускает вызывающий (меню).
     public static void NewGame()
     {
+#if UNITY_EDITOR
+        if (editorTestMode)
+        {
+            Debug.LogWarning("SaveSystem: NewGame заблокирован в изолированном тестовом Play Mode. Останови Play и запусти игру обычным способом.");
+            return;
+        }
+#endif
         if (loadDepth > 0) return;
         dirty = false; flushAt = -1f; autoTimer = 0f;
         ResetAllInternal();
@@ -380,6 +412,9 @@ public static class SaveSystem
     // ------------------------------------------------------------ вызывается SaveAutoRunner
     internal static void Tick(float unscaledDeltaTime, bool timeRunning)
     {
+#if UNITY_EDITOR
+        if (editorTestMode) return;
+#endif
         if (loadDepth > 0) return;
         if (dirty && Time.realtimeSinceStartup >= flushAt) SaveNow();
         if (timeRunning)   // в паузе (timeScale 0) автосохранение по таймеру не копится
@@ -391,6 +426,9 @@ public static class SaveSystem
 
     internal static void FlushIfDirty()
     {
+#if UNITY_EDITOR
+        if (editorTestMode) return;
+#endif
         if (dirty && loadDepth == 0) SaveNow();
     }
 }

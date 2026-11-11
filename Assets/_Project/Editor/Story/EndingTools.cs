@@ -15,4 +15,10 @@ public static class EndingTools
         }
         EndingSequence.Play(() => Debug.Log("EndingSequence: заставка закончена, игрок вернулся в игру."));
     }
+
+    [MenuItem("Tools/BuilderSim/Сюжет/Показать ролик и титры портала", false, 721)]
+    static void ShowPortalEnding() => EndingSequence.PreviewPortalEnding();
+
+    [MenuItem("Tools/BuilderSim/Сюжет/Показать ролик и титры портала", true)]
+    static bool CanShowPortalEnding() => Application.isPlaying && !EndingSequence.Active;
 }

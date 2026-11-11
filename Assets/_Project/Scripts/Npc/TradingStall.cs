@@ -67,7 +67,13 @@ public class TradingStall : MonoBehaviour, IInteractable, IPriorityInteractable
     }
 
     // ------------------------------------------------------------ жизненный цикл
-    void Awake() { own = GetComponent<Speaker>(); talk = GetComponent<DialogueSequence>(); }
+    void Awake()
+    {
+        own = GetComponent<Speaker>();
+        if (talk == null) talk = GetComponent<DialogueSequence>();
+    }
+
+    public void BindConversation(DialogueSequence sequence) { talk = sequence; }
     void OnEnable() { Interactables.Register(this); }
     void OnDisable() { Interactables.Unregister(this); }
 

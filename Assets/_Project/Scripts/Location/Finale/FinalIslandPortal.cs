@@ -4,12 +4,13 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-[DisallowMultipleComponent]
-public sealed class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityInteractable
+[DefaultExecutionOrder(400), DisallowMultipleComponent]
+public sealed partial class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityInteractable
 {
     const float WalkSpeed = 1.48f;
     static readonly int Activation = Shader.PropertyToID("_Activation");
     static readonly int Motion = Shader.PropertyToID("_Motion");
+    static readonly int DrawIn = Shader.PropertyToID("_DrawIn");
     readonly List<Canvas> hiddenCanvases = new List<Canvas>();
     readonly RaycastHit[] cameraHits = new RaycastHit[12];
 
@@ -45,7 +46,7 @@ public sealed class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityI
         {
             var player = PlayerMovement.Instance;
             var story = StoryFlow.Instance;
-            if (playing || altar == null || player == null || player.ControlLocked || player.IsDashing
+            if (playing || !IsBaked || player == null || player.ControlLocked || player.IsDashing
                 || story == null || !story.CanActivatePortal(this)) return false;
             var pos = player.transform.position;
             var offset = pos - altar.position;
@@ -66,12 +67,27 @@ public sealed class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityI
     }
 #endif
 
-    public bool IsBaked => bridge != null && altar != null && walkPoint != null && portalLight != null && field != null;
+    public string BakeIssue
+    {
+        get
+        {
+            if (bridge == null) return "FinalIslandPortal.bridge не назначен";
+            if (altar == null) return "FinalIslandPortal.altar не назначен";
+            if (walkPoint == null) return "FinalIslandPortal.walkPoint не назначен";
+            if (portalLight == null) return "FinalIslandPortal.portalLight не назначен";
+            if (field == null) return "FinalIslandPortal.field отсутствует (PortalSurface.shader или MeshRenderer)";
+            return null;
+        }
+    }
+    public bool IsBaked => BakeIssue == null;
 
     void Awake()
     {
         properties = new MaterialPropertyBlock();
+        UpgradeBakedSurface();
     }
+
+    void OnDestroy() => DisposeEffects();
 
     void OnEnable()
     {
@@ -118,7 +134,7 @@ public sealed class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityI
 
     internal bool Play(PlayerMovement player, Action onShown, Action onInterrupted)
     {
-        if (playing || player == null || EndingSequence.Active || Camera.main == null) return false;
+        if (playing || !IsBaked || player == null || EndingSequence.Active || Camera.main == null) return false;
         body = player.GetComponent<Rigidbody>();
         if (body == null || body.isKinematic) return false;
 
@@ -163,45 +179,38 @@ public sealed class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityI
 
     IEnumerator Sequence(Action onShown)
     {
-        for (float time = 0f; time < 1.35f; time += Time.unscaledDeltaTime)
+        for (float time = 0f; time < .83f; time += Time.unscaledDeltaTime)
         {
-            charge = Mathf.SmoothStep(.12f, 1f, time / 1.35f);
+            charge = Mathf.SmoothStep(.12f, .78f, time / .83f);
             yield return null;
         }
-        charge = 1f;
+        charge = .78f;
 
         bool arrived = false;
-        yield return WalkTo(-1.05f, () => arrived = true);
+        yield return WalkTo(-1.29f, () => arrived = true);
         if (!arrived)
         {
             Release(false);
             yield break;
         }
 
-        arrived = false;
-        yield return WalkTo(1.05f, () => arrived = true);
-        if (!arrived)
+        yield return EnterPortal();
+        if (actor == null || body == null || !ownsActor)
         {
             Release(false);
             yield break;
-        }
-
-        for (float time = 0f; time < .68f; time += Time.unscaledDeltaTime)
-        {
-            fade.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, 1f, time / .68f));
-            yield return null;
         }
 
         fade.color = Color.black;
         bool shown = EndingSequence.PlayPortal(onShown);
-        if (shown) yield return null; // EndingCanvas starts opaque on the next frame.
+        if (shown) yield return null;
         Release(shown);
     }
 
     IEnumerator WalkTo(float z, Action arrived)
     {
         bool reached = false;
-        walkPoint.localPosition = new Vector3(0f, 0f, z);
+        walkPoint.position = transform.TransformPoint(new Vector3(0f, 0f, z));
         actor.WalkTo(walkPoint, .3f, () => reached = true, true);
         for (float time = 0f; actor != null && actor.AutoWalking && !reached && time < 4.75f; time += Time.unscaledDeltaTime)
             yield return null;
@@ -212,32 +221,41 @@ public sealed class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityI
     {
         if (bridge == null) return;
         if (!playing)
+        {
             charge = Mathf.MoveTowards(charge, bridge.WalkwayActive ? .13f : .02f, Time.unscaledDeltaTime * .9f);
+            drawIn = Mathf.MoveTowards(drawIn, 0f, Time.unscaledDeltaTime * 2f);
+        }
+        bool calm = VibeSettings.ReduceEffects;
         if (field != null && properties != null)
         {
             properties.SetFloat(Activation, charge);
-            properties.SetFloat(Motion, VibeSettings.ReduceEffects ? 0f : 1f);
+            properties.SetFloat(Motion, calm ? 0f : 1f);
+            properties.SetFloat(DrawIn, drawIn);
             field.SetPropertyBlock(properties);
         }
         if (portalLight != null)
         {
             float idle = Mathf.Lerp(.36f, 1.12f, DayNightCycle.Night01);
-            portalLight.intensity = idle + charge * 3.8f;
+            portalLight.intensity = idle + charge * 2.8f + drawIn * (calm ? .35f : 1.8f);
         }
 
         if (!playing || camera == null || actor == null) return;
+        ApplyEntryPose();
         elapsed += Time.unscaledDeltaTime;
-        float blend = Mathf.SmoothStep(0f, 1f, elapsed / .85f);
-        float push = VibeSettings.ReduceEffects ? 0f : Mathf.SmoothStep(0f, 1f, (elapsed - 1.15f) / 4.2f);
-        var wide = new Vector3(-3.35f, 2.85f, -6.55f);
-        var close = new Vector3(-2.15f, 2.25f, -4.8f);
+        float blend = Mathf.SmoothStep(0f, 1f, elapsed / 1.05f);
+        float push = calm ? 0f : (ownsActor
+            ? Mathf.Lerp(approachPush, 1f, LeoPortalPose.Ease(entryTime, 0f, LeoPortalPose.Duration))
+            : LeoPortalPose.Ease(elapsed, .8f, 5.8f) * .72f);
+        var wide = new Vector3(2.95f, 2.62f, -6.25f);
+        var close = new Vector3(2.42f, 1.88f, -4.38f);
         var desired = transform.TransformPoint(Vector3.Lerp(wide, close, push));
         var focus = Vector3.Lerp(actor.transform.position + Vector3.up * .95f,
-            transform.TransformPoint(new Vector3(0f, 1.75f, 0f)), .67f);
+            transform.TransformPoint(new Vector3(0f, 1.64f, 0f)), .60f);
         desired = ClearShot(focus, desired);
         camera.transform.SetPositionAndRotation(Vector3.Lerp(cameraPosition, desired, blend),
             Quaternion.Slerp(cameraRotation, Quaternion.LookRotation(focus - desired), blend));
-        camera.fieldOfView = Mathf.Lerp(fieldOfView, 47f, blend);
+        camera.fieldOfView = Mathf.Lerp(fieldOfView, Mathf.Lerp(49f, 44f, push), blend);
+        UpdateVortex(camera, calm);
 
         float bar = .075f * blend;
         topBar.anchorMin = new Vector2(0f, 1f - bar);
@@ -285,16 +303,21 @@ public sealed class FinalIslandPortal : MonoBehaviour, IInteractable, IPriorityI
     void Release(bool crossed)
     {
         playing = false;
+        bool returnToAltar = crossed || ownsActor;
+        RestoreEntry();
+        StopEffects();
         if (actor != null)
         {
             actor.CancelWalk();
             actor.speed = originalSpeed;
             actor.useBalanceSpeed = balanceSpeed;
-            if (crossed && body != null)
+            if (returnToAltar && body != null)
             {
                 body.position = startPosition;
+                actor.transform.position = startPosition;
                 body.linearVelocity = Vector3.zero;
-                if (actor.model != null) actor.model.rotation = startFacing;
+                var model = actor.model != null ? actor.model : actor.transform;
+                model.rotation = startFacing;
             }
         }
         if (camera != null)

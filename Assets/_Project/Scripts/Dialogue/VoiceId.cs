@@ -16,7 +16,7 @@ public static class VoiceId
             case "мира": return "mira";
             case "оскар": return "oskar";
             case "таис": return "tais";
-            case "гуннар": return "gunnar";
+            case "гуннар": case "дядя гуннар": return "gunnar";
             case "рико": return "rico";
             case "торговец": return "merchant";   // имя берётся из StoryFlow.merchantName: если переименуете, поправьте и здесь
             default: return "npc";

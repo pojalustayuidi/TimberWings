@@ -88,6 +88,9 @@ public partial class DialogueManager
     {
         if (presentation == null) presentation = GetComponentInChildren<DialoguePolishView>(true);
         if (babble == null) babble = GetComponent<DialogueBabble>();
+        // DialogueManager can be created at runtime without the editor-built scene setup.
+        // Keep the same chatter behavior for both scene-authored and automatic managers.
+        if (babble == null) babble = gameObject.AddComponent<DialogueBabble>();
         if (presentation != null)
         {
             canvasRt = (RectTransform)presentation.canvas.transform;
