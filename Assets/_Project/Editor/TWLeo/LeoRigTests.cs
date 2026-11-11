@@ -26,6 +26,14 @@ public static class LeoRigTests
             check(rig.JointCount==data.nodes.Length,"Поза покоя содержит все узлы.");
             check(rig.fingersL.Length==4&&rig.fingersR.Length==4&&rig.fingerTipsL.Length==4&&rig.fingerTipsR.Length==4,"Отдельные фаланги четырёх пальцев и большие пальцы.");
             Vector3 leftFoot=rig.ankleL.position,rightFoot=rig.ankleR.position,rootPosition=root.transform.position,handBefore=rig.handR.position;
+            rig.PrepareAnimationRest();
+            check(Vector3.Distance(leftFoot,rig.ankleL.position)<.00001f&&Vector3.Distance(rightFoot,rig.ankleR.position)<.00001f,
+                "Новые пропорции сохраняют точки опоры стоп.");
+            check(Vector3.Distance(handBefore,rig.handR.position)<.00001f,"Новые пропорции сохраняют высоту хвата.");
+            Vector3 pelvis=rig.hips.position,hemScale=rig.hemBackL.localScale;
+            rig.PrepareAnimationRest();
+            check(Vector3.Distance(pelvis,rig.hips.position)<.00001f&&Vector3.Distance(hemScale,rig.hemBackL.localScale)<.00001f,
+                "Повторная подготовка не меняет пропорции.");
             foreach(LeoPosePreview.Pose pose in Enum.GetValues(typeof(LeoPosePreview.Pose)))
             {
                 LeoPosePreview.Apply(rig,pose);
@@ -67,9 +75,9 @@ public static class LeoRigTests
             check(LeoRig.CargoSections(32,42)==8&&LeoRig.CargoSections(63,64)==10,"32-63: от 8 до 10.");
             check(LeoRig.CargoSections(64,64)==12&&LeoRig.CargoSections(999,64)==12,"64+: 12.");
             check(LeoRig.CargoSections(1,0)==0,"Нулевая вместимость безопасна.");
-            // Leo v3.4: shorter legs, boots keep the ground, jacket hem clears the thighs.
             Vector3 hipToAnkle=rig.ankleR.position-rig.hipR.position;
-            check(hipToAnkle.magnitude<.64f&&hipToAnkle.magnitude>.60f,"Ноги укорочены примерно на 8% (бедро-лодыжка .60-.64).");
+            check(hipToAnkle.magnitude<.72f&&hipToAnkle.magnitude>.68f,"Бедро и голень образуют более длинный силуэт.");
+            check(rig.hemBackL.localScale.y<.7f&&rig.hemBackR.localScale.y<.7f,"Задний подол открывает бёдра.");
             check(Mathf.Abs(rig.ankleR.position.y-.16f)<.002f&&Mathf.Abs(rig.ankleL.position.y-.16f)<.002f,"Лодыжки на прежней высоте: подошвы остаются на опоре.");
             check(rig.hemFrontR!=null&&rig.hemFrontL!=null&&rig.hemBackR!=null&&rig.hemBackL!=null,"Четыре панели подола найдены.");
             check(rig.hemFrontR.parent==rig.hips&&rig.hemBackL.parent==rig.hips,"Панели подола сидят на тазу.");

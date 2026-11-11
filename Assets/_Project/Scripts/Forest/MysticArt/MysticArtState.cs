@@ -33,6 +33,7 @@ public sealed class MysticArtState : MonoBehaviour
         public LodRecord[] lods=new LodRecord[0];
         public UnityEngine.Object[] added=new UnityEngine.Object[0];
     }
+    public LodRecord[] elderLods=new LodRecord[0];
     public GameObject art;
     public LandmarkTree elder;
     public string elderJson,folder;

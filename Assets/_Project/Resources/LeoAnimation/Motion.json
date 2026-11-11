@@ -5,20 +5,20 @@
   "contact": 0.62,
   "holsterSeconds": 0.5,
   "walk": {
-    "stride": 1.0,
-    "stance": 0.6,
-    "lift": 0.105,
-    "drop": 0.086,
-    "arm": 16,
-    "bob": 0.011
+    "stride": 1.43,
+    "stance": 0.59,
+    "lift": 0.120,
+    "drop": 0.084,
+    "arm": 20,
+    "bob": 0.032
   },
   "run": {
-    "stride": 2.24,
-    "stance": 0.31,
-    "lift": 0.126,
-    "drop": 0.118,
-    "arm": 23,
-    "bob": 0.016
+    "stride": 3.62,
+    "stance": 0.232,
+    "lift": 0.182,
+    "drop": 0.103,
+    "arm": 31,
+    "bob": 0.031
   },
   "chop": [
     {

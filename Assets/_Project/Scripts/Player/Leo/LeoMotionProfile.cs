@@ -26,27 +26,24 @@ public static class LeoMotionProfile
         {
             var book=JsonUtility.FromJson<Book>(data.text);
             if(!Valid(book)){Debug.LogWarning("LEO ANIMATION: повреждена таблица Motion.json.");return null;}
-            if(PolishedGait)Polish(book);
             return book;
         }
         catch(Exception e){Debug.LogWarning("LEO ANIMATION: "+e.Message);return null;}
     }
-    // Shorter legs and boots on Leo v3.2+ use the same gait in both pose controllers.
-    // stride = length of a FULL cycle (two steps) in model units; world length = stride * model scale.
-    // The visual phase advances with horizontal travel.
-    public const bool PolishedGait=true;
-    // Leo v3.4: hip-to-ankle is 8% shorter (.683 -> .628 model units). Step length, foot lift and pelvis drop
-    // scale with it, so the legs reach exactly as far as before and the planted foot still touches the ground.
-    // Arm swing, the stance fraction and every gameplay speed are untouched.
-    public const float LegScale=.92f;
-    public static void Polish(Book b)
+    // Stride is the distance of two steps in model units. Both gaits use a similar
+    // contact reach; the longer run stride comes from the time spent in the air.
+    public static void SetDefaultGaits(Book book)
     {
-        b.walk=new Gait{stride=1.33f*LegScale,stance=.57f,lift=.118f*LegScale,drop=.098f*LegScale,arm=19f,bob=.013f*LegScale};
-        b.run =new Gait{stride=3.16f*LegScale,stance=.256f,lift=.160f*LegScale,drop=.138f*LegScale,arm=26f,bob=.020f*LegScale};
+        book.walk = new Gait { stride = 1.43f, stance = .59f, lift = .120f, drop = .084f, arm = 20f, bob = .032f };
+        book.run = new Gait { stride = 3.62f, stance = .232f, lift = .182f, drop = .103f, arm = 31f, bob = .031f };
     }
-    // Limit the visual cadence at boosted speeds. Shorter strides need a proportionally higher cap, so the
-    // ground speed at which the cap engages stays where it was.
-    public static float MaxCadence(float run){return Mathf.Lerp(2.0f,2.85f,run)/LegScale;}
+    public static float RunBlend(float speed) => Smooth((speed - 1.55f) / 2.05f);
+    public static float MaxCadence(float run) => Mathf.Lerp(1.85f, 2.52f, run);
+    public static float PelvisHeight(Gait gait, float phase, float run)
+    {
+        float midStance = Mathf.Cos((phase - gait.stance * .5f) * Mathf.PI * 4f);
+        return -gait.drop + gait.bob * midStance * Mathf.Lerp(1f, -.82f, run);
+    }
     static bool Number(float value){return !float.IsNaN(value)&&!float.IsInfinity(value);}
     static bool Vector(float[] value){return value!=null&&value.Length==3&&Number(value[0])&&Number(value[1])&&Number(value[2]);}
     static bool ValidGait(Gait g){return g!=null&&Number(g.stride)&&g.stride>.1f&&Number(g.stance)&&g.stance>.1f&&g.stance<.9f&&Number(g.lift)&&g.lift>=0&&Number(g.drop)&&g.drop>=0&&Number(g.arm)&&Number(g.bob);}
@@ -104,24 +101,24 @@ public static class LeoMotionProfile
             float edge = 1f - Smooth(Mathf.Min(s, 1f - s) / .28f);
             z = Mathf.Lerp(-span, span, Smooth(s))
                 - gait.stride * ds * s * (1f - s) * (1f - 2f * s) * edge;
-            // Lift from the toe, then decelerate the sole into the next contact.
-            lift=4f*s*(1f-s)*gait.lift*Mathf.Lerp(1.30f,.70f,s);
+            // The knee leads the recovery, with a longer reach and a softer heel catch at the end.
+            lift = Mathf.Sin(Mathf.PI * s) * gait.lift * Mathf.Lerp(1.28f, .72f, s);
         }
         return new GaitPose{foot=rest+new Vector3(0,lift,z),stance=stance,swing=swing,phase=phase};
     }
     // Foot pitch in degrees, toe-down positive: heel strike (toe up) -> flat -> heel-off -> toe-off -> toe clearance.
     public static float FootPitch(Gait gait,float phase,float run)
     {
-        phase=Mathf.Repeat(phase,1);float strike=Mathf.Lerp(14f,8f,run),off=Mathf.Lerp(24f,30f,run),clear=Mathf.Lerp(10f,16f,run);
+        phase = Mathf.Repeat(phase, 1f);
+        float strike = Mathf.Lerp(16f, 9f, run), off = Mathf.Lerp(24f, 29f, run), clear = Mathf.Lerp(7f, 14f, run);
         if(phase<gait.stance)
         {
             float u=phase/gait.stance;
-            if(u<.14f)return -strike*(1-Smooth(u/.14f));
-            if(u<.62f)return 0;
-            return off*Smooth((u-.62f)/.38f);
+            if (u < .20f) return -strike * (1f - Smooth(u / .20f));
+            return off * Smooth((u - .62f) / .38f);
         }
         float s=(phase-gait.stance)/Mathf.Max(.05f,1-gait.stance);
-        return s<.5f?Mathf.Lerp(off,-clear,Smooth(s/.5f)):Mathf.Lerp(-clear,-strike,Smooth((s-.5f)/.5f));
+        return s < .55f ? Mathf.Lerp(off, -clear, Smooth(s / .55f)) : Mathf.Lerp(-clear, -strike, Smooth((s - .55f) / .45f));
     }
     public static Gait Mix(Gait a,Gait b,float k)
     {return new Gait{stride=Mathf.Lerp(a.stride,b.stride,k),stance=Mathf.Lerp(a.stance,b.stance,k),lift=Mathf.Lerp(a.lift,b.lift,k),drop=Mathf.Lerp(a.drop,b.drop,k),arm=Mathf.Lerp(a.arm,b.arm,k),bob=Mathf.Lerp(a.bob,b.bob,k)};}

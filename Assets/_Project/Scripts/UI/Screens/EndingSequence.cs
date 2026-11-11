@@ -1,5 +1,6 @@
 // Assets/_Project/Scripts/UI/Screens/EndingSequence.cs (НЕ в Editor)
-// Финальная заставка после достройки моста. Всё строится из кода, ассеты и настройка в сцене не нужны.
+// Финал главы. После входа в портал играет ролик главы II, затем титры и финальная карточка.
+// В старых сценах и при ошибке воспроизведения доступна текстовая заставка ниже.
 // Версия 2: в стиле игры (жирный шрифт HUD с тёмной обводкой, золотой градиент, панель и иконки из UiKit) и быстрее (около минуты).
 //
 // Что видит игрок:
@@ -16,7 +17,7 @@
 // Тексты: блок «ТЕКСТЫ» ниже. Скорость: поля fly / hold у каждой фразы и CreditsSpeed.
 // Шрифт: берётся шрифт HUD (UIManager.objectiveText), как у диалогов. Символов, которых в нём нет (ё, «», —, …), заставка сама
 // заменяет на безопасные (см. Fix), поэтому «квадратиков» быть не должно.
-// Запуск: EndingSequence.Play(() => ...). Из StoryFlow вызывается сам (StoryFlow.useEnding). Проверка: Tools > BuilderSim > Показать финал.
+// Проверка текстовой заставки: Tools > BuilderSim > Показать финал.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -27,7 +28,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static UiLayout;
 
-public class EndingSequence : MonoBehaviour
+public partial class EndingSequence : MonoBehaviour
 {
     // true, пока заставка на экране (MobileInput.ModalOpen читает это)
     public static bool Active { get; private set; }
@@ -40,11 +41,24 @@ public class EndingSequence : MonoBehaviour
 
     public static void Play(Action onDone)
     {
-        if (Active) return;
+        Begin(onDone, null, false);
+    }
+
+    internal static bool PlayPortal(Action onShown)
+    {
+        return Begin(null, onShown, true);
+    }
+
+    static bool Begin(Action onDone, Action onShown, bool fromPortal)
+    {
+        if (Active) return false;
         Active = true;
         var go = new GameObject("EndingSequence");
         var e = go.AddComponent<EndingSequence>();
         e.onDone = onDone;
+        e.onShown = onShown;
+        e.fromPortal = fromPortal;
+        return true;
     }
 
     // ============================================================ ТЕКСТЫ (правь здесь)
@@ -110,7 +124,7 @@ public class EndingSequence : MonoBehaviour
     const float InputGrace = 2.5f;      // первые секунды Пробел/Enter/клик не пропускают паузы
 
     // ============================================================ состояние
-    Action onDone;
+    Action onDone, onShown;
     RectTransform root, emberRoot, textRoot;
     Image bg, glow, navyGlow;
     TMP_Text hint, finalLabel;
@@ -126,7 +140,7 @@ public class EndingSequence : MonoBehaviour
     bool skip, advance, leaving, finalShown, dotsOn, choiceMade;
     float age, skipHold, glowTarget, glowAlpha;
     float emberRate, emberAcc;
-    bool reduceFx;
+    bool reduceFx, fromPortal, filmPlayed;
 
     static float Dt { get { return Time.unscaledDeltaTime; } }
 
@@ -197,26 +211,31 @@ public class EndingSequence : MonoBehaviour
         SetupAudio();
         StartCoroutine(FadeListener(0.18f, 2.0f));
 
-        yield return FadeBg(0f, 1f, 1.5f);
+        if (fromPortal) yield return PlayPortalFilm();
+        else yield return FadeBg(0f, 1f, 1.5f);
         emberRate = reduceFx ? 1.5f : 5f;
 
         StartPad();
-        yield return Wait(0.7f);
 
-        for (int i = 0; i < StoryA.Length && !skip; i++) yield return PlayBeat(StoryA[i], i == 0);
-        if (!skip) yield return PlayRiddle();
-        if (!skip)
+        if (!filmPlayed && !skip)
         {
-            // райзер длится 4,6 с, удар названия должен прийтись на его конец
-            float t0 = age;
-            PlayRiser();
-            yield return PlayBeat(StoryB, false);
-            yield return WaitHard(Mathf.Max(0f, 4.5f - (age - t0)));
+            yield return Wait(0.7f);
+            for (int i = 0; i < StoryA.Length && !skip; i++) yield return PlayBeat(StoryA[i], i == 0);
+            if (!skip) yield return PlayRiddle();
+            if (!skip)
+            {
+                // Райзер длится 4,6 с, удар названия должен прийтись на его конец.
+                float t0 = age;
+                PlayRiser();
+                yield return PlayBeat(StoryB, false);
+                yield return WaitHard(Mathf.Max(0f, 4.5f - (age - t0)));
+            }
+            if (!skip) yield return TitleCard();
         }
-        if (!skip) yield return TitleCard();
         if (!skip) yield return Credits();
 
         skip = false;
+        onShown?.Invoke();
         yield return FinalCard();
     }
 
@@ -445,13 +464,21 @@ public class EndingSequence : MonoBehaviour
         btnGroup.interactable = false;
         StartCoroutine(FadeVolume(padSrc, 0f, 1.6f));
 
+        if (restart && fromPortal
+            && string.IsNullOrEmpty(SceneUtility.GetScenePathByBuildIndex(MenuFlow.MainMenuScene))) restart = false;
         if (restart)
         {
             yield return FadeOut(live, 0.8f);
             yield return new WaitForSecondsRealtime(0.4f);
+            Time.timeScale = 1f;
+            if (fromPortal)
+            {
+                SaveSystem.FlushIfDirty();
+                MenuFlow.ReturnToMenu();
+                yield break;
+            }
             if (ducked) { AudioListener.volume = savedListener; ducked = false; }
             Active = false;
-            Time.timeScale = 1f;
             var sc = SceneManager.GetActiveScene();
             if (sc.buildIndex >= 0) SceneManager.LoadScene(sc.buildIndex); else SceneManager.LoadScene(sc.name);
             yield break;
@@ -641,7 +668,7 @@ public class EndingSequence : MonoBehaviour
 
         // чёрный экран; перехватывает клики, чтобы игра под ним не реагировала
         bg = UiKit.MakeImage(root, "Black", null, false);
-        bg.color = new Color(0f, 0f, 0f, 0f);
+        bg.color = fromPortal ? Color.black : Color.clear;
         bg.raycastTarget = true;
         Stretch(bg.rectTransform);
 
@@ -755,7 +782,8 @@ public class EndingSequence : MonoBehaviour
         var bt = back.GetComponentInChildren<TMP_Text>();
         bt.color = UiKit.Navy; bt.enableAutoSizing = true; bt.fontSizeMin = 18f; bt.fontSizeMax = 34f;
 
-        var again = UiKit.MakeButton(go, "Начать заново", UiBtn.Gray, new Vector2(380f, 86f), 34f, 1f);
+        var again = UiKit.MakeButton(go, fromPortal ? "Главное меню" : "Начать заново",
+            UiBtn.Gray, new Vector2(380f, 86f), 34f, 1f);
         Anch(again.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(240f, -250f), new Vector2(380f, 86f));
         again.navigation = new Navigation { mode = Navigation.Mode.None };
         again.onClick.AddListener(() => Choose(true));

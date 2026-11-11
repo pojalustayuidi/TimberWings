@@ -4,8 +4,9 @@ using UnityEngine;
 // Assets/_Project/Scripts/Location/GateBridge.cs (НЕ в Editor)
 // Подвесной мост от ворот главного острова к финальной площадке на дальнем острове.
 //
-// Что это за компонент: только показ и проход. Геометрию собирает Editor-команда (Editor/GateBridge/GateBridgeBuilder*.cs,
-// меню Tools > BuilderSim > Локация > Собрать подвесной мост и финальный остров). Здесь рантайм:
+// Базовую геометрию собирает Editor-команда (Editor/GateBridge/GateBridgeBuilder*.cs).
+// Геометрия, ограждение, свет, коллайдеры, зона стройки и портал сохраняются в сцене Editor-сборщиком.
+// В Play Mode переключаются только уже существующие объекты и проигрываются анимации.
 //   - три вида из RiverBridge (1 сломан, 2 строится, 3 готов): Stage1, Stage2, Stage3 включаются по одному;
 //   - оплачиваемых этапов три (GameBalance.Bridge*: Опоры, Настил, Тросы и перила), видов три. Чтобы КАЖДЫЙ вклад был виден,
 //     внутри вида 2 есть объект deckStep2 (доски и подвесы): он появляется после второго этапа. После первого видны новые опоры и тросы;
@@ -14,9 +15,13 @@ using UnityEngine;
 //   - на виде 1 с обрубков падают доски и исчезают в облаках (как раньше).
 // Загрузка сохранения: BuildStageLink (на зоне стройки) ставит RiverBridge в сохранённый этап без наград и без показа стройки,
 // RiverBridge шлёт ProgressChanged и этот компонент показывает нужный вид и проход. Своего сохранения у моста нет.
-// Записка Гуннара: noteSpot (точка на площадке дальнего острова). StoryFlow берёт её отсюда, если своя точка не задана.
+// NoteSpot на постаменте Гуннара служит точкой взаимодействия с порталом.
 public class GateBridge : MonoBehaviour
 {
+    public const float DeckStartInset = .8f;
+    public const float DeckEndInset = 1.5f;
+    public const float IslandLandingInset = 2.4f;
+
     [Header("Размеры (меняй и жми «Собрать мост и остров»)")]
     [Tooltip("Расстояние по воздуху от края главного острова до края дальнего острова, метры")]
     public float bridgeLength = 25f;
@@ -46,6 +51,8 @@ public class GateBridge : MonoBehaviour
     public Mesh plankMesh;
     public Material plankMaterial;
     public Transform[] fallPoints = new Transform[0];
+    [Tooltip("Заготовленные в редакторе объекты досок; в Play Mode не создаются")]
+    public GameObject[] fallingPlankObjects = new GameObject[0];
 
     [Header("Падающие доски (только вид 1)")]
     public int fallingPlanks = 3;
@@ -63,27 +70,60 @@ public class GateBridge : MonoBehaviour
     readonly List<Faller> fallers = new List<Faller>();
     int stage = 1, stepsDone, stepsTotal = 3;
     bool subscribed, previewWalk;
+    [SerializeField] GateBridgeFinale finale;
 
     public int Stage { get { return stage; } }
     public bool WalkwayActive { get { return walkway != null && walkway.activeSelf; } }
+    public bool HasFinalIsland => arrivalSpot != null && arrivalSpot.parent != null && noteSpot != null && noteSpot.parent != null
+        && stages != null && stages.Length >= 3 && stages[2] != null;
+    internal FinalIslandPortal Portal => finale != null ? finale.Portal : null;
+    public bool HasBakedFinale => finale != null && finale.IsBaked && finale.Portal.IsBaked;
+
+#if UNITY_EDITOR
+    public void BindFinale(GateBridgeFinale bakedFinale) { finale = bakedFinale; }
+#endif
+
+    // Editor assembly uses these to bake the crossing in the scene.
+    public Vector3 BridgeForward => Vector3.ProjectOnPlane(arrivalSpot.parent.forward, Vector3.up).normalized;
+    public Vector3 DeckEntrance => arrivalSpot.position + Vector3.up * stubDrop
+        - BridgeForward * (bridgeLength + DeckStartInset + IslandLandingInset);
+
+    internal RiverBridge EnsureProgressSource(RiverBridge preferred)
+    {
+        if (source == null) source = preferred != null ? preferred : GetComponent<RiverBridge>();
+        TrySubscribe();
+        return source;
+    }
+
+    public float ShoreHeight(Vector3 point)
+    {
+        float top = float.NegativeInfinity;
+        foreach (var hit in Physics.RaycastAll(point + Vector3.up * 2f, Vector3.down, 6f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.normal.y < 0.58f || hit.collider.attachedRigidbody != null || hit.transform.IsChildOf(transform)) continue;
+            top = Mathf.Max(top, hit.point.y);
+        }
+        return float.IsNegativeInfinity(top) ? transform.position.y : top;
+    }
 
     void Awake()
     {
-        if (plankMesh == null || plankMaterial == null) return;
-        for (int i = 0; i < fallingPlanks; i++)
+        if (finale == null) finale = GetComponentInChildren<GateBridgeFinale>(true);
+        if (fallingPlankObjects == null) return;
+        for (int i = 0; i < fallingPlankObjects.Length; i++)
         {
-            var go = new GameObject("FallingPlank");
-            go.transform.SetParent(transform, false);
-            go.AddComponent<MeshFilter>().sharedMesh = plankMesh;
-            var r = go.AddComponent<MeshRenderer>();
-            r.sharedMaterial = plankMaterial;
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var go = fallingPlankObjects[i];
+            if (go == null) continue;
             go.SetActive(false);
             fallers.Add(new Faller { t = go.transform, wait = Random.Range(fallInterval.x, fallInterval.y) * (0.3f + i * 0.5f) });
         }
     }
 
-    void OnEnable() { TrySubscribe(); }
+    void OnEnable()
+    {
+        TrySubscribe();
+        if (finale != null) Refresh();
+    }
 
     void OnDisable()
     {
@@ -97,6 +137,9 @@ public class GateBridge : MonoBehaviour
 
     void Start()
     {
+        if (HasFinalIsland) EnsureProgressSource(null);
+        if (HasFinalIsland && !HasBakedFinale)
+            Debug.LogError("GateBridge: отсутствует запечённый портал. В Edit Mode запусти Tools > BuilderSim > Локация > Собрать подвесной мост и финальный остров.", this);
         TrySubscribe();
         Refresh();
     }
@@ -104,7 +147,7 @@ public class GateBridge : MonoBehaviour
     void TrySubscribe()
     {
         if (subscribed) return;
-        if (source == null) source = FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
+        if (source == null && !HasFinalIsland) source = FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
         if (source == null) return;
         source.OnStageChanged += Apply;
         source.ProgressChanged += ApplyProgress;
@@ -149,13 +192,15 @@ public class GateBridge : MonoBehaviour
 
     void Show()
     {
-        for (int i = 0; i < stages.Length; i++)
-            if (stages[i] != null) stages[i].SetActive(i == stage - 1);
+        if (stages != null)
+            for (int i = 0; i < stages.Length; i++)
+                if (stages[i] != null) stages[i].SetActive(i == stage - 1);
         if (deckStep2 != null) deckStep2.SetActive(stage == 2 && stepsDone >= 2);
 
         // проход открывает завершённая стройка, а не номер вида
-        bool open = previewWalk || (source != null && source.IsOpen);
+        bool open = Application.isPlaying ? source != null && source.IsOpen : previewWalk;
         if (walkway != null && walkway.activeSelf != open) walkway.SetActive(open);
+        if (finale != null) finale.SetCrossingOpen(open);
 
         if (stage != 1)
             foreach (var f in fallers) { f.t.gameObject.SetActive(false); f.falling = false; }

@@ -428,7 +428,7 @@ public class OrbitCamera : MonoBehaviour
 
     void UpdateCrosshair(float dt)
     {
-        bool show = crosshairOn;
+        bool show = crosshairOn && (follow == null || !follow.LeoShotShowing);
         if (show) EnsureCrosshair();
         if (chGo == null) return;
         if (chGo.activeSelf != show) chGo.SetActive(show);
@@ -706,7 +706,7 @@ public class OrbitCamera : MonoBehaviour
         bool anyInput = delta.sqrMagnitude > .0001f || Mathf.Abs(Input.mouseScrollDelta.y) > .01f || Input.anyKey || Input.touchCount > 0;
         bool calm = idleArc && !VibeSettings.ReduceEffects && !modal && !reveal && !chopping && shakeT <= 0f
                     && Mathf.Max(speed, movedSpeed) < .15f && !anyInput && introMul > .999f
-                    && !CameraVibe.PeekActive && !CameraVibe.AccentActive && CameraVibe.DialogueShown < .01f;
+                    && !CameraVibe.PeekActive && !CameraVibe.AccentActive && !follow.LeoShotShowing && CameraVibe.DialogueShown < .01f;
         TickIdleArc(calm, dt, wantDist);
 
         // ---------- точка, на которую смотрим (+ сдвиг от CameraVibe: говорящий, NPC, здание при показе)
@@ -792,6 +792,10 @@ public class OrbitCamera : MonoBehaviour
         float runFov = VibeSettings.ReduceEffects || chopping || conversation ? 0f : runFovBoost * moveBlend;
         cam.fieldOfView = reveal ? Mathf.Lerp(fov, revealFov, rv) : fov + runFov;
         cam.transform.SetPositionAndRotation(focus + back * curDist + shake, rot);
+
+        bool userLook = delta.sqrMagnitude > .09f || Mathf.Abs(Input.mouseScrollDelta.y) > .01f ||
+            Input.touchCount > 0 || introMul > 1.001f || modal;
+        follow.ApplyLeoShot(target, focus, dt, userLook, true, collisionMask);
 
         UpdateTreePeek(revealHold, dt);
         UpdateCrosshair(dt);

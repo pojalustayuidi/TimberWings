@@ -39,7 +39,12 @@ namespace IslandV2
         {
             for(int i=0;i<6;i++)
             {
-                float angle=42+i*55.2f;var m=Bench(i==4);
+                float angle=42+i*55.2f;var m=Bench(false);
+                for(int mark=0;mark<=i;mark++)
+                {
+                    float xx=(mark-i*0.5f)*0.075f;
+                    Rod(m,"DarkWood",new Vector3(xx-0.012f,0.93f,-0.241f),new Vector3(xx+0.012f,1.06f,-0.241f),0.007f);
+                }
                 Vector2 point=x.Site("Bench_"+i,TWMysticContext.Ring(angle,7.2f));float facing=Mathf.Atan2(point.x,point.y)*Mathf.Rad2Deg+180;
                 var bench=x.Prop(a,m,"Bench_"+i,"01_Скамья_круга_"+(i+1),point,facing);
                 Capsule(bench,new Vector3(0,0.48f,0),0.34f,3.2f,0,surface);
@@ -80,18 +85,16 @@ namespace IslandV2
             Memory(x,a,"Gunnar_Memory","06_След_Гуннара",new Vector2(4.2f,4.1f),
                 "осмотреть старый нож",new[]{"На рукояти вырезана буква «Г». Как на вещах дяди.","Лео","Гуннар был здесь. Почему он ни разу не рассказывал об этом месте?"});
             Memory(x,a,"Bench_Memory","07_Незанятое_место",TWMysticContext.Ring(42+4*55.2f,8.5f),
-                "прочитать надпись",new[]{"На всех скамьях есть имена. Здесь имя стёрли, но место оставили.","Лео","«Если услышишь зов после заката — не отвечай из-за деревьев»."});
+                "осмотреть старую дощечку",new[]{"Скамьи отмечены зарубками. У этой лежит дощечка — имя на ней давно стёрлось.","Лео","«Если услышишь зов после заката — не отвечай из-за деревьев»."});
             Details(x,a);
         }
-        static TWMysticModel Bench(bool broken)
+        internal static TWMysticModel Bench(bool broken)
         {
             var m=new TWMysticModel();
-            for(int i=0;i<7;i++)
-            {
-                float x=-1.35f+i*0.45f,z=x*x*0.075f;
-                for(int j=0;j<3;j++)if(!broken || i!=5 || j!=1)Box(m,"Wood",new Vector3(x,0.51f,z-0.20f+j*0.2f),new Vector3(0.43f,0.12f,0.18f),-x*6);
-                if(!broken || i!=5)Box(m,"DarkWood",new Vector3(x,0.98f,z-0.30f),new Vector3(0.43f,0.30f,0.10f),-x*6);
-            }
+            for(int j=0;j<3;j++)
+                Box(m,"Wood",new Vector3(0,0.51f,-0.20f+j*0.2f),new Vector3(3.0f,0.13f,0.18f));
+            Box(m,"Wood",new Vector3(0,0.99f,-0.30f),new Vector3(2.94f,0.28f,0.11f));
+            Box(m,"DarkWood",new Vector3(0,0.35f,0),new Vector3(2.65f,0.14f,0.13f));
             foreach(int s in new[]{-1,1})
             {
                 Rod(m,"DarkWood",new Vector3(s*1.18f,0,-0.12f),new Vector3(s*1.18f,1.15f,-0.12f),0.075f);
@@ -154,6 +157,7 @@ namespace IslandV2
             var go=m.Finish(a,bench,key,bench.position,bench.rotation);go.GetComponent<Renderer>().sharedMaterial=a.veil;
             var block=new MaterialPropertyBlock();block.SetFloat("_Alpha",0);go.GetComponent<Renderer>().SetPropertyBlock(block);
             go.GetComponent<Renderer>().shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
+            go.GetComponent<Renderer>().enabled=false;
         }
         static void Memory(TWMysticContext x,TWMysticAssets a,string key,string name,Vector2 p,string prompt,string[] lines)
         {

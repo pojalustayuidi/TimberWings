@@ -98,7 +98,7 @@ public sealed partial class LeoModelPresentation
         float roll = action > 0f
             ? LeoAxePose.RightArm(rig, transform, chopBook, chopPose, chopPhase, action, chopBark)
             : 0f;
-        rig.PlaceAxe(holster, roll);
+        LeoAxePose.Place(rig, transform, holster, roll);
         LeoAxePose.LeftArm(rig, transform, chopPhase, action * chopPose.left);
         UpdateChopTrail(action);
     }

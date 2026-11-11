@@ -11,8 +11,14 @@ public static class LeoAnimationBuilder
 {
     public const string Menu="Tools/BuilderSim/Игрок/Лео — анимации/";
     public const string Folder="Assets/_Project/Animation/Leo";
-    public static readonly string[] Clips={"Idle","Walk","Run","HeavyWalk","HeavyRun","Dash","AxeReady","Chop","Cancel","Sheathe","Draw","IdleHolstered"};
-    public static bool Loop(string name){return name=="Idle"||name=="Walk"||name=="Run"||name=="HeavyWalk"||name=="HeavyRun"||name=="AxeReady"||name=="IdleHolstered";}
+    public static readonly string[] Clips =
+    {
+        "Idle", "Walk", "Run", "HeavyWalk", "HeavyRun", "Dash", "AxeReady", "Chop",
+        "Cancel", "Sheathe", "Draw", "IdleHolstered", "Celebrate", "SwimIdle", "Swim", "Fall", "Land"
+    };
+    public static bool Loop(string name) => name == "Idle" || name == "Walk" || name == "Run" ||
+        name == "HeavyWalk" || name == "HeavyRun" || name == "AxeReady" || name == "IdleHolstered" ||
+        name == "SwimIdle" || name == "Swim";
     public static PlayerMovement Player()
     {
         PlayerMovement result=null;foreach(var root in SceneManager.GetActiveScene().GetRootGameObjects())
@@ -68,7 +74,7 @@ public static class LeoAnimationBuilder
             if(player.animator!=originalAnimator||interaction!=null&&interaction.animator!=eventAnimator)errors.Add("Изменился владелец игровых событий.");
             if(errors.Count>0)throw new InvalidOperationException(string.Join("\n",errors));
             EditorUtility.SetDirty(state);EditorUtility.SetDirty(controller);Undo.CollapseUndoOperations(undo);EditorSceneManager.MarkSceneDirty(scene);Selection.activeGameObject=rig.gameObject;
-            Debug.Log("LEO ANIMATION OK: один владелец позы, ходьба/бег/груз, замах/контакт/возврат, пояс для топора. 12 Generic-клипов в "+Folder+". Сохрани сцену. Меню 2 — QA, 3 — тесты. Копия: "+backup,rig);
+            Debug.Log("LEO ANIMATION OK: один владелец позы, ходьба/бег/груз, замах/контакт/возврат, пояс для топора, радость. Generic-клипы в "+Folder+". Сохрани сцену. Меню 2 — QA, 3 — тесты. Копия: "+backup,rig);
         }
         catch(Exception e){if(undo>=0)Undo.RevertAllDownToGroup(undo);Debug.LogError("LEO ANIMATION: подключение отменено. "+e);}
     }
@@ -96,8 +102,8 @@ public static class LeoAnimationBuilder
     }
     [MenuItem(Menu+"2. Проверить подключение",false,371)]
     static void QA(){try{var player=Player();var errors=Inspect(player,Rig(player));if(errors.Count>0)throw new InvalidOperationException(string.Join("\n",errors));Debug.Log("LEO ANIMATION QA OK: ссылки, единственный владелец позы, отсутствие физики у визуала. Ритм/таймер, диалоги, склон и сохранение проверь в Play.");}catch(Exception e){Debug.LogError("LEO ANIMATION QA: "+e.Message);}}
-    [MenuItem(Menu+"4. Пересобрать 12 клипов",false,373)]
-    static void BakeMenu(){if(EditorApplication.isPlayingOrWillChangePlaymode)return;try{LeoAnimationClips.Bake();Debug.Log("LEO: 12 клипов пересобраны из той же Motion.json, что использует игра.");}catch(Exception e){Debug.LogError("LEO CLIPS: "+e);}}
+    [MenuItem(Menu+"4. Пересобрать клипы",false,373)]
+    static void BakeMenu(){if(EditorApplication.isPlayingOrWillChangePlaymode)return;try{LeoAnimationClips.Bake();Debug.Log("LEO: клипы пересобраны из тех же поз, что использует игра.");}catch(Exception e){Debug.LogError("LEO CLIPS: "+e);}}
     [MenuItem(Menu+"5. Вернуть базовые движения Model01",false,374)]
     static void Restore()
     {

@@ -118,6 +118,7 @@ namespace IslandV2
                     if(Vector3.Distance(prop.transform.position,prop.defaultPosition)>0.001f || Quaternion.Angle(prop.transform.rotation,prop.defaultRotation)>0.05f ||
                         Vector3.Distance(prop.transform.lossyScale,prop.defaultScale)>0.001f || !prop.gameObject.activeSelf)keep[prop.key]=prop;
             for(int i=0;i<6;i++)Place("Bench_"+i,Ring(42+i*55.2f,7.2f),5.2f,11.6f,1.6f,1.7f);
+            Place("SecretBench",new Vector2(1.5f,-9.5f),7.8f,15f,1.7f,1.8f);
             for(int i=0;i<6;i++)Place("Tree_"+i,Ring(36+i*57f,i%2==0?13.5f:14.2f),9,24,1.1f,1.85f);
             for(int i=0;i<3;i++)Place("Witness_"+i,Ring(new[]{77f,188f,282f}[i],10.1f),8.5f,20,0.5f,0.8f);
             Place("Ribbon_Memory",new Vector2(-2.7f,12.6f),4.7f,20,0.5f,0.6f,true);

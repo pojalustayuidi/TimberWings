@@ -129,6 +129,9 @@ public class CameraVibe : MonoBehaviour
 
     void OnLevelUp(int level)
     {
+        Transform target = cf != null ? cf.target : null;
+        if (target == null && PlayerMovement.Instance != null) target = PlayerMovement.Instance.transform;
+        if (target != null && LeoCelebration.ForTarget(target) != null) return;
         if (!chopFeel || VibeSettings.ReduceEffects) return;   // «Уменьшить эффекты»: остаётся только плашка и звук
         if (!levelUpAccent)
         {

@@ -50,9 +50,16 @@ public class WaterSwim : MonoBehaviour
     Rigidbody rb;
     PlayerMovement player;
     bool swimming, drowning, warned, prevGravity;
-    float swimTime, drownAt, nextDrySample;
+    float swimTime, drownAt, nextDrySample, poseSurfaceY;
     Vector3 lastDry;
     bool hasDry;
+
+    internal bool TryGetPoseSurface(out float surfaceY, out float sinking)
+    {
+        surfaceY = poseSurfaceY;
+        sinking = drowning ? Mathf.Clamp01((Time.time - drownAt) / .65f) : 0f;
+        return swimming || drowning;
+    }
 
     void Awake()
     {
@@ -114,6 +121,7 @@ public class WaterSwim : MonoBehaviour
         }
 
         // ---- плывём
+        poseSurfaceY = h.surfaceY;
         if (!swimming)
         {
             swimming = true;

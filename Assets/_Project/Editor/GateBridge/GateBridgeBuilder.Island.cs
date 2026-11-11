@@ -30,7 +30,7 @@ public static partial class GateBridgeBuilder
     {
         var go = new GameObject(name);
         go.transform.SetParent(parent, false);
-        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        go.AddComponent<MeshFilter>().sharedMesh = GateBridgeAssetVault.Mesh(mesh);
         var r = go.AddComponent<MeshRenderer>();
         r.sharedMaterial = mat;
         if (!shadows) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -397,7 +397,7 @@ public static partial class GateBridgeBuilder
 
         Mesh body = BuildIslandBody(fi, R, gb.seed);
         var bodyGo = MeshObj(island.transform, "Body", body, mat, true);
-        bodyGo.AddComponent<MeshCollider>().sharedMesh = body;
+        bodyGo.AddComponent<MeshCollider>().sharedMesh = bodyGo.GetComponent<MeshFilter>().sharedMesh;
 
         MeshObj(island.transform, "Path", BuildPathMesh(PathPoints(R, pz)), mat, false);
         MeshObj(island.transform, "Platform", BuildPlatformMesh(pz), mat, false);
@@ -425,7 +425,7 @@ public static partial class GateBridgeBuilder
         BuildRocks(island.transform, mat, R, log);
         BuildRimGuards(island.transform, R, p.hw);
 
-        arrival = Child(island.transform, "Arrival", L(0f, -R + 2.4f, 0.05f)).transform;
+        arrival = Child(island.transform, "Arrival", L(0f, -R + GateBridge.IslandLandingInset, 0.05f)).transform;
         return island.transform;
     }
 }

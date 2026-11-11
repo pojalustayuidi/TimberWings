@@ -73,8 +73,9 @@ public class IslandEdgeGuard : MonoBehaviour
         "Облака ловят всех, но не любят, когда к ним спешат",
     };
 
-    enum State { Idle, Falling, Returning }
+    internal enum State { Idle, Falling, Returning }
     State state;
+    float returnProgress;
 
     IslandSource island;
     List<Vector2> loop;
@@ -102,6 +103,13 @@ public class IslandEdgeGuard : MonoBehaviour
     static readonly RaycastHit[] hitBuf = new RaycastHit[16];
 
     public bool IsFalling { get { return state != State.Idle; } }
+
+    internal State ReadPlayerMotion(PlayerMovement subject, out float landing)
+    {
+        State motion = subject == player ? state : State.Idle;
+        landing = motion == State.Returning ? returnProgress : 0f;
+        return motion;
+    }
 
     void Awake() { Instance = this; }
 
@@ -328,6 +336,7 @@ public class IslandEdgeGuard : MonoBehaviour
 
         // 3) под заливкой: переносим игрока над точкой возвращения
         state = State.Returning;
+        returnProgress = 0f;
         Vector3 target = ResolveTarget();
         Vector3 start = target + Vector3.up * respawnHeight;
         var prevInterp = RigidbodyInterpolation.None;
@@ -367,7 +376,8 @@ public class IslandEdgeGuard : MonoBehaviour
             float kf = Mathf.SmoothStep(0f, 1f, t / Mathf.Max(0.05f, fadeInSeconds));
             cover.alpha = 1f - kf;
             card.alpha = 1f - Mathf.Clamp01(t / cardOut);
-            float k = EaseOut(t / Mathf.Max(0.05f, landSeconds));
+            returnProgress = Mathf.Clamp01(t / Mathf.Max(0.05f, landSeconds));
+            float k = EaseOut(returnProgress);
             Vector3 pos = Vector3.Lerp(start, target, k);
             if (rb != null) rb.position = pos;
             player.transform.position = pos;

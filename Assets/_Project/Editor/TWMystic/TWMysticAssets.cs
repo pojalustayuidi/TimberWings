@@ -16,12 +16,12 @@ namespace IslandV2
         public TWMysticAssets(string folder)
         {
             this.folder = folder;
-            Add("Wood", 0x766C83); Add("DarkWood", 0x443D53); Add("EndGrain", 0xB2A1B7); Add("Bark", 0x51505E);
-            Add("Stone", 0x8C899F); Add("Leaf", 0x507A75); Add("LeafLight", 0x97B7AA); Add("Teal", 0x729E9C);
+            Add("Wood", 0xA47A50); Add("DarkWood", 0x614939); Add("EndGrain", 0xB2A1B7); Add("Bark", 0x745640);
+            Add("Stone", 0x87908B); Add("Leaf", 0x537D64); Add("LeafLight", 0x9BAC7B); Add("Teal", 0x729E9C);
             Add("Chips", 0xE2BC82); Add("CreamFlower", 0xFFF1CB); Add("PurpleFlower", 0xAB87CB);
             Add("Metal", 0x3E4B49); Add("Rope", 0xBFA474); Add("Cup", 0xE9D5A7); Add("Glass", 0xFFD586);
             Add("Canvas", 0xE7D1A2); Add("CanvasShade", 0xB9A784); Add("Skin", 0xD6A580); Add("Hair", 0x5A4438); Add("Boots", 0x4A4038); Add("GreenShirt", 0x648B59); Add("BlueShirt", 0x587D9F); Add("OchreShirt", 0xBBA05B); Add("Warning", 0xDC9A43); Add("Banner", 0x3F9388); Add("Copper", 0xCB9253); Add("Mushroom", 0xBD7969);
-            Add("Rune",0xADDDE0); Add("Ghost",0xB7CDD7); Add("Ribbon",0xB5A3C7); Add("Moss",0x667F78);
+            Add("Rune",0xADDDE0); Add("Ghost",0xB7CDD7); Add("Ribbon",0xB5A3C7); Add("Moss",0x7B9563);
             var shader = Shader.Find("Project/CandyToon");
             if (shader == null) throw new InvalidOperationException("Нет родного шейдера Project/CandyToon.");
             scenery = new Material(shader) { name = "Mystic_Candy_Palette" };
@@ -29,7 +29,7 @@ namespace IslandV2
             scenery.SetFloat("_PosVary", 0.035f); scenery.SetFloat("_GlossStrength", 0.025f);
             scenery.SetFloat("_RimStrength", 0.06f);
             lamp = new Material(scenery) { name = "Mystic_Lantern_Glass" };
-            lamp.EnableKeyword("_EMISSION"); lamp.SetColor("_EmissionColor", new Color(1, 0.69f, 0.28f));
+            lamp.EnableKeyword("_EMISSION"); lamp.SetColor("_EmissionColor", Color.black);
             lamp.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
             AssetDatabase.CreateAsset(scenery, folder + "/Scenery.mat"); AssetDatabase.CreateAsset(lamp, folder + "/Lantern.mat");
             var glowShader=Shader.Find("Project/IslandV2/TW_MysticVeil");

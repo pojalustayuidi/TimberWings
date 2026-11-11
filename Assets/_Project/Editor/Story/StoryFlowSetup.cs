@@ -43,16 +43,21 @@ public static class StoryFlowSetup
         var hut = EnsureSite(StoryFlow.Site.Hut, "Хижина", "задание Оскара", HutSteps(), sb, ref changes);
         var market = EnsureSite(StoryFlow.Site.Market, "Рынок", "задание Миры", MarketSteps(), sb, ref changes);
         var tent = EnsureSite(StoryFlow.Site.Tent, "Палатка", "задание Оскара", TentSteps(), sb, ref changes);
-        var bridge = EnsureSite(StoryFlow.Site.Bridge, "Мост", "задание Оскара, " + GameBalance.BridgeLevel + "-й уровень", BridgeSteps(), sb, ref changes);
+        var bridge = EnsureSite(StoryFlow.Site.Bridge, "Мост", "задание Оскара, " + GameBalance.BridgeLevel + "-й уровень", BuildSiteData.BridgeSteps(), sb, ref changes);
 
         Undo.RecordObject(sf, "StoryFlow links");
         if (hut != null) sf.hut = hut;
         if (market != null) sf.market = market;
         if (tent != null) sf.tent = tent;
         if (bridge != null) sf.bridge = bridge;
-        var rb = Object.FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
+        var assembledGate = Object.FindFirstObjectByType<GateBridge>(FindObjectsInactive.Include);
+        var rb = assembledGate != null && assembledGate.HasFinalIsland
+            ? assembledGate.source
+            : Object.FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
         if (rb != null) sf.riverBridge = rb;
-        else sb.AppendLine("! Нет RiverBridge: мост строится только LocationBuilder (Река и мост). Без него финал недостижим.");
+        else if (Object.FindFirstObjectByType<GateBridge>() != null)
+            sb.AppendLine("! У GateBridge не найден RiverBridge. Пересобери мост через Editor.");
+        else sb.AppendLine("! Нет RiverBridge или собранного GateBridge: в сцене нет рабочего моста.");
 
         // 3. пила на хижине
         if (hut != null)
@@ -121,27 +126,29 @@ public static class StoryFlowSetup
         };
     }
 
-    static BuildSiteData.Step[] BridgeSteps()
-    {
-        var a = new BuildSiteData.Step[GameBalance.BridgeWood.Length];
-        for (int i = 0; i < a.Length; i++)
-            a[i] = new BuildSiteData.Step
-            {
-                name = GameBalance.BridgeNames[i], woodCost = GameBalance.BridgeWood[i], plankCost = GameBalance.BridgePlanks[i],
-                coinCost = GameBalance.BridgeCoins[i], buildTime = GameBalance.BridgeTime[i], rewardXp = GameBalance.BridgeXp[i]
-            };
-        return a;
-    }
-
     // ---------------------------------------------------------------- одна стройка
     static BuildingController EnsureSite(StoryFlow.Site site, string title, string lockedAfter, BuildSiteData.Step[] steps, StringBuilder sb, ref int changes)
     {
         var all = Object.FindObjectsByType<BuildingController>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        var bc = StoryFlow.FindSite(site, all);
+        var preferredGate = site == StoryFlow.Site.Bridge ? Object.FindFirstObjectByType<GateBridge>(FindObjectsInactive.Include) : null;
+        var preferredZone = preferredGate != null && preferredGate.HasFinalIsland ? preferredGate.transform.Find("BuildZone") : null;
+        var bc = preferredZone != null ? preferredZone.GetComponent<BuildingController>() : StoryFlow.FindSite(site, all);
 
         if (bc == null)
         {
-            bc = CreateZone(site, title, sb);
+            var gate = site == StoryFlow.Site.Bridge ? Object.FindFirstObjectByType<GateBridge>() : null;
+            if (gate != null && gate.HasFinalIsland)
+            {
+                bc = GateBridgeBuilder.EnsureBuildSite(gate);
+                if (bc == null)
+                {
+                    sb.AppendLine("! Не удалось запечь BuildZone моста. Сначала сохрани сцену и пересобери GateBridge.");
+                    return null;
+                }
+                sb.AppendLine("+ Зона «Мост» сохранена у входа в Edit Mode.");
+                changes++;
+            }
+            else bc = CreateZone(site, title, sb);
             if (bc == null)
             {
                 sb.AppendLine("! «" + title + "»: нет ни зоны сдачи, ни объекта стадий (" + StageComponentName(site) + "). Собери здание билдером и запусти меню ещё раз.");

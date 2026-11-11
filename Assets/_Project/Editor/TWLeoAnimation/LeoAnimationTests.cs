@@ -20,7 +20,7 @@ public static class LeoAnimationTests
             var old=instance.GetComponent<LeoModelPresentation>();if(old!=null)old.enabled=false;
             var rig=instance.GetComponent<LeoRig>();var actor=instance.AddComponent<LeoAnimationController>();actor.rig=rig;
             Require(actor.Initialize(),"Не удалось открыть риг.");Validate(actor,rig,LeoAnimationClips.Bones(rig));
-            Debug.Log("LEO MOTION TESTS OK: контакт по исходному расписанию, замкнутые циклы, длины костей, хват топора и компактная переноска до 10 слотов. Игровые награды/сейвы тест не вызывает.");
+            Debug.Log("LEO MOTION TESTS OK: циклы шага и плавания, падение, посадка, хват топора, прыжок радости и тайминг рубки.");
         }
         catch(Exception e){Debug.LogError("LEO MOTION TESTS: "+e);}
         finally{if(instance!=null)Object.DestroyImmediate(instance);EditorSceneManager.ClosePreviewScene(scene);}
@@ -30,11 +30,24 @@ public static class LeoAnimationTests
         Clock();var book=LeoMotionProfile.Load();var lengths=new float[bones.Count];rig.ResetPose();
         for(int i=0;i<bones.Count;i++)lengths[i]=bones[i].localPosition.magnitude;
         Vector3 position=rig.transform.position,scale=rig.transform.localScale;Quaternion rotation=rig.transform.rotation;
+        float ground = Mathf.Min(SoleHeight(rig.ankleL), SoleHeight(rig.ankleR));
         foreach(string name in LeoAnimationBuilder.Clips)
         {
+            bool walk = name == "Walk" || name == "HeavyWalk";
+            bool run = name == "Run" || name == "HeavyRun";
+            bool airOrWater = name == "SwimIdle" || name == "Swim" || name == "Fall" || name == "Land";
             for(int n=0;n<=60;n++)
             {
                 Require(actor.SamplePreview(name,n/60f),"Нет позы "+name);
+                if (walk || run)
+                {
+                    float left = rig.transform.InverseTransformPoint(rig.ankleL.position).x;
+                    float right = rig.transform.InverseTransformPoint(rig.ankleR.position).x;
+                    Require(right - left > .33f, name + ": ботинки перекрываются сзади.");
+                    float sole = Mathf.Min(SoleHeight(rig.ankleL), SoleHeight(rig.ankleR));
+                    Require(sole >= ground - .008f && (!walk || sole <= ground + .008f),
+                        name + ": нарушен контакт стоп с поверхностью.");
+                }
                 for(int i=0;i<bones.Count;i++)
                 {
                     var bone=bones[i];var p=bone.localPosition;var q=bone.localRotation;var s=bone.localScale;
@@ -43,7 +56,12 @@ public static class LeoAnimationTests
                     if(!translated)Require(Mathf.Abs(p.magnitude-lengths[i])<.0001f,name+": вытянулся сегмент "+bone.name);
                 }
                 Require(Vector3.Distance(position,rig.transform.position)<.00001f&&Quaternion.Angle(rotation,rig.transform.rotation)<.01f&&Vector3.Distance(scale,rig.transform.localScale)<.00001f,"Поза сдвинула корень игрока.");
-                if(name!="Sheathe"&&name!="Draw"&&name!="IdleHolstered")
+                if (airOrWater)
+                {
+                    Require(Vector3.Distance(rig.axeRoot.position, rig.axeHolster.position) < .0002f,
+                        name + ": топор должен быть на поясе.");
+                }
+                else if(name!="Sheathe"&&name!="Draw"&&name!="IdleHolstered"&&(name!="Celebrate"||n==0||n==60))
                 {
                     Require(Vector3.Distance(rig.axeRoot.TransformPoint(LeoAxePose.MainGrip),LeoAxePose.Grip(rig.handR))<.0002f,name+": топор вышел из правой руки.");
                     Require(Vector3.Dot(rig.handR.right, rig.axeRoot.up)<-.999f,name+": рукоять должна лежать поперёк ладони.");
@@ -63,7 +81,12 @@ public static class LeoAnimationTests
         }
         actor.SamplePreview("Chop",book.windup/(book.windup+book.recovery));
         Require(Vector3.Distance(LeoAxePose.Grip(rig.handL),rig.axeRoot.TransformPoint(LeoAxePose.SupportGrip))<.025f,"Левая рука не держит рукоять в контакте.");
+        actor.SamplePreview("Sheathe", .65f);
+        Require(Vector3.Distance(LeoAxePose.Grip(rig.handR), rig.axeRoot.TransformPoint(LeoAxePose.MainGrip)) < .005f,
+            "Рукоять отрывается от ладони до передачи в крепление.");
         actor.SamplePreview("Sheathe",1);Require(Vector3.Distance(rig.axeRoot.position,rig.axeHolster.position)<.0002f&&Quaternion.Angle(rig.axeRoot.rotation,rig.axeHolster.rotation)<.15f,"Топор не закрепился на поясе.");
+        Celebration(actor, rig, book);
+        AirAndWater(actor, rig);
         Require(rig.logUpgrade!=null&&rig.cargo!=null&&rig.cargo.Length==12&&rig.frames!=null&&rig.frames.Length==3,"Нет 12 слотов брёвен или рамы переноски.");
         rig.ShowCargo(36,42);int larger=0;foreach(var section in rig.cargo)if(section.gameObject.activeSelf)larger++;
         Require(larger==LeoRig.CargoSections(36,42,12)&&!rig.logUpgrade.gameObject.activeSelf,"36/42: число брёвен по ступени 32-63, без устаревшей рамы-расширения.");
@@ -71,6 +94,64 @@ public static class LeoAnimationTests
         actor.SamplePreview("Idle",0);foreach(var cargo in rig.cargo)Require(!cargo.gameObject.activeSelf,"Пустой рюкзак показывает груз.");
         Require(rig.GetComponentsInChildren<Collider>(true).Length==0&&rig.GetComponentsInChildren<Rigidbody>(true).Length==0,"У визуала появилась физика.");
     }
+
+    static void AirAndWater(LeoAnimationController actor, LeoRig rig)
+    {
+        actor.SamplePreview("Swim", .04f);
+        Vector3 reach = rig.transform.InverseTransformPoint(rig.handL.position);
+        actor.SamplePreview("Swim", .42f);
+        Require(Vector3.Distance(reach, rig.transform.InverseTransformPoint(rig.handL.position)) > .18f,
+            "Гребок должен менять положение кисти.");
+        actor.SamplePreview("Fall", .5f);
+        Require(Quaternion.Angle(rig.upperArmR.localRotation, rig.RestRotation(rig.upperArmR)) > 40f &&
+            Quaternion.Angle(rig.kneeL.localRotation, rig.RestRotation(rig.kneeL)) > 22f,
+            "В падении Лео разводит руки и поджимает ноги.");
+        actor.SamplePreview("Land", .8f);
+        Require(Quaternion.Angle(rig.kneeL.localRotation, rig.RestRotation(rig.kneeL)) > 15f,
+            "При возвращении Лео готовит ноги к опоре.");
+        actor.SamplePreview("Land", 1f);
+        Require(Quaternion.Angle(rig.kneeL.localRotation, rig.RestRotation(rig.kneeL)) < .2f,
+            "После посадки колено возвращается в стойку.");
+    }
+
+    static void Celebration(LeoAnimationController actor, LeoRig rig, LeoMotionProfile.Book book)
+    {
+        float duration = LeoAnimationController.ClipDuration("Celebrate", book);
+        actor.SamplePreview("Celebrate", 0f);
+        float rest = rig.hips.localPosition.y;
+        float soleL = SoleHeight(rig.ankleL), soleR = SoleHeight(rig.ankleR);
+
+        actor.SamplePreview("Celebrate", .47f / duration);
+        Require(rig.hips.localPosition.y < rest - .07f, "Лео не приседает перед прыжком.");
+        actor.SamplePreview("Celebrate", .815f / duration);
+        Require(SoleHeight(rig.ankleL) > soleL + .22f * rig.transform.lossyScale.y &&
+            SoleHeight(rig.ankleR) > soleR + .22f * rig.transform.lossyScale.y, "В прыжке обе подошвы должны оторваться от земли.");
+        Require(Vector3.Distance(rig.axeRoot.position, rig.axeHolster.position) < .0002f,
+            "Во время прыжка топор должен оставаться в креплении.");
+
+        actor.SamplePreview("Celebrate", 1.145f / duration);
+        Require(rig.hips.localPosition.y < rest - .06f, "При приземлении ноги не амортизируют.");
+        actor.SamplePreview("Celebrate", 1f);
+        Require(Mathf.Abs(rig.hips.localPosition.y - rest) < .0002f &&
+            Mathf.Abs(SoleHeight(rig.ankleL) - soleL) < .0002f &&
+            Mathf.Abs(SoleHeight(rig.ankleR) - soleR) < .0002f, "Прыжок не вернулся в исходную стойку.");
+    }
+
+    static float SoleHeight(Transform ankle)
+    {
+        float bottom = float.PositiveInfinity;
+        foreach (var filter in ankle.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter.sharedMesh == null || !filter.name.EndsWith("__Sole", StringComparison.Ordinal)) continue;
+            Bounds bounds = filter.sharedMesh.bounds;
+            for (int z = 0; z < 2; z++)
+                bottom = Mathf.Min(bottom, filter.transform.TransformPoint(
+                    new Vector3(bounds.center.x, bounds.min.y, z == 0 ? bounds.min.z : bounds.max.z)).y);
+        }
+        Require(!float.IsPositiveInfinity(bottom), "На риге отсутствует геометрия подошвы.");
+        return bottom;
+    }
+
     static bool Finite(float value){return !float.IsNaN(value)&&!float.IsInfinity(value);}
     static void Clock()
     {

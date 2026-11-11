@@ -11,7 +11,7 @@
 //   8. Палатка     Оскар         (ур. 3)  построить палатку (бревна, доски, монеты), лагерь для рабочих
 //  8б. Звери-помощники Оскар      (ур. 4)  после палатки: у клети в лагере первая бесплатная Лесная клеть, один раз даёт Обычного питомца
 //   9. Мост        Оскар         (ур. 5)  три этапа: опоры (брёвна + монеты), настил, тросы и перила (доски + монеты); после третьего открывается проход, а Небесная клеть питомцев открывается сюжетом
-//  10. Записка     без разговора          у моста Лео читает записку Гуннара: конец вертикального среза
+//  10. Портал      без разговора          Лео переходит мост и активирует камень у арки Гуннара
 //
 // Оскар стоит у хижины с самого начала. Пока его глава не началась, он отсылает игрока («рано»), в ходе главы напоминает задание.
 // Если Оскара в сцене нет, при старте появляется копия Миры рядом с хижиной (или в точке Oskar Spot), чтобы поменять модель на свою.
@@ -50,7 +50,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     public RiverBridge riverBridge;
     [Tooltip("Где Лео находит записку Гуннара. Пусто = у моста")]
     public Transform noteSpot;
-    [Tooltip("Когда мост достроен: вместо чтения записки вслух показать финальную заставку (EndingSequence). Выключи, чтобы вернуть старый диалог")]
+    [Tooltip("Включает финал главы. На дальнем острове заставка запускается через портал, в старых сценах — через записку.")]
     public bool useEnding = true;
     [Tooltip("Радиус около точки записки, в котором Лео «подошёл» (метры). Работает, когда точка записки задана (площадка на дальнем острове). " +
              "Держи его заметно меньше расстояния до главного берега: иначе финал сработает не там")]
@@ -124,6 +124,8 @@ public class StoryFlow : MonoBehaviour, ISaveable
     DialogueSequence talk;
     bool introDone, firstSale, warnedNoGiver;
     bool bridgeWarned, noteStarted, noteRead, petsCrateWarned;
+    GateBridge finalBridge;
+    int finaleAttempt;
     PetCrateSite forestCrate;
     float endingAt = -1f;
     float pollAt;
@@ -486,13 +488,13 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
         // 9. Мост (Оскар, ур. 5): три этапа, цены из GameBalance.Bridge* (через Build Site Data).
         // Обязательная глава: skip всегда false. Нет зоны моста: ошибка в Console, цепочка стоит здесь, а не открывает финал вхолостую.
-        // Разговора «после» нет: сразу записка у моста. Этапы идут строго по порядку (BuildingController не берёт следующий, пока не сдан текущий)
+        // После стройки Лео отправляется к арке. Этапы идут строго по порядку.
         chapters.Add(new Chapter
         {
             id = "bridge", giver = oskarName, minLevel = GameBalance.BridgeLevel,
             offer = BridgeOffer(),
             reminder = "Сперва опоры, потом настил, потом тросы. Брёвна, доски и монеты по списку над мостом.",
-            idleAfter = "Мост стоит. Ступай к Гуннару, малец. Он ждал.",
+            idleAfter = "Мост стоит. На дальнем острове поищи камень у арки. Гуннар оставил его для тебя.",
             skip = BridgeMissing,
             onAccept = () => Unlock(bridge),
             objective = BridgeObjective,
@@ -504,7 +506,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
             restoreActive = () => Unlock(bridge)
         });
 
-        // 10. Записка Гуннара: без NPC. Когда мост достроен и игрок рядом, Лео читает записку вслух. Конец среза.
+        // 10. Финал. Сохранённый идентификатор gunnar связывает эту главу со старыми сохранениями.
         chapters.Add(new Chapter
         {
             id = "gunnar",
@@ -797,14 +799,24 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (hut == null) hut = FindSite(Site.Hut, all);
         if (market == null) market = FindSite(Site.Market, all);
         if (tent == null) tent = FindSite(Site.Tent, all);
-        if (bridge == null) bridge = FindSite(Site.Bridge, all);
-        if (riverBridge == null) riverBridge = FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
-        if (noteSpot == null)
+        var gate = FindFirstObjectByType<GateBridge>();
+        // У финального моста путь BuildZone фиксирован для совместимости SaveId;
+        // не выбираем случайную старую стройку через общий поиск по сцене.
+        if (gate != null && gate.HasFinalIsland)
         {
-            // записка лежит на площадке дальнего острова: её точку ставит сборка GateBridge, руками привязывать не нужно
-            var gateBridge = FindFirstObjectByType<GateBridge>(FindObjectsInactive.Include);
-            if (gateBridge != null) noteSpot = gateBridge.noteSpot;
+            var baked = gate.transform.Find("BuildZone");
+            bridge = baked != null ? baked.GetComponent<BuildingController>() : null;
         }
+        else if (bridge == null) bridge = FindSite(Site.Bridge, all);
+        if (gate != null && gate.HasFinalIsland)
+        {
+            finalBridge = gate;
+            riverBridge = gate.EnsureProgressSource(riverBridge);
+            if (bridge == null)
+                Debug.LogError("StoryFlow: зона стройки моста не сохранена в сцене. В Edit Mode пересобери GateBridge. Runtime-генерация отключена.", gate);
+        }
+        else if (riverBridge == null) riverBridge = FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
+        if (noteSpot == null && gate != null) noteSpot = gate.noteSpot;
 
         if (workshop == null && hut != null)
         {
@@ -816,7 +828,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         // вид рынка и палатки переключает мостик, HutStages у них нет
         if (market != null) EnsureLink(market, true);
         if (tent != null) EnsureLink(tent, false);
-        if (bridge != null) EnsureBridgeLink(bridge, riverBridge);
+        if (bridge != null) EnsureBridgeLink(bridge, riverBridge, finalBridge != null);
 
         Lock(hut, "задание Оскара");
         Lock(market, "задание Миры");
@@ -851,7 +863,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     }
 
     // мост: стройка ведёт RiverBridge и открывает проход. Ссылку проставляем и тогда, когда мостик уже висит на зоне
-    static void EnsureBridgeLink(BuildingController b, RiverBridge rb)
+    static void EnsureBridgeLink(BuildingController b, RiverBridge rb, bool finalCrossing)
     {
         if (b == null || rb == null) return;
         var link = b.GetComponent<BuildStageLink>();
@@ -860,7 +872,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
             link = b.gameObject.AddComponent<BuildStageLink>();
             link.build = b;
         }
-        if (link.bridge == null) link.bridge = rb;
+        if (link.bridge == null || finalCrossing) link.bridge = rb;
         if (link.build == null) link.build = b;
     }
 
@@ -968,12 +980,22 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
     Transform NoteTarget()
     {
+        if (useEnding && finalBridge != null && finalBridge.Portal != null) return finalBridge.Portal.Anchor;
         if (noteSpot != null) return noteSpot;
         return bridge != null ? bridge.transform : null;
     }
 
     string NoteObjective()
     {
+        if (useEnding && finalBridge != null)
+        {
+            if (noteStarted) return "";
+            FindRefs();
+            var portal = finalBridge.Portal;
+            return player != null && portal != null && portal.OnFarIsland(player.position)
+                ? "Активируй камень у портала"
+                : "Перейди мост на дальний остров";
+        }
         if (noteStarted) return "Записка Гуннара…";
         // мост готов: игроку надо перейти на дальний остров к площадке с запиской (стрелка ведёт туда же, см. NoteTarget)
         return noteSpot != null ? "Перейди мост: записка Гуннара у арки на дальнем острове" : "Подойди к мосту: под перилами записка";
@@ -985,22 +1007,23 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (noteRead) return true;
         if (noteStarted) return false;
         if (bridge == null || !bridge.IsFinished) return false;
+        if (useEnding && finalBridge != null) return false;   // на новом острове финал запускается взаимодействием
 
         FindRefs();
         var at = NoteTarget();
-        if (player != null && at != null)
+        if (player == null || at == null) return false;
+        Vector3 offset = player.position - at.position;
+        float height = Mathf.Abs(offset.y);
+        offset.y = 0f;
+        if (noteSpot != null)
         {
-            Vector3 d = player.position - at.position;
-            float dy = Mathf.Abs(d.y);
-            d.y = 0f;
-            // записка на дальнем острове: узкий радиус и проверка высоты, чтобы финал не запустился с главного берега или с середины моста.
-            // Точки записки нет (старая сцена): прежние 8 м от моста
-            if (noteSpot != null)
+            if (offset.magnitude > noteRadius || height > 3f)
             {
-                if (d.magnitude > noteRadius || dy > 3f) { endingAt = -1f; return false; }   // отошёл во время паузы: пауза начнётся заново
+                endingAt = -1f;
+                return false;
             }
-            else if (d.magnitude > 8f) return false;
         }
+        else if (offset.magnitude > 8f) return false;
 
         // финал: небольшая пауза, чтобы игрок увидел достроенный мост, потом экран уходит в чёрное
         if (useEnding)
@@ -1017,6 +1040,38 @@ public class StoryFlow : MonoBehaviour, ISaveable
             Debug.LogError("StoryFlow: у игрока нет Speaker «" + playerName + "», записку Гуннара читать некому. Финал засчитан без реплик. Tools > BuilderSim > Добавить реплики Лео игроку.");
         SayNote(NoteLines(), 0);
         return noteRead;
+    }
+
+    internal bool CanActivatePortal(FinalIslandPortal portal)
+    {
+        return useEnding && introDone && !AllDone && !noteStarted && !noteRead
+            && ci < chapters.Count && chapters[ci].id == "gunnar" && phase == Phase.Do
+            && finalBridge != null && finalBridge.Portal == portal
+            && bridge != null && bridge.IsFinished && finalBridge.WalkwayActive
+            && !BuildingController.AnyRevealing && !BuildingController.AnyRestorePending
+            && !SaveSystem.IsLoading && !EndingSequence.Active;
+    }
+
+    internal void ActivatePortal(FinalIslandPortal portal, PlayerMovement actor)
+    {
+        if (!CanActivatePortal(portal)) return;
+        int attempt = ++finaleAttempt;
+        if (!portal.Play(actor, () =>
+        {
+            if (this == null || attempt != finaleAttempt) return;
+            noteRead = true;
+            pollAt = 0f;
+            SaveSystem.RequestSave("story");
+        }, () =>
+        {
+            if (this == null || attempt != finaleAttempt) return;
+            noteStarted = false;
+            RefreshHud();
+        })) return;
+
+        noteStarted = true;
+        Arrow(null);
+        Objective("");
     }
 
     // реплики по одной; пропуск разговора (удержание E) обрывает цепочку и засчитывает записку прочитанной
@@ -1397,6 +1452,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         AllDone = false;
         PetsOpen = false;
         firstSale = noteRead = noteStarted = false;
+        finaleAttempt++;
         endingAt = -1f;
         if (hut != null) hut.SetLocked(true);
         if (market != null) market.SetLocked(true);
@@ -1431,6 +1487,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         firstSale = d.firstSale;
         noteRead = d.noteRead;
         noteStarted = false;
+        finaleAttempt++;
         AllDone = d.allDone;
         restoreSupply = d.supplyDelivered;
 

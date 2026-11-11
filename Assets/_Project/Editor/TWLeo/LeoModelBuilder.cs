@@ -12,7 +12,7 @@ public static partial class LeoModelBuilder
 {
     public const string Menu="Tools/BuilderSim/Игрок/Лео — модель/";
     public const string Folder="Assets/_Project/Characters/Leo";
-    public const string PrefabPath=Folder+"/Leo_Model.prefab";
+    public const string PrefabPath="Assets/_Project/Resources/LeoAnimation/Leo_Model.prefab";
     public const string ModelName="LeoModel";
     public static GameObject BuildPrefab()
     {
@@ -77,7 +77,7 @@ public static partial class LeoModelBuilder
                 var go=new GameObject(first.name.StartsWith("Axe_TW_")?first.name:"Geo_"+entry.Key);go.transform.SetParent(bones[first.node],false);
                 go.AddComponent<MeshFilter>().sharedMesh=mesh;var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=materials[first.material];renderer.shadowCastingMode=ShadowCastingMode.On;renderer.receiveShadows=true;
             }
-            var rig=root.AddComponent<LeoRig>();rig.Bind();rig.CaptureRest();var presentation=root.AddComponent<LeoModelPresentation>();presentation.rig=rig;
+            var rig=root.AddComponent<LeoRig>();rig.Bind();rig.PrepareAnimationRest();var presentation=root.AddComponent<LeoModelPresentation>();presentation.rig=rig;
             var errors=InspectModel(root);if(errors.Count>0)throw new InvalidOperationException(string.Join("\n",errors));
             var prefab=PrefabUtility.SaveAsPrefabAsset(root,PrefabPath);if(prefab==null)throw new IOException("Не удалось сохранить префаб Лео.");
             AssetDatabase.SaveAssets();return prefab;

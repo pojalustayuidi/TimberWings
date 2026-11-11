@@ -117,6 +117,12 @@ public class CameraFollow : MonoBehaviour
     readonly Dictionary<Collider, Renderer[]> rendererCache = new Dictionary<Collider, Renderer[]>();
     readonly RaycastHit[] hits = new RaycastHit[32];
     readonly List<Renderer> toRestore = new List<Renderer>();
+    readonly LeoCelebrationCamera leoCelebration = new LeoCelebrationCamera();
+
+    internal bool LeoShotShowing => leoCelebration.IsShowing;
+
+    internal bool ApplyLeoShot(Transform subject, Vector3 normalFocus, float dt, bool userLook, bool orbit, LayerMask mask)
+        => leoCelebration.Apply(cam, subject, normalFocus, dt, userLook, orbit, mask);
 
     void Awake()
     {
@@ -142,7 +148,11 @@ public class CameraFollow : MonoBehaviour
     public static void SnapToTarget()
     {
         OrbitCamera.SnapToTarget();
-        if (instance != null) instance.snapped = false;
+        if (instance != null)
+        {
+            instance.snapped = false;
+            instance.leoCelebration.Reset();
+        }
     }
 
     // Вызывай откуда угодно: CameraFollow.Shake(0.1f, 0.2f);
@@ -297,6 +307,13 @@ public class CameraFollow : MonoBehaviour
 
         transform.rotation = rot * swayRot;
         transform.position = camPos + shake;
+
+        bool userLook = Mathf.Abs(Input.mouseScrollDelta.y) > .01f || introMul > 1.001f;
+        if (ApplyLeoShot(target, focus, dt, userLook, false, blockerMask))
+        {
+            basePos = camPos = transform.position;
+            baseRot = transform.rotation;
+        }
 
         UpdatePeek(pos);
         if (hideBlockers) HandleBlockers(pos + Vector3.up * 1f);

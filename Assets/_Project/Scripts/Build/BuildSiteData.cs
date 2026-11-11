@@ -34,4 +34,22 @@ public class BuildSiteData : ScriptableObject
     public Step[] steps = { new Step() };
 
     public int StepCount { get { return steps != null ? steps.Length : 0; } }
+
+    public static Step[] BridgeSteps()
+    {
+        var steps = new Step[GameBalance.BridgeNames.Length];
+        for (int i = 0; i < steps.Length; i++)
+        {
+            steps[i] = new Step
+            {
+                name = GameBalance.BridgeNames[i],
+                woodCost = GameBalance.BridgeWood[i],
+                plankCost = GameBalance.BridgePlanks[i],
+                coinCost = GameBalance.BridgeCoins[i],
+                buildTime = GameBalance.BridgeTime[i],
+                rewardXp = GameBalance.BridgeXp[i]
+            };
+        }
+        return steps;
+    }
 }

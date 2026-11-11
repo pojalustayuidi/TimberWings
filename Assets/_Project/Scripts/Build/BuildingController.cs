@@ -846,6 +846,8 @@ public class BuildingController : MonoBehaviour
     // ID стройки: путь по иерархии + тип. InstanceID не годится: он другой при каждом запуске.
     // Переименование объекта в сцене = новый ID (прогресс этой стройки начнётся заново).
     internal string saveId;
+    // Serialized for Editor-baked build zones; exposed to the separate Editor assembly.
+    [SerializeField, HideInInspector] public string legacySaveId;
     BuildSiteKind kindCache = BuildSiteKind.Other;
     bool kindKnown, started, restorePending;
     BuildingSaveEntry restoreEntry;
@@ -1100,8 +1102,15 @@ sealed class BuildingSaveHub : ISaveable
         b.saveId = id;
         live[id] = b;
 
-        BuildingSaveEntry e;
-        if (store.TryGetValue(id, out e)) b.QueueRestore(e);
+        if (TryGetEntry(b, id, out var entry)) b.QueueRestore(entry);
+    }
+
+    bool TryGetEntry(BuildingController build, string id, out BuildingSaveEntry entry)
+    {
+        return store.TryGetValue(id, out entry)
+            || (!string.IsNullOrEmpty(build.legacySaveId)
+                && !live.ContainsKey(build.legacySaveId)
+                && store.TryGetValue(build.legacySaveId, out entry));
     }
 
     void Remove(BuildingController b)
@@ -1145,8 +1154,7 @@ sealed class BuildingSaveHub : ISaveable
         foreach (var kv in live)
         {
             if (kv.Value == null) continue;
-            BuildingSaveEntry e;
-            kv.Value.QueueRestore(store.TryGetValue(kv.Key, out e) ? e : new BuildingSaveEntry { id = kv.Key });
+            kv.Value.QueueRestore(TryGetEntry(kv.Value, kv.Key, out var entry) ? entry : new BuildingSaveEntry { id = kv.Key });
         }
     }
 

@@ -202,6 +202,7 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         if (rb != null) rb.interpolation = RigidbodyInterpolation.Interpolate;
         if (animator == null) animator = GetComponentInChildren<Animator>();
+        LeoPlayerVisual.Install(this);
         backpack = GetComponent<BackpackTag>();
         interaction = GetComponent<PlayerInteraction>();
         if (GetComponent<WaterSwim>() == null) gameObject.AddComponent<WaterSwim>();   // плавание и утопление в реке (без WaterVolume ничего не делает)

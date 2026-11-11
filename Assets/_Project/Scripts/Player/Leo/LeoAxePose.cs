@@ -26,6 +26,37 @@ public static class LeoAxePose
             rig.handR.localRotation *= Quaternion.Euler(0f, 65f - 8f * move, -10f);
     }
 
+    public static void Place(LeoRig rig, Transform model, float holster, float palmRoll = 0f)
+    {
+        if (rig.axeRoot == null || rig.handR == null || rig.axeHolster == null) return;
+        float amount = Mathf.Clamp01(holster);
+        if (amount <= 0f || amount >= 1f)
+        {
+            rig.PlaceAxe(amount, palmRoll);
+            return;
+        }
+
+        Vector3 palm = Grip(rig.handR);
+        Quaternion held = ToolRotation(rig.handR, palmRoll);
+        Quaternion belt = rig.axeHolster.rotation;
+        Vector3 beltGrip = rig.axeHolster.position + belt * Vector3.Scale(MainGrip, rig.axeRoot.lossyScale);
+        // The hand carries the handle outside the thigh. It only lets go once
+        // the belt socket and palm meet. Drawing the axe follows the same path.
+        float travel = LeoMotionProfile.Smooth(amount / .68f);
+        Vector3 goal = LeoMotionProfile.Bezier(palm,
+            palm + model.TransformVector(new Vector3(.13f, .04f, .085f)),
+            beltGrip + model.TransformVector(new Vector3(.12f, .06f, .042f)), beltGrip, travel);
+        Quaternion tool = Quaternion.Slerp(held, belt, travel);
+        Quaternion wrist = RightWrist(tool * Quaternion.AngleAxis(palmRoll, Vector3.up));
+        float reach = LeoMotionProfile.Smooth(amount / .18f) *
+            (1f - LeoMotionProfile.Smooth((amount - .76f) / .24f));
+        Vector3 pole = model.TransformPoint(new Vector3(.70f, 1.03f, -.13f));
+        LeoRig.SolveTwoBone(rig.upperArmR, rig.elbowR, rig.handR, WristGoal(rig.handR, goal, wrist), pole, wrist, reach);
+
+        float seated = LeoMotionProfile.Smooth((amount - .68f) / .08f);
+        rig.PlaceAxe(seated, palmRoll, LeoMotionProfile.Smooth((amount - .76f) / .18f));
+    }
+
     public static float ContactAim(float phase, float contact)
         => LeoMotionProfile.Smooth((phase - (contact - .24f)) / .24f) *
            (1f - LeoMotionProfile.Smooth((phase - contact) / .22f));

@@ -20,6 +20,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     readonly LeoImpactClock impact=new LeoImpactClock();
     readonly LeoLegacyTiming legacy=new LeoLegacyTiming();
     readonly LeoMotionProfile.Gait gait=new LeoMotionProfile.Gait();
+    readonly LeoAirWaterMotion airWater = new LeoAirWaterMotion();
     LeoMotionProfile.Book book;
     Vector3 previousPosition;
     Quaternion previousRotation;
@@ -39,7 +40,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         if(player==null)player=GetComponentInParent<PlayerMovement>();
         if(player!=null){if(interaction==null)interaction=player.GetComponent<PlayerInteraction>();if(backpack==null)backpack=player.GetComponent<BackpackTag>();if(speaker==null)speaker=player.GetComponent<Speaker>();}
         if(dialogue==null)dialogue=FindFirstObjectByType<DialogueManager>();
-        if(!rig.HasRest)rig.CaptureRest();rig.ResetPose();CachePose();
+        rig.PrepareAnimationRest();
+        feet = new LeoFootPlacement(rig, player != null ? player.transform : transform);
         initialized=true;ResetState();return true;
     }
     void Awake(){if(!Initialize()){Debug.LogError("LEO ANIMATION: нет полного рига или Motion.json.",this);enabled=false;}}
@@ -47,13 +49,15 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     void OnDisable()
     {
         GameEvents.ChopHit-=Hit;GameEvents.TreeChopped-=Felled;GameEvents.ChopQuality-=Quality;SaveSystem.Loaded-=ResetState;SaveSystem.NewGameStarted-=ResetState;
+        airWater.Reset();
         if(rig!=null&&rig.HasRest){rig.ResetPose();rig.EquipHammer(false);if(backpack!=null)rig.ShowCargo(backpack.Carried,backpack.Capacity);}
         if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}
     }
     void ResetState()
     {
         impact.Clear();legacy.Clear();phase=.25f;move=run=speedSmooth=actionWeight=holster=turn=talk=posePhase=cancelPhase=0;loadPitch=loadRoll=loadPitchVel=loadRollVel=adjustWeight=fullWeight=0;adjustStart=-10;lastCarried=-1;pendingAdjust=false;previousVelocity=smoothAcceleration=Vector3.zero;hitFrame=-1;target=null;contactPoint=null;wasChopping=cancelling=false;
-        previousPosition=transform.position;previousRotation=transform.rotation;nextBlink=Time.time+3;blinkAt=-10;ResetFeet();CurrentState="Idle";
+        previousPosition=transform.position;previousRotation=transform.rotation;nextBlink=Time.time+3;blinkAt=-10;feet?.Reset();CurrentState="Idle";
+        airWater.Reset();
         if(rig!=null&&rig.HasRest)rig.ResetPose();if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}trailWasOn=false;
     }
     void Felled() { if (hitFrame != Time.frameCount) Hit(); }
@@ -87,7 +91,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         float speed=teleport?0:delta.magnitude/Mathf.Max(.001f,Time.deltaTime);
         float k=1-Mathf.Exp(-12*dt);speedSmooth=Mathf.Lerp(speedSmooth,Mathf.Min(speed,18),k);
         bool conversation=DialogueSequence.FreezesPlayer;
-        bool blocked=SaveSystem.IsLoading||BuildingController.AnyRevealing||BuildingController.AnyRestorePending||WaterSwim.Swimming||(player!=null&&player.ControlLocked&&!conversation);
+        LeoAirWaterMotion.Frame motion = airWater.Read(player, dt);
+        bool blocked=SaveSystem.IsLoading||BuildingController.AnyRevealing||BuildingController.AnyRestorePending||motion.InMotion||WaterSwim.Swimming||(player!=null&&player.ControlLocked&&!conversation);
         bool chopping=interaction!=null&&interaction.IsChopping&&!blocked&&!conversation;
         var current=chopping?interaction.CurrentTarget:null;
         if(current!=target&&chopping){if(hitFrame!=Time.frameCount)impact.Clear();target=current;}
@@ -101,11 +106,11 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         if (chopping && !recovering)
             contactPoint = LeoChopContact.TryPoint(interaction.TargetItem, transform, out Vector3 point) ? point : (Vector3?)null;
         bool wantAction=!blocked&&!conversation&&(chopping||recovering);
-        actionWeight=Mathf.MoveTowards(actionWeight,wantAction?1:0,dt*(wantAction?12:8));
+        actionWeight=motion.InMotion ? 0f : Mathf.MoveTowards(actionWeight,wantAction?1:0,dt*(wantAction?12:8));
         if (wantAction && hitFrame == Time.frameCount) actionWeight = 1f;
         float desiredMove=!blocked&&!conversation&&!chopping?LeoMotionProfile.Smooth(speedSmooth/.65f):0;
         move=Mathf.MoveTowards(move,desiredMove,dt*(desiredMove>move?7.5f:5.5f));
-        run=Mathf.Lerp(run,LeoMotionProfile.Smooth((speedSmooth-1.0f)/2.4f),k);
+        run=Mathf.Lerp(run,LeoMotionProfile.RunBlend(speedSmooth),k);
         LeoMotionProfile.MixInto(gait,book.walk,book.run,run);
         float carry=backpack!=null&&backpack.Capacity>0?Mathf.Clamp01((float)backpack.Carried/backpack.Capacity):0;
         if(move>.001f&&!blocked)
@@ -138,7 +143,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
             if(lastCarried<LeoRig.TierMassive&&carriedNow>=LeoRig.TierMassive)loadPitchVel-=38f;        // 64: massive load
         }
         lastCarried=carriedNow;
-        bool free=!blocked&&!conversation&&!chopping;
+        bool free=!blocked&&!conversation&&!chopping&&rig.Celebration.Age<0f;
         if(pendingAdjust&&free&&now-adjustStart>1.2f){pendingAdjust=false;adjustStart=now;}
         float at=now-adjustStart,adjustTarget=free&&at>=0&&at<1.05f?LeoMotionProfile.Smooth(at/.22f)*(1-LeoMotionProfile.Smooth((at-.78f)/.27f)):0;
         adjustWeight=Mathf.MoveTowards(adjustWeight,adjustTarget,dt*9f);
@@ -146,8 +151,13 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         fullWeight=Mathf.MoveTowards(fullWeight,capacityNow>0&&carriedNow>=capacityNow?1:0,dt*1.6f);
         float yaw=Mathf.DeltaAngle(previousRotation.eulerAngles.y,transform.eulerAngles.y);previousRotation=transform.rotation;
         turn=Mathf.Lerp(turn,Mathf.Clamp(yaw/Mathf.Max(.001f,dt)/180f,-1,1),k);
-        bool sheath=conversation||blocked;
-        if(!sheath||actionWeight<.05f)holster=Mathf.MoveTowards(holster,sheath?1:0,dt/(chopping?.16f:Mathf.Max(.1f,book.holsterSeconds)));
+        bool sheath=conversation||blocked||motion.StowTool;
+        LeoCelebration.Pose cheer = rig.Celebration.Frame;
+        float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
+        float holsterRate = chopping || motion.InMotion ? 8f :
+            rig.Celebration.Age >= 0f ? 5.5f : 1f / Mathf.Max(.1f, book.holsterSeconds);
+        if (!sheath || actionWeight < .05f)
+            holster = Mathf.MoveTowards(holster, wantedHolster, dt * holsterRate);
         if (!sheath && hitFrame == Time.frameCount) holster = 0f;
         if(!chopping&&wasChopping&&!recovering){cancelPhase=posePhase;cancelling=true;}
         if(chopping)cancelling=false;
@@ -162,20 +172,45 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         }
         var frame=new PoseFrame{time=now,phase=phase,move=move,run=run,carry=carry,carried=backpack!=null?backpack.Carried:0,capacity=backpack!=null?backpack.Capacity:21,action=actionWeight*(1-LeoMotionProfile.Smooth(holster)),actionPhase=actionPhase,holster=holster,turn=turn,talk=talk,eye=eye,dash=player!=null&&player.IsDashing?1:0,quality=quality,loadPitch=loadPitch+tug*adjustWeight,loadRoll=loadRoll,adjust=adjustWeight,full=fullWeight};
         frame.bark = contactPoint;
+        frame.cheer = cheer;
+        frame.motion = motion;
         ApplyPose(frame,plantFeet&&move>.02f&&!blocked,adaptToGround&&!blocked);
-        CurrentState=blocked?"Rest / blocked":holster>.01f&&holster<.99f?"Holster":frame.action>.05f?hitFrame==Time.frameCount?"Contact":recovering?"Recover":"Chop / ready":move>.1f?carry>.65f?"Heavy move":run>.5f?"Run":"Walk":conversation?"Listen":"Idle";
+        CurrentState = motion.StowTool ? motion.Label : blocked ? "Rest / blocked" :
+            rig.Celebration.Age >= 0f ? "Celebrate" : holster > .01f && holster < .99f ? "Holster" :
+            frame.action > .05f ? (hitFrame == Time.frameCount ? "Contact" : recovering ? "Recover" : "Chop / ready") :
+            move > .1f ? (carry > .65f ? "Heavy move" : run > .5f ? "Run" : "Walk") :
+            conversation ? "Listen" : "Idle";
         bool trail=axeTrail!=null&&!VibeSettings.ReduceEffects&&frame.action>.8f&&holster<.01f&&actionPhase>.40f&&actionPhase<.74f;
         if(axeTrail!=null){if(trail&&!trailWasOn)axeTrail.Clear();axeTrail.emitting=trail;if(blocked)axeTrail.Clear();}trailWasOn=trail;
     }
     public static float ClipDuration(string name,LeoMotionProfile.Book book)
     {
-        switch(name){case "Walk":return .85f;case "Run":return .60f;case "HeavyWalk":return 1f;case "HeavyRun":return .72f;case "Dash":return .40f;case "AxeReady":return 1.4f;case "Chop":return book.windup+book.recovery;case "Cancel":return .30f;case "Sheathe":case "Draw":return book.holsterSeconds;default:return 4f;}
+        switch (name)
+        {
+            case "Walk": return .95f;
+            case "Run": return .49f;
+            case "HeavyWalk": return 1f;
+            case "HeavyRun": return .62f;
+            case "Dash": return .40f;
+            case "AxeReady": return 1.4f;
+            case "Chop": return book.windup + book.recovery;
+            case "Cancel": return .30f;
+            case "Sheathe":
+            case "Draw": return book.holsterSeconds;
+            case "Celebrate": return LeoCelebration.Duration;
+            case "SwimIdle": return 1.22f;
+            case "Swim": return .81f;
+            case "Fall":
+            case "Land": return 1.1f;
+            default: return 4f;
+        }
     }
 #if UNITY_EDITOR
     public bool SamplePreview(string name,float normalized)
     {
         if(!Initialize())return false;normalized=Mathf.Clamp01(normalized);float duration=ClipDuration(name,book);
-        bool loop=name=="Idle"||name=="Walk"||name=="Run"||name=="HeavyWalk"||name=="HeavyRun"||name=="AxeReady"||name=="IdleHolstered";
+        bool loop = name == "Idle" || name == "Walk" || name == "Run" || name == "HeavyWalk" ||
+            name == "HeavyRun" || name == "AxeReady" || name == "IdleHolstered" || name == "SwimIdle" || name == "Swim";
         var f=new PoseFrame{time=normalized*(loop?4:duration),phase=normalized,eye=1,quality=1};
         switch(name)
         {
@@ -191,6 +226,23 @@ public sealed partial class LeoAnimationController : MonoBehaviour
             case "Sheathe":f.holster=LeoMotionProfile.Smooth(normalized);break;
             case "Draw":f.holster=1-LeoMotionProfile.Smooth(normalized);break;
             case "IdleHolstered":f.holster=1;break;
+            case "Celebrate":
+                f.cheer = LeoCelebration.Sample(normalized * duration);
+                f.holster = f.cheer.holster;
+                break;
+            case "SwimIdle":
+            case "Swim":
+                f.holster = 1f;
+                f.motion = new LeoAirWaterMotion.Frame { Swim = 1f, Stroke = normalized, Effort = name == "Swim" ? 1f : 0f };
+                break;
+            case "Fall":
+                f.holster = 1f;
+                f.motion = new LeoAirWaterMotion.Frame { Fall = 1f, AirTime = normalized * duration };
+                break;
+            case "Land":
+                f.holster = 1f;
+                f.motion = new LeoAirWaterMotion.Frame { Landing = 1f, Descent = normalized };
+                break;
             default:
                 float age=(normalized-.77f)/.045f;f.eye=age>=0&&age<1?Mathf.Lerp(.04f,1,Mathf.Abs(age*2-1)):1;break;
         }

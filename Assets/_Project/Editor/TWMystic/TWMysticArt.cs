@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -29,7 +30,7 @@ namespace IslandV2
                 string backup=Backup(scene);Vector3 elderPosition=x.elder.transform.position;Quaternion elderRotation=x.elder.transform.rotation;Vector3 elderScale=x.elder.transform.localScale;
                 Undo.IncrementCurrentGroup();group=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("TimberWings — Круг молчания");
                 var state=x.state;if(state==null){state=Undo.AddComponent<MysticArtState>(x.pad.gameObject);x.state=state;}
-                Undo.RecordObject(state,"Mystic ownership and rollback");var old=state.art;
+                Undo.RegisterCompleteObjectUndo(state,"Mystic ownership and rollback");var old=state.art;
                 if(old!=null)
                 {
                     foreach(var prop in old.GetComponentsInChildren<MysticProp>(true))
@@ -49,11 +50,12 @@ namespace IslandV2
                 EditorUtility.DisplayProgressBar("TimberWings","Грунт, шесть деревьев, скамьи и сюжетные следы",0.25f);
                 TWMysticGround.Build(x,assets,x.root,"00_Conforming_Ground");var surface=TWMysticModels.Slip(folder);
                 TWMysticTrees.Build(x,assets,surface);TWMysticModels.Build(x,assets,surface);
-                EditorUtility.DisplayProgressBar("TimberWings","Сохранённый свет, эффекты и дневная/ночная атмосфера",0.7f);
+                TWMysticCedar.Build(x,assets,surface);
+                EditorUtility.DisplayProgressBar("TimberWings","Гравировки, ночной свет и качели",0.7f);
                 TWMysticEffects.Build(x,assets);
                 Undo.RecordObject(x.elder,"The elder remembers the missing visitors");
                 x.elder.caption="ХРАНИТЕЛЬ КРУГА";x.elder.toastColor=new Color(0.62f,0.75f,0.82f);
-                x.elder.greetings=new[]{"ЗДЕСЬ ЖДАЛИ ДО РАССВЕТА","ЛЕС ПОМНИТ ТЕХ, КТО НЕ ВЕРНУЛСЯ","ГУННАР ТОЖЕ СЛЫШАЛ ЭТОТ ЗОВ","ШЕСТЬ УЗЛОВ. ОДНА ОБОРВАННАЯ ЛЕНТА.","НЕ ВСЕ ГОЛОСА ПРИНАДЛЕЖАТ ВЕТРУ"};
+                x.elder.greetings=new[]{"ЗДЕСЬ ЖДАЛИ ДО РАССВЕТА","ЛЕС ПОМНИТ ТЕХ, КТО НЕ ВЕРНУЛСЯ","ГУННАР ТОЖЕ СЛЫШАЛ ЭТОТ ЗОВ","ЗА СТВОЛОМ ТОЖЕ ЕСТЬ МЕСТО ДЛЯ ТЕБЯ","НЕ ВСЕ ГОЛОСА ПРИНАДЛЕЖАТ ВЕТРУ"};
                 state.art=root;state.folder=folder;state.groundRadiusX=x.groundRadiusX;state.groundRadiusZ=x.groundRadiusZ;state.zoneRadius=x.zoneRadius;
                 Physics.SyncTransforms();TWMysticValidation.Art(x);
                 if(x.elder.transform.position!=elderPosition || Quaternion.Angle(x.elder.transform.rotation,elderRotation)>0.001f || x.elder.transform.localScale!=elderScale)
@@ -61,7 +63,7 @@ namespace IslandV2
                 if(old!=null)Undo.DestroyObjectImmediate(old);root.name=RootName;
                 EditorUtility.SetDirty(state);EditorUtility.SetDirty(x.elder);AssetDatabase.SaveAssets();EditorSceneManager.MarkSceneDirty(scene);Undo.CollapseUndoOperations(group);
                 Selection.activeGameObject=root;
-                Debug.Log("MYSTIC FOREST: готово. Шесть рубимых деревьев, шесть скамей, три читаемых следа, две ночные надписи. Свет, геометрия, звук и эффекты сохранены в сцене. Ctrl+S; пункт 4 — QA. Копия: "+backup);
+                Debug.Log("MYSTIC FOREST: готово. Гравировки, коллизия плиты, ночные огни и качели с паузами. Сохрани сцену Ctrl+S. Пункт 4 — проверка. Копия: "+backup);
             }
             catch(Exception e)
             {
@@ -116,8 +118,57 @@ namespace IslandV2
                 if(!hidden.Any(h=>h.target==t.gameObject))hidden.Add(new MysticArtState.Hidden{target=t.gameObject,active=t.gameObject.activeSelf});
                 Undo.RecordObject(t.gameObject,"Open the mystic clearing");t.gameObject.SetActive(false);
             }
+            RetireFloorInscriptions(x, all, renderers);
             state.worldRenderers=renderers.ToArray();state.worldCollisions=collisions.ToArray();state.hidden=hidden.ToArray();
         }
+
+        static void RetireFloorInscriptions(TWMysticContext context, Transform[] objects, List<MysticArtState.RendererRecord> renderers)
+        {
+            float zoneRadiusSquared = context.zoneRadius * context.zoneRadius;
+            foreach (var target in objects)
+            {
+                if (context.Local(target.position).sqrMagnitude > zoneRadiusSquared)
+                    continue;
+                if (target.TryGetComponent<TextMesh>(out var text) && IsFloorInscription(context, target, text.text))
+                    HideInscriptionMesh(target, renderers);
+
+                if (!target.TryGetComponent<TMP_Text>(out var tmp))
+                    continue;
+                if (tmp is TextMeshProUGUI ui && (ui.canvas == null || ui.canvas.rootCanvas.renderMode != RenderMode.WorldSpace))
+                    continue;
+                if (IsFloorInscription(context, target, tmp.text))
+                {
+                    HideInscriptionMesh(target, renderers);
+                    Disable(context.state, tmp);
+                }
+            }
+        }
+
+        static void HideInscriptionMesh(Transform target, List<MysticArtState.RendererRecord> renderers)
+        {
+            if (!target.TryGetComponent<MeshRenderer>(out var renderer))
+                return;
+            if (!renderers.Any(record => record.target == renderer))
+                renderers.Add(new MysticArtState.RendererRecord { target = renderer, enabled = renderer.enabled });
+            Undo.RecordObject(renderer, "Remove legacy ground inscription");
+            renderer.enabled = false;
+        }
+
+        static bool IsFloorInscription(TWMysticContext context, Transform target, string text)
+        {
+            if (target.name.StartsWith("Authored_Night_Inscription", StringComparison.Ordinal))
+                return true;
+            if (string.IsNullOrWhiteSpace(text) || Mathf.Abs(Vector3.Dot(target.forward, Vector3.up)) < 0.86f)
+                return false;
+
+            string label = new string(text.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+            if (label != "ЗДЕСЬЖДАЛИ" && label != "ЗДЕСЬЖДАЛИДОРАССВЕТА" &&
+                label != "НЕВСЕГОЛОСАВЕТЕР" && label != "TEXT" && label != "NEWTEXT")
+                return false;
+            return context.TryGround(context.Local(target.position), out Vector3 ground) &&
+                Mathf.Abs(target.position.y - ground.y) <= 0.4f;
+        }
+
         [MenuItem(Menu+"3. Вернуть окружение до установки",false,352)] public static void Rollback()
         {
             int group=-1;
@@ -127,6 +178,7 @@ namespace IslandV2
                 var scene=x.pad.gameObject.scene;if(scene.isDirty && !EditorSceneManager.SaveScene(scene))throw new InvalidOperationException("Сцена не сохранена.");Backup(scene);
                 Undo.IncrementCurrentGroup();group=Undo.GetCurrentGroup();Undo.SetCurrentGroupName("Restore forest environment");
                 TWMysticTrees.Restore(state,true);
+                foreach(var v in state.elderLods)if(v.target!=null){Undo.RecordObject(v.target,"Restore elder LOD");v.target.enabled=v.enabled;}
                 foreach(var v in state.worldRenderers)if(v.target!=null){Undo.RecordObject(v.target,"Restore forest renderer");v.target.enabled=v.enabled;}
                 foreach(var v in state.worldCollisions)if(v.target!=null){Undo.RecordObject(v.target,"Restore forest collider");EditorJsonUtility.FromJsonOverwrite(v.json,v.target);}
                 foreach(var v in state.hidden)if(v.target!=null){Undo.RecordObject(v.target,"Restore forest object");v.target.SetActive(v.active);}
@@ -152,19 +204,24 @@ namespace IslandV2
             catch(Exception e){Debug.LogError("MYSTIC FOREST QA: "+e);}
         }
         [MenuItem(Menu+"5. Превью — мистический день",false,354)] static void Day(){Preview(0);}
-        [MenuItem(Menu+"6. Превью — тревожная ночь",false,355)] static void Night(){Preview(1);}
+        [MenuItem(Menu+"6. Превью — тихая ночь",false,355)] static void Night(){Preview(1);}
         [MenuItem(Menu+"7. Вернуть время суток игры",false,356)] static void Auto(){Preview(-1);}
         static void Preview(float night)
         {
             try
             {
-                var x=Inspect();var v=x.state!=null?x.state.art.GetComponentInChildren<MysticAtmosphere>(true):null;if(v==null)throw new InvalidOperationException("Сначала пункт 2.");
-                Undo.RecordObject(v,"Mystic preview");v.previewNight=night;
-                foreach(var volume in new[]{v.dayVolume,v.nightVolume})Undo.RecordObject(volume,"Mystic preview volume");
-                v.dayVolume.weight=night==0?1:0;v.nightVolume.weight=night==1?1:0;
-                foreach(var light in v.lights)if(light!=null){Undo.RecordObject(light,"Mystic preview light");light.enabled=night>=0;light.intensity=night==1?1.4f:0.3f;}
-                foreach(var word in v.nightWords)if(word!=null){Undo.RecordObject(word,"Mystic preview inscription");Color c=word.color;c.a=night==1?0.6f:0;word.color=c;}
-                foreach(var r in v.apparitions)if(r!=null){var block=new MaterialPropertyBlock();r.GetPropertyBlock(block);block.SetFloat("_Alpha",night==1?0.12f:0);r.SetPropertyBlock(block);}
+                var x=Inspect();var v=x.state!=null && x.state.art!=null?x.state.art.GetComponentInChildren<MysticAtmosphere>(true):null;if(v==null)throw new InvalidOperationException("Сначала пункт 2.");
+                Undo.RecordObject(v, "Mystic preview");
+                foreach (var volume in new[] { v.dayVolume, v.nightVolume })
+                    if (volume != null) Undo.RecordObject(volume, "Mystic preview volume");
+                foreach (var light in v.lights.Concat(v.nightAccents.Select(accent => accent.light)))
+                    if (light != null) Undo.RecordObject(light, "Mystic preview light");
+                foreach (var r in v.signature.Concat(v.apparitions).Concat(v.nightAccents.Select(accent => accent.groundGlow)))
+                    if (r != null) Undo.RecordObject(r, "Mystic preview visibility");
+                foreach (var word in v.nightWords)
+                    if (word != null && word.TryGetComponent<MeshRenderer>(out var renderer))
+                        Undo.RecordObject(renderer, "Hide legacy ground inscription");
+                v.ApplyPreview(night);
                 EditorSceneManager.MarkSceneDirty(x.pad.gameObject.scene);SceneView.RepaintAll();
             }
             catch(Exception e){Debug.LogError("MYSTIC FOREST: "+e.Message);}

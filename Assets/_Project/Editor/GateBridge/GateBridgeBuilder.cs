@@ -8,8 +8,9 @@
 //     (если ты их правил руками, они остаются в сцене выключенными). «Следующая локация скоро» уходит вместе со старой аркой;
 //   * компонент GateBridge: перезаписывает ссылки stages, deckStep2, walkway, noteSpot, arrivalSpot, fallPoints, plankMesh, plankMaterial;
 //   * StoryFlow.noteSpot: ставит точку записки, если она пуста, была старой точкой GateBridge или лежит под GateBridge. Чужую точку не трогает, только пишет предупреждение;
-//   * НЕ трогает: BuildingController моста (идентификатор SaveId считается по пути и виду стройки: не переименовывай и не переноси его объект),
-//     RiverBridge, GateBridgePlacement, GateWalls, данные стройки, цены, главы StoryFlow.
+//   * создаёт/обновляет GateBridge/BuildZone и её данные (НЕ пересоздаёт сам объект и сохраняет путь SaveId),
+//     добавляет отсутствующий RiverBridge и привязывает StoryFlow к запечённым точкам;
+//   * НЕ трогает: чужие BuildingController, GateBridgePlacement, GateWalls и главы StoryFlow.
 //   Прежняя кнопка «Собрать мост и заглушку» удаляла ВСЕ дети GateBridge через DestroyImmediate: ручные правки терялись. Здесь так не делается.
 // Всё откатывается Ctrl+Z (одна группа Undo).
 using System.Text;
@@ -54,12 +55,12 @@ public static partial class GateBridgeBuilder
         p.yStart = p.y0 + 0.05f;
         p.yStubTop = p.y0 - gb.stubDrop;
         p.yEnd = p.yStubTop + 0.05f;
-        p.S2 = p.E - p.N * 0.8f;
-        p.Lb = p.L + 1.5f + 0.8f;
+        p.S2 = p.E - p.N * GateBridge.DeckStartInset;
+        p.Lb = p.L + GateBridge.DeckEndInset + GateBridge.DeckStartInset;
         p.Q2 = p.S2 + p.N * p.Lb;
         p.C2 = p.E + p.N * (p.L + p.R);
-        p.sE = 0.8f;
-        p.sF = 0.8f + p.L;
+        p.sE = GateBridge.DeckStartInset;
+        p.sF = p.sE + p.L;
         return p;
     }
 
@@ -72,7 +73,7 @@ public static partial class GateBridgeBuilder
 
     static void AddRenderer(GameObject go, Mesh mesh, Material mat, bool shadows)
     {
-        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        go.AddComponent<MeshFilter>().sharedMesh = GateBridgeAssetVault.Mesh(mesh);
         var r = go.AddComponent<MeshRenderer>();
         r.sharedMaterial = mat;
         if (!shadows) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -99,11 +100,15 @@ public static partial class GateBridgeBuilder
     public static string Build(GateBridge gb)
     {
         var log = new StringBuilder("=== Сборка моста и дальнего острова ===\n");
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            return log.AppendLine("ОШИБКА: запекание разрешено только в Edit Mode.").ToString();
+        if (gb == null) return log.AppendLine("ОШИБКА: нет GateBridge.").ToString();
         var fi = gb.GetComponent<GateBridgePlacement>();
         if (fi == null) { log.AppendLine("ОШИБКА: на GateBridge нет GateBridgePlacement. Добавь компонент и настрой точку входа."); return log.ToString(); }
         string err;
         GBPlan p = MakePlan(fi, gb, out err);
         if (p == null) { log.AppendLine("ОШИБКА: " + err); return log.ToString(); }
+        if (!GateBridgeAssetVault.Begin(gb, out err)) { log.AppendLine("ОШИБКА: " + err); return log.ToString(); }
         if (gb.transform.lossyScale != Vector3.one) log.AppendLine("! У GateBridge или его родителей масштаб не 1: геометрия строится в мировых координатах, поправь масштаб.");
 
         Undo.IncrementCurrentGroup();
@@ -117,9 +122,16 @@ public static partial class GateBridgeBuilder
             if (sh == null) sh = Shader.Find("Universal Render Pipeline/Simple Lit");
             mat = new Material(sh) { name = "IslandRock" };
             Undo.RecordObject(fi, "IslandRock material");
-            fi.rockMaterial = mat;
+            fi.rockMaterial = GateBridgeAssetVault.Material(mat);
             EditorUtility.SetDirty(fi);
         }
+        else if (!EditorUtility.IsPersistent(mat))
+        {
+            Undo.RecordObject(fi, "Persist bridge material");
+            fi.rockMaterial = GateBridgeAssetVault.Material(mat);
+            EditorUtility.SetDirty(fi);
+        }
+        mat = fi.rockMaterial;
         if (mat.HasProperty("_GlowIntensity") && mat.GetFloat("_GlowIntensity") < 0.01f) mat.SetFloat("_GlowIntensity", 2.5f);
 
         // старая точка записки (чтобы понять, чья она)
@@ -164,7 +176,7 @@ public static partial class GateBridgeBuilder
 
         // 4. проход: непрерывные коллайдеры, включаются только при законченной стройке (GateBridge.Show)
         var walk = NewChild(root, "Walkway");
-        walk.AddComponent<MeshCollider>().sharedMesh = BuildWalkMesh(p);
+        walk.AddComponent<MeshCollider>().sharedMesh = GateBridgeAssetVault.Mesh(BuildWalkMesh(p));
 
         // 5. заграждения по краю главного острова рядом с проходом (проход шире моста): низкие, камера их не задевает
         var guards = NewChild(root, "Guards");
@@ -204,11 +216,27 @@ public static partial class GateBridgeBuilder
         gb.deckStep2 = step2;
         gb.walkway = walk;
         gb.fallPoints = fall.ToArray();
-        gb.plankMesh = plank.ToMesh("GateBridgePlank");
+        gb.plankMesh = GateBridgeAssetVault.Mesh(plank.ToMesh("GateBridgePlank"));
         gb.plankMaterial = mat;
         gb.noteSpot = noteSpot;
         gb.arrivalSpot = arrival;
+        if (gb.source == null) gb.source = gb.GetComponent<RiverBridge>();
         if (gb.source == null) gb.source = Object.FindFirstObjectByType<RiverBridge>(FindObjectsInactive.Include);
+        if (gb.source == null) gb.source = Undo.AddComponent<RiverBridge>(gb.gameObject);
+
+        // Создаём всю геометрию финала, портал, коллайдеры и освещение сейчас, не в Start().
+        gb.BindFinale(GateBridgeFinaleBaker.Bake(gb, root));
+        var planks = NewChild(root, "FallingPlanks");
+        gb.fallingPlankObjects = new GameObject[Mathf.Max(0, gb.fallingPlanks)];
+        for (int i = 0; i < gb.fallingPlankObjects.Length; i++)
+        {
+            var falling = NewChild(planks.transform, "FallingPlank_" + i);
+            AddRenderer(falling, gb.plankMesh, mat, false);
+            falling.SetActive(false);
+            gb.fallingPlankObjects[i] = falling;
+        }
+        var buildZone = EnsureBuildSite(gb);
+        if (buildZone != null) log.AppendLine("Зона стройки сохранена в сцене: " + gb.name + "/" + buildZone.name);
         gb.Preview(1, 0, false);   // в сцене по умолчанию вид 1: сломан. В игре вид ставит RiverBridge
         EditorUtility.SetDirty(gb);
 
@@ -223,6 +251,14 @@ public static partial class GateBridgeBuilder
         }
         else log.AppendLine("! StoryFlow.noteSpot занят чужим объектом «" + sf.noteSpot.name + "»: не менял. Если записка должна быть на новой площадке, перетащи туда GateBridge/" + OwnedRootName + "/FarIsland/NotePedestal/NoteSpot.");
 
+        if (sf != null)
+        {
+            Undo.RecordObject(sf, "Bind baked bridge story");
+            sf.riverBridge = gb.source;
+            if (buildZone != null) sf.bridge = buildZone;
+            EditorUtility.SetDirty(sf);
+        }
+
         var rb = gb.source;
         if (rb != null && rb.stages != null)
             foreach (var g in rb.stages)
@@ -230,6 +266,7 @@ public static partial class GateBridgeBuilder
                     log.AppendLine("! RiverBridge.stages ссылается на старый объект «" + g.name + "» под GateBridge: RiverBridge будет его включать поверх нового вида. Очисти массив RiverBridge.stages.");
 
         log.AppendLine("Мост: " + gb.bridgeLength.ToString("0.#") + " м, ширина " + gb.deckWidth.ToString("0.#") + " м; остров R = " + p.R.ToString("0.#") + " м. Показан вид 1. Дальше: Tools > BuilderSim > Локация > Проверить мост и финальный остров.");
+        GateBridgeAssetVault.Finish();
         Undo.CollapseUndoOperations(undoGroup);
         EditorSceneManager.MarkSceneDirty(gb.gameObject.scene);
         return log.ToString();
@@ -249,8 +286,88 @@ public static partial class GateBridgeBuilder
         Undo.RecordObject(gb, "GateBridge clear");
         gb.stages = new GameObject[3];
         gb.deckStep2 = null; gb.walkway = null; gb.noteSpot = null; gb.arrivalSpot = null;
+        gb.BindFinale(null);
+        gb.fallingPlankObjects = new GameObject[0];
         gb.fallPoints = new Transform[0];
         EditorSceneManager.MarkSceneDirty(gb.gameObject.scene);
+    }
+
+    // Стабильный объект GateBridge/BuildZone. На пересборке не переименовываем,
+    // не меняем transform parent и legacySaveId - это важно для старых сохранений.
+    public static BuildingController EnsureBuildSite(GateBridge gb)
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return null;
+        if (gb == null || !gb.HasFinalIsland) return null;
+        string err;
+        if (!GateBridgeAssetVault.Begin(gb, out err))
+        {
+            Debug.LogError("TimberWings Bridge: " + err, gb);
+            return null;
+        }
+
+        BuildingController build = null;
+        foreach (var child in gb.GetComponentsInChildren<BuildingController>(true))
+        {
+            if (child.name == "BuildZone" && child.GetComponent<BuildStageLink>() != null)
+            {
+                build = child;
+                break;
+            }
+        }
+
+        GameObject zone;
+        if (build == null)
+        {
+            // Если пользователь создал свою BuildZone - не перезаписываем её.
+            var occupied = gb.transform.Find("BuildZone");
+            if (occupied != null)
+            {
+                Debug.LogError("GateBridge/BuildZone уже существует, но не является зоной моста. Разберись с ней вручную.", occupied);
+                GateBridgeAssetVault.Finish();
+                return null;
+            }
+            zone = new GameObject("BuildZone");
+            Undo.RegisterCreatedObjectUndo(zone, "Bridge build zone");
+            zone.transform.SetParent(gb.transform, false);
+            var area = Undo.AddComponent<BoxCollider>(zone);
+            area.isTrigger = true;
+            area.center = Vector3.up;
+            area.size = new Vector3(6f, 3f, 5.2f);
+            Undo.AddComponent<BuildStageLink>(zone);
+            build = Undo.AddComponent<BuildingController>(zone);
+            Undo.AddComponent<BuildSiteTagView>(zone);
+            Undo.AddComponent<BuildSiteHighlighter>(zone);
+        }
+        else zone = build.gameObject;
+
+        Vector3 point = gb.DeckEntrance - gb.BridgeForward * 5f;
+        Physics.SyncTransforms();
+        point.y = gb.ShoreHeight(point);
+        Undo.RecordObject(zone.transform, "Position bridge build zone");
+        zone.transform.SetPositionAndRotation(point, Quaternion.LookRotation(gb.BridgeForward));
+
+        Undo.RecordObject(build, "Bridge build configuration");
+        build.data = GateBridgeAssetVault.BridgeData();
+        build.storyManaged = true;
+        build.completesTutorial = false;
+        build.locked = true;
+        build.legacySaveId = "River/BrokenBridge/BuildZone|Bridge";
+
+        var link = zone.GetComponent<BuildStageLink>();
+        Undo.RecordObject(link, "Bridge stage link");
+        link.build = build;
+        link.bridge = gb.source;
+        var tag = zone.GetComponent<BuildSiteTagView>();
+        if (tag != null)
+        {
+            Undo.RecordObject(tag, "Bridge build tag");
+            tag.buildingName = "Мост";
+        }
+        EditorUtility.SetDirty(build);
+        EditorUtility.SetDirty(link);
+        GateBridgeAssetVault.Finish();
+        EditorSceneManager.MarkSceneDirty(gb.gameObject.scene);
+        return build;
     }
 
     public static GateBridge FindOrCreate(out string error)
@@ -284,5 +401,8 @@ public static partial class GateBridgeBuilder
         Selection.activeGameObject = gb.gameObject;
         EditorUtility.DisplayDialog("GateBridge", report + "\nСохрани сцену (Ctrl+S).", "OK");
     }
+
+    [MenuItem("Tools/BuilderSim/Локация/Собрать подвесной мост и финальный остров", true)]
+    static bool CanBuild() => !EditorApplication.isPlayingOrWillChangePlaymode;
 }
 #endif

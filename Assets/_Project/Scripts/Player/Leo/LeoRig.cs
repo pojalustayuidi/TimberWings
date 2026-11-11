@@ -26,6 +26,7 @@ public sealed class LeoRig : MonoBehaviour
     [SerializeField,HideInInspector]Transform[] joints;
     [SerializeField,HideInInspector]Vector3[] positions,scales;
     [SerializeField,HideInInspector]Quaternion[] rotations;
+    [SerializeField, HideInInspector] bool legProportionsApplied;
     float[] cargoReveal;
     Transform hammerHolster;
     bool hammerEquipped;
@@ -33,9 +34,11 @@ public sealed class LeoRig : MonoBehaviour
     Quaternion scarfTailRest, scarfShortTailRest;
     Vector3 scarfLastPosition;
     Vector3 scarfSway;
+    internal LeoCelebration Celebration { get; } = new LeoCelebration();
 
     void OnEnable()
     {
+        if (Application.isPlaying) Celebration.Enable(this);
         if (neck == null) return;
 
         scarfTail = neck.Find("ScarfTail");
@@ -45,6 +48,8 @@ public sealed class LeoRig : MonoBehaviour
         scarfLastPosition = transform.position;
         scarfSway = Vector3.zero;
     }
+
+    void Update() => Celebration.Tick(Time.deltaTime);
 
     void LateUpdate()
     {
@@ -75,6 +80,7 @@ public sealed class LeoRig : MonoBehaviour
 
     void OnDisable()
     {
+        Celebration.Disable();
         if (scarfTail != null) scarfTail.localRotation = scarfTailRest;
         if (scarfShortTail != null) scarfShortTail.localRotation = scarfShortTailRest;
     }
@@ -140,6 +146,70 @@ public sealed class LeoRig : MonoBehaviour
         joints=all.ToArray();positions=new Vector3[joints.Length];rotations=new Quaternion[joints.Length];scales=new Vector3[joints.Length];
         for(int i=0;i<joints.Length;i++){positions[i]=joints[i].localPosition;rotations[i]=joints[i].localRotation;scales[i]=joints[i].localScale;}
     }
+
+    // Existing instances can keep their prefab and joints. Change the rest
+    // pose before the locomotion solver measures the legs and the soles.
+    public void PrepareAnimationRest()
+    {
+        if (!HasRest) CaptureRest();
+        ResetPose();
+        if (legProportionsApplied || hips == null || spine == null ||
+            hipL == null || kneeL == null || ankleL == null ||
+            hipR == null || kneeR == null || ankleR == null) return;
+
+        Vector3 chestAnchor = spine.position;
+        Vector3 leftRise = LengthenLeg(hipL, kneeL, ankleL, toeL);
+        Vector3 rightRise = LengthenLeg(hipR, kneeR, ankleR, toeR);
+        Vector3 rise = (leftRise + rightRise) * .5f;
+        hips.position += rise;
+        hipL.position += leftRise - rise;
+        hipR.position += rightRise - rise;
+        spine.position = chestAnchor;
+
+        ShortenHem(hemFrontL);
+        ShortenHem(hemFrontR);
+        ShortenHem(hemBackL);
+        ShortenHem(hemBackR);
+        CaptureRest();
+        legProportionsApplied = true;
+    }
+
+    static Vector3 LengthenLeg(Transform hip, Transform knee, Transform ankle, Transform toe)
+    {
+        Vector3 footAnchor = ankle.position;
+        const float thighLength = 1.14f, shinLength = 1.075f;
+        ScaleGeometry(hip, new Vector3(1.035f, thighLength, 1.025f));
+        ScaleGeometry(knee, new Vector3(1.075f, shinLength, 1.025f));
+        knee.localPosition = Vector3.Scale(knee.localPosition, new Vector3(1f, thighLength, 1f));
+        ankle.localPosition = Vector3.Scale(ankle.localPosition, new Vector3(1f, shinLength, 1f));
+
+        var boot = new Vector3(.92f, 1f, .94f);
+        ScaleGeometry(ankle, boot);
+        if (toe != null)
+        {
+            ScaleGeometry(toe, boot);
+            toe.localPosition = Vector3.Scale(toe.localPosition, boot);
+        }
+        return footAnchor - ankle.position;
+    }
+
+    static void ShortenHem(Transform hem)
+    {
+        if (hem != null)
+            hem.localScale = Vector3.Scale(hem.localScale, new Vector3(1f, .58f, 1f));
+    }
+
+    static void ScaleGeometry(Transform joint, Vector3 size)
+    {
+        for (int i = 0; i < joint.childCount; i++)
+        {
+            Transform piece = joint.GetChild(i);
+            if (!piece.TryGetComponent<MeshFilter>(out _)) continue;
+            piece.localPosition = Vector3.Scale(piece.localPosition, size);
+            piece.localScale = Vector3.Scale(piece.localScale, size);
+        }
+    }
+
 #if UNITY_EDITOR
     [ContextMenu("Запомнить отредактированную позу (Edit Mode)")]
     void CaptureEditedRest()
@@ -229,7 +299,7 @@ public sealed class LeoRig : MonoBehaviour
     }
     public void PlaceAxe(float holstered) => PlaceAxe(holstered, 0f);
 
-    internal void PlaceAxe(float holstered, float palmRoll)
+    internal void PlaceAxe(float holstered, float palmRoll, float? openFingers = null)
     {
         if (axeRoot == null || handR == null || axeHolster == null) return;
         float t = Mathf.Clamp01(holstered);
@@ -238,8 +308,9 @@ public sealed class LeoRig : MonoBehaviour
         Vector3 held = LeoAxePose.Grip(handR) - tool * gripOffset;
         axeRoot.SetPositionAndRotation(Vector3.Lerp(held, axeHolster.position, t),
             Quaternion.Slerp(tool, axeHolster.rotation, t));
-        if(fingersR!=null)for(int i=0;i<fingersR.Length;i++)Rotate(fingersR[i],new Vector3(42*t,0,0));
-        if(fingerTipsR!=null)for(int i=0;i<fingerTipsR.Length;i++)Rotate(fingerTipsR[i],new Vector3(35*t,0,0));
+        float release = openFingers ?? t;
+        if(fingersR!=null)for(int i=0;i<fingersR.Length;i++)Rotate(fingersR[i],new Vector3(42*release,0,0));
+        if(fingerTipsR!=null)for(int i=0;i<fingerTipsR.Length;i++)Rotate(fingerTipsR[i],new Vector3(35*release,0,0));
     }
     public void EquipHammer(bool equipped)
     {

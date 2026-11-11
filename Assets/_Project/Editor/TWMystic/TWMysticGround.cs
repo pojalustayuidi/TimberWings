@@ -48,7 +48,7 @@ namespace IslandV2
                     float ring=1-Mathf.SmoothStep(0,1,Mathf.Clamp01(Mathf.Abs(distance-7.2f)/1.7f));
                     float entrance=local.z>0?1-Mathf.SmoothStep(0,1,Mathf.Clamp01(Mathf.Abs(local.x)/2.0f)):0;
                     float wear=(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(0.80f,1f,r)))*(0.25f+0.7f*Mathf.Max(ring,entrance));
-                    Color colour=Color.Lerp(new Color(0.47f,0.51f,0.53f),new Color(0.64f,0.65f,0.64f),Mathf.PerlinNoise(p.x*0.6f,p.z*0.6f)).linear;
+                    Color colour=Color.Lerp(new Color(0.57f,0.52f,0.39f),new Color(0.73f,0.66f,0.49f),Mathf.PerlinNoise(p.x*0.6f,p.z*0.6f)).linear;
                     colour.a=wear*0.65f;colours.Add(colour);
                 }
                 t.Add(start);t.Add(start+1);t.Add(start+2);

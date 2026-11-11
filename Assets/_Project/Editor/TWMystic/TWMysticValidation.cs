@@ -82,11 +82,13 @@ namespace IslandV2
         {
             if(mesh==null || mesh.vertexCount<3)throw new InvalidOperationException("Пустой меш Старого леса.");
             var v=mesh.vertices;var t=mesh.triangles;if(t.Length==0 || t.Length%3!=0)throw new InvalidOperationException("Нет треугольников: "+mesh.name);
+            // Imported bevels on the small signature are valid below the procedural scenery threshold.
+            float minCrossSquared=AssetDatabase.GetAssetPath(mesh).EndsWith(".fbx",StringComparison.OrdinalIgnoreCase)?1e-20f:1e-12f;
             foreach(var p in v)if(float.IsNaN(p.x)||float.IsNaN(p.y)||float.IsNaN(p.z)||float.IsInfinity(p.x)||float.IsInfinity(p.y)||float.IsInfinity(p.z))throw new InvalidOperationException("Неверная вершина: "+mesh.name);
             for(int i=0;i<t.Length;i+=3)
             {
                 if(t[i]<0||t[i+1]<0||t[i+2]<0||t[i]>=v.Length||t[i+1]>=v.Length||t[i+2]>=v.Length)throw new InvalidOperationException("Неверные индексы: "+mesh.name);
-                if(Vector3.Cross(v[t[i+1]]-v[t[i]],v[t[i+2]]-v[t[i]]).sqrMagnitude<1e-12f)throw new InvalidOperationException("Вырожденная грань: "+mesh.name);
+                if(Vector3.Cross(v[t[i+1]]-v[t[i]],v[t[i+2]]-v[t[i]]).sqrMagnitude<minCrossSquared)throw new InvalidOperationException("Вырожденная грань: "+mesh.name);
             }
         }
         public static void Art(TWMysticContext x)
@@ -101,6 +103,14 @@ namespace IslandV2
                     throw new InvalidOperationException("Не назначен материал: "+filter.name);
             }
             if(x.elder.GetComponent<ResourceItem>()!=null || x.elder.CompareTag("Resource"))throw new InvalidOperationException("Дедушка не должен быть рубимым.");
+            var cedar=x.root.Find("Cedar_Landmark");
+            if(cedar==null)throw new InvalidOperationException("Не установлен новый кедр.");
+            var cedarRenderers=cedar.GetComponentsInChildren<MeshRenderer>(true);
+            if(cedarRenderers.Length==0)throw new InvalidOperationException("У кедра нет мешей.");
+            var cedarBounds=cedarRenderers[0].bounds;
+            foreach(var r in cedarRenderers)cedarBounds.Encapsulate(r.bounds);
+            if(cedarBounds.size.y<10 || cedarBounds.size.y>22)
+                throw new InvalidOperationException("Неверные оси или масштаб FBX кедра. Импортируй модели вместе с их .meta из патча.");
             foreach(var record in x.state.trees)
             {
                 var tree=record.target;if(tree==null || !tree.gameObject.activeInHierarchy || !tree.CompareTag("Resource"))throw new InvalidOperationException("Неактивное или непомеченное ресурсное дерево.");
@@ -115,7 +125,7 @@ namespace IslandV2
             if(x.root.GetComponentsInChildren<ResourceItem>(true).Length!=6)throw new InvalidOperationException("Внутри сохранённого корня не шесть ResourceItem.");
             var props=x.root.GetComponentsInChildren<MysticProp>(true);
             string[] memories={"Ribbon_Memory","Gunnar_Memory","Bench_Memory"};
-            var required=Enumerable.Range(0,6).Select(i=>"Bench_"+i).Concat(memories).Concat(Enumerable.Range(0,3).Select(i=>"Witness_"+i)).Concat(new[]{"Entrance"});
+            var required=Enumerable.Range(0,6).Select(i=>"Bench_"+i).Concat(memories).Concat(Enumerable.Range(0,3).Select(i=>"Witness_"+i)).Concat(new[]{"Entrance","SecretBench"});
             string propProblems=PropKeyProblems(props.Select(p=>p.key),required);
             if(propProblems.Length!=0)throw new InvalidOperationException("Состав объектов Круга молчания: "+propProblems);
             foreach(string key in memories)
@@ -124,12 +134,16 @@ namespace IslandV2
                 if(dialogue==null || dialogue.lines==null || dialogue.lines.Length==0)throw new InvalidOperationException("Нет реплик у сюжетного следа: "+key);
             }
             var vibe=x.root.GetComponentInChildren<MysticAtmosphere>(true);
-            if(vibe==null || vibe.dayVolume==null || vibe.nightVolume==null || vibe.lights.Length!=2 || vibe.particles.Length!=3 || vibe.nightWords.Length!=2)
+            if(vibe==null || vibe.dayVolume==null || vibe.nightVolume==null || vibe.particles.Length!=3 || vibe.signature.Length==0 || vibe.signatureAnchor==null || vibe.crown.Length==0 || vibe.swing==null || vibe.signatureFireflies==null)
                 throw new InvalidOperationException("Не сохранена полная атмосфера.");
+            if(vibe.signatureAnchor.GetComponentsInChildren<TextMesh>(true).Length!=0 || vibe.nightWords.Length!=0)
+                throw new InvalidOperationException("Ночная подпись должна быть моделью инкрустации.");
+            ValidateNightDetails(vibe, props);
+            if(vibe.signatureAnchor.GetComponentsInChildren<ParticleSystem>(true).Length!=1)
+                throw new InvalidOperationException("У подписи должен быть один эффект светлячков.");
             foreach(var volume in new[]{vibe.dayVolume,vibe.nightVolume})
                 if(volume.sharedProfile==null || !AssetDatabase.Contains(volume.sharedProfile) || volume.sharedProfile.components.Any(c=>c==null || !AssetDatabase.Contains(c)))
                     throw new InvalidOperationException("Профиль или его компоненты не сохранены в Assets.");
-            if(x.root.GetComponentsInChildren<Light>(true).Length>2)throw new InvalidOperationException("Превышен бюджет двух огней.");
             var floor=x.root.GetComponentsInChildren<MeshCollider>(true).FirstOrDefault(c=>c.name=="00_Conforming_Ground");
             if(floor==null || floor.sharedMesh==null || !floor.enabled)throw new InvalidOperationException("Нет сохранённой опоры поляны.");
             var vertices=floor.sharedMesh.vertices;var triangles=floor.sharedMesh.triangles;int stride=Mathf.Max(1,triangles.Length/3/20)*3;
@@ -159,6 +173,40 @@ namespace IslandV2
                 if(script==null || script.text.Contains("RuntimeInitializeOnLoadMethod") || script.text.Contains("new GameObject"))throw new InvalidOperationException("Остался старый runtime-генератор: "+path);
             }
         }
+        static void ValidateNightDetails(MysticAtmosphere vibe, MysticProp[] props)
+        {
+            var benchPlaque = props.Single(p => p.key == "Bench_4").transform.Find(TWMysticNightDetails.BenchPlaque);
+            var witnessPlaque = props.Single(p => p.key == "Witness_1").transform.Find(TWMysticNightDetails.WitnessPlaque);
+            if (benchPlaque == null || witnessPlaque == null || vibe.engravingSurfaces.Length != 2 ||
+                !vibe.engravingSurfaces.Contains(benchPlaque.GetComponent<MeshRenderer>()) ||
+                !vibe.engravingSurfaces.Contains(witnessPlaque.GetComponent<MeshRenderer>()) ||
+                vibe.engravingSurfaces.Any(r => r == null || r.sharedMaterial == null ||
+                    r.sharedMaterial.GetTexture("_BaseMap") == null || r.sharedMaterial.GetTexture("_EmissionMap") == null))
+                throw new InvalidOperationException("Не сохранены две гравировки. Повтори сборку Круга молчания.");
+
+            if (!witnessPlaque.GetComponents<Collider>().Any(c => c.enabled && !c.isTrigger &&
+                (!(c is MeshCollider mesh) || mesh.sharedMesh != null)))
+                throw new InvalidOperationException("У каменной плиты нет твёрдой коллизии.");
+
+            if (vibe.nightAccents.Length != TWMysticNightDetails.AccentCount ||
+                vibe.nightAccents.Any(a => a.light == null || a.light.shadows != LightShadows.None))
+                throw new InvalidOperationException("Не настроены локальные ночные огни без теней.");
+            if (vibe.fireflies.Length != TWMysticNightDetails.FireflyGroupCount ||
+                vibe.fireflies.Any(ps => ps == null || ps.main.playOnAwake))
+                throw new InvalidOperationException("Светлячки должны включаться только контроллером ночи.");
+            if (vibe.ambience == null || vibe.ambience.clip == null || !vibe.ambience.loop ||
+                vibe.nightEchoes.Length != 1 || vibe.nightEchoes.Any(a => a == null || a.clip == null || a.playOnAwake || a.loop) ||
+                vibe.swingCreak == null || vibe.swingCreak.clip == null || vibe.swingCreak.playOnAwake || vibe.swingCreak.loop ||
+                vibe.nightEchoes.Contains(vibe.swingCreak))
+                throw new InvalidOperationException("Не назначен фон поляны или один из ночных звуков.");
+
+            var seat = vibe.swing.Find("Swing_Seat_Collision");
+            var box = seat != null ? seat.GetComponent<BoxCollider>() : null;
+            if (box == null || box.isTrigger || !box.enabled ||
+                box.size.y * Mathf.Abs(seat.lossyScale.y) > 0.38f)
+                throw new InvalidOperationException("Коллайдер должен быть установлен только на сиденье качелей.");
+        }
+
         [MenuItem("Tools/BuilderSim/Лес/MYSTIC FOREST/8. Проверить переходы и отключение runtime-сборки",false,357)]
         static void Tests()
         {
@@ -166,6 +214,11 @@ namespace IslandV2
             {
                 if(MysticAtmosphere.Boundary(19,18,5)!=0 || MysticAtmosphere.Boundary(18,18,5)!=0 || MysticAtmosphere.Boundary(0,18,5)!=1)
                     throw new InvalidOperationException("Неверная граница атмосферы.");
+                if(MysticAtmosphere.SecretVisibility(false,1,0,2.5f,5)!=0 ||
+                    MysticAtmosphere.SecretVisibility(true,0,0,2.5f,5)!=0 ||
+                    MysticAtmosphere.SecretVisibility(true,1,6,2.5f,5)!=0 ||
+                    MysticAtmosphere.SecretVisibility(true,1,0,2.5f,5)!=1)
+                    throw new InvalidOperationException("Дневная/ночная видимость пасхалки нарушена.");
                 TWMysticContext.SurfaceTests();
                 EconomyTests();
                 PropKeyTests();
