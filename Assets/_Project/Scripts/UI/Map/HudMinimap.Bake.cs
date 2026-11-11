@@ -114,12 +114,21 @@ public partial class HudMinimap
     RRec[] recs = new RRec[256];
     int recCount;
 
-    Color WaterDeepColor { get { return stylized ? palette.waterDeep : background; } }
+    [Header("Небо вокруг островов")]
+    public Color skyDepth = new Color32(74, 85, 137, 255);
+    public Color skyCloud = new Color32(191, 195, 232, 255);
+
+    Mesh riverFallback;
+    GateBridge mapGate;
+
+    Color MapClearColor => islandPoly != null ? skyDepth : background;
 
     // ------------------------------------------------------------ запуск
     void InitBake()
     {
         EnsureCam();
+        foreach (var gate in FindObjectsByType<GateBridge>(FindObjectsSortMode.None))
+            if (gate.HasFinalIsland) { mapGate = gate; break; }
         boundsFixed = TryIslandBounds();   // есть FloatingIsland: границы известны сразу, без разбора рендереров
         int mini = Mathf.Clamp(miniResolution, 256, 2048);
         if (autoMiniResolution && boundsFixed) mini = Mathf.Max(mini, NeededMiniResolution());
@@ -133,7 +142,12 @@ public partial class HudMinimap
             BuildFlatMats();
             if (outlines || paintGround)
             {
-                var sh = postShader != null ? postShader : Shader.Find("Hidden/BuilderSim/MinimapPost");
+                var sh = postShader;
+                if (sh == null)
+                {
+                    var asset = Resources.Load<Material>("TimberWingsMinimapPost");
+                    sh = asset != null ? asset.shader : Shader.Find("Hidden/BuilderSim/MinimapPost");
+                }
                 if (sh != null && sh.isSupported) postMat = new Material(sh) { hideFlags = HideFlags.HideAndDontSave };
                 else if (paintGround) Debug.LogWarning("Minimap: шейдер Hidden/BuilderSim/MinimapPost не найден, земля карты не будет видна. Перетащи MinimapPost.shader в поле Post Shader у HudMinimap или в Always Included Shaders.");
             }
@@ -175,6 +189,7 @@ public partial class HudMinimap
         flatMats = null;
         flatArrays.Clear();
         if (islandMesh != null) { Destroy(islandMesh); islandMesh = null; }
+        if (riverFallback != null) { Destroy(riverFallback); riverFallback = null; }
         if (groundTex != null) { Destroy(groundTex); groundTex = null; }
         groundReady = false;
     }
@@ -208,20 +223,45 @@ public partial class HudMinimap
     }
 
     // ------------------------------------------------------------ границы острова
-    // Контур FloatingIsland (точки PathPoints или запасной прямоугольник) плюс небольшой отступ. Ground_Auto за границей и всё, что дальше,
-    // в кадр не попадает: морем за краем занимается маска берега (HudMinimap.Fog.cs).
+    // Контур основного острова и место под дальний остров. Границы остаются
+    // постоянными при постройке моста, чтобы карта не меняла масштаб и центр.
     bool TryIslandBounds()
     {
         var fi = IslandSource.Find();
         if (fi == null) return false;
         var outline = fi.GetOutline();
+        if (outline == null || outline.Count < 3) return false;
         islandPoly = outline.ToArray();
-        Vector2 min = islandPoly[0], max = islandPoly[0];
-        foreach (var p in islandPoly) { min = Vector2.Min(min, p); max = Vector2.Max(max, p); }
         islandY = fi.groundY - 0.25f;
-        min -= Vector2.one * IslandSource.OuterMargin; max += Vector2.one * IslandSource.OuterMargin;
-        var b = new Bounds(new Vector3((min.x + max.x) * 0.5f, fi.groundY, (min.y + max.y) * 0.5f), new Vector3(max.x - min.x, 10f, max.y - min.y));
-        ApplyBounds(b);
+
+        if (manualBounds)
+        {
+            ApplyBounds(new Bounds(worldCenter, new Vector3(worldSize.x, 10f, worldSize.y)));
+            return true;
+        }
+
+        SetMapAxes();
+        Vector2 min = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
+        Vector2 max = new Vector2(float.NegativeInfinity, float.NegativeInfinity);
+        foreach (var p in islandPoly)
+        {
+            Vector2 projected = ProjectMapPoint(p);
+            min = Vector2.Min(min, projected);
+            max = Vector2.Max(max, projected);
+        }
+        if (mapGate != null && mapGate.HasFinalIsland)
+        {
+            Vector3 island = mapGate.arrivalSpot.parent.position;
+            Vector2 projected = ProjectMapPoint(new Vector2(island.x, island.z));
+            Vector2 radius = Vector2.one * (mapGate.islandRadius + 3f);
+            min = Vector2.Min(min, projected - radius);
+            max = Vector2.Max(max, projected + radius);
+        }
+        Vector2 middle = (min + max) * 0.5f;
+        center = axRight * middle.x + axUp * middle.y + Vector3.up * fi.groundY;
+        float span = Mathf.Max(max.x - min.x, max.y - min.y);
+        float padding = Mathf.Max(IslandSource.OuterMargin, minPadding, span * islandPadding);
+        side = Mathf.Max(20f, span + padding * 2f);
         return true;
     }
 
@@ -257,13 +297,23 @@ public partial class HudMinimap
         }
 
         center = b.center;
-        float yaw = cameraYaw * Mathf.Deg2Rad;
-        axRight = new Vector3(Mathf.Cos(yaw), 0f, -Mathf.Sin(yaw));
-        axUp = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
-        float c2 = Mathf.Abs(Mathf.Cos(yaw)), s2 = Mathf.Abs(Mathf.Sin(yaw));
+        SetMapAxes();
+        float c2 = Mathf.Abs(axRight.x), s2 = Mathf.Abs(axRight.z);
         float halfW = c2 * b.extents.x + s2 * b.extents.z;
         float halfH = s2 * b.extents.x + c2 * b.extents.z;
         side = 2f * Mathf.Max(halfW, halfH) * 1.02f;
+    }
+
+    void SetMapAxes()
+    {
+        float yaw = cameraYaw * Mathf.Deg2Rad;
+        axRight = new Vector3(Mathf.Cos(yaw), 0f, -Mathf.Sin(yaw));
+        axUp = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+    }
+
+    Vector2 ProjectMapPoint(Vector2 point)
+    {
+        return new Vector2(point.x * axRight.x + point.y * axRight.z, point.x * axUp.x + point.y * axUp.z);
     }
 
     // ------------------------------------------------------------ плоские материалы
@@ -304,6 +354,9 @@ public partial class HudMinimap
         var m = flatMats[i];
         if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
         if (m.HasProperty("_Color")) m.SetColor("_Color", c);
+        // Ленты воды бывают с обратной намоткой. Для вида строго сверху нужны обе стороны.
+        if (l == MinimapLayer.Water && m.HasProperty("_Cull"))
+            m.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Off);
     }
 
     // Здания ночью чуть теплеют: из-за этого карту есть смысл печатать заново при смене фазы суток
@@ -332,6 +385,8 @@ public partial class HudMinimap
     void BuildRoots()
     {
         hideRoots.Clear(); buildingRoots.Clear(); treeRoots.Clear(); woodRoots.Clear();
+        foreach (var cloud in FindObjectsByType<CloudSea>(FindObjectsSortMode.None)) hideRoots.Add(cloud.transform);
+        foreach (var abyss in FindObjectsByType<IslandAbyss>(FindObjectsSortMode.None)) hideRoots.Add(abyss.transform);
         if (player != null) hideRoots.Add(player);
         if (heading != null) hideRoots.Add(heading);
         foreach (var pf in FindObjectsByType<PetFollower>(FindObjectsSortMode.None)) hideRoots.Add(pf.transform);
@@ -391,6 +446,49 @@ public partial class HudMinimap
         return l;
     }
 
+    enum WaterSurface { None, River, Pond, Other }
+
+    static readonly string[] WaterWords = { "water", "river", "pond", "lake" };
+    static readonly string[] SkyObjects = { "ground_auto", "ocean", "sea_plane", "cloudsea", "cloud_sea" };
+
+    static WaterSurface GetWaterSurface(Renderer renderer)
+    {
+        if (!(renderer is MeshRenderer)) return WaterSurface.None;
+        var filter = renderer.GetComponent<MeshFilter>();
+        string mesh = filter != null && filter.sharedMesh != null ? filter.sharedMesh.name : "";
+        string obj = renderer.name;
+        var mat = renderer.sharedMaterial;
+        string shader = mat != null && mat.shader != null ? mat.shader.name : "";
+
+        if (!ContainsAny(obj, WaterWords) && !ContainsAny(mesh, WaterWords) && !ContainsAny(shader, WaterWords))
+            return WaterSurface.None;
+        if (ContainsAny(obj, "foam", "spray", "ripple", "splash", "highlight", "reflection", "underlay")
+            || ContainsAny(mesh, "foam", "spray", "ripple", "splash", "highlight", "reflection", "underlay")
+            || ContainsAny(shader, "foam", "spray", "ripple", "splash")) return WaterSurface.None;
+        if (ContainsAny(obj, "cloud", "ocean", "sea_", "waterplane", "water_plane")
+            && !ContainsAny(obj, "river", "waterfall")) return WaterSurface.None;
+        if (ContainsAny(obj, "river_water", "riverribbon", "river_ribbon", "river_fall", "river_surface")
+            || ContainsAny(mesh, "islandriverwater", "islandriverfall", "river_source_to_clouds", "riverribbon", "river_ribbon")
+            || ContainsAny(shader, "riverribbon", "islandv2/waterfall")) return WaterSurface.River;
+        if (ContainsAny(obj, "pond_water", "lake_water") || ContainsAny(mesh, "pond_water", "lake_water"))
+            return WaterSurface.Pond;
+        if (!ContainsAny(shader, "water") && !string.Equals(obj, "Water", StringComparison.OrdinalIgnoreCase))
+            return WaterSurface.None;
+        for (var t = renderer.transform; t != null; t = t.parent)
+        {
+            if (ContainsAny(t.name, "river", "waterfall")) return WaterSurface.River;
+            if (ContainsAny(t.name, "pond", "lake")) return WaterSurface.Pond;
+        }
+        return WaterSurface.Other;
+    }
+
+    static bool ContainsAny(string value, params string[] parts)
+    {
+        foreach (string part in parts)
+            if (value.IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        return false;
+    }
+
     MinimapLayer Classify(Renderer r)
     {
         if (r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer || r is SkinnedMeshRenderer || r is SpriteRenderer || r is BillboardRenderer)
@@ -398,25 +496,27 @@ public partial class HudMinimap
         Bounds b = r.bounds;
         if (b.size.sqrMagnitude > 1e6f) return MinimapLayer.Hide;                 // купол неба и т.п.
         float w = Mathf.Max(b.size.x, b.size.z), h = b.size.y;
+        for (var ancestor = r.transform; ancestor != null; ancestor = ancestor.parent)
+            if (hideRoots.Contains(ancestor)) return MinimapLayer.Hide;
+        if (islandPoly != null && ContainsAny(r.name, SkyObjects))
+            return MinimapLayer.Hide;
+        if (GetWaterSurface(r) != WaterSurface.None) return MinimapLayer.Water;
 
         MinimapLayer found = MinimapLayer.Count;
         Transform t = r.transform;
         for (int d = 0; t != null && d < 10; d++, t = t.parent)
         {
-            if (hideRoots.Contains(t)) return MinimapLayer.Hide;
             if (buildingRoots.Contains(t)) { found = MinimapLayer.Building; break; }
             if (woodRoots.Contains(t)) { found = MinimapLayer.Wood; break; }
             MinimapLayer nl = NameLayer(t);
-            if (nl != MinimapLayer.Count) { found = nl; break; }
+            if (nl != MinimapLayer.Count && nl != MinimapLayer.Water) { found = nl; break; }
             if (treeRoots.Contains(t)) { found = MinimapLayer.Forest; break; }
         }
 
         if (found == MinimapLayer.Count)
         {
             // имена не помогли: смотрим на материал и размеры
-            var sm = r.sharedMaterial;
-            if (sm != null && sm.shader != null && sm.shader.name.IndexOf("water", StringComparison.OrdinalIgnoreCase) >= 0) found = MinimapLayer.Water;
-            else if (w > 24f && h < 3f) found = MinimapLayer.Grass;                 // большая плоская плита: земля
+            if (w > 24f && h < 3f) found = MinimapLayer.Grass;                 // большая плоская плита: земля
             else if (h < 0.4f && w >= 1f) found = MinimapLayer.Sand;                // плоская накладка: тропа
             else found = MinimapLayer.Prop;
         }
@@ -445,6 +545,11 @@ public partial class HudMinimap
         rebakePending = false;
         BuildRoots();
         if (stylized) RefreshNightColors();
+        nameCache.Clear();
+        rendCache.Clear();
+        topY = botY = center.y;
+        hasLand = false;
+        bool riverFound = false;
 
         var all = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -452,15 +557,18 @@ public partial class HudMinimap
         {
             Renderer r = all[i];
             if (r == null) continue;
-            MinimapLayer l;
-            if (!rendCache.TryGetValue(r, out l)) { l = Classify(r); rendCache[r] = l; }
+            MinimapLayer l = Classify(r);
+            rendCache[r] = l;
             TrackExtent(r, l);
+            if (!riverFound && l == MinimapLayer.Water && r.enabled)
+                riverFound = GetWaterSurface(r) == WaterSurface.River && !ContainsAny(r.name, "river_fall");
             if (sw.Elapsed.TotalMilliseconds > sliceMs) { yield return null; sw.Reset(); sw.Start(); }
         }
         if (!boundsFixed) ApplyFallbackBounds();
+        BuildRiverFallback(!riverFound);
         if (logBake && first) LogClassification(all);
         PruneCaches();
-        if (paintGround && stylized) yield return StartCoroutine(EnsureGround());     // земля из Terrain (HudMinimap.Ground.cs)
+        if (paintGround && stylized && postMat != null) yield return StartCoroutine(EnsureGround());     // земля из Terrain (HudMinimap.Ground.cs)
 
         yield return null;                       // сам рендер отдельным кадром: классификация и Render не складываются в один кадр
         RenderMini();
@@ -536,21 +644,29 @@ public partial class HudMinimap
         int aa = Mathf.Clamp(bakeMsaa, 1, 4);
         if (aa == 3) aa = 2;
         var tmp = RenderTexture.GetTemporary(dst.width, dst.height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default, aa);
-        bakeCam.targetTexture = tmp;
-        RenderPass();
-        bakeCam.targetTexture = null;
-        if (postMat != null && stylized && (outlines || GroundReady))
+        try
         {
-            postMat.SetFloat("_Width", Mathf.Max(0.75f, dst.width / 1024f * 1.25f));
-            postMat.SetFloat("_Strength", outlines ? outlineStrength : 0f);
-            ApplyPostTone();                                           // Candy: светлее и холоднее (HudMinimap.Candy.cs)
-            postMat.SetFloat("_UseGround", GroundReady ? 1f : 0f);
-            if (GroundReady) postMat.SetTexture("_GroundTex", groundTex);
-            Graphics.Blit(tmp, dst, postMat);
+            if (!dst.IsCreated()) dst.Create();
+            bakeCam.targetTexture = tmp;
+            RenderPass();
+            bakeCam.targetTexture = null;
+            bool useGround = paintGround && GroundReady;
+            if (postMat != null && stylized && (outlines || useGround))
+            {
+                postMat.SetFloat("_Width", Mathf.Max(0.75f, dst.width / 1024f * 1.25f));
+                postMat.SetFloat("_Strength", outlines ? outlineStrength : 0f);
+                ApplyPostTone();
+                postMat.SetFloat("_UseGround", useGround ? 1f : 0f);
+                if (useGround) postMat.SetTexture("_GroundTex", groundTex);
+                Graphics.Blit(tmp, dst, postMat);
+            }
+            else Graphics.Blit(tmp, dst);
         }
-        else Graphics.Blit(tmp, dst);
-        RenderTexture.ReleaseTemporary(tmp);
-        if (!dst.IsCreated()) dst.Create();
+        finally
+        {
+            bakeCam.targetTexture = null;
+            RenderTexture.ReleaseTemporary(tmp);
+        }
     }
 
     // Подмена материалов, Render, возврат. Всё внутри одного вызова: ни один кадр игры не видит подмены.
@@ -566,14 +682,15 @@ public partial class HudMinimap
         bakeCam.transform.position = new Vector3(center.x, topY + 60f, center.z);
         bakeCam.transform.rotation = Quaternion.Euler(90f, cameraYaw, 0f);
         bakeCam.farClipPlane = (topY - botY) + 200f;
-        // с землёй фон прозрачный (чёрный, альфа 0): MinimapPost подкладывает под объекты текстуру земли и море
-        bakeCam.backgroundColor = (stylized && paintGround && GroundReady) ? new Color(0f, 0f, 0f, 0f) : WaterDeepColor;
+        // MinimapPost подкладывает под объекты текстуру земли и облаков.
+        bakeCam.backgroundColor = (stylized && paintGround && GroundReady) ? new Color(0f, 0f, 0f, 0f) : MapClearColor;
 
         try
         {
             RenderSettings.fog = false;                       // туман острова не должен выбелить плоские цвета
             QualitySettings.lodBias = 1000f;                  // LOD по камере сверху выбрал бы самые грубые модели
 
+            DrawDistanceGroup.BeginCapture();
             if (stylized)
             {
                 SwapMaterials();
@@ -588,13 +705,17 @@ public partial class HudMinimap
                 }
             }
             if (!hideTerrain) DrawIslandBase();                  // запасной путь: земли из Terrain нет, рисуем траву под контуром FloatingIsland
-            DrawDistanceGroup.BeginCapture();                    // декор, скрытый по дальности прорисовки, на карте остаётся
+            if (riverFallback != null && flatMats != null)
+            {
+                var water = flatMats[(int)MinimapLayer.Water * Variants];
+                if (water != null) Graphics.DrawMesh(riverFallback, Matrix4x4.identity, water, 0, bakeCam);
+            }
             bakeCam.Render();
         }
         finally
         {
-            DrawDistanceGroup.EndCapture();
             RestoreMaterials();
+            DrawDistanceGroup.EndCapture();
             if (terrainHm != null)
                 for (int i = 0; i < terrains.Length; i++)
                 {
@@ -638,6 +759,35 @@ public partial class HudMinimap
         Graphics.DrawMesh(islandMesh, Matrix4x4.identity, mat, 0, bakeCam);
     }
 
+    void BuildRiverFallback(bool needed)
+    {
+        if (riverFallback != null) { Destroy(riverFallback); riverFallback = null; }
+        if (!needed || !stylized || WaterVolume.All.Count == 0) return;
+
+        var vertices = new List<Vector3>();
+        var indices = new List<int>();
+        foreach (var volume in WaterVolume.All)
+        {
+            if (volume == null || volume.PointCount < 2) continue;
+            int first = vertices.Count;
+            for (int i = 0; i < volume.PointCount; i++)
+            {
+                if (!volume.TryGetMapSection(i, out var left, out var right)) break;
+                vertices.Add(left + Vector3.up * 0.06f);
+                vertices.Add(right + Vector3.up * 0.06f);
+                if (i == 0) continue;
+                int a = first + (i - 1) * 2;
+                indices.Add(a); indices.Add(a + 2); indices.Add(a + 1);
+                indices.Add(a + 1); indices.Add(a + 2); indices.Add(a + 3);
+            }
+        }
+        if (indices.Count == 0) return;
+        riverFallback = new Mesh { name = "MinimapRiverFallback", hideFlags = HideFlags.HideAndDontSave };
+        if (vertices.Count > 65535) riverFallback.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        riverFallback.SetVertices(vertices);
+        riverFallback.SetTriangles(indices, 0);
+    }
+
     RRec Rec(int i)
     {
         if (i >= recs.Length) Array.Resize(ref recs, recs.Length * 2);
@@ -659,6 +809,7 @@ public partial class HudMinimap
             var rec = Rec(recCount++);
             rec.r = r; rec.wasOff = r.forceRenderingOff; rec.swapped = false;
             if (l == MinimapLayer.Hide) { r.forceRenderingOff = true; continue; }
+            if (l == MinimapLayer.Water) r.forceRenderingOff = false;
             r.GetSharedMaterials(tmpMats);
             int n = tmpMats.Count;
             if (n == 0) { r.forceRenderingOff = true; continue; }

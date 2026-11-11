@@ -92,6 +92,15 @@ Shader "Hidden/BuilderSim/MinimapPost"
 
                 float e = saturate(e1 * _Gain) * 0.75 + saturate(e2 * _Gain) * 0.25;
                 c.rgb = lerp(c.rgb, c.rgb * _OutlineColor.rgb * 2.2, e * _Strength);
+                if (_UseGround > 0.5 && s0.a < 0.1)
+                {
+                    float land = tex2D(_GroundTex, i.uv).a;
+                    float nearLand = max(tex2D(_GroundTex, i.uv + float2(w2.x, 0)).a,
+                                         tex2D(_GroundTex, i.uv + float2(0, w2.y)).a);
+                    nearLand = max(nearLand, max(tex2D(_GroundTex, i.uv - float2(w2.x, 0)).a,
+                                                 tex2D(_GroundTex, i.uv - float2(0, w2.y)).a));
+                    c.rgb *= 1.0 - saturate(nearLand - land) * 0.24;
+                }
                 // тон: светлее и холоднее (при Gamma 1 и Amount 0 ничего не меняется)
                 c.rgb = pow(saturate(c.rgb), _ToneGamma);
                 c.rgb = lerp(c.rgb, _ToneColor.rgb, _ToneAmount);

@@ -25,7 +25,8 @@ public partial class HudMinimap : MonoBehaviour
         public string label;
         public RectTransform mini, big;
         public CanvasGroup miniGroup;
-        public bool pinned;
+        public bool pinned, completed, nearby;
+        public float hintRadius;
     }
 
     [Header("Мини-карта")]
@@ -164,6 +165,8 @@ public partial class HudMinimap : MonoBehaviour
         InitMiniZoom();
         InitBigMapUi();      // до Rescan: слой зон создаётся внутри контейнера большой карты
         InitFog();
+        progressReady = true;
+        rescanPending = false;
         Rescan();
         CreateToast();
         if (miniNorth != null)
@@ -199,11 +202,27 @@ public partial class HudMinimap : MonoBehaviour
         if (closeButton != null) closeButton.onClick.RemoveListener(Close);
         ReleaseBake();
         ReleaseFog();
+        if (generatedZoneRoot != null) Destroy(generatedZoneRoot.gameObject);
         BigMapOpen = false;
         RestoreTime();
     }
-    void OnEnable() { SubscribeMapEvents(); }
-    void OnDisable() { UnsubscribeMapEvents(); RestoreTime(); }
+    void OnEnable()
+    {
+        SubscribeMapEvents();
+        rescanPending = true;
+        if (!progressReady) return;
+        if (!mapReady) StartCoroutine(BakeRoutine(true));
+        else RequestRebake(0f);
+    }
+
+    void OnDisable()
+    {
+        UnsubscribeMapEvents();
+        Close();
+        RestoreTime();
+        StopAllCoroutines();
+        baking = false;
+    }
 
     // ---------------------------------------------------------------- стиль
     // Снимок карты рисуется камерой, а полупрозрачные объекты (вода и т.п.) пишут в RenderTexture неполную альфу:
@@ -236,7 +255,7 @@ public partial class HudMinimap : MonoBehaviour
         r.offsetMin = mr.offsetMin; r.offsetMax = mr.offsetMax;
         r.SetSiblingIndex(mr.GetSiblingIndex());          // под снимок карты
         var im = go.GetComponent<Image>();
-        var c = WaterDeepColor; c.a = 1f;
+        var c = MapClearColor; c.a = 1f;
         im.color = c;
         im.raycastTarget = false;
         backings.Add(im);
@@ -318,7 +337,7 @@ public partial class HudMinimap : MonoBehaviour
         if (miniMap != null) miniMap.color = c;
         if (bigMap != null) bigMap.color = c;
         for (int i = 0; i < backings.Count; i++)
-            if (backings[i] != null) backings[i].color = new Color(WaterDeepColor.r * c.r, WaterDeepColor.g * c.g, WaterDeepColor.b * c.b, 1f);
+            if (backings[i] != null) backings[i].color = new Color(MapClearColor.r * c.r, MapClearColor.g * c.g, MapClearColor.b * c.b, 1f);
         if (hudTint != null && hudBase != null)
             for (int i = 0; i < hudTint.Length && i < hudBase.Length; i++)
                 if (hudTint[i] != null) hudTint[i].color = new Color(hudBase[i].r * c.r, hudBase[i].g * c.g, hudBase[i].b * c.b, hudBase[i].a);
@@ -382,35 +401,78 @@ public partial class HudMinimap : MonoBehaviour
     }
     public void Rescan()
     {
-        foreach (var p in pois) { if (p.mini != null) Destroy(p.mini.gameObject); if (p.big != null) Destroy(p.big.gameObject); }
-        pois.Clear();
-        var used = new HashSet<Transform>();
-        foreach (var m in FindObjectsByType<MapPoi>(FindObjectsSortMode.None)) { var k = FindKind(m.kind); if (k == null) continue; Add(m.transform, k, string.IsNullOrEmpty(m.label) ? k.label : m.label); used.Add(m.transform); }
-        if (autoFindByName)
+        foreach (var p in pois)
         {
-            foreach (var tr in FindObjectsByType<Transform>(FindObjectsSortMode.None))
-            {
-                if (tr == null || used.Contains(tr) || !tr.gameObject.activeInHierarchy) continue;
-                var k = KindByName(tr.name); if (k == null || IsIn(autoIgnoreKinds, k.key)) continue;
-                if (tr.GetComponentInParent<Canvas>() != null) continue;
-                bool nested = false; for (var p = tr.parent; p != null; p = p.parent) if (KindByName(p.name) != null) { nested = true; break; }
-                if (nested) continue;
-                Add(tr, k, k.label);
-            }
+            if (p.mini != null) { p.mini.gameObject.SetActive(false); Destroy(p.mini.gameObject); }
+            if (p.big != null) { p.big.gameObject.SetActive(false); Destroy(p.big.gameObject); }
         }
+        pois.Clear();
+        nearbyDiscoveries.Clear();
+        var used = new HashSet<Transform>();
+        var story = StoryFlow.Instance;
+        var sites = FindObjectsByType<BuildingController>(FindObjectsSortMode.None);
+        foreach (var marker in FindObjectsByType<MapPoi>(FindObjectsSortMode.None))
+        {
+            if (!marker.isActiveAndEnabled) continue;
+            used.Add(marker.transform);
+            if (!string.IsNullOrWhiteSpace(marker.afterChapter)
+                && (story == null || !story.MapChapterCompleted(marker.afterChapter.Trim()))) continue;
+            var kind = FindKind(marker.kind);
+            if (AddAuthoredDiscovery(marker, kind, story)) continue;
+            if (kind != null && !IsLegacyBuildingPin(marker.transform, kind, sites))
+                Add(marker.transform, kind, string.IsNullOrEmpty(marker.label) ? kind.label : marker.label,
+                    completed: !string.IsNullOrWhiteSpace(marker.afterChapter));
+        }
+
+        var anchors = new Dictionary<string, Transform>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tr in FindObjectsByType<Transform>(FindObjectsSortMode.None))
+        {
+            if (tr == null) continue;
+            if (tr.name == "PAD_Grandpa" || tr.name == "PAD_Forest" || tr.name == "PAD_GroveSouth"
+                || tr.name == "TW_MYSTIC_FOREST" || tr.name == "Pond" || tr.name == "Pond_Water"
+                || tr.name == "River_Water" || tr.name == "Water_Source_To_Clouds")
+                anchors[tr.name == "Water_Source_To_Clouds" ? "River_Water" : tr.name] = tr;
+            if (!autoFindByName || used.Contains(tr)) continue;
+            var kind = KindByName(tr.name);
+            if (kind == null || IsIn(autoIgnoreKinds, kind.key) || tr.GetComponentInParent<Canvas>() != null
+                || IsLegacyBuildingPin(tr, kind, sites)) continue;
+            bool nested = false;
+            for (var parent = tr.parent; parent != null; parent = parent.parent)
+                if (KindByName(parent.name) != null) { nested = true; break; }
+            if (!nested) Add(tr, kind, kind.label);
+        }
+
+        EnsureMapZones(sites, anchors);
+        AddBuildingPins(sites);
+        AddDiscoveryPins(used);
+        SyncFogZones();
         BuildZoneLayer();
         HookBuildings();
+        if (open) RefreshBigMarkers();
     }
-    void Add(Transform t, MapKind k, string label)
+
+    Poi Add(Transform target, MapKind kind, string label, bool completed = false)
     {
-        var poi = new Poi { t = t, kind = k, label = label, pinned = IsIn(pinnedKinds, k.key) };
+        var poi = new Poi { t = target, kind = kind, label = label, pinned = IsIn(pinnedKinds, kind.key), completed = completed };
         if (markerTemplate != null)
         {
-            if (miniMarkers != null && !IsIn(bigOnlyKinds, k.key)) { poi.mini = MakeMarker(miniMarkers, poi, false); poi.miniGroup = poi.mini.gameObject.AddComponent<CanvasGroup>(); if (poi.pinned) poi.mini.SetAsLastSibling(); }
-            if (bigMarkers != null) poi.big = MakeMarker(bigMarkers, poi, true);
+            if (miniMarkers != null && (completed || !IsIn(bigOnlyKinds, kind.key)))
+            {
+                poi.mini = MakeMarker(miniMarkers, poi, false);
+                poi.miniGroup = poi.mini.GetComponent<CanvasGroup>() ?? poi.mini.gameObject.AddComponent<CanvasGroup>();
+                if (poi.pinned) poi.mini.SetAsLastSibling();
+                poi.mini.gameObject.SetActive(false);
+            }
+            if (bigMarkers != null)
+            {
+                poi.big = MakeMarker(bigMarkers, poi, true);
+                poi.big.gameObject.SetActive(false);
+            }
         }
         pois.Add(poi);
+        return poi;
     }
+
     RectTransform MakeMarker(RectTransform parent, Poi p, bool big)
     {
         var m = Instantiate(markerTemplate, parent, false);
@@ -419,6 +481,7 @@ public partial class HudMinimap : MonoBehaviour
         var pin = m.Find("Pin"); if (pin != null) { var im = pin.GetComponent<Image>(); if (im != null) im.color = p.kind.tint; }
         var lb = m.Find("Label"); if (lb != null) { lb.gameObject.SetActive(big); var tx = lb.GetComponent<TMP_Text>(); if (tx != null) tx.text = p.label; }
         if (candyStyle) CandyMarker(m, p, big);
+        foreach (var graphic in m.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
         return m;
     }
     static Sprite MakeArea(bool circle)
@@ -432,7 +495,7 @@ public partial class HudMinimap : MonoBehaviour
     }
     void BuildZoneLayer()
     {
-        if (zoneLayer != null) Destroy(zoneLayer.gameObject);
+        if (zoneLayer != null) { zoneLayer.gameObject.SetActive(false); Destroy(zoneLayer.gameObject); }
         zoneLayer = null;
         zoneNameBase.Clear();
         if (!showZonesOnBigMap || bigMarkers == null || MapZone.All.Count == 0) return;
@@ -463,7 +526,7 @@ public partial class HudMinimap : MonoBehaviour
             var tx = lo.AddComponent<TextMeshProUGUI>(); SetLabelFont(tx);
             tx.text = z.zoneName; tx.fontSize = 30f; tx.fontStyle = FontStyles.Bold; tx.alignment = TextAlignmentOptions.Center; tx.color = ZoneNameColor(z, false); tx.raycastTarget = false; tx.enableWordWrapping = false; tx.outlineWidth = candyStyle ? 0.3f : 0.22f; tx.outlineColor = ZoneNameOutline(false);
         }
-        RefreshZoneUiAll();      // закрытые зоны: «???» и без заливки
+        RefreshZoneUiAll();
     }
     Vector2 ToMap(Vector3 world) { Vector3 d = world - center; return new Vector2(Vector3.Dot(d, axRight), Vector3.Dot(d, axUp)); }
     float ArrowAngle(Transform t) { if (t == null) return 0f; Vector3 f = t.forward; return Mathf.Atan2(Vector3.Dot(f, axUp), Vector3.Dot(f, axRight)) * Mathf.Rad2Deg - 90f; }
@@ -479,10 +542,17 @@ public partial class HudMinimap : MonoBehaviour
         UpdateDayLabel();
         UpdateMiniZoom(dt);
         UpdateBake();
+        UpdateProgress();
         openT = Mathf.MoveTowards(openT, open ? 1f : 0f, dt / 0.22f);
         if (bigGroup != null) bigGroup.alpha = Mathf.SmoothStep(0f, 1f, openT);
         if (bigWindow != null) bigWindow.localScale = Vector3.one * Mathf.LerpUnclamped(0.92f, 1f, UiDraw.EaseOutBack(openT));
-        if (player == null) return;
+        if (player == null)
+        {
+            var movement = PlayerMovement.Instance;
+            if (movement == null) return;
+            player = movement.transform;
+            heading = movement.model != null ? movement.model : player;
+        }
         if (!mapReady) { UpdateZone(dt); return; }
         Vector2 pm = ToMap(player.position); float k = Mathf.Repeat(time / 1.6f, 1f);
         UpdateMini(pm, k, time);
@@ -511,7 +581,7 @@ public partial class HudMinimap : MonoBehaviour
                 scale = Mathf.Lerp(0.7f, 1f, f); alpha = Mathf.Lerp(0.6f, 1f, f);
             }
             else if (p.pinned) { edge = true; pos = pos / mag * maxR; scale = 0.82f + 0.08f * Mathf.Sin(time * 5f); alpha = 1f; }
-            else if (edgePips) { edge = true; pos = pos / mag * maxR; scale = 0.5f; alpha = 0.7f; }
+            else if (edgePips && p.hintRadius <= 0f) { edge = true; pos = pos / mag * maxR; scale = 0.5f; alpha = 0.7f; }
             else { p.mini.gameObject.SetActive(false); continue; }
 
             p.mini.gameObject.SetActive(true);
@@ -547,7 +617,55 @@ public partial class HudMinimap : MonoBehaviour
     static void Ping(Image ping, float k) { if (ping == null) return; ping.rectTransform.localScale = Vector3.one * (1f + 0.9f * k); var c = ping.color; c.a = 0.7f * (1f - k); ping.color = c; }
     void UpdateZone(float dt)
     {
-        zoneTimer -= dt; if (zoneTimer <= 0f) { zoneTimer = 0.2f; MapZone z = null; string now = defaultZone; Vector3 pp = player.position; if (useZones && MapZone.All.Count > 0) { foreach (var c in MapZone.All) { if (c == null || !c.Contains(pp)) continue; if (z == null || c.priority > z.priority || (c.priority == z.priority && c.Area < z.Area)) z = c; } if (z != null) now = z.zoneName; } else { float best = float.MaxValue; foreach (var p in pois) { if (p.t == null) continue; Vector3 d = p.t.position - pp; d.y = 0f; float dist = d.magnitude; float r = Mathf.Max(0.5f, p.kind.zoneRadius); if (dist <= r && dist / r < best) { best = dist / r; now = p.label; } } } if (now != zoneNow || z != currentZone) { zoneNow = now; currentZone = z; zonePunch = 0f; if (zoneLabel != null) { zoneLabel.text = now; zoneLabel.color = ZoneLabelColor(z); } announcePending = announceZones && z != null && z.announce; } if (announcePending && currentZone != null && Time.unscaledTime > 2.8f) { announcePending = false; bool first = !discovered.Contains(currentZone); DiscoverZone(currentZone); string cap = !string.IsNullOrEmpty(currentZone.caption) ? currentZone.caption : (first ? "НОВАЯ ЗОНА" : "ЗОНА"); ZoneToast.Show(currentZone.zoneName, cap, currentZone.color); } }
-        if (zoneBanner != null && zonePunch < 1f) { zonePunch = Mathf.Min(1f, zonePunch + dt / 0.3f); zoneBanner.localScale = Vector3.one * (1f + 0.08f * Mathf.Sin(zonePunch * Mathf.PI)); }
+        zoneTimer -= dt;
+        if (zoneTimer <= 0f)
+        {
+            zoneTimer = 0.2f;
+            var zone = MapZone.At(player.position);
+            string title = useZones && zone != null ? zone.zoneName : defaultZone;
+            if (!useZones || MapZone.All.Count == 0)
+            {
+                float best = 1f;
+                foreach (var pin in pois)
+                {
+                    if (pin.t == null || pin.hintRadius > 0f || FogHides(pin)) continue;
+                    Vector3 delta = pin.t.position - player.position;
+                    delta.y = 0f;
+                    float distance = delta.magnitude / Mathf.Max(0.5f, pin.kind.zoneRadius);
+                    if (distance >= best) continue;
+                    best = distance;
+                    title = pin.label;
+                }
+            }
+            if (title != zoneNow || zone != currentZone)
+            {
+                var previous = currentZone;
+                zoneNow = title;
+                currentZone = zone;
+                fogDirty = true;
+                zonePunch = 0f;
+                if (zoneLabel != null) { zoneLabel.text = title; zoneLabel.color = ZoneLabelColor(zone); }
+                announcePending = useZones && announceZones && zone != null && zone.announce;
+                ApplyZoneUi(previous);
+                ApplyZoneUi(zone);
+            }
+            if (zone != null)
+            {
+                bool first = !discovered.Contains(zone);
+                DiscoverZone(zone);
+                if (announcePending)
+                {
+                    announcePending = false;
+                    string caption = !string.IsNullOrEmpty(zone.caption) ? zone.caption : (first ? "НОВАЯ ЗОНА" : "ЗОНА");
+                    ZoneToast.Show(zone.zoneName, caption, zone.color);
+                }
+            }
+        }
+
+        if (zoneBanner != null && zonePunch < 1f)
+        {
+            zonePunch = Mathf.Min(1f, zonePunch + dt / 0.3f);
+            zoneBanner.localScale = Vector3.one * (1f + 0.08f * Mathf.Sin(zonePunch * Mathf.PI));
+        }
     }
 }

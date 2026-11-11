@@ -15,7 +15,7 @@ using UnityEngine;
 
 public static class MapIcons
 {
-    public enum Id { Campfire, Hut, Market, Tent, Bridge, Forest, Board, Dot }
+    public enum Id { Campfire, Hut, Market, Tent, Bridge, Forest, Board, Dot, Mystery, Discovery, Building, Pets }
 
     static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
@@ -33,6 +33,10 @@ public static class MapIcons
     {
         if (string.IsNullOrEmpty(key)) return Id.Dot;
         string k = key.ToLowerInvariant();
+        if (k == "mystery") return Id.Mystery;
+        if (k == "discovery") return Id.Discovery;
+        if (k == "building") return Id.Building;
+        if (k == "pets") return Id.Pets;
         if (Has(k, "camp", "fire", "костёр", "костер")) return Id.Campfire;
         if (Has(k, "hut", "house", "home", "хиж", "дом")) return Id.Hut;
         if (Has(k, "market", "shop", "stall", "trade", "рын", "лавк")) return Id.Market;
@@ -78,6 +82,10 @@ public static class MapIcons
             case Id.Bridge: return C(0xB8, 0xDE, 0xFF);     // небо
             case Id.Forest: return C(0x9F, 0xE8, 0xC0);     // зелёная мята
             case Id.Board: return C(0xFF, 0xEE, 0x9E);      // лимон
+            case Id.Mystery: return C(0xDF, 0xD4, 0xFF);
+            case Id.Discovery: return C(0xBE, 0xF1, 0xE0);
+            case Id.Building: return C(0xFF, 0xDD, 0xA7);
+            case Id.Pets: return C(0xFF, 0xCA, 0xDF);
             default: return C(0xE9, 0xEC, 0xFF);            // облако
         }
     }
@@ -227,6 +235,31 @@ public static class MapIcons
         Color lav = C(0x8E, 0x86, 0xEE), lavHi = C(0xC9, 0xC5, 0xFF);
         switch (id)
         {
+            case Id.Mystery:
+                Draw(p, ol,
+                    S(Intersect(ArcRing(32, 39, 12, 4.2f), Above(36)), lavHi),
+                    S(Capsule(44, 39, 32, 27, 4.2f), lavHi),
+                    S(Capsule(32, 27, 32, 22, 4.2f), lavHi),
+                    S(Circle(32, 12, 4.5f), cream));
+                break;
+            case Id.Discovery:
+                Draw(p, ol,
+                    S(Box(32, 32, 16, 20, 3), cream),
+                    S(Capsule(23, 31, 30, 24, 2.7f), mint),
+                    S(Capsule(30, 24, 43, 41, 2.7f), mint));
+                break;
+            case Id.Building:
+                Draw(p, ol,
+                    S(Box(32, 24, 17, 13, 2.5f), creamLo),
+                    S(Tri(8, 32, 56, 32, 32, 53), peachHi),
+                    S(Box(32, 20, 5, 8, 2), peachLo));
+                break;
+            case Id.Pets:
+                Draw(p, ol,
+                    S(Circle(16, 36, 6), coralHi), S(Circle(26, 47, 6), coralHi),
+                    S(Circle(39, 47, 6), coralHi), S(Circle(49, 36, 6), coralHi),
+                    S(Union(Circle(32, 26, 10), Box(32, 21, 13, 7, 5)), cream));
+                break;
             case Id.Campfire:
                 Draw(p, ol,
                     S(Capsule(13, 13, 51, 23, 4.6f), peachLo),

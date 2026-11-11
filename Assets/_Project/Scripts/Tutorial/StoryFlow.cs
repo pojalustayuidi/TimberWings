@@ -93,6 +93,20 @@ public class StoryFlow : MonoBehaviour, ISaveable
     public string CurrentChapterPhase { get { return phase.ToString(); } }
     public int SupplyDelivered { get { return supply != null ? supply.delivered : 0; } }
     public bool TaskAccepted { get { return phase == Phase.Do; } }
+    internal bool MapFinaleAvailable => useEnding && bridge != null && bridge.IsFinished
+        && (noteSpot != null || (finalBridge != null && finalBridge.Portal != null));
+    internal bool MapFinaleInspected => noteRead;
+    internal Transform MapFinaleTarget => NoteTarget();
+
+    internal bool MapChapterCompleted(string chapterId)
+    {
+        for (int i = 0; i < ci && i < chapters.Count; i++)
+        {
+            var chapter = chapters[i];
+            if (chapter.id == chapterId) return true;
+        }
+        return false;
+    }
     public event Action ChaptersFinished;
 
     // ------------------------------------------------------------ главы

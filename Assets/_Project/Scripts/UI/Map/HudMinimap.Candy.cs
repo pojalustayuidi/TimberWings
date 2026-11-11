@@ -36,7 +36,7 @@ public partial class HudMinimap
     {
         return new MapPalette
         {
-            water = CC(0x8C, 0xCB, 0xFF),
+            water = CC(0x48, 0xB9, 0xDC),
             waterDeep = CC(0x6D, 0xB4, 0xF7),
             foam = CC(0xF4, 0xFA, 0xFF),
             grass = CC(0xA8, 0xE0, 0x8A),
@@ -56,7 +56,7 @@ public partial class HudMinimap
     {
         if (!candyStyle || !candyPalette) return;
         palette = CandyPalette();
-        background = palette.waterDeep;
+        background = skyDepth;
         // туман: лавандово-розовая дымка вместо пергамента
         parchmentLight = CC(0xFF, 0xDD, 0xEA);
         parchmentDark = CC(0xC9, 0xC4, 0xF7);
@@ -196,8 +196,9 @@ public partial class HudMinimap
     Color ZoneFill(MapZone z)
     {
         Color c = z.color;
-        float a = zoneOpacity;
-        if (candyStyle) { c = Color.Lerp(c, Color.white, 0.38f); a = zoneOpacity * 0.8f; }
+        float a = zoneOpacity * 0.65f;
+        if (candyStyle) { c = Color.Lerp(c, Color.white, 0.38f); a *= 0.8f; }
+        if (z == currentZone) a = Mathf.Min(0.78f, a * 1.45f);
         return new Color(c.r, c.g, c.b, a);
     }
 

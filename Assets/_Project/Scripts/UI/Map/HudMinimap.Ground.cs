@@ -134,7 +134,7 @@ public partial class HudMinimap
         public Vector2[] poly;
         public TerrainSrc[] src;
         public Color grass, rock;
-        public Color32 ocean;
+        public Color skyDepth, skyCloud;
         public float relief, cliff;
         public Color32[] px;
     }
@@ -152,7 +152,17 @@ public partial class HudMinimap
                 float mx = ((x + 0.5f) / n - 0.5f) * j.side;
                 float wx = j.cx + j.axRight.x * mx + j.axUp.x * my;
                 float wz = j.cz + j.axRight.z * mx + j.axUp.z * my;
-                if (j.poly != null && j.poly.Length >= 3 && !InPoly(j.poly, wx, wz)) { j.px[y * n + x] = j.ocean; continue; }
+                if (j.poly != null && !InPoly(j.poly, wx, wz))
+                {
+                    // Крупные облачные полосы по обе стороны обрыва. Альфа отмечает границу суши для шейдера.
+                    float clouds = VNoise(mx * 0.028f + my * 0.011f, my * 0.064f + 5f);
+                    float wisps = VNoise(mx * 0.071f + 9f, my * 0.145f);
+                    float density = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.39f, 0.8f, clouds * 0.81f + wisps * 0.19f));
+                    Color32 sky = Color.Lerp(j.skyDepth, j.skyCloud, density * 0.82f);
+                    sky.a = 0;
+                    j.px[y * n + x] = sky;
+                    continue;
+                }
 
                 Color col = j.grass;
                 for (int si = 0; si < j.src.Length; si++)
@@ -200,7 +210,7 @@ public partial class HudMinimap
         job.light = L.normalized;
         job.poly = islandPoly;
         job.grass = palette.grass; job.rock = palette.rock;
-        Color32 ocean = palette.waterDeep; ocean.a = 255; job.ocean = ocean;
+        job.skyDepth = skyDepth; job.skyCloud = skyCloud;
         job.relief = reliefStrength; job.cliff = cliffRock;
         job.px = new Color32[n * n];
         job.src = CollectTerrains();

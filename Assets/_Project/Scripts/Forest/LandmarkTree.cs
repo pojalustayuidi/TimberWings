@@ -71,6 +71,7 @@ public class LandmarkTree : MonoBehaviour, IInteractable
             nextLine = (nextLine + 1) % greetings.Length;
         }
         ZoneToast.Show(title, line, toastColor);
+        MapPoi.ReportInspection(transform);
         var vibe = GetComponent<GrandpaVibe>();
         if (vibe != null) vibe.Burst();
         var sacred = GetComponent<SacredVibe>();   // деревья-хранители (ForestSacred.cs): вспышка рун, кристалл, частицы

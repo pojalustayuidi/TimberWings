@@ -88,6 +88,19 @@ public class WaterVolume : MonoBehaviour
         return true;
     }
 
+    // Поперечник русла в мировых координатах для карты, если меш воды отсутствует.
+    internal bool TryGetMapSection(int index, out Vector3 left, out Vector3 right)
+    {
+        left = right = default;
+        if (PointCount < 2 || reach == null || reach.Length != PointCount || index < 0 || index >= PointCount)
+            return false;
+        Vector3 tangent = pts[Mathf.Min(index + 1, PointCount - 1)] - pts[Mathf.Max(index - 1, 0)];
+        Vector3 offset = new Vector3(tangent.z, 0f, -tangent.x).normalized * Mathf.Max(0f, reach[index]);
+        left = transform.TransformPoint(pts[index] - offset);
+        right = transform.TransformPoint(pts[index] + offset);
+        return true;
+    }
+
     public bool IsSwimming(Vector3 feet) { Hit h; return Sample(feet, out h) && h.submersion >= swimDepth; }
     public bool IsWading(Vector3 feet) { Hit h; return Sample(feet, out h) && h.submersion >= wadeDepth && h.submersion < swimDepth; }
 

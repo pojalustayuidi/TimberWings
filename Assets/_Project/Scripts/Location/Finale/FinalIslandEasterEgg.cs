@@ -20,6 +20,8 @@ public sealed class FinalIslandEasterEgg : MonoBehaviour, IInteractable
 
     public void Interact()
     {
-        if (CanInteract) SaveIndicator.ShowToast("VII. Седьмую скамью я всё-таки унёс. — Гуннар");
+        if (!CanInteract) return;
+        SaveIndicator.ShowToast("VII. Седьмую скамью я всё-таки унёс. — Гуннар");
+        MapPoi.ReportInspection(transform);
     }
 }

@@ -1,7 +1,7 @@
 // Assets/_Project/Scripts/UI/Map/HudMinimap.Fog.cs (НЕ в Editor)
 // Туман войны: зоны MapZone, в которых игрок ещё не был, закрыты мягкой лавандово-розовой дымкой-облаком (на мини- и большой карте).
 // Вход в зону открывает её кругом от места, где стоит игрок (раскрытие revealSeconds). Метки внутри закрытых зон прячутся
-// (кроме закреплённых: доска заданий и т.п.), на большой карте у закрытой зоны подпись «???» и нет цветной заливки.
+// (кроме важных целей и выполненных строек), на большой карте у закрытой зоны подпись «?».
 // Открытые зоны сохраняются в файл сохранения (секция «minimap»). Плашку «НОВАЯ ЗОНА» показывает UpdateZone в HudMinimap.cs.
 using System;
 using System.Collections.Generic;
@@ -26,18 +26,22 @@ public partial class HudMinimap
 
     readonly Dictionary<MapZone, FogState> fogStates = new Dictionary<MapZone, FogState>();
     readonly List<MapZone> fogKeys = new List<MapZone>();
+    readonly List<MapZone> mapFogZones = new List<MapZone>();
     readonly HashSet<string> discoveredNames = new HashSet<string>();
     Texture2D fogTex;
-    Color32[] fogPx, parch;
+    Color32[] fogPx, parch, zoneEdges;
     float[] fogAlpha;
     int fogN;
     RawImage miniFog, bigFog;
     bool fogDirty;
-    float fogTick;
     FogSave fogSave;
 
     // ------------------------------------------------------------ сохранение
-    [Serializable] class FogSaveData { public string[] zones = new string[0]; }
+    [Serializable] class FogSaveData
+    {
+        public string[] zones = Array.Empty<string>();
+        public string[] inspections = Array.Empty<string>();
+    }
 
     class FogSave : ISaveable
     {
@@ -48,14 +52,20 @@ public partial class HudMinimap
         public string Save()
         {
             var d = new FogSaveData();
-            if (h != null) { d.zones = new string[h.discoveredNames.Count]; h.discoveredNames.CopyTo(d.zones); }
+            if (h != null)
+            {
+                d.zones = new string[h.discoveredNames.Count];
+                h.discoveredNames.CopyTo(d.zones);
+                d.inspections = new string[h.inspected.Count];
+                h.inspected.CopyTo(d.inspections);
+            }
             return JsonUtility.ToJson(d);
         }
         public void Load(string json, int formatVersion)
         {
             if (h == null) return;
             var d = string.IsNullOrEmpty(json) ? null : JsonUtility.FromJson<FogSaveData>(json);
-            h.ApplySavedZones(d != null ? d.zones : null);
+            h.ApplyMapProgress(d);
         }
         public void ResetToDefault() { if (h != null) h.ResetFog(); }
     }
@@ -72,24 +82,25 @@ public partial class HudMinimap
         if (fogTex != null) { Destroy(fogTex); fogTex = null; }
     }
 
-    void ApplySavedZones(string[] names)
+    void ApplyMapProgress(FogSaveData data)
     {
         discoveredNames.Clear();
-        if (names != null) for (int i = 0; i < names.Length; i++) if (!string.IsNullOrEmpty(names[i])) discoveredNames.Add(names[i]);
-        discovered.Clear();
-        SyncFogZones();
-        RefreshZoneUiAll();
-        if (open) RefreshBigMarkers();
-    }
+        inspected.Clear();
+        if (data?.zones != null)
+            foreach (string name in data.zones)
+                if (!string.IsNullOrEmpty(name)) discoveredNames.Add(name);
+        if (data?.inspections != null)
+            foreach (string id in data.inspections)
+                if (!string.IsNullOrEmpty(id)) inspected.Add(id);
 
-    void ResetFog()
-    {
-        discoveredNames.Clear();
         discovered.Clear();
         fogStates.Clear();
         SyncFogZones();
         RefreshZoneUiAll();
+        rescanPending = true;
     }
+
+    void ResetFog() { ApplyMapProgress(null); }
 
     // ------------------------------------------------------------ открытие зон
     public bool IsDiscovered(MapZone z) { return z == null || !fogOfWar || discovered.Contains(z); }
@@ -98,8 +109,9 @@ public partial class HudMinimap
     {
         if (z == null) return;
         bool isNew = discovered.Add(z);
-        discoveredNames.Add(z.zoneName);
+        bool firstVisit = discoveredNames.Add(z.zoneName);
         if (!isNew) return;
+        if (firstVisit) SaveSystem.RequestSave("minimap");
         if (!instant && fogOfWar && mapReady && fogTex != null && player != null)
             fogStates[z] = new FogState { t = 0f, animating = true, origin = ToMap(player.position) };
         else fogStates.Remove(z);
@@ -111,12 +123,14 @@ public partial class HudMinimap
     // Приводит список закрытых зон в порядок: загруженные из файла, новые, удалённые
     void SyncFogZones()
     {
+        mapFogZones.Clear();
         if (!fogOfWar) { fogStates.Clear(); fogDirty = true; return; }
         var all = MapZone.All;
         for (int i = 0; i < all.Count; i++)
         {
             var z = all[i];
             if (z == null || !z.showOnMap) continue;
+            mapFogZones.Add(z);
             if (!discovered.Contains(z) && discoveredNames.Contains(z.zoneName)) discovered.Add(z);
             if (discovered.Contains(z))
             {
@@ -125,8 +139,13 @@ public partial class HudMinimap
             }
             else if (!fogStates.ContainsKey(z)) fogStates[z] = new FogState();
         }
+        mapFogZones.Sort((a, b) =>
+        {
+            int priority = a.priority.CompareTo(b.priority);
+            return priority != 0 ? priority : b.Area.CompareTo(a.Area);
+        });
         fogKeys.Clear();
-        foreach (var kv in fogStates) if (kv.Key == null) fogKeys.Add(kv.Key);
+        foreach (var kv in fogStates) if (kv.Key == null || !kv.Key.isActiveAndEnabled) fogKeys.Add(kv.Key);
         for (int i = 0; i < fogKeys.Count; i++) fogStates.Remove(fogKeys[i]);
         fogDirty = true;
     }
@@ -134,7 +153,8 @@ public partial class HudMinimap
     // метка внутри закрытой зоны не показывается
     bool FogHides(Poi p)
     {
-        if (!fogOfWar || p == null || p.pinned || p.t == null) return false;
+        if (p.hintRadius > 0f) return !p.nearby;
+        if (!fogOfWar || p.pinned || p.completed) return false;
         var z = MapZone.At(p.t.position);
         return z != null && z.showOnMap && !discovered.Contains(z);
     }
@@ -142,15 +162,20 @@ public partial class HudMinimap
     // ------------------------------------------------------------ подписи и заливка зон на большой карте
     void ApplyZoneUi(MapZone z)
     {
-        if (zoneLayer == null || z == null) return;
+        if (zoneLayer == null || z == null || !z.isActiveAndEnabled) return;
         bool hide = fogOfWar && !discovered.Contains(z);
         var area = zoneLayer.Find("Area_" + z.zoneName);
-        if (area != null) area.gameObject.SetActive(!hide);
+        if (area != null)
+        {
+            area.gameObject.SetActive(!hide);
+            var image = area.GetComponent<Image>();
+            if (image != null) image.color = ZoneFill(z);
+        }
         var nm = zoneLayer.Find("Name_" + z.zoneName);
         if (nm == null) return;
         var tx = nm.GetComponent<TMP_Text>();
         if (tx == null) return;
-        tx.text = hide ? "???" : z.zoneName;
+        tx.text = hide ? "?" : z.zoneName;
         tx.color = ZoneNameColor(z, hide);
         tx.outlineColor = ZoneNameOutline(hide);
     }
@@ -198,6 +223,7 @@ public partial class HudMinimap
         fogPx = new Color32[fogN * fogN];
         fogAlpha = new float[fogN * fogN];
         parch = new Color32[fogN * fogN];
+        zoneEdges = new Color32[fogN * fogN];
         for (int y = 0; y < fogN; y++)
             for (int x = 0; x < fogN; x++)
             {
@@ -232,7 +258,13 @@ public partial class HudMinimap
         if (fogTex == null) return;
         int n = fogN;
         Array.Clear(fogAlpha, 0, fogAlpha.Length);
-        foreach (var kv in fogStates) if (kv.Key != null) AddZoneAlpha(kv.Key, kv.Value, n);
+        Array.Clear(zoneEdges, 0, zoneEdges.Length);
+        foreach (var zone in mapFogZones)
+        {
+            if (zone == null) continue;
+            fogStates.TryGetValue(zone, out var state);
+            PaintZoneMask(zone, state, n);
+        }
         for (int i = 0; i < fogPx.Length; i++)
         {
             float a = fogAlpha[i];
@@ -241,14 +273,14 @@ public partial class HudMinimap
             {
                 c = FogEdge(c, a);                                                           // кромка: Candy светлеет как облачко (без Candy темнеет)
             }
-            else c.a = 0;
+            else c = zoneEdges[i];
             fogPx[i] = c;
         }
         fogTex.SetPixels32(fogPx);
         fogTex.Apply(false);
     }
 
-    void AddZoneAlpha(MapZone z, FogState st, int n)
+    void PaintZoneMask(MapZone z, FogState fog, int n)
     {
         Vector2 zc = ToMap(z.transform.position);
         bool circle = z.shape == MapZone.Shape.Circle;
@@ -268,7 +300,11 @@ public partial class HudMinimap
         int y0 = Mathf.Clamp(Mathf.FloorToInt(((zc.y - lim) / side + 0.5f) * n), 0, n - 1);
         int y1 = Mathf.Clamp(Mathf.CeilToInt(((zc.y + lim) / side + 0.5f) * n), 0, n - 1);
         float revealR = -1f;
-        if (st.animating) revealR = UiDraw.EaseOutCubic(Mathf.Clamp01(st.t)) * ((zc - st.origin).magnitude + ext + 6f);
+        if (fog != null && fog.animating)
+            revealR = UiDraw.EaseOutCubic(Mathf.Clamp01(fog.t)) * ((zc - fog.origin).magnitude + ext + 6f);
+        Color32 zoneColor = Color.Lerp(z.color, Color.white, 0.18f);
+        float edgeWidth = Mathf.Clamp(side / n * 1.2f, 0.35f, 1.2f);
+        float edgeAlpha = z == currentZone ? 0.85f : 0.56f;
 
         for (int y = y0; y <= y1; y++)
             for (int x = x0; x <= x1; x++)
@@ -284,44 +320,42 @@ public partial class HudMinimap
                     float ox = Mathf.Max(qx, 0f), oy = Mathf.Max(qy, 0f);
                     sd = Mathf.Sqrt(ox * ox + oy * oy) + Mathf.Min(Mathf.Max(qx, qy), 0f);
                 }
-                float cov = Mathf.Clamp01(0.5f - sd / (2f * feather));
-                if (cov <= 0f) continue;
-                cov = cov * cov * (3f - 2f * cov);
-                if (st.animating)
-                {
-                    float ex = mx - st.origin.x, ey = my - st.origin.y;
-                    float dist = Mathf.Sqrt(ex * ex + ey * ey);
-                    cov *= Mathf.Clamp01((dist - (revealR - 3f)) / 6f);        // круг раскрытия с мягкой кромкой
-                    if (cov <= 0f) continue;
-                }
                 int idx = y * n + x;
-                if (cov > fogAlpha[idx]) fogAlpha[idx] = cov;
+                float coverage = Mathf.Clamp01(0.5f - sd / (2f * feather));
+                float opacity = fog == null ? 0f : 1f;
+                if (coverage > 0f)
+                {
+                    coverage = coverage * coverage * (3f - 2f * coverage);
+                    if (fog != null && fog.animating)
+                    {
+                        float ex = mx - fog.origin.x, ey = my - fog.origin.y;
+                        float dist = Mathf.Sqrt(ex * ex + ey * ey);
+                        opacity = Mathf.Clamp01((dist - (revealR - 3f)) / 6f);
+                    }
+                    // При пересечении локальная зона рисуется поверх фонового биома.
+                    fogAlpha[idx] = Mathf.Lerp(fogAlpha[idx], opacity, coverage);
+                }
+
+                if (fog != null) continue;
+                float edge = Mathf.Clamp01(1f - Mathf.Abs(sd) / edgeWidth);
+                if (edge <= 0f || !IsMappedLand(center + axRight * mx + axUp * my)) continue;
+                zoneColor.a = (byte)(255f * edge * edgeAlpha);
+                zoneEdges[idx] = zoneColor;
             }
+    }
+
+    bool IsMappedLand(Vector3 point)
+    {
+        if (islandPoly == null || InPoly(islandPoly, point.x, point.z)) return true;
+        if (mapGate == null || !mapGate.HasFinalIsland || !mapGate.WalkwayActive) return false;
+        Vector3 offset = point - mapGate.arrivalSpot.parent.position;
+        return offset.x * offset.x + offset.z * offset.z <= mapGate.islandRadius * mapGate.islandRadius;
     }
 
     // ------------------------------------------------------------ каждый кадр
     void UpdateFog(float dt)
     {
         if (!fogOfWar || fogTex == null) return;
-
-        // вход в зону без плашки (announce выключен или это не главная зона): открываем тут, остальное делает UpdateZone
-        fogTick -= dt;
-        if (fogTick <= 0f)
-        {
-            fogTick = 0.25f;
-            if (player != null && Time.unscaledTime > 2.8f)
-            {
-                var all = MapZone.All;
-                Vector3 pp = player.position;
-                for (int i = 0; i < all.Count; i++)
-                {
-                    var z = all[i];
-                    if (z == null || !z.showOnMap || discovered.Contains(z) || !z.Contains(pp)) continue;
-                    if (z == currentZone && announceZones && z.announce) continue;
-                    DiscoverZone(z);
-                }
-            }
-        }
 
         bool anim = false;
         if (fogStates.Count > 0)
@@ -340,7 +374,7 @@ public partial class HudMinimap
         }
         if (fogDirty) { RebuildFog(); fogDirty = false; }
 
-        bool any = fogStates.Count > 0;
+        bool any = fogStates.Count > 0 || discovered.Count > 0;
         if (miniFog != null)
         {
             miniFog.enabled = any;

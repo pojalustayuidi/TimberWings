@@ -18,6 +18,8 @@ public partial class HudMinimap
     {
         if (eventsOn) return;
         eventsOn = true;
+        GameEvents.QuestDone += OnQuestDone;
+        MapPoi.Inspected += OnPoiInspected;
         GameEvents.BuildRevealFinished += OnRevealFinished;
         GameEvents.BuildingRestored += OnRestored;
         GameEvents.TimeOfDayChanged += OnPhaseChanged;
@@ -30,6 +32,8 @@ public partial class HudMinimap
     {
         if (!eventsOn) return;
         eventsOn = false;
+        GameEvents.QuestDone -= OnQuestDone;
+        MapPoi.Inspected -= OnPoiInspected;
         GameEvents.BuildRevealFinished -= OnRevealFinished;
         GameEvents.BuildingRestored -= OnRestored;
         GameEvents.TimeOfDayChanged -= OnPhaseChanged;
@@ -49,6 +53,7 @@ public partial class HudMinimap
     void HookBuildings()
     {
         if (!eventsOn) return;
+        hooked.RemoveAll(b => b == null);
         foreach (var b in FindObjectsByType<BuildingController>(FindObjectsSortMode.None))
         {
             if (b == null || hooked.Contains(b)) continue;
@@ -58,10 +63,25 @@ public partial class HudMinimap
         }
     }
 
+    void OnQuestDone(string id) { rescanPending = true; }
+
+    void UpdateProgress()
+    {
+        if (!progressReady) return;
+        var story = StoryFlow.Instance;
+        if (story != null && story.MapFinaleInspected != finaleWasInspected) rescanPending = true;
+        if (rescanPending)
+        {
+            rescanPending = false;
+            Rescan();
+        }
+        UpdateDiscoveryHints();
+    }
+
     void OnBuildingChanged() { rescanPending = true; RequestRebake(rebakeDelay); }
     void OnRevealFinished(BuildingController b) { rescanPending = true; RequestRebake(rebakeDelay); }
     void OnRestored(string id, int stage) { rescanPending = true; RequestRebake(0.6f); }
-    void OnGateOpened() { RequestRebake(2f); }                       // камни ещё опускаются 1.6 с
+    void OnGateOpened() { rescanPending = true; RequestRebake(2f); }                       // камни ещё опускаются 1.6 с
     void OnSaveLoaded() { rescanPending = true; RequestRebake(0.8f); }
     void OnPhaseChanged(DayPhase ph) { if (rebakeOnTimeOfDay) RequestRebake(0.2f); }
 
@@ -76,11 +96,7 @@ public partial class HudMinimap
             BuildZoneLayer();
             if (!bigPrefetched && bigMap != null) { bigMap.texture = rtMini; bigMap.enabled = true; }   // до печати большой карты показываем мини-снимок
         }
-        if (rescanPending && !first)
-        {
-            rescanPending = false;
-            Rescan();                                                   // новая постройка: метка и подпись
-        }
+        if (first) rescanPending = true;
         if (open) RefreshBigMarkers();
         OnMapBakedExt(first);
     }
