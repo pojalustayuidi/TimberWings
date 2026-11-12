@@ -444,11 +444,14 @@ public partial class HudMinimap : MonoBehaviour
 
         EnsureMapZones(sites, anchors);
         AddBuildingPins(sites);
+        CloudyAddWorkyardPoi();
         AddDiscoveryPins(used);
+        CloudyAddPortalPoi();
         SyncFogZones();
         BuildZoneLayer();
         HookBuildings();
         if (open) RefreshBigMarkers();
+        CloudyAfterRescan();
     }
 
     Poi Add(Transform target, MapKind kind, string label, bool completed = false)
@@ -481,7 +484,9 @@ public partial class HudMinimap : MonoBehaviour
         var pin = m.Find("Pin"); if (pin != null) { var im = pin.GetComponent<Image>(); if (im != null) im.color = p.kind.tint; }
         var lb = m.Find("Label"); if (lb != null) { lb.gameObject.SetActive(big); var tx = lb.GetComponent<TMP_Text>(); if (tx != null) tx.text = p.label; }
         if (candyStyle) CandyMarker(m, p, big);
+        CloudyStyleMarker(m, p, big);
         foreach (var graphic in m.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
+        CloudySetupHover(m, p, big);
         return m;
     }
     static Sprite MakeArea(bool circle)
@@ -613,6 +618,7 @@ public partial class HudMinimap : MonoBehaviour
         }
         if (spreadMarkers) Relax(layPos, layRad, layEdge, 0f);
         for (int i = 0; i < layPois.Count; i++) layPois[i].big.anchoredPosition = layPos[i];
+        CloudyRefreshMarkers();
     }
     static void Ping(Image ping, float k) { if (ping == null) return; ping.rectTransform.localScale = Vector3.one * (1f + 0.9f * k); var c = ping.color; c.a = 0.7f * (1f - k); ping.color = c; }
     void UpdateZone(float dt)

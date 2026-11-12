@@ -75,6 +75,7 @@ public partial class HudMinimap
         if (bigPlayer != null) bigPlayerBase = bigPlayer.localScale.x;
 
         BuildFrame(parent);
+        InitCloudyMapV2(parent);
         if (codeCompass) StyleCompass();
         if (zoomButtons) BuildZoomButtons();
         LiftBigMapOverHud();
@@ -295,6 +296,7 @@ public partial class HudMinimap
         if (bigScaleDirty || Mathf.Abs(zoom - appliedZoom) > 0.0005f) ApplyBigScale();
         if (zoomInBtn != null) zoomInBtn.interactable = zoomTarget < maxZoom - 0.01f;
         if (zoomOutBtn != null) zoomOutBtn.interactable = zoomTarget > minZoom + 0.01f;
+        UpdateCloudyMapV2(time);
     }
 
     // метки растут медленнее карты (степень 0.85), чтобы при сильном зуме не закрывать её
@@ -317,7 +319,8 @@ public partial class HudMinimap
                 var c = zoneLayer.GetChild(i);
                 if (c.name.StartsWith("Name_")) c.localScale = Vector3.one * inv;
             }
-        LayoutZoneNames(inv);
+        if (cloudyMapV2 && candyStyle) LayoutCloudyMapLabels(inv);
+        else LayoutZoneNames(inv);
     }
 
     // ------------------------------------------------------------ подписи зон не налезают друг на друга

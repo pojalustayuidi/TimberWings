@@ -122,7 +122,11 @@ public class BuildingController : MonoBehaviour
     void OnEnable()
     {
         if (!registry.Contains(this)) registry.Add(this);
-        BuildingSaveHub.Attach(this);   // общий сейф строек: подхватит сохранённое состояние этой площадки
+        BuildingSaveHub.Attach(this);
+        // Каждый объект стройки сам подключает обработчик ударов и стадий.
+        // Раньше он появлялся только после сканирования ImpactFx, а не во всех сценах ImpactFx есть.
+        if (Application.isPlaying && GetComponent<BuildFxHook>() == null)
+            gameObject.AddComponent<BuildFxHook>();   // общий сейф строек: подхватит сохранённое состояние этой площадки
     }
 
     // сохранённое состояние стройки ещё не применено (применяется в LateUpdate первого кадра, когда отработали все Start)
@@ -787,7 +791,9 @@ public class BuildingController : MonoBehaviour
             if (ShowFinishedAtEnd)
             {
                 finishedBuilding.SetActive(true);
-                StartCoroutine(PopIn(finishedBuilding.transform)); // здание «вырастает» с отскоком
+                // Не масштабируем физические коллайдеры уже готового здания ради визуального отскока.
+                if (finishedBuilding.GetComponentInChildren<Collider>(true) == null)
+                    StartCoroutine(PopIn(finishedBuilding.transform));
             }
         }
         else
@@ -990,30 +996,27 @@ public class BuildingController : MonoBehaviour
     }
 
 #if UNITY_EDITOR
-    // ---------- тесты из окна QA (Tools/BuilderSim/.../Мост и финал, BridgeQaWindow) ----------
-    // Ставит стройку в состояние «сдано N этапов» БЕЗ наград, XP, звуков, показа и сигнала обучению: путь тот же, что у загрузки сейва.
-    // false = сейчас нельзя (не Play, идёт загрузка или показ стадии)
+    // QA-мост: восстановление этапов без наград, звуков, кинематографического показа и прогресса обучения.
+    // Методы используются Assets/_Project/Editor/Tests/BridgeQaWindow.cs.
     public bool EditorTestRestoreSteps(int completed)
     {
         if (!Application.isPlaying || SaveSystem.IsLoading || revealing) return false;
         EnsureData();
         int n = Mathf.Clamp(completed, 0, costs.Length);
-        bool done = n >= costs.Length;
         QueueRestore(new BuildingSaveEntry
         {
             id = SaveId,
             kind = (int)SiteKind,
             step = n,
             stage = StageCurrent,
-            isFinished = done,
-            tutorialFired = true   // обучение при тесте не запускаем
+            isFinished = n >= costs.Length,
+            tutorialFired = true
         });
         ApplyRestore();
         return true;
     }
 
-    // Закрывает следующий этап обычным путём (награда, события, показ стадии с облётом), чтобы проверить камеру.
-    // false = этап не запущен: стройка готова, идёт показ или загрузка
+    // Завершает следующий этап игровым путём, чтобы можно было проверить показ стадии и камеру.
     public bool EditorTestCompleteNextStep()
     {
         if (!Application.isPlaying || isFinished || revealing || restorePending || SaveSystem.IsLoading) return false;
