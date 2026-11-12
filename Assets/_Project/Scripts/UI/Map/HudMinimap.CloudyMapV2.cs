@@ -114,6 +114,7 @@ public partial class HudMinimap
         }
 
         BuildCloudyTooltip(parent);
+        CloudyV3Initialize(parent);
     }
 
     static Image CloudyImage(RectTransform parent, string name, Sprite sprite)
@@ -289,6 +290,7 @@ public partial class HudMinimap
                 cloudyNewPins[marker] = -1f; // start animation when map is next visible
             cloudySeen.Add(id);
         }
+        if (cloudyMapV3) CloudyV3StyleMarker(marker, p, big);
     }
 
     void CloudySetupHover(RectTransform marker, Poi p, bool big)
@@ -302,7 +304,8 @@ public partial class HudMinimap
         handler.owner = this;
         bool mystery = p.kind.key == "Mystery";
         bool wasInspected = p.completed && CloudyIsInspection(p);
-        handler.title = mystery ? "Таинственное место" : p.label;
+        handler.title = mystery ? "Таинственное место" : (cloudyMapV3 ? CloudyV3DisplayLabel(p) : p.label);
+        if (string.IsNullOrEmpty(handler.title)) handler.title = "Место на острове";
         handler.state = mystery ? (p.nearby ? "Обнаружено • можно осмотреть" : "Неизвестно")
             : p.completed ? (wasInspected ? "Изучено" : "Построено / открыто") : "Место на острове";
     }
@@ -388,12 +391,14 @@ public partial class HudMinimap
             if (hover != null && p.kind.key == "Mystery")
                 hover.state = p.nearby ? "Обнаружено • можно осмотреть" : "Неизвестно";
         }
+        if (cloudyMapV3) CloudyV3RefreshPinStates();
     }
 
     void UpdateCloudyMapV2(float time)
     {
         if (!cloudyMapV2 || !candyStyle) return;
         if (!open) { HideCloudyMapTooltip(); return; }
+        if (cloudyMapV3) CloudyV3ObserveView();
         if (cloudyNeedsLayout)
         {
             cloudyNeedsLayout = false;
@@ -504,6 +509,7 @@ public partial class HudMinimap
     // The first zoom level remains intentionally sparse; zooming in reveals detail.
     void LayoutCloudyMapLabels(float inv)
     {
+        if (cloudyMapV3) { CloudyV3Layout(inv); return; }
         if (bigViewport == null || bigMap == null) return;
         cloudyNeedsLayout = false;
         cloudyOccupied.Clear();

@@ -31,11 +31,24 @@ public class GroveChopBlock : MonoBehaviour, IInteractable
 
     public void Interact()
     {
+        if (lines == null || lines.Length == 0) return;
+        var inspection = StoryInspection.For(this);
+        if (inspection != null)
+        {
+            inspection.TryPlay(this, TakeLine);
+            return;
+        }
+        string line = TakeLine();
+        GroveChips.Burst(transform.position + Vector3.up * 0.1f);
+        ZoneToast.Show(title, line, toastColor);
+    }
+
+    string TakeLine()
+    {
         if (next < 0) next = Random.Range(0, lines.Length);
         string line = lines[next % lines.Length];
         next = (next + 1) % lines.Length;
-        GroveChips.Burst(transform.position + Vector3.up * 0.1f);
-        ZoneToast.Show(title, line, toastColor);
+        return line;
     }
 }
 

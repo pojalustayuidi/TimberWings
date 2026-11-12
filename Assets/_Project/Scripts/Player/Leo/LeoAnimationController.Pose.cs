@@ -9,6 +9,7 @@ public sealed partial class LeoAnimationController
         public Vector3? bark;
         public LeoCelebration.Pose cheer;
         public LeoAirWaterMotion.Frame motion;
+        public StoryInspection.ActorPose inspection;
     }
 
     LeoFootPlacement feet;
@@ -63,8 +64,10 @@ public sealed partial class LeoAnimationController
         rig.Rotate(rig.backpackFlap,new Vector3(2*Mathf.Sin(f.phase*Mathf.PI*4)*f.move,0,0));
         rig.Rotate(rig.hair,new Vector3(.6f*breath+1.2f*f.move*sway,0,0));
         rig.Rotate(rig.cowlick,new Vector3(2*wave*f.move,0,1.5f*Mathf.Sin(f.time*Mathf.PI)));
+        StoryInspection.ApplyActorPose(rig, transform, f.holster, f.inspection);
         rig.PlaceHammer();
         if(rig.eyeL!=null)rig.eyeL.localScale=Vector3.Scale(rig.RestScale(rig.eyeL),new Vector3(1,f.eye,1));
         if(rig.eyeR!=null)rig.eyeR.localScale=Vector3.Scale(rig.RestScale(rig.eyeR),new Vector3(1,f.eye,1));
     }
+
 }

@@ -75,6 +75,15 @@ public partial class HudMinimap
 
         string label = null;
         if (marker.TryGetComponent<LandmarkTree>(out var tree)) label = tree.title;
+        else if (marker.TryGetComponent<StoryInspection>(out var inspection) && inspection.isActiveAndEnabled)
+        {
+            if (inspection.ShowBridgeOnMap && inspection.bridgeEngraving.GetComponent<MapPoi>() == null)
+            {
+                AddDiscovery(inspection.bridgeEngraving, kind ?? DiscoveryKind, "Знак Гуннара", null, marker.hintRadius);
+                return true;
+            }
+            label = inspection.MapTitle;
+        }
         else if (marker.TryGetComponent<MysticProp>(out var prop)) label = prop.InspectionTitle;
         else if (marker.TryGetComponent<FinalIslandEasterEgg>(out _)) label = "Зарубка Гуннара";
         if (!marker.requiresInspection && label == null) return false;
@@ -89,12 +98,25 @@ public partial class HudMinimap
             if (tree != null && !authored.Contains(tree.transform))
                 AddDiscovery(tree.transform, DiscoveryKind, tree.title, null, Mathf.Max(12f, tree.Radius + 2f));
 
+        foreach (var inspection in FindObjectsByType<StoryInspection>(FindObjectsSortMode.None))
+        {
+            if (!inspection.isActiveAndEnabled || inspection.source == null) continue;
+            if (authored.Contains(inspection.transform)) continue;
+            if (inspection.ShowBridgeOnMap)
+            {
+                if (!authored.Contains(inspection.bridgeEngraving))
+                    AddDiscovery(inspection.bridgeEngraving, DiscoveryKind, "Знак Гуннара", null, 7f);
+            }
+            else AddDiscovery(inspection.transform, DiscoveryKind, inspection.MapTitle, null, 9f);
+        }
+
         foreach (var prop in FindObjectsByType<MysticProp>(FindObjectsSortMode.None))
-            if (prop.InspectionTitle != null && !authored.Contains(prop.transform))
+            if (prop.InspectionTitle != null && !authored.Contains(prop.transform) &&
+                StoryInspection.For(prop) == null && (!prop.TryGetComponent<StoryInspection>(out var inspection) || !inspection.isActiveAndEnabled))
                 AddDiscovery(prop.transform, DiscoveryKind, prop.InspectionTitle, null, 9f);
 
         foreach (var egg in FindObjectsByType<FinalIslandEasterEgg>(FindObjectsSortMode.None))
-            if (!authored.Contains(egg.transform))
+            if (!authored.Contains(egg.transform) && StoryInspection.For(egg) == null)
                 AddDiscovery(egg.transform, DiscoveryKind, "Зарубка Гуннара", null, 9f);
 
         var story = StoryFlow.Instance;
@@ -114,7 +136,7 @@ public partial class HudMinimap
     void AddDiscovery(Transform target, MapKind kind, string label, string id, float radius)
     {
         string key = MapPoi.GetInspectionId(target, id);
-        bool done = inspected.Contains(key);
+        bool done = inspected.Contains(key) || StoryInspection.WasDiscovered(target, key);
         var pin = Add(target, done ? kind : MysteryKind, done ? label : MysteryKind.label, completed: done);
         if (done) return;
         pin.hintRadius = Mathf.Max(1f, radius);

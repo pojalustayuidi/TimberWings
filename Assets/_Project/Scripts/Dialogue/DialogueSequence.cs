@@ -130,14 +130,44 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     {
         get
         {
-            if (isQuestReminder && reminderHandledExternally) return false;
+            if (StoryInspection.IsSuperseded(this) || (isQuestReminder && reminderHandledExternally)) return false;
             if (NpcConversationPolicy.DeliveryPending(this)) return false;
             if (isQuestReminder && NpcConversationPolicy.TaskInProgress) return false;
-            return trigger == Trigger.OnInteract && !playing && lines != null && lines.Length > 0 && (!played || !once);
+            return trigger == Trigger.OnInteract && !playing && lines != null && lines.Length > 0 && (!played || !once || StoryInspection.AllowsReplay(this));
         }
     }
 
-    public void Interact() { Play(); }
+    public void Interact()
+    {
+        var inspection = StoryInspection.For(this);
+        if (inspection != null) inspection.TryPlay(this);
+        else Play();
+    }
+
+    internal bool InspectionSeen => played || DialogueSeen.Has(PersistId);
+    internal void SyncInspectionSeen()
+    {
+        if (!playing && !string.IsNullOrEmpty(PersistId))
+        {
+            played = DialogueSeen.Has(PersistId);
+            if (marker != null) marker.SetVisible(!played);
+        }
+    }
+
+    internal StoryInspection InspectionOwner { get; private set; }
+    Coroutine inspectionRun;
+
+    internal void PlayInspection(StoryInspection owner)
+    {
+        if (!playing) inspectionRun = StartCoroutine(Run(owner));
+    }
+
+    internal void CancelInspection(StoryInspection owner)
+    {
+        if (InspectionOwner != owner) return;
+        if (inspectionRun != null) StopCoroutine(inspectionRun);
+        FinishRun(false);
+    }
 
     // ------------------------------------------------------------ жизненный цикл
     void Awake()
@@ -155,6 +185,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     void OnDisable()
     {
         Interactables.Unregister(this);
+        if (InspectionOwner != null) CancelInspection(InspectionOwner);
         ClearProgress();
         if (playing)
         {
@@ -219,13 +250,14 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     IEnumerator DelayedStart()
     {
         yield return new WaitForSeconds(startDelay);
+        while (StoryInspection.Active) yield return null;
         Play();
     }
 
     public void Play()
     {
-        if (playing || lines == null || lines.Length == 0) return;
-        if (trigger == Trigger.OnInteract && !CanInteract) return;
+        if (playing || StoryInspection.Active || StoryInspection.IsSuperseded(this) || lines == null || lines.Length == 0) return;
+        if (trigger == Trigger.OnInteract && (!CanInteract || (once && played))) return;
         StartCoroutine(Run());
     }
 
@@ -249,15 +281,16 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     // для повторного запуска «разового» разговора
     public void ResetAndPlay() { played = false; Play(); }
 
-    IEnumerator Run()
+    IEnumerator Run(StoryInspection inspection = null)
     {
+        InspectionOwner = inspection;
         playing = true;
         played = true;
         DialogueSeen.Mark(PersistId);   // запоминаем сразу: выход посреди реплики тоже считается «звучало»
         activeCount++;
         presenting = this; facingA=facingB=null; ActiveLine = 0; ActiveLineCount = lines.Length; ActiveTitle = conversationTitle;
         DialogueManager.BeginConversation();
-        Freeze();
+        if (inspection == null) Freeze();
         if (marker != null) marker.SetVisible(false);
 
         for (int i = 0; i < lines.Length; i++)
@@ -275,31 +308,45 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
 
             // разговор пропущен (удержание E): реплика не показывается, но её событие уже сработало,
             // а текст ушёл в журнал: игрок может перечитать
-            if (DialogueManager.SkipAllRequested)
+            if (DialogueManager.SkipAllRequested || (inspection != null && inspection.SkipRequested))
             {
                 DialogueLog.Add(who != null ? who.displayName : "", l.text, true);
                 continue;
             }
 
             bool done = false;
-            DialogueManager.Say(who, l.text, l.voice, () => done = true, who != null ? who.displayName : l.speaker);
+            if (inspection != null)
+                DialogueManager.SayInspection(inspection, who, l.text, () => done = true);
+            else
+                DialogueManager.Say(who, l.text, l.voice, () => done = true, who != null ? who.displayName : l.speaker);
             while (!done) yield return null;
-            if (l.pauseAfter > 0f && !DialogueManager.SkipAllRequested) yield return new WaitForSecondsRealtime(l.pauseAfter);
+            if (inspection != null)
+            {
+                if (!inspection.SkipRequested && i < lines.Length - 1) yield return new WaitForSeconds(.20f);
+            }
+            else if (l.pauseAfter > 0f && !DialogueManager.SkipAllRequested) yield return new WaitForSecondsRealtime(l.pauseAfter);
         }
-        DialogueManager.EndConversation();
+        FinishRun(true);
+    }
 
+    void FinishRun(bool completed)
+    {
+        InspectionOwner = null;
+        inspectionRun = null;
+        DialogueManager.EndConversation();
         playing = false;
         activeCount = Mathf.Max(0, activeCount - 1);
         ClearProgress();
         Unfreeze();
         if (marker != null) marker.SetVisible(!once);
+        if (!completed) return;
         GameEvents.RaiseDialogueFinished(this);
         if (onFinished != null) onFinished.Invoke();
     }
 
     void Update()
     {
-        if (trigger != Trigger.PlayerNear || playing) return;
+        if (trigger != Trigger.PlayerNear || playing || StoryInspection.Active) return;
 
         timer -= Time.deltaTime;
         if (timer > 0f) return;

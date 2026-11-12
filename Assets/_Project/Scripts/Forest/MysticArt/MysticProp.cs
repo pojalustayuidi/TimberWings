@@ -12,6 +12,7 @@ public sealed class MysticProp : MonoBehaviour, IInteractable
     {
         get
         {
+            if (StoryInspection.IsSuperseded(this)) return null;
             if (key == "Bench_4" && transform.Find("Engraving_Bench") != null) return "Зарубки на скамье";
             if (key == "Witness_1" && transform.Find("Engraving_Witness") != null) return "Камень-свидетель";
             if (key == "Gunnar_Memory" && transform.Find("Bridge_Engraving") != null) return "Знак Гуннара";
@@ -29,7 +30,7 @@ public sealed class MysticProp : MonoBehaviour, IInteractable
         {
             var player = PlayerMovement.Instance;
             return player != null && Mathf.Abs(player.transform.position.y - transform.position.y) < 2f
-                && InspectionTitle != null;
+                && InspectionTitle != null && StoryInspection.CanInspectEngraving(this);
         }
     }
 
@@ -49,6 +50,12 @@ public sealed class MysticProp : MonoBehaviour, IInteractable
             case "Bench_4": line = "Зарубки идут по порядку. После шестой на скамье осталось пустое место."; break;
             case "Witness_1": line = "Рядом со старой надписью выбит знак моста."; break;
             default: line = "Кто-то вырезал на дереве мост с двумя башнями."; break;
+        }
+        var inspection = StoryInspection.For(this);
+        if (inspection != null)
+        {
+            inspection.TryPlay(this, line);
+            return;
         }
         SaveIndicator.ShowToast(line);
         MapPoi.ReportInspection(transform);

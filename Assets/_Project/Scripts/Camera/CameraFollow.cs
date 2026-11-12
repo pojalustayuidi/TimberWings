@@ -218,7 +218,7 @@ public class CameraFollow : MonoBehaviour
         }
 
         // ---------- зум
-        if (allowScrollZoom && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera)
+        if (allowScrollZoom && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera && !StoryInspection.Active)
         {
             float s = Input.mouseScrollDelta.y;
             if (Mathf.Abs(s) > 0.01f) userZoom = Mathf.Clamp(userZoom - s * zoomStep, zoomMin, zoomMax);

@@ -238,11 +238,12 @@ public class PlayerMovement : MonoBehaviour
         Vector3 input = new Vector3(moveX, 0, moveZ).normalized;
 
         // разговор идёт: стоим на месте и смотрим на собеседника
-        bool frozen = DialogueSequence.FreezesPlayer;
+        bool inspecting = StoryInspection.Active;
+        bool frozen = DialogueSequence.FreezesPlayer || inspecting;
         if (frozen)
         {
             input = Vector3.zero;
-            var focus = DialogueSequence.Focus;
+            var focus = inspecting ? null : DialogueSequence.Focus;
             if (focus != null && model != null)
             {
                 Vector3 d = focus.position - transform.position;
@@ -261,7 +262,7 @@ public class PlayerMovement : MonoBehaviour
 
         // рубка: стоим на месте и смотрим на дерево
         bool chopping = interaction != null && interaction.IsChopping;
-        if (chopping && lockMovementWhileChopping)
+        if (chopping && lockMovementWhileChopping && !inspecting)
         {
             input = Vector3.zero;
             Transform tree = interaction.CurrentTarget;
@@ -285,6 +286,9 @@ public class PlayerMovement : MonoBehaviour
                     input = Quaternion.Euler(0, -cameraYaw, 0) * wd;   // ниже input снова поворачивается на cameraYaw: получится wd
             }
         }
+
+        if (inspecting && !ControlLocked)
+            input = Quaternion.Euler(0f, -cameraYaw, 0f) * StoryInspection.WalkDirection;
 
         bool isMoving = input != Vector3.zero;
 
@@ -332,6 +336,12 @@ public class PlayerMovement : MonoBehaviour
         if (ControlLocked) return;   // падение: скорость не трогаем, летим по инерции и гравитации (или двигает IslandEdgeGuard)
 
         Vector3 v = rb.linearVelocity;
+        if (StoryInspection.Active)
+        {
+            Vector3 walk = StoryInspection.WalkDirection;
+            rb.linearVelocity = new Vector3(walk.x, v.y, walk.z);
+            return;
+        }
         Vector3 horizontal = new Vector3(v.x, 0f, v.z);
         bool dashing = IsDashing;
         Vector3 dir = moveDirection;

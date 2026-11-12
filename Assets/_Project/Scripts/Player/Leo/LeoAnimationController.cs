@@ -91,9 +91,10 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         float speed=teleport?0:delta.magnitude/Mathf.Max(.001f,Time.deltaTime);
         float k=1-Mathf.Exp(-12*dt);speedSmooth=Mathf.Lerp(speedSmooth,Mathf.Min(speed,18),k);
         bool conversation=DialogueSequence.FreezesPlayer;
+        bool inspecting = StoryInspection.ReadPose(this, out var inspectionPose);
         LeoAirWaterMotion.Frame motion = airWater.Read(player, dt);
         bool blocked=SaveSystem.IsLoading||BuildingController.AnyRevealing||BuildingController.AnyRestorePending||motion.InMotion||WaterSwim.Swimming||(player!=null&&player.ControlLocked&&!conversation);
-        bool chopping=interaction!=null&&interaction.IsChopping&&!blocked&&!conversation;
+        bool chopping=interaction!=null&&interaction.IsChopping&&!blocked&&!conversation&&!StoryInspection.Active;
         var current=chopping?interaction.CurrentTarget:null;
         if(current!=target&&chopping){if(hitFrame!=Time.frameCount)impact.Clear();target=current;}
         if(chopping)
@@ -105,7 +106,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         bool recovering=impact.Recovering(now,book.recovery);
         if (chopping && !recovering)
             contactPoint = LeoChopContact.TryPoint(interaction.TargetItem, transform, out Vector3 point) ? point : (Vector3?)null;
-        bool wantAction=!blocked&&!conversation&&(chopping||recovering);
+        bool wantAction=!blocked&&!conversation&&!StoryInspection.Active&&(chopping||recovering);
         actionWeight=motion.InMotion ? 0f : Mathf.MoveTowards(actionWeight,wantAction?1:0,dt*(wantAction?12:8));
         if (wantAction && hitFrame == Time.frameCount) actionWeight = 1f;
         float desiredMove=!blocked&&!conversation&&!chopping?LeoMotionProfile.Smooth(speedSmooth/.65f):0;
@@ -143,7 +144,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
             if(lastCarried<LeoRig.TierMassive&&carriedNow>=LeoRig.TierMassive)loadPitchVel-=38f;        // 64: massive load
         }
         lastCarried=carriedNow;
-        bool free=!blocked&&!conversation&&!chopping&&rig.Celebration.Age<0f;
+        bool free=!blocked&&!conversation&&!chopping&&!StoryInspection.Active&&rig.Celebration.Age<0f;
         if(pendingAdjust&&free&&now-adjustStart>1.2f){pendingAdjust=false;adjustStart=now;}
         float at=now-adjustStart,adjustTarget=free&&at>=0&&at<1.05f?LeoMotionProfile.Smooth(at/.22f)*(1-LeoMotionProfile.Smooth((at-.78f)/.27f)):0;
         adjustWeight=Mathf.MoveTowards(adjustWeight,adjustTarget,dt*9f);
@@ -151,7 +152,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         fullWeight=Mathf.MoveTowards(fullWeight,capacityNow>0&&carriedNow>=capacityNow?1:0,dt*1.6f);
         float yaw=Mathf.DeltaAngle(previousRotation.eulerAngles.y,transform.eulerAngles.y);previousRotation=transform.rotation;
         turn=Mathf.Lerp(turn,Mathf.Clamp(yaw/Mathf.Max(.001f,dt)/180f,-1,1),k);
-        bool sheath=conversation||blocked||motion.StowTool;
+        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active;
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
         float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
         float holsterRate = chopping || motion.InMotion ? 8f :
@@ -174,8 +175,9 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         frame.bark = contactPoint;
         frame.cheer = cheer;
         frame.motion = motion;
+        if (inspecting && !motion.InMotion) frame.inspection = inspectionPose;
         ApplyPose(frame,plantFeet&&move>.02f&&!blocked,adaptToGround&&!blocked);
-        CurrentState = motion.StowTool ? motion.Label : blocked ? "Rest / blocked" :
+        CurrentState = motion.StowTool ? motion.Label : inspecting ? inspectionPose.state : blocked ? "Rest / blocked" :
             rig.Celebration.Age >= 0f ? "Celebrate" : holster > .01f && holster < .99f ? "Holster" :
             frame.action > .05f ? (hitFrame == Time.frameCount ? "Contact" : recovering ? "Recover" : "Chop / ready") :
             move > .1f ? (carry > .65f ? "Heavy move" : run > .5f ? "Run" : "Walk") :

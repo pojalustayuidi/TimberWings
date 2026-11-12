@@ -86,7 +86,8 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
             previousPosition = player.transform.position;
             travel = delta.magnitude;
         }
-        bool chopping = interaction != null && interaction.IsChopping;
+        bool inspecting = StoryInspection.UsesLegacyPose(this);
+        bool chopping = interaction != null && interaction.IsChopping && !inspecting;
         bool conversation = DialogueSequence.FreezesPlayer;
         bool talking = conversation || (speaker != null && speaker.IsSpeaking);
         bool blocked = SaveSystem.IsLoading || BuildingController.AnyRevealing || BuildingController.AnyRestorePending ||
@@ -96,7 +97,7 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
         LeoAirWaterMotion.Frame motion = airWater.Read(player, dt);
         ReadChopPose(now, dt, chopping, blocked || conversation || motion.InMotion || WaterSwim.Swimming);
         bool canPlaceFeet = player != null && !blocked && !motion.InMotion && !WaterSwim.Swimming;
-        if (motion.InMotion) ResetWorkPose();
+        if (motion.InMotion || inspecting) ResetWorkPose();
         else ReadWorkPose(travel / Mathf.Max(.001f, frameTime), dt, canPlaceFeet && !talking, chopping || chopWeight > .02f);
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
 
@@ -122,7 +123,7 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
             rig.Rotate(rig.head, new Vector3(Mathf.Sin(now * 4f) * voice * 1.5f, 0f, 0f));
             rig.Rotate(rig.jaw, new Vector3(Mathf.Abs(Mathf.Sin(now * 9f)) * voice * 3f, 0f, 0f));
         }
-        bool sheath = blocked || motion.StowTool || (!chopping && (talking || workRequested || workWeight > .001f));
+        bool sheath = blocked || motion.StowTool || inspecting || (!chopping && (talking || workRequested || workWeight > .001f));
         float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
         holster = Mathf.MoveTowards(holster, wantedHolster, dt * (chopping || motion.InMotion ? 8f : 5.5f));
         if (chopHitFrame == Time.frameCount && !sheath) holster = 0f;
@@ -136,6 +137,11 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
             PlaceChopTools();
             rig.PlaceHammer();
             cheer.ApplyHands(rig, holster);
+        }
+        if (inspecting && !motion.InMotion && StoryInspection.ReadPose(rig, out var inspectionPose))
+        {
+            StoryInspection.ApplyActorPose(rig, transform, holster, inspectionPose);
+            rig.PlaceHammer();
         }
         if (readBackpack && backpack != null) rig.ShowCargo(backpack.Carried, backpack.Capacity);
         if (blink)

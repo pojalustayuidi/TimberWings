@@ -84,7 +84,7 @@ namespace IslandV2
 
         static void Story(GameObject go, string title, string prompt, params string[] lines)
         {
-            var story = go.AddComponent<GroveChopBlock>(); story.title = title; story.prompt = prompt; story.lines = lines;
+            var story = Undo.AddComponent<GroveChopBlock>(go); story.title = title; story.prompt = prompt; story.lines = lines;
             story.radius = 1.9f; story.toastColor = new Color(0.8f, 0.9f, 0.72f);
         }
 
@@ -152,23 +152,69 @@ namespace IslandV2
                 go => Collider(go, new Vector3(0, 0.7f, 0), new Vector3(3.3f, 1.4f, 1.45f)));
             Place(x, assets, "Bench", "06_Лавка_перекур", new Vector2(-3.5f, 5.6f), new Vector2(1.2f, 0.6f), 148, 1.2f, Bench,
                 go => Collider(go, new Vector3(0, 0.4f, 0), new Vector3(2.2f, 0.8f, 0.7f)));
-            Place(x, assets, "OldMark", "07_Камень_трёх_зарубок", new Vector2(3.1f, 10.7f), new Vector2(0.85f, 0.7f), 175, 1.4f, OldMark,
-                go => { Collider(go, new Vector3(0, 0.55f, 0), new Vector3(1.1f, 1.1f, 0.65f)); Story(go, "Три зарубки", "разглядеть метки", "Под мхом — крыло, песочные часы и три зарубки.", "Камень чуть тёплый. На табличке: «Лес помнит время, которого у нас не было»."); });
-            Place(x, assets, "DuckStool", "08_Пень_который_не_рубят", new Vector2(8.2f, 7.5f), new Vector2(0.65f, 0.65f), -60, 1.1f, DuckStool,
-                go => { Collider(go, new Vector3(0, 0.35f, 0), new Vector3(0.75f, 0.7f, 0.75f)); Story(go, "Служебный пень", "прочитать записку", "«НЕ РУБИТЬ. Это стул. — Мира»", "Деревянная утка выглядит очень занятой. Видимо, начальник участка."); });
+            PlaceInspectionProp(x, assets, "OldMark");
+            PlaceInspectionProp(x, assets, "DuckStool");
             Place(x, assets, "LostClock", "09_Потерянная_стрелка", new Vector2(-9.5f, 5.8f), new Vector2(0.55f, 0.55f), 32, 0.8f, LostClock,
                 go => Story(go, "Чужая минута", "осмотреть находку", "Медная стрелка в корнях. Тот же знак, что на арке и у костра.", "Она двигается только тогда, когда на неё не смотришь. Наверное."));
             Border(x, assets);
         }
 
-        static void Place(TWGroveContext x, TWGroveAssets assets, string key, string name, Vector2 desired, Vector2 half, float yaw, float height,
-            Func<TWGroveModel> model, Action<GameObject> finish)
+        internal static GameObject PlaceInspectionProp(TWGroveContext x, TWGroveAssets assets, string key, bool repair = false)
         {
-            if (Reuse(x, key, out GameObject kept)) return;
+            bool mark = key == "OldMark";
+            string name = mark ? "07_Камень_трёх_зарубок" : "08_Пень_который_не_рубят";
+            Vector2 desired = mark ? new Vector2(3.1f, 10.7f) : new Vector2(8.2f, 7.5f);
+            Vector2 half = mark ? new Vector2(.85f, .7f) : new Vector2(.65f, .65f);
+            float yaw = mark ? 175f : -60f;
+            float height = mark ? 1.4f : 1.1f;
+            Func<TWGroveModel> model = mark ? (Func<TWGroveModel>)OldMark : DuckStool;
+            var prop = PlaceAt(desired, !repair);
+            if (!repair || prop != null) return prop;
+
+            var alternatives = mark
+                ? new[] { new Vector2(-4.8f, 9.2f), new Vector2(5.3f, 5.5f), new Vector2(-5.5f, 3.5f), new Vector2(3.8f, -4.2f) }
+                : new[] { new Vector2(5.9f, 6.6f), new Vector2(-5.2f, 7.3f), new Vector2(4.8f, 1.3f), new Vector2(-4.3f, -6.4f) };
+            foreach (var spot in alternatives)
+            {
+                prop = PlaceAt(spot, false);
+                if (prop != null) return prop;
+            }
+            Debug.LogWarning("Story Inspection: для «" + name + "» не найдено свободное место на суше.");
+            return null;
+
+            GameObject PlaceAt(Vector2 point, bool warn) =>
+                Place(x, assets, key, name, point, half, yaw, height, model,
+                    go => FinishInspectionProp(go, key, addCollider: true), warn);
+        }
+
+        internal static void FinishInspectionProp(GameObject go, string key, bool addCollider)
+        {
+            if (key == "OldMark")
+            {
+                if (addCollider) Collider(go, new Vector3(0, .55f, 0), new Vector3(1.1f, 1.1f, .65f));
+                Story(go, "Три зарубки", "разглядеть метки", "Под мхом — крыло, песочные часы и три зарубки.",
+                    "Камень чуть тёплый. На табличке: «Лес помнит время, которого у нас не было».");
+            }
+            else if (key == "DuckStool")
+            {
+                if (addCollider) Collider(go, new Vector3(0, .35f, 0), new Vector3(.75f, .7f, .75f));
+                Story(go, "Служебный пень", "прочитать записку", "«НЕ РУБИТЬ. Это стул. — Мира»",
+                    "Деревянная утка выглядит очень занятой. Видимо, начальник участка.");
+            }
+        }
+
+        static GameObject Place(TWGroveContext x, TWGroveAssets assets, string key, string name, Vector2 desired, Vector2 half, float yaw, float height,
+            Func<TWGroveModel> model, Action<GameObject> finish, bool warn = true)
+        {
+            if (Reuse(x, key, out GameObject kept)) return kept;
             if (!x.Place(desired, half, yaw, height, out Vector3 p, out Quaternion q))
-            { Debug.LogWarning("GROVE ART: «" + name + "» пропущен: нет безопасного места между деревьями и стройками."); return; }
+            {
+                if (warn) Debug.LogWarning("GROVE ART: «" + name + "» пропущен: нет безопасного места между деревьями и стройками.");
+                return null;
+            }
             var go = Finish(x, assets, model(), key, name, p, q, half, height, key != "LostClock", "Отдельный объект: свободно перемещается, Play Mode сохраняет его положение.");
             finish(go); x.earthPatches.Add(new TWGroveContext.Circle { point = x.Local(p), radius = Mathf.Min(2.3f, half.magnitude + 0.4f) });
+            return go;
         }
 
         internal static bool Reuse(TWGroveContext x, string key, out GameObject go)

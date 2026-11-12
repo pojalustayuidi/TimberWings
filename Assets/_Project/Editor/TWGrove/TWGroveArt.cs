@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -103,6 +104,45 @@ namespace IslandV2
                 Debug.LogError("GROVE ART: сборка отменена, исходное состояние восстановлено. " + e);
             }
             finally { EditorUtility.ClearProgressBar(); }
+        }
+
+        internal static IReadOnlyList<GameObject> RestoreMissingInspectionProps(bool missingMark, bool missingDuck)
+        {
+            var created = new List<GameObject>();
+            if (!missingMark && !missingDuck) return created;
+            string folder = null;
+            try
+            {
+                var x = Inspect();
+                x.root = x.previous != null ? x.previous.artRoot : null;
+                if (x.root == null || !x.root.gameObject.activeInHierarchy)
+                    throw new InvalidOperationException("Не найдена активная запечённая Южная роща.");
+                ReadPlacedFootprints(x);
+                folder = AssetFolder + "/Scenes/" + AssetDatabase.AssetPathToGUID(x.marker.gameObject.scene.path) +
+                    "/Inspection_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                IslandLayout.EnsureFolder(folder);
+                var assets = new TWGroveAssets(folder);
+                Add("OldMark", missingMark);
+                Add("DuckStool", missingDuck);
+                if (created.Count > 0) AssetDatabase.SaveAssets();
+                else if (AssetDatabase.IsValidFolder(folder)) AssetDatabase.DeleteAsset(folder);
+
+                void Add(string key, bool missing)
+                {
+                    if (!missing) return;
+                    var prop = TWGroveProps.PlaceInspectionProp(x, assets, key, repair: true);
+                    if (prop == null) return;
+                    Undo.RegisterCreatedObjectUndo(prop, "Restore grove inspection prop");
+                    created.Add(prop);
+                }
+            }
+            catch (Exception error)
+            {
+                if (created.Count == 0 && folder != null && AssetDatabase.IsValidFolder(folder))
+                    AssetDatabase.DeleteAsset(folder);
+                Debug.LogWarning("Story Inspection: точечное восстановление Южной рощи — " + error.Message);
+            }
+            return created;
         }
 
         static void KeepEditedObjects(TWGroveContext x, bool preserveAll)

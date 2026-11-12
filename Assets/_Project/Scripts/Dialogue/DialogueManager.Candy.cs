@@ -23,7 +23,7 @@ public partial class DialogueManager
     RectTransform canvasRt, bubbleRt, tailRt, subRt, bodyRt, namePillRt;
     CanvasGroup bubbleGroup, subGroup, hintGroup, holdGroup, noteGroup;
     Image namePill, holdRing;
-    TMP_Text nameTxt, bodyTxt, subTxt, hintTxt, noteTxt;
+    TMP_Text nameTxt, bodyTxt, subTxt, hintTxt, noteTxt, inspectionHint;
     static Sprite ringSprite;
     bool softDirty;                              // в сетке текста остались прозрачные буквы: надо один раз перестроить
 
@@ -100,6 +100,7 @@ public partial class DialogueManager
             holdRing = presentation.holdRing; holdGroup = presentation.holdGroup;
             noteGroup = presentation.noteGroup; noteTxt = presentation.noteText;
             bubbleGroup.alpha = 0;
+            using (UiKit.UseSkin(UiSkin.Candy)) BuildSubtitles(bodyTxt.font);
             return;
         }
         using (UiKit.UseSkin(UiSkin.Candy)) BuildCandyUi();
@@ -199,6 +200,29 @@ public partial class DialogueManager
         var tailImg = tailRt.gameObject.AddComponent<Image>();
         tailImg.sprite = UiKit.Tail; tailImg.color = Color.white; tailImg.raycastTarget = false;
 
+        BuildSubtitles(font);
+
+        // плашка «Разговор пропущен»: чуть выше субтитров, живёт ~1.3 с. Персиковая табличка Candy
+        var nt = Child("SkipNote", canvasRt);
+        nt.anchorMin = nt.anchorMax = new Vector2(0.5f, 0f);
+        nt.pivot = new Vector2(0.5f, 0f);
+        nt.anchoredPosition = new Vector2(0f, 120f);
+        nt.sizeDelta = new Vector2(430f, 52f);
+        noteGroup = nt.gameObject.AddComponent<CanvasGroup>();
+        noteGroup.alpha = 0f; noteGroup.blocksRaycasts = false; noteGroup.interactable = false;
+        var nb = Child("Back", nt);
+        Stretch(nb, 0, 0, 0, 0);
+        var ni = nb.gameObject.AddComponent<Image>();
+        ni.sprite = UiKit.Plaque; ni.type = Image.Type.Sliced; ni.pixelsPerUnitMultiplier = 1f / 0.5f; ni.color = Color.white; ni.raycastTarget = false;
+        var nx = Child("Text", nt);
+        Stretch(nx, 16f, 6f, 16f, 6f);
+        noteTxt = MakeText(nx, 26f, UiCandy.Ink, font, TextAlignmentOptions.Center);
+        noteTxt.fontStyle = FontStyles.Normal;
+        noteTxt.text = "Разговор пропущен";
+    }
+
+    void BuildSubtitles(TMP_FontAsset font)
+    {
         // ---------- субтитры: облачная плашка внизу экрана
         subRt = Child("Subtitles", canvasRt);
         subRt.anchorMin = subRt.anchorMax = new Vector2(0.5f, 0f);
@@ -222,23 +246,13 @@ public partial class DialogueManager
         subTxt.richText = true;
         subTxt.enableWordWrapping = true;
 
-        // плашка «Разговор пропущен»: чуть выше субтитров, живёт ~1.3 с. Персиковая табличка Candy
-        var nt = Child("SkipNote", canvasRt);
-        nt.anchorMin = nt.anchorMax = new Vector2(0.5f, 0f);
-        nt.pivot = new Vector2(0.5f, 0f);
-        nt.anchoredPosition = new Vector2(0f, 120f);
-        nt.sizeDelta = new Vector2(430f, 52f);
-        noteGroup = nt.gameObject.AddComponent<CanvasGroup>();
-        noteGroup.alpha = 0f; noteGroup.blocksRaycasts = false; noteGroup.interactable = false;
-        var nb = Child("Back", nt);
-        Stretch(nb, 0, 0, 0, 0);
-        var ni = nb.gameObject.AddComponent<Image>();
-        ni.sprite = UiKit.Plaque; ni.type = Image.Type.Sliced; ni.pixelsPerUnitMultiplier = 1f / 0.5f; ni.color = Color.white; ni.raycastTarget = false;
-        var nx = Child("Text", nt);
-        Stretch(nx, 16f, 6f, 16f, 6f);
-        noteTxt = MakeText(nx, 26f, UiCandy.Ink, font, TextAlignmentOptions.Center);
-        noteTxt.fontStyle = FontStyles.Normal;
-        noteTxt.text = "Разговор пропущен";
+        var skip = Child("InspectionSkipHint", canvasRt);
+        skip.anchorMin = skip.anchorMax = new Vector2(.5f, 0f);
+        skip.pivot = new Vector2(.5f, 0f);
+        skip.anchoredPosition = new Vector2(0f, 7f);
+        skip.sizeDelta = new Vector2(560f, 25f);
+        inspectionHint = MakeText(skip, 19f, Color.white, font, TextAlignmentOptions.Center);
+        skip.gameObject.SetActive(false);
     }
 
     const float SubPadTop = 12f;

@@ -65,7 +65,7 @@ public class InteractionHub : MonoBehaviour
 
     void Update()
     {
-        bool busy = DialogueManager.IsBusy || DialogueSequence.AnyPlaying;
+        bool busy = DialogueManager.IsBusy || DialogueSequence.AnyPlaying || StoryInspection.Active;
         // E, которой только что закончили диалог (пропуск последней реплики), второй раз не считаем
         bool lockInput = busy || wasBusy;
         wasBusy = busy;
@@ -77,13 +77,14 @@ public class InteractionHub : MonoBehaviour
             Pick();
         }
 
-        if (!lockInput && Current != null && Current.CanInteract && MobileInput.ActionDown)
+        if (!lockInput && !StoryInspection.SuppressPlayerAction && Current != null && Current.CanInteract && MobileInput.ActionDown)
         {
             if (worldTag != null) worldTag.Punch(0.2f);
             Current.Interact();
         }
 
-        OwnsInput = busy || Current != null || DialogueManager.BlocksUntilRelease;
+        busy |= StoryInspection.Active;
+        OwnsInput = busy || Current != null || DialogueManager.BlocksUntilRelease || StoryInspection.SuppressPlayerAction;
         UpdatePrompt(busy);
     }
 

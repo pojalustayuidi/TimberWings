@@ -211,7 +211,7 @@ public partial class PlayerInteraction : MonoBehaviour
 
     static bool DialogueBusy()
     {
-        return DialogueManager.IsBusy || DialogueSequence.AnyPlaying || DialogueManager.BlocksUntilRelease;
+        return DialogueManager.IsBusy || DialogueSequence.AnyPlaying || DialogueManager.BlocksUntilRelease || StoryInspection.SuppressPlayerAction;
     }
 
     // мышь работает как «руки»: только на ПК, курсор свободен, нет окон и реплик

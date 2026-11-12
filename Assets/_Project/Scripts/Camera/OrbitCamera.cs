@@ -278,7 +278,7 @@ public class OrbitCamera : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(toggleKey) && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera)
+        if (Input.GetKeyDown(toggleKey) && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera && !StoryInspection.Active)
         {
             Enabled = !Enabled;
             PlayerPrefs.Save();
@@ -607,7 +607,7 @@ public class OrbitCamera : MonoBehaviour
         }
         // ---------- ввод
         Vector2 delta = Vector2.zero;
-        bool modal = MobileInput.ModalOpen || conversation || !Application.isFocused;
+        bool modal = MobileInput.ModalOpen || conversation || StoryInspection.Active || !Application.isFocused;
         // окно, диалог, показ стройки или возврат фокуса закончились: мышь оживает через короткую паузу
         if (wasModal && !modal) resumeLookAt = Mathf.Max(resumeLookAt, Time.unscaledTime + lookResumeDelay);
         wasModal = modal;

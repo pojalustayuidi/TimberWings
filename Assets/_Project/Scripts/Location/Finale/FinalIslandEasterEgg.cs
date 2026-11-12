@@ -21,6 +21,12 @@ public sealed class FinalIslandEasterEgg : MonoBehaviour, IInteractable
     public void Interact()
     {
         if (!CanInteract) return;
+        var inspection = StoryInspection.For(this);
+        if (inspection != null)
+        {
+            inspection.TryPlay(this, StoryInspection.FinaleLine);
+            return;
+        }
         SaveIndicator.ShowToast("VII. Седьмую скамью я всё-таки унёс. — Гуннар");
         MapPoi.ReportInspection(transform);
     }
