@@ -44,6 +44,15 @@ public class BuildingController : MonoBehaviour
     public float buildTime = 2.5f;           // время одного этапа, секунды
     public int rewardXp = 10;                // GDD: +10 опыта за этап
 
+    [Header("Рабочее место героя (BuildWorkPose)")]
+    [Tooltip("true = пока идёт этап, герой подходит к стене здания, встаёт у неё и бьёт молотком по стене. Уйти нельзя, пока этап не закончен. " +
+             "Если что-то пошло не так, блокировка снимается сама (Lock Safety Seconds)")]
+    public bool lockPlayerWhileBuilding = true;
+    [Tooltip("Страховка: через столько секунд сверх времени этапа блокировка героя снимается сама")]
+    public float lockSafetySeconds = 6f;
+    [Tooltip("true = этап закрывается ровно на ударе молотка («последний гвоздь»), а не на тике таймера")]
+    public bool finishOnStrike = true;
+
     [Header("Визуальные эффекты (VFX)")]
     public ParticleSystem buildingVFX;
     public ParticleSystem finishVFX;
@@ -368,6 +377,9 @@ public class BuildingController : MonoBehaviour
     int depositedCoins = 0;
     float depositTimer = 0f;
     const float DepositInterval = 0.12f;   // одно бревно за раз, чтобы сдача была видна
+    const float FinishStrikeWait = 1.1f;   // сколько ждём удара молотка, чтобы закрыть этап на нём (дольше: закрываем без удара)
+    float finishWaitFrom = -1f;            // когда таймер дошёл до конца и мы ждём «последний гвоздь» (-1 = не ждём)
+    int strikesAtFinish;
     int insideCount = 0;          // у игрока несколько коллайдеров, считаем входы
     PlayerInventory inside;
     WorldTag ring;
@@ -595,6 +607,8 @@ public class BuildingController : MonoBehaviour
         insideCount = Mathf.Max(0, insideCount - 1);
         if (insideCount == 0)
         {
+            // этап идёт, герой заперт у стены: рабочее место может оказаться за краем зоны, это не «ушёл»
+            if (isBuilding && lockPlayerWhileBuilding && !isFinished) return;
             inside = null;
             if (isBuilding && !isFinished) StopBuilding();   // игрок убежал: прогресс сохраняется
         }
@@ -610,6 +624,9 @@ public class BuildingController : MonoBehaviour
             if (Time.time >= revealEndAt) EndReveal(true);
             return;
         }
+
+        // герой вышел из зоны, пока этап был заперт (см. OnTriggerExit): запись «внутри» больше не нужна
+        if (inside != null && insideCount == 0 && !(isBuilding && lockPlayerWhileBuilding)) inside = null;
 
         if (isFinished || inside == null) return;
 
@@ -646,6 +663,9 @@ public class BuildingController : MonoBehaviour
 
         if (!isBuilding) BeginBuilding();
 
+        // герой ещё идёт к рабочему месту у стены: таймер ждёт, чтобы все удары молотка попадали по зданию
+        if (lockPlayerWhileBuilding && !BuildWorkPose.IsReady) return;
+
         currentBuildTimer += Time.deltaTime;
         float progress = GetProgress();
         if (stages != null) HutBuildSite.SetProgressFor(stages, progress);
@@ -659,7 +679,17 @@ public class BuildingController : MonoBehaviour
             ring.SetText(Mathf.CeilToInt(Mathf.Max(0f, BuildTime - currentBuildTimer)).ToString());
         }
 
-        if (currentBuildTimer >= BuildTime) CompleteStep(inside);
+        if (currentBuildTimer >= BuildTime)
+        {
+            // «последний гвоздь»: этап закрывается ударом молотка. Если героя с молотком нет или удар не пришёл, закрываем сами
+            if (finishOnStrike && lockPlayerWhileBuilding && BuildWorkPose.UsesHammer)
+            {
+                if (finishWaitFrom < 0f) { finishWaitFrom = Time.time; strikesAtFinish = BuildWorkPose.StrikeCount; }
+                bool struck = BuildWorkPose.StrikeCount > strikesAtFinish;
+                if (!struck && Time.time - finishWaitFrom < FinishStrikeWait) return;
+            }
+            CompleteStep(inside);
+        }
     }
 
     void DepositTick()
@@ -682,8 +712,9 @@ public class BuildingController : MonoBehaviour
     void BeginBuilding()
     {
         isBuilding = true;
+        finishWaitFrom = -1f;
         if (stages != null) { HutBuildSite.SetWorkingFor(stages, true); HutBuildSite.SetProgressFor(stages, GetProgress()); }
-        BuildWorkPose.Hold(inside, stages != null ? stages.transform : transform, true);
+        BuildWorkPose.Hold(inside, stages != null ? stages.transform : transform, true, this);
         if (buildingVFX != null) buildingVFX.Play();
 
         if (ring != null) ring.visible = true;
@@ -693,6 +724,7 @@ public class BuildingController : MonoBehaviour
     void StopBuilding()
     {
         isBuilding = false;
+        finishWaitFrom = -1f;
         if (stages != null) HutBuildSite.SetWorkingFor(stages, false);
         BuildWorkPose.Hold(null, null, false);
         if (buildingVFX != null) buildingVFX.Stop();
@@ -724,9 +756,11 @@ public class BuildingController : MonoBehaviour
         bool last = step >= costs.Length;
 
         isBuilding = false;
+        finishWaitFrom = -1f;
         currentBuildTimer = 0f;
         if (stages != null) { HutBuildSite.SetWorkingFor(stages, false); HutBuildSite.SetProgressFor(stages, 0f); }
         BuildWorkPose.Hold(null, null, false);
+        if (insideCount <= 0) inside = null;   // этап закрыт, а герой стоял за краем зоны (рабочее место у стены): запись «внутри» не нужна
 
         if (buildingVFX != null) buildingVFX.Stop();
         if (finishVFX != null) finishVFX.Play();
@@ -955,6 +989,40 @@ public class BuildingController : MonoBehaviour
         GameEvents.RaiseBuildingRestored(SaveId, StageCurrent);
     }
 
+#if UNITY_EDITOR
+    // ---------- тесты из окна QA (Tools/BuilderSim/.../Мост и финал, BridgeQaWindow) ----------
+    // Ставит стройку в состояние «сдано N этапов» БЕЗ наград, XP, звуков, показа и сигнала обучению: путь тот же, что у загрузки сейва.
+    // false = сейчас нельзя (не Play, идёт загрузка или показ стадии)
+    public bool EditorTestRestoreSteps(int completed)
+    {
+        if (!Application.isPlaying || SaveSystem.IsLoading || revealing) return false;
+        EnsureData();
+        int n = Mathf.Clamp(completed, 0, costs.Length);
+        bool done = n >= costs.Length;
+        QueueRestore(new BuildingSaveEntry
+        {
+            id = SaveId,
+            kind = (int)SiteKind,
+            step = n,
+            stage = StageCurrent,
+            isFinished = done,
+            tutorialFired = true   // обучение при тесте не запускаем
+        });
+        ApplyRestore();
+        return true;
+    }
+
+    // Закрывает следующий этап обычным путём (награда, события, показ стадии с облётом), чтобы проверить камеру.
+    // false = этап не запущен: стройка готова, идёт показ или загрузка
+    public bool EditorTestCompleteNextStep()
+    {
+        if (!Application.isPlaying || isFinished || revealing || restorePending || SaveSystem.IsLoading) return false;
+        EnsureData();
+        CompleteStep(null);
+        return true;
+    }
+#endif
+
     // ---------- диагностика и тесты (ПКМ по заголовку компонента) ----------
     [ContextMenu("Диагностика стройки")]
     void Diagnose()
@@ -985,36 +1053,6 @@ public class BuildingController : MonoBehaviour
     }
 
 #if UNITY_EDITOR
-    // Для окна QA: воспроизвести реальное завершение этапа, включая события и облёт.
-    // Ресурсы не списываются, награды тестовые (SaveSystem блокирует запись в режиме QA).
-    public bool EditorTestCompleteNextStep()
-    {
-        if (!Application.isPlaying || !started || isFinished || revealing || restorePending || SaveSystem.IsLoading || !SaveSystem.EditorTestMode)
-            return false;
-        CompleteStep(null);
-        return true;
-    }
-
-    // Для окна QA: тихо выставить прогресс без XP, наград, анимации или событий StageBuilt.
-    // Использует тот же путь восстановления, что загрузка сейва: BuildStageLink и RiverBridge
-    // обновят коллайдеры и проход, поэтому просто показать Stage3 недостаточно.
-    public bool EditorTestRestoreSteps(int completedSteps)
-    {
-        if (!Application.isPlaying || !started || SaveSystem.IsLoading || !SaveSystem.EditorTestMode) return false;
-        EnsureData();
-        int done = Mathf.Clamp(completedSteps, 0, costs.Length);
-        QueueRestore(new BuildingSaveEntry
-        {
-            id = SaveId,
-            kind = (int)SiteKind,
-            step = done,
-            isFinished = done == costs.Length,
-            tutorialFired = done == costs.Length
-        });
-        ApplyRestore();
-        return true;
-    }
-
     // Создаёт ассет Build Site Data из запасных полей и сразу назначает его в поле Data
     [ContextMenu("Создать Build Site Data из текущих полей")]
     void CreateDataAsset()
