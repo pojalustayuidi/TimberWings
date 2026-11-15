@@ -1,6 +1,5 @@
-// Assets/_Project/Scripts/Save/SaveAutoRunner.cs (НЕ в Editor)
-// Создаётся сам до загрузки сцены. Читает сохранение при старте (GameBalance.SaveAutoLoadOnStart),
-// гонит дебаунс RequestSave и автосохранение по таймеру, пишет файл при сворачивании и выходе.
+// Automatically created save runner. Keeps all existing SaveSystem behaviour;
+// SettingsAppearance.PeriodicAutosave only controls periodic interval saves.
 using UnityEngine;
 
 public sealed class SaveAutoRunner : MonoBehaviour
@@ -17,12 +16,12 @@ public sealed class SaveAutoRunner : MonoBehaviour
         var go = new GameObject("SaveAutoRunner");
         DontDestroyOnLoad(go);
         instance = go.AddComponent<SaveAutoRunner>();
-        if (GameBalance.SaveAutoLoadOnStart) SaveSystem.Load();   // секции систем, которых ещё нет, применятся в их Register
+        if (GameBalance.SaveAutoLoadOnStart) SaveSystem.Load();
     }
 
     void Update()
     {
-        SaveSystem.Tick(Time.unscaledDeltaTime, Time.timeScale > 0f);
+        SaveSystem.Tick(Time.unscaledDeltaTime, Time.timeScale > 0f && SettingsAppearance.PeriodicAutosave);
     }
 
     void OnApplicationPause(bool paused)

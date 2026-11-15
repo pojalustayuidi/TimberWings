@@ -36,7 +36,7 @@
 | Подпапка | Что внутри |
 |---|---|
 | Kit | `UiKit`, `UiDraw`, `UiLayout`, `UiKitShowcase`: общий стиль и рисование |
-| Core | `UiLayers`, `UiModal`, `UiInputGuard`, `UiClickFallback`, safe area |
+| Core | `UiLayers`, `UiModal`, `UiInputGuard`, `UiClickFallback`, safe area, `GameCursor` (+`Trail`, `Art`: курсор с золотым следом, сам создаётся при старте) |
 | Hud | основной HUD: `UIManager`, `HudGain*`, `HudPlanks`, `ObjectiveView`, `RewardPopups`, `ZoneToast`, `SaveIndicator`, `ChopRewards` |
 | Map | миникарта и большая карта: `HudMinimap.*`, `MapIcons`, `MapPoi`, `MinimapPost.shader` |
 | Construction | окна стройки, пилорамы и продажи |

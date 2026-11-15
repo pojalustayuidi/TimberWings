@@ -50,7 +50,7 @@ public static class MobileInput
 
     // Ходить нельзя: открыто окно, или герой «заперт» на стройке (пока идёт этап, он стоит у стены и бьёт молотком).
     // В отличие от ModalOpen, E и интерфейс стройки при этом работают (полоска стройки раскрывается по E).
-    static bool MoveBlocked { get { return ModalOpen || BuildWorkPose.MovementLocked; } }
+    static bool MoveBlocked { get { return ModalOpen || BuildWorkPose.MovementLocked || LeoCelebration.IsPlaying; } }
 
     public static float Horizontal
     {
@@ -62,16 +62,32 @@ public static class MobileInput
         get { return MoveBlocked ? 0f : Mathf.Clamp(Axis(KeyCode.W, KeyCode.UpArrow) - Axis(KeyCode.S, KeyCode.DownArrow) + Virtual.y, -1f, 1f); }
     }
 
-    public static bool ActionHeld { get { return !ModalOpen && (Input.GetKey(ActionKey) || VirtualActionHeld); } }
-    public static bool ActionDown { get { return !ModalOpen && (Input.GetKeyDown(ActionKey) || virtualDownFrame == Time.frameCount); } }
+    public static bool ActionHeld { get { return !ModalOpen && !LeoCelebration.IsPlaying && !HeldActionSuppressed && (Input.GetKey(ActionKey) || VirtualActionHeld); } }
+    public static bool ActionDown { get { return !ModalOpen && !LeoCelebration.IsPlaying && !HeldActionSuppressed && (Input.GetKeyDown(ActionKey) || virtualDownFrame == Time.frameCount); } }
 
     // Бонус рубки: Пробел, пока держишь E у дерева (на телефоне пока нет кнопки: см. MobileControls)
-    public static bool BonusDown { get { return !ModalOpen && Input.GetKeyDown(KeyCode.Space); } }
+    public static bool BonusDown { get { return !ModalOpen && !LeoCelebration.IsPlaying && Input.GetKeyDown(KeyCode.Space); } }
 
     // Рывок (навык carry_dash): Shift на ПК или кнопка на телефоне. Окна и диалоги его не пропускают.
     public static bool DashDown
     {
         get { return !MoveBlocked && (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift) || virtualDashFrame == Time.frameCount); }
+    }
+
+    // Do not buffer a held E/touch button across the end of a celebration.
+    static bool suppressHeldAction;
+    internal static void SuppressHeldActionUntilRelease()
+    {
+        if (Input.GetKey(ActionKey) || VirtualActionHeld) suppressHeldAction = true;
+    }
+    static bool HeldActionSuppressed
+    {
+        get
+        {
+            if (suppressHeldAction && !Input.GetKey(ActionKey) && !VirtualActionHeld)
+                suppressHeldAction = false;
+            return suppressHeldAction;
+        }
     }
 
     static float Axis(KeyCode a, KeyCode b) { return (Input.GetKey(a) || Input.GetKey(b)) ? 1f : 0f; }
@@ -87,6 +103,7 @@ public static class MobileInput
         VirtualActionHeld = false;
         virtualDownFrame = -1;
         virtualDashFrame = -1;
+        suppressHeldAction = false;
     }
 }
 

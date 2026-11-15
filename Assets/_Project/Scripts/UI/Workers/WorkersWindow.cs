@@ -79,6 +79,7 @@ public partial class WorkersWindow : MonoBehaviour
     WorkerCamp camp;
     bool open, built, dirty, oddsOpen;
     float openK, refreshAt, shakeT;
+    float shakeDur = 0.45f, shakeAmp = 9f;   // длительность и сила тряски окна (у Легендарного и Мифического сильнее)
     int openFrame = -1;
     Tab tab = Tab.Brigade;
     string selId;                       // выбранный рабочий (Бригада)
@@ -284,7 +285,7 @@ public partial class WorkersWindow : MonoBehaviour
         if (shakeT > 0f)
         {
             shakeT = Mathf.Max(0f, shakeT - dt);
-            float a = 9f * (shakeT / 0.45f);
+            float a = shakeAmp * (shakeT / shakeDur);
             panel.anchoredPosition = new Vector2(Random.Range(-a, a), Random.Range(-a, a));
             if (shakeT <= 0f) panel.anchoredPosition = Vector2.zero;
         }

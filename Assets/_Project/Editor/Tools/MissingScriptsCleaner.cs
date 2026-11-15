@@ -1,76 +1,109 @@
 #if UNITY_EDITOR
-// Assets/_Project/Editor/Tools/MissingScriptsCleaner.cs
-// Меню: Tools > BuilderSim > Убрать слетевшие скрипты (Missing)
-// «Слетевший» скрипт = пустой компонент «Missing (Mono Script)» на объекте сцены. Он ничего не делает, только
-// ругается в Console при запуске. Возникает, когда файл скрипта удалили и создали заново (у него новый GUID),
-// переименовали класс, или у файла в имени «(1)» (имя файла MonoBehaviour должно совпадать с именем класса).
-// Что делает меню (всё откатывается Ctrl+Z):
-//   1) убирает все пустые компоненты со всех объектов открытой сцены (с настоящими компонентами ничего не происходит);
-//   2) на каждую рабочую зону сдачи (есть триггер-коллайдер) возвращает BuildSiteHighlighter (кольцо и луч), если его нет.
-// Игрок, Мира, IntroFlow, StoryFlow проверяются в Setup Doctor: если там OK, ничего важного не потеряно.
+using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+// Repairs only the active saved scene. Never modifies prefab assets or other open scenes.
 public static class MissingScriptsCleaner
 {
-    [MenuItem("Tools/BuilderSim/Отладка и тесты/Убрать слетевшие скрипты (Missing)", false, 1001)]
+    const string MenuPath = "Tools/BuilderSim/Отладка и тесты/Убрать слетевшие скрипты (Missing)";
+
+    [MenuItem(MenuPath, false, 1001)]
     static void Run()
     {
-        var targets = new System.Collections.Generic.List<GameObject>();
-        int total = 0;
-        foreach (var tr in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        Scene scene = SceneManager.GetActiveScene();
+        if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrEmpty(scene.path) ||
+            EditorApplication.isPlayingOrWillChangePlaymode || PrefabStageUtility.GetCurrentPrefabStage() != null)
         {
-            var go = tr.gameObject;
-            if (!go.scene.IsValid() || EditorUtility.IsPersistent(go)) continue;
-            int n = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go);
-            if (n > 0) { targets.Add(go); total += n; }
-        }
-
-        if (total == 0 && !NeedHighlighters())
-        {
-            EditorUtility.DisplayDialog("Слетевшие скрипты", "Пустых компонентов (Missing) на сцене нет, зоны сдачи в порядке.", "OK");
+            EditorUtility.DisplayDialog("Слетевшие скрипты",
+                "Открой сохранённую игровую сцену в Edit Mode (не Prefab Mode).", "OK");
             return;
         }
 
-        if (total > 0 && !EditorUtility.DisplayDialog("Слетевшие скрипты",
-                "Найдено пустых компонентов: " + total + " на объектах: " + targets.Count + ".\nУбрать их? (Откат: Ctrl+Z)", "Убрать", "Отмена"))
-            return;
+        var missingObjects = new List<GameObject>();
+        var buildingZones = new List<BuildingController>();
+        int missing = 0;
+        int skippedPrefabObjects = 0;
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            foreach (Transform transform in root.GetComponentsInChildren<Transform>(true))
+            {
+                GameObject go = transform.gameObject;
+                int count = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go);
+                if (count <= 0) continue;
 
-        var sb = new StringBuilder("=== Слетевшие скрипты ===\n");
+                // Removing missing components from prefab instances can create fragile
+                // overrides. Fix those in the source prefab, outside this scene utility.
+                if (PrefabUtility.IsPartOfPrefabInstance(go))
+                {
+                    skippedPrefabObjects++;
+                    continue;
+                }
+                missingObjects.Add(go);
+                missing += count;
+            }
+            buildingZones.AddRange(root.GetComponentsInChildren<BuildingController>(true));
+        }
+
+        var needHighlighter = new List<BuildingController>();
+        foreach (BuildingController zone in buildingZones)
+        {
+            if (zone != null && zone.GetComponent<Collider>() != null &&
+                zone.GetComponent<BuildSiteHighlighter>() == null)
+                needHighlighter.Add(zone);
+        }
+
+        if (missing == 0 && needHighlighter.Count == 0)
+        {
+            EditorUtility.DisplayDialog("Слетевшие скрипты",
+                "В сцене нет доступных для очистки Missing-компонентов и пропущенных подсветок." +
+                (skippedPrefabObjects > 0 ? "\nПропущено prefab-объектов с Missing: " + skippedPrefabObjects + "." : ""), "OK");
+            return;
+        }
+
+        string prompt = "Сцена: " + scene.name + "\nУдалить Missing-компонентов: " + missing +
+            "\nДобавить BuildSiteHighlighter: " + needHighlighter.Count +
+            (skippedPrefabObjects > 0 ? "\nПропустить prefab-объектов с Missing: " + skippedPrefabObjects : "") +
+            "\n\nИзменения затронут только эту сцену. Продолжить?";
+        if (!EditorUtility.DisplayDialog("Очистка сцены", prompt, "Применить", "Отмена")) return;
+
+        Undo.IncrementCurrentGroup();
+        int undoGroup = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName("Remove missing scripts and restore build highlights");
+
         int removed = 0;
-        foreach (var go in targets)
+        var report = new StringBuilder("=== Очистка сцены ").Append(scene.name).AppendLine(" ===");
+        foreach (GameObject go in missingObjects)
         {
-            Undo.RegisterCompleteObjectUndo(go, "Убрать слетевшие скрипты");
-            int r = GameObjectUtility.RemoveMonoBehavioursWithMissingScript(go);
-            removed += r;
-            sb.AppendLine("— «" + go.name + "»: убрано " + r + (MissingCount(go) > 0 ? " (часть осталась: объект из префаба, чисти сам префаб)" : ""));
+            if (go == null) continue;
+            Undo.RegisterFullObjectHierarchyUndo(go, "Remove missing scripts");
+            int count = GameObjectUtility.RemoveMonoBehavioursWithMissingScript(go);
+            removed += count;
+            report.AppendLine("Missing: " + go.name + " (" + count + ")");
         }
-
         int added = 0;
-        foreach (var bc in Object.FindObjectsByType<BuildingController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (BuildingController zone in needHighlighter)
         {
-            if (bc.GetComponent<Collider>() == null || bc.GetComponent<BuildSiteHighlighter>() != null) continue;
-            Undo.AddComponent<BuildSiteHighlighter>(bc.gameObject);
+            if (zone == null || zone.GetComponent<BuildSiteHighlighter>() != null) continue;
+            Undo.AddComponent<BuildSiteHighlighter>(zone.gameObject);
             added++;
-            sb.AppendLine("+ BuildSiteHighlighter на «" + bc.name + "» (" + (bc.transform.parent != null ? bc.transform.parent.name : "-") + ")");
         }
+        Undo.CollapseUndoOperations(undoGroup);
+        if (removed > 0 || added > 0) EditorSceneManager.MarkSceneDirty(scene);
 
-        EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-        sb.AppendLine("Итого: убрано пустых компонентов " + removed + ", возвращено лучей " + added + ". Сохраните сцену (Ctrl+S).");
-        Debug.Log(sb.ToString());
-        EditorUtility.DisplayDialog("Слетевшие скрипты", sb.ToString(), "OK");
+        report.AppendLine("Итог: удалено " + removed + ", добавлено подсветок " + added +
+            ", пропущено prefab-объектов " + skippedPrefabObjects + ".");
+        Debug.Log(report.ToString());
+        EditorUtility.DisplayDialog("Очистка сцены", "Удалено Missing: " + removed +
+            "\nДобавлено подсветок: " + added +
+            "\nPrefab-объекты пропущены: " + skippedPrefabObjects +
+            "\nПроверь результат и сохрани сцену вручную.", "OK");
     }
 
-    static int MissingCount(GameObject go) { return GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go); }
-
-    static bool NeedHighlighters()
-    {
-        foreach (var bc in Object.FindObjectsByType<BuildingController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            if (bc.GetComponent<Collider>() != null && bc.GetComponent<BuildSiteHighlighter>() == null) return true;
-        return false;
-    }
+    [MenuItem(MenuPath, true)]
+    static bool ValidateRun() => !EditorApplication.isPlayingOrWillChangePlaymode;
 }
 #endif

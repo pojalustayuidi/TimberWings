@@ -11,6 +11,30 @@ public static class LeoAxePose
     public static readonly Vector3 Edge = new Vector3(0f, .36049f, .24429f);
     static readonly Vector3 GripToEdge = Edge - MainGrip;
 
+    // Relaxed carry. Without it the hand only got a wrist twist (RestWrist) and the axe stuck out
+    // of the hip almost horizontally, pointing forward. Now the handle stands up beside the right
+    // hip, the head leans out and slightly forward and the blade looks ahead. The numbers keep
+    // the wrist inside arm reach (0.433 of 0.456) and the shaft ~0.12 clear of the thigh.
+    static readonly Vector3 CarryGrip = new Vector3(.314f, .754f, .110f);
+    static readonly Vector3 CarryUp = new Vector3(.28f, .93f, .18f).normalized;
+    static readonly Quaternion CarryTool = Quaternion.LookRotation(
+        Vector3.ProjectOnPlane(Vector3.forward, CarryUp).normalized, CarryUp);
+    static readonly Vector3 CarryPole = new Vector3(.62f, .80f, -.16f);
+
+    // weight: 0..1 blend from the current pose; stride: -1..1 gait swing so the axe sways a little.
+    public static void Carry(LeoRig rig, Transform model, float weight, float stride = 0f)
+    {
+        if (rig.handR == null || rig.axeRoot == null || rig.upperArmR == null || weight <= 0f) return;
+        Vector3 grip = CarryGrip + new Vector3(0f, 0f, .028f * stride);
+        Quaternion wrist = RightWrist(model.rotation * CarryTool);
+        LeoRig.SolveTwoBone(rig.upperArmR, rig.elbowR, rig.handR,
+            WristGoal(rig.handR, model.TransformPoint(grip), wrist),
+            model.TransformPoint(CarryPole), wrist, Mathf.Clamp01(weight));
+    }
+
+    // 1 while the axe is in the hand, 0 once the draw/sheathe path owns the arm (holster > 0.2).
+    public static float CarryWeight(float holster) => 1f - LeoMotionProfile.Smooth(holster / .2f);
+
     public static Vector3 Grip(Transform hand) => hand.TransformPoint(Palm);
     public static Quaternion ToolRotation(Transform hand, float palmRoll = 0f)
         => hand.rotation * AcrossPalm * Quaternion.AngleAxis(-palmRoll, Vector3.up);

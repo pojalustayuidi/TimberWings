@@ -95,6 +95,9 @@ public sealed partial class LeoModelPresentation
     void PlaceChopTools()
     {
         float action = chopWeight * (1f - holster);
+        // Спокойный хват как основа: рубка и убирание на пояс плавно уходят от него.
+        LeoAxePose.Carry(rig, transform, LeoAxePose.CarryWeight(holster),
+            Mathf.Cos(cycle * Mathf.PI * 2f - .24f) * moveWeight);
         float roll = action > 0f
             ? LeoAxePose.RightArm(rig, transform, chopBook, chopPose, chopPhase, action, chopBark)
             : 0f;

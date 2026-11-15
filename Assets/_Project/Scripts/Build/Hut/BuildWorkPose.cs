@@ -36,6 +36,7 @@ public class BuildWorkPose : MonoBehaviour
     PlayerInteraction interaction;
     PlayerMovement movement;
     bool on, leoActive;
+    LeoModelPresentation presentation;   // кэш: раньше LateUpdate искал компонент каждый кадр
 
     BuildingController site;
     BuildWorkSpot spot;
@@ -149,7 +150,7 @@ public class BuildWorkPose : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         movement = GetComponent<PlayerMovement>();
         interaction = pi;
-        var presentation = GetComponentInChildren<LeoModelPresentation>();
+        presentation = GetComponentInChildren<LeoModelPresentation>();
         leoActive = presentation != null && presentation.isActiveAndEnabled;
         focus = f;
         site = s;
@@ -322,7 +323,7 @@ public class BuildWorkPose : MonoBehaviour
         if (elapsed > 2.1f) { nodStartedAt = -100f; return; }
         float k = Mathf.Clamp01((elapsed - .8f) / .95f);
         if (k <= 0f || k >= 1f) return;
-        var leo = GetComponentInChildren<LeoModelPresentation>();
+        var leo = presentation != null ? presentation : (presentation = GetComponentInChildren<LeoModelPresentation>());
         if (leo == null || !leo.isActiveAndEnabled || leo.rig == null) return;
         float bow = Mathf.Sin(k * Mathf.PI);
         leo.rig.Rotate(leo.rig.head, new Vector3(7f * bow, 0f, 0f));

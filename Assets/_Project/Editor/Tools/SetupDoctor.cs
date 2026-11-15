@@ -2,8 +2,8 @@
 // Assets/_Project/Editor/Tools/SetupDoctor.cs
 // Меню: Tools > BuilderSim > Проверить подключение (Setup Doctor)
 // Сканирует открытую сцену и пишет в Console отчёт: что подключено (OK), что нужно поправить (ERR/WARN).
-// Почти ничего не меняет: единственная правка, зона костра получает completesTutorial = true (у остальных зон он выключается).
-// Строки FIX в отчёте говорят, что именно поправлено; после них сохрани сцену (Ctrl+S).
+// Аудит только читает данные сцены: никаких автоматических изменений.
+// Для исправления completesTutorial есть отдельная команда с подтверждением и Undo.
 // Отчёт целиком копируется в буфер обмена: вставьте его в чат, и я увижу, что не подключено.
 using System.Text;
 using UnityEditor;
@@ -188,7 +188,6 @@ public static class SetupDoctor
         int campfires = 0;
         var cpObj = GameObject.Find("CAMPFIRE_Point");
         var camp = IntroFlow.FindCampfireBuild(cpObj != null ? cpObj.transform : null);
-        bool fixedAny = false;
         if (camp == null) { errors++; sb.AppendLine("ERR  Не найдена зона костра: нет BuildingController с «campfire» в пути или рядом с CAMPFIRE_Point."); }
         int sceneCount = UnityEngine.SceneManagement.SceneManager.sceneCount;
         if (sceneCount > 1)
@@ -205,11 +204,9 @@ public static class SetupDoctor
             bool isCamp = b == camp;
             if (b.completesTutorial != isCamp)
             {
-                Undo.RecordObject(b, "completesTutorial");
-                b.completesTutorial = isCamp;
-                EditorUtility.SetDirty(b);
-                fixedAny = true;
-                sb.AppendLine("FIX  «" + b.name + "»: completesTutorial = " + isCamp + (isCamp ? " (зона костра)" : " (не костёр)"));
+                warns++;
+                sb.AppendLine("WARN «" + b.name + "»: completesTutorial = " + b.completesTutorial +
+                    ", ожидается " + isCamp + ". Аудит ничего не меняет; используй отдельную команду исправления.");
             }
 
             string line = "     «" + b.name + "» (родитель: " + (b.transform.parent != null ? b.transform.parent.name : "-") + ", сцена: «" + b.gameObject.scene.name + "», путь: " + HierPath(b.transform) + ")"
@@ -226,8 +223,7 @@ public static class SetupDoctor
             if (b.GetComponent<BoxCollider>() == null) { errors++; sb.AppendLine("ERR  у зоны «" + b.name + "» нет BoxCollider (триггер)."); }
             if (b.GetComponent<BuildSiteTagView>() == null && b.GetComponentInParent<BuildSiteTagView>() == null) { warns++; sb.AppendLine("WARN у зоны «" + b.name + "» нет метки с ценой."); }
         }
-        if (fixedAny) UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-        if (campfires == 0 && camp != null) { errors++; sb.AppendLine("ERR  completesTutorial у костра не включился, проверьте вручную."); }
+        if (campfires == 0 && camp != null) { errors++; sb.AppendLine("ERR  у костра выключен completesTutorial. Запусти отдельную команду исправления флагов."); }
         if (campfires > 1) { warns++; sb.AppendLine("WARN completesTutorial включено у " + campfires + " построек, должно быть только у костра."); }
 
         // несколько зон на одно здание: путаница, игра возьмёт лучшую, остальные лучше удалить
@@ -423,6 +419,63 @@ public static class SetupDoctor
         { warns++; sb.AppendLine("WARN PlayerInventory и PlayerStats на разных объектах: WorkerManager берёт PlayerStats с того же объекта, что и PlayerInventory, XP за найм не выдастся."); }
         sb.AppendLine("INFO Сохранений в проекте нет: найм рабочих сбрасывается при перезапуске игры (как монеты и опыт). Доход идёт по игровому времени и стоит на паузе (timeScale 0)");
     }
+
+    // An explicit, undoable repair action. The normal Setup Doctor audit remains read-only.
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Исправить флаги обучения для строек", false, 1002)]
+    static void FixTutorialFlags()
+    {
+        var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if (EditorApplication.isPlayingOrWillChangePlaymode ||
+            UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage() != null ||
+            !scene.IsValid() || !scene.isLoaded || string.IsNullOrEmpty(scene.path) ||
+            UnityEngine.SceneManagement.SceneManager.sceneCount != 1)
+        {
+            EditorUtility.DisplayDialog("Setup Doctor",
+                "Для исправления открой одну сохранённую игровую сцену в Edit Mode (не Prefab Mode).", "OK");
+            return;
+        }
+
+        GameObject campfirePoint = GameObject.Find("CAMPFIRE_Point");
+        var campfire = IntroFlow.FindCampfireBuild(campfirePoint != null ? campfirePoint.transform : null);
+        if (campfire == null || campfire.gameObject.scene != scene)
+        {
+            EditorUtility.DisplayDialog("Setup Doctor", "Не найдена зона костра в активной сцене. Изменений нет.", "OK");
+            return;
+        }
+
+        var changes = new System.Collections.Generic.List<BuildingController>();
+        foreach (GameObject root in scene.GetRootGameObjects())
+            foreach (BuildingController zone in root.GetComponentsInChildren<BuildingController>(true))
+                if (zone != null && zone.completesTutorial != (zone == campfire)) changes.Add(zone);
+
+        if (changes.Count == 0)
+        {
+            EditorUtility.DisplayDialog("Setup Doctor", "Флаги обучения уже корректны. Изменений нет.", "OK");
+            return;
+        }
+        if (!EditorUtility.DisplayDialog("Setup Doctor",
+            "Будут исправлены флаги completesTutorial на " + changes.Count +
+            " строительных зонах активной сцены. Продолжить?", "Исправить", "Отмена")) return;
+
+        Undo.IncrementCurrentGroup();
+        int group = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName("Fix build tutorial flags");
+        foreach (BuildingController zone in changes)
+        {
+            if (zone == null) continue;
+            Undo.RecordObject(zone, "Fix completesTutorial");
+            zone.completesTutorial = zone == campfire;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(zone);
+            EditorUtility.SetDirty(zone);
+        }
+        Undo.CollapseUndoOperations(group);
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+        Debug.Log("[Setup Doctor] completesTutorial: исправлено " + changes.Count +
+            " зон. Проверь Undo и сохрани сцену вручную.");
+    }
+
+    [MenuItem("Tools/BuilderSim/Отладка и тесты/Исправить флаги обучения для строек", true)]
+    static bool CanFixTutorialFlags() => !EditorApplication.isPlayingOrWillChangePlaymode;
 
     static string HierPath(Transform t)
     {

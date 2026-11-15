@@ -54,7 +54,7 @@ public class ForestLook : MonoBehaviour
     [Tooltip("Доля дополнительного оттенка: 0 — только старые цвета, 1 — максимальный атмосферный цвет.")]
     [Range(0f,1f)] public float distanceFogTintStrength = .35f;
     public Color distanceFogDayColor = new Color(.65f,.79f,.78f);
-    public Color distanceFogNightColor = new Color(.35f,.40f,.56f);
+    public Color distanceFogNightColor = new Color(.24f,.31f,.42f);
 
     [Header("Лучи")]
     public bool shafts = true;
@@ -71,6 +71,26 @@ public class ForestLook : MonoBehaviour
     [Header("Пылинки")]
     public ParticleSystem motes;
     public float moteRate = 14f;
+
+    [Header("Visual Polish 3.5.2 — тёмные лесные зоны")]
+    [Tooltip("Мрачная цветокоррекция ночью только в лесных биомах, без затемнения всего острова.")]
+    public bool nightMood = true;
+    [Tooltip("Ночная экспозиция в глубине кедрового леса (EV). Ноль = без дополнительного затемнения.")]
+    [Range(-1.8f, 0f)] public float cedarNightExposure = -0.68f;
+    [Tooltip("Ночная экспозиция осеннего уголка (EV). Отдельно от мистической рощи.")]
+    [Range(-1.8f, 0f)] public float autumnNightExposure = -0.83f;
+    [Tooltip("Небольшое затемнение обычного густого леса.")]
+    [Range(-0.6f, 0f)] public float ordinaryNightExposure = -0.16f;
+
+    [Header("Visual Polish 3.5.3 — единый стиль осеннего леса")]
+    [Tooltip("Осенний биом использует общую палитру острова, с лёгким сезонным оттенком без отдельного тёмного фильтра.")]
+    public bool unifyAutumnLook = true;
+    [Tooltip("Сила добавочной цветокоррекции 3.5.2 в осеннем лесу. 0 = только общая палитра; 1 = прежняя отдельная обработка.")]
+    [Range(0f, 1f)] public float autumnGradeStrength = 0.30f;
+    [Tooltip("Насколько уменьшить именно ЛОКАЛЬНЫЙ лесной туман в осенней зоне. 1 = оставить только туман базовой сцены.")]
+    [Range(0f, 1f)] public float autumnFogReduction = 1f;
+    [Tooltip("Плавный переход атмосферных эффектов на границе осенней зоны, сек.")]
+    [Range(0.6f, 4f)] public float autumnBlendSeconds = 1.8f;
 
     [Header("Камера в лесу")]
     public bool cameraAssist = true;
@@ -111,10 +131,24 @@ public class ForestLook : MonoBehaviour
 
     float baseBlocker = -1f, addBlocker;
 
+    // Используем уже созданный Volume «Forest Look». profile — runtime-копия,
+    // sharedProfile (asset Unity) не меняем и новых Volume не создаём.
+    ColorAdjustments nightGrade;
+    Vignette nightVignette;
+    bool nightGradeCaptured, nightVignetteCaptured;
+    float originalExposure, originalContrast, originalSaturation, originalVignette;
+    Color originalFilter;
+    bool originalExposureOverride, originalContrastOverride, originalSaturationOverride,
+         originalFilterOverride, originalVignetteOverride;
+    float forestMoodPower;
+    ForestBiome forestMoodBiome = ForestBiome.Forest;
+    float autumnZoneFade;
+
     // ---------------------------------------------------------------- жизненный цикл
     void OnEnable()
     {
         e = 0f;
+        autumnZoneFade = 0f;
         cookieLevel = -1;
         BuildPool();
     }
@@ -124,6 +158,8 @@ public class ForestLook : MonoBehaviour
         ClearCookie();
         RestoreFog();
         RestoreCamera();
+        RestoreNightMood();
+        autumnZoneFade = 0f;
         if (lookVolume != null) lookVolume.weight = 0f;
         if (motes != null) motes.Stop(true, ParticleSystemStopBehavior.StopEmitting);
         if (pool != null)
@@ -191,6 +227,7 @@ public class ForestLook : MonoBehaviour
         if (dt < 0.0001f) return;
 
         FindThings();
+        UpdateAutumnZone(dt);
 
         float target = ReadWeight();
         e = Mathf.MoveTowards(e, target, dt / Mathf.Max(0.05f, blendTime));
@@ -200,6 +237,7 @@ public class ForestLook : MonoBehaviour
         float day = DayFactor();
 
         if (lookVolume != null) lookVolume.weight = k;
+        ApplyNightMood(dt);
 
         ApplyCookie(k);
         ApplyFog(k);
@@ -244,17 +282,122 @@ public class ForestLook : MonoBehaviour
             var go = GameObject.Find("Vibe Forest");
             if (go != null) forestVolume = go.GetComponent<Volume>();
         }
+        if (lookVolume == null)
+        {
+            var go = GameObject.Find("Forest Look");
+            if (go != null) lookVolume = go.GetComponent<Volume>();
+        }
+    }
+
+    // Используем ту же ForestZone, что и лесные деревья и ForestMist.
+    // Переход к осенней зоне мягкий даже при резком пересечении MapZone.
+    void UpdateAutumnZone(float dt)
+    {
+        float target = 0f;
+        if (player != null && ForestZone.All.Count > 0)
+        {
+            ForestZone zone = ForestZone.At(player.position);
+            if (zone != null && zone.biome == ForestBiome.Autumn && !zone.IsNeutral)
+                target = zone.Weight(player.position);
+        }
+        autumnZoneFade = Mathf.MoveTowards(autumnZoneFade, target,
+            dt / Mathf.Max(0.1f, autumnBlendSeconds));
     }
 
     float ReadWeight()
     {
-        if (forestVolume != null && forestVolume.gameObject.activeInHierarchy && forestVolume.enabled)
-            return Mathf.Clamp01(forestVolume.weight);
+        // Подзоны Autumn/Cedar могут быть за пределами основного ForestCameraZone.
+        // Учитываем и прежний Volume, и точную геометрию ForestZone; пустые поляны не затемняются.
+        float volumeWeight = forestVolume != null && forestVolume.gameObject.activeInHierarchy && forestVolume.enabled
+            ? Mathf.Clamp01(forestVolume.weight) : 0f;
+        if (player == null || ForestZone.All.Count == 0) return volumeWeight;
+        ForestZone zone = ForestZone.At(player.position);
+        float zoneWeight = zone != null && !zone.IsNeutral ? zone.Weight(player.position) : 0f;
+        return Mathf.Max(volumeWeight, zoneWeight);
+    }
 
-        // запасной путь: по лесной зоне под игроком
-        if (player == null || ForestZone.All.Count == 0) return 0f;
-        ForestZone z = ForestZone.At(player.position);
-        return z != null ? z.Weight(player.position) : 0f;
+    // Сама цветокоррекция существующего Forest Look Volume, без второго контроллера.
+    // Изменения только в временной runtime-копии профиля (Volume.profile).
+    void CacheNightMood()
+    {
+        if (!Application.isPlaying || lookVolume == null || nightGradeCaptured) return;
+        VolumeProfile profile = lookVolume.profile;
+        if (profile == null) return;
+        if (!profile.TryGet(out nightGrade)) nightGrade = profile.Add<ColorAdjustments>(true);
+        if (!profile.TryGet(out nightVignette)) nightVignette = profile.Add<Vignette>(true);
+        if (nightGrade == null || nightVignette == null) return;
+
+        originalExposure = nightGrade.postExposure.value;
+        originalContrast = nightGrade.contrast.value;
+        originalSaturation = nightGrade.saturation.value;
+        originalFilter = nightGrade.colorFilter.value;
+        originalVignette = nightVignette.intensity.value;
+        originalExposureOverride = nightGrade.postExposure.overrideState;
+        originalContrastOverride = nightGrade.contrast.overrideState;
+        originalSaturationOverride = nightGrade.saturation.overrideState;
+        originalFilterOverride = nightGrade.colorFilter.overrideState;
+        originalVignetteOverride = nightVignette.intensity.overrideState;
+        nightGradeCaptured = nightVignetteCaptured = true;
+    }
+
+    void ApplyNightMood(float dt)
+    {
+        if (!Application.isPlaying) return;
+        CacheNightMood();
+        if (!nightGradeCaptured || player == null) return;
+        ForestZone zone = ForestZone.At(player.position);
+        ForestBiome biome = zone != null ? zone.biome : ForestBiome.Dev;
+        float depth = zone != null && !zone.IsNeutral ? zone.Weight(player.position) : 0f;
+        float night = DayNightCycle.Night01;
+        float nightWeight = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.24f, 0.90f, night));
+        float target = nightMood ? depth * nightWeight : 0f;
+        forestMoodPower = Mathf.MoveTowards(forestMoodPower, target, dt / 1.45f);
+        if (target > 0.05f) forestMoodBiome = biome;
+
+        float exposure = forestMoodBiome == ForestBiome.Autumn ? autumnNightExposure :
+                         forestMoodBiome == ForestBiome.Cedar ? cedarNightExposure :
+                         forestMoodBiome == ForestBiome.Forest ? ordinaryNightExposure : 0f;
+        Color cold = new Color(0.76f, 0.88f, 0.94f);
+        Color autumn = new Color(0.90f, 0.85f, 0.78f);
+        Color moodTint = forestMoodBiome == ForestBiome.Autumn ? autumn : cold;
+        // Старый autumnNightExposure часто сериализован в сцене как -0.83.
+        // НЕ полагаемся на изменение default: смягчаем уже существующее значение в runtime.
+        float autumnScale = unifyAutumnLook && forestMoodBiome == ForestBiome.Autumn
+            ? autumnGradeStrength : 1f;
+        float strength = forestMoodPower * autumnScale;
+        // Смена биомов не должна мгновенно менять цвет всей картинки.
+        float smooth = 1f - Mathf.Exp(-dt / 0.9f);
+        nightGrade.postExposure.Override(Mathf.Lerp(nightGrade.postExposure.value,
+            originalExposure + exposure * strength, smooth));
+        nightGrade.contrast.Override(Mathf.Lerp(nightGrade.contrast.value,
+            originalContrast + 6f * strength, smooth));
+        nightGrade.saturation.Override(Mathf.Lerp(nightGrade.saturation.value,
+            originalSaturation - 18f * strength, smooth));
+        nightGrade.colorFilter.Override(Color.Lerp(nightGrade.colorFilter.value,
+            Color.Lerp(originalFilter, moodTint, strength * 0.60f), smooth));
+        nightVignette.intensity.Override(Mathf.Lerp(nightVignette.intensity.value,
+            Mathf.Clamp(originalVignette + 0.09f * strength, 0f, 0.48f), smooth));
+    }
+
+    void RestoreNightMood()
+    {
+        if (nightGradeCaptured && nightGrade != null)
+        {
+            nightGrade.postExposure.Override(originalExposure);
+            nightGrade.postExposure.overrideState = originalExposureOverride;
+            nightGrade.contrast.Override(originalContrast);
+            nightGrade.contrast.overrideState = originalContrastOverride;
+            nightGrade.saturation.Override(originalSaturation);
+            nightGrade.saturation.overrideState = originalSaturationOverride;
+            nightGrade.colorFilter.Override(originalFilter);
+            nightGrade.colorFilter.overrideState = originalFilterOverride;
+        }
+        if (nightVignetteCaptured && nightVignette != null)
+        {
+            nightVignette.intensity.Override(originalVignette);
+            nightVignette.intensity.overrideState = originalVignetteOverride;
+        }
+        forestMoodPower = 0f;
     }
 
     static float QualityFactor()
@@ -324,16 +467,38 @@ public class ForestLook : MonoBehaviour
         {
             fogBaseD = curD; fogBaseC = curC; fogHave = true;
         }
-        float density = fogBaseD * Mathf.Lerp(1f, fogDensityMul, k);
-        Color tint = Color.Lerp(fogBaseC, fogTint, fogTintAmount * k);
+        // В осеннем биоме убираем отдельную лесную стену/окраску тумана.
+        // Базовый туман DayNightCycle остаётся: остров не превращается в пустой вакуум.
+        float fogK = k * (1f - (unifyAutumnLook ? autumnZoneFade * autumnFogReduction : 0f));
+        float density = fogBaseD * Mathf.Lerp(1f, fogDensityMul, fogK);
+        Color tint = Color.Lerp(fogBaseC, fogTint, fogTintAmount * fogK);
         if (softDistanceFog)
         {
             // Keep the current day/night controller's atmospheric baseline.
             // Only enrich fog where the forest weight is nonzero; no sudden wall
             // follows the player when entering a clearing.
-            density = Mathf.Max(density, Mathf.Lerp(fogBaseD, Mathf.Max(fogBaseD, deepForestFogDensity), k));
+            density = Mathf.Max(density, Mathf.Lerp(fogBaseD, Mathf.Max(fogBaseD, deepForestFogDensity), fogK));
             Color forestTint = Color.Lerp(distanceFogDayColor, distanceFogNightColor, DayNightCycle.Night01);
-            tint = Color.Lerp(tint, forestTint, distanceFogTintStrength * k);
+            tint = Color.Lerp(tint, forestTint, distanceFogTintStrength * fogK);
+        }
+        // Исходный deepForestFogDensity=.018 при IslandAbyss (.002–.004)
+        // превращался в густую стену, скрывавшую тропу, персонажа и сюжетные предметы.
+        // Ограничиваем только итоговый вклад леса, сохраняя плавный переход и авторский туман суток.
+        if (LightingRig.Instance != null && LightingRig.Instance.balancedLook)
+        {
+            // Не прячем неудачную экспозицию за стеной тумана.
+            // Более прохладная ночная дымка лишь создаёт глубину на расстоянии.
+            float night = DayNightCycle.Night01;
+            // Осенний биом больше не получает 3.5.2 brown fog / extra density.
+            float darkForest = nightMood &&
+                (forestMoodBiome == ForestBiome.Cedar ||
+                 (forestMoodBiome == ForestBiome.Autumn && !unifyAutumnLook))
+                ? forestMoodPower * night : 0f;
+            density = Mathf.Min(density, Mathf.Max(fogBaseD * 2f, Mathf.Lerp(0.0055f, 0.009f, darkForest)));
+            Color deepTint = forestMoodBiome == ForestBiome.Autumn && !unifyAutumnLook
+                ? new Color(0.20f, 0.15f, 0.14f) : new Color(0.10f, 0.18f, 0.22f);
+            tint = Color.Lerp(fogBaseC, tint, 0.78f);
+            tint = Color.Lerp(tint, deepTint, darkForest * 0.28f);
         }
         RenderSettings.fogDensity = density;
         RenderSettings.fogColor = tint;

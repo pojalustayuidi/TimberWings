@@ -1,6 +1,7 @@
 using UnityEngine;
 
-// The jump is a pose on the visual rig. Physics and player input keep running.
+// Joy pose on the visual rig. During the brief performance gameplay input is gated,
+// while emergencies (falling, loading, dialogue and scene transitions) may still abort.
 sealed class LeoCelebration
 {
     internal const float Duration = 2.08f;
@@ -15,13 +16,15 @@ sealed class LeoCelebration
     Rigidbody body;
     CapsuleCollider capsule;
     float queuedUntil, settled, age = -1f, blend;
-    bool orbit, interrupted;
+    bool orbit;
     Vector3 startPosition;
 
     internal int Sequence { get; private set; }
     internal float Age => age;
     internal Transform Model => rig.transform;
-    internal bool WantsShot => orbit && age >= 0f && !interrupted;
+    // Input is locked only while the actual pose is playing. Queued joy never blocks gameplay.
+    internal static bool IsPlaying => current != null && current.IsPlayerModel && current.age >= 0f;
+    internal bool WantsShot => orbit && age >= 0f;
     internal Pose Frame { get; private set; }
 
     internal static LeoCelebration ForTarget(Transform target)
@@ -79,9 +82,11 @@ sealed class LeoCelebration
 
     void End()
     {
+        // E held during the pose should never start an unexpected chop on the next frame.
+        if (age >= 0f) MobileInput.SuppressHeldActionUntilRelease();
         age = -1f;
         blend = 0f;
-        orbit = interrupted = false;
+        orbit = false;
         Frame = default;
     }
 
@@ -94,7 +99,7 @@ sealed class LeoCelebration
             return;
         }
 
-        bool blocked = player.ControlLocked || WaterSwim.Swimming || MobileInput.ModalOpen || BuildingController.AnyRevealing ||
+        bool blocked = player.ControlLocked || WaterSwim.Swimming || StoryInspection.Active || MobileInput.ModalOpen || BuildingController.AnyRevealing ||
             DialogueSequence.FreezesPlayer || DialogueManager.IsBusy || (speaker != null && speaker.IsSpeaking) ||
             BuildingController.AnyRestorePending || BuildWorkPose.TryGetFocus(player, out _);
         bool chopping = interaction != null && interaction.IsChopping;
@@ -118,24 +123,24 @@ sealed class LeoCelebration
                 return;
             }
             settled += dt;
-            if (settled < .17f) return;
+            if (settled < .33f) return; // give the player a moment to see the achievement before the jump
             age = 0f;
             startPosition = player.transform.position;
             blend = 1f;
             orbit = !VibeSettings.ReduceEffects;
             queuedUntil = settled = 0f;
             Sequence++;
+            SaveIndicator.ShowToast("Лео радуется успеху!");
         }
         else if (blocked || chopping || (player.transform.position - startPosition).sqrMagnitude > .45f * .45f)
         {
+            // Safety/scene ownership always wins. Regular movement/action input never ends the pose.
             End();
             return;
         }
 
         age += dt;
-        interrupted |= moving || acted;
-        if (interrupted) blend = Mathf.MoveTowards(blend, 0f, dt / .15f);
-        if (age >= Duration || blend <= 0f)
+        if (age >= Duration)
         {
             End();
             return;

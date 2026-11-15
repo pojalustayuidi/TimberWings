@@ -52,6 +52,8 @@ public class BuildReveal : MonoBehaviour
     bool finalReveal;
     Vector3 point;                // куда смотрит камера
     float radius;                 // размер здания, метры (для свободной камеры)
+    bool bridgeReveal;           // у моста свой кадр: остров никогда не входит в bounds показа
+    Vector3 bridgeForward;
     float sweepDir = 1f;          // направление облёта; на каждой стадии меняется, чтобы камера не крутилась в одну сторону
     float skipShown;              // плавность подсказки «E: пропустить»
     PlayerInventory inv;
@@ -98,7 +100,8 @@ public class BuildReveal : MonoBehaviour
         if (b == null) return;
         bc = b;
         finalReveal = b.RevealIsFinal;
-        point = FocusPoint(b, out radius);
+        bridgeReveal = TryBridgeShot(b, out point, out radius, out bridgeForward);
+        if (!bridgeReveal) point = FocusPoint(b, out radius);
         sweepDir = -sweepDir;
         skipShown = 0f;
         hintFor = null;                 // новая стадия: старая подсказка не нужна
@@ -114,6 +117,7 @@ public class BuildReveal : MonoBehaviour
         CameraVibe.ClearReveal();
         var done = bc;
         bc = null;
+        bridgeReveal = false;
 
         // хватает ресурсов на следующую стадию: подсказка. Окно само не открывается
         if (done.IsFinished || !done.PlayerInside) return;
@@ -133,6 +137,7 @@ public class BuildReveal : MonoBehaviour
                 // стройку выключили посреди показа: событие не придёт, закругляемся сами (без подсказки)
                 CameraVibe.ClearReveal();
                 bc = null;
+                bridgeReveal = false;
             }
             else
             {
@@ -161,7 +166,14 @@ public class BuildReveal : MonoBehaviour
                         ? Vector3.Lerp(BuildFxHook.CamLeadPoint, point, blend) : point;
                     float shotRadius = BuildFxHook.CamLead > .001f
                         ? Mathf.Lerp(BuildFxHook.CamLeadRadius, radius, blend) : radius;
-                    CameraVibe.SetReveal(shotPoint, amount, sweep * own, shotRadius);
+                    if (bridgeReveal)
+                    {
+                        // Fixed shore-side angle with a tiny cinematic sweep: do not
+                        // orbit behind the destination island or descend beneath it.
+                        float bridgeSweep = Mathf.Lerp(-4f, 4f, Smooth01(t / dur)) * sweepDir;
+                        CameraVibe.SetBridgeReveal(shotPoint, amount, bridgeSweep, shotRadius, bridgeForward);
+                    }
+                    else CameraVibe.SetReveal(shotPoint, amount, sweep * own, shotRadius);
                 }
                 else CameraVibe.ClearReveal();
 
@@ -186,9 +198,62 @@ public class BuildReveal : MonoBehaviour
     static float Smooth01(float x) { return Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(x)); }
 
     // ------------------------------------------------------------ точка, на которую смотрит камера
-    // центр построенных стадий (HutStages, а у рынка, палатки и моста объект из BuildStageLink), иначе зона стройки
+    // Мост — вытянутая конструкция с финальным островом. Нельзя включать весь
+    // GateBridge в Renderer.bounds: его нижняя геометрия уводит точку под остров.
+    // Используем готовые якоря из GateBridge и кадр со стороны исходного берега.
+    internal static bool TryBridgeShot(BuildingController b, out Vector3 focus, out float radius, out Vector3 forward)
+    {
+        focus = Vector3.zero;
+        radius = 0f;
+        forward = Vector3.forward;
+        if (b == null) return false;
+        var link = b.GetComponent<BuildStageLink>();
+        if (link == null || link.bridge == null) return false;
+
+        // В собранной сцене RiverBridge и GateBridge находятся на одном корне,
+        // а BuildZone — их дочерняя зона. Поиск по source — запасной вариант.
+        GateBridge gate = link.bridge.GetComponent<GateBridge>();
+        if (gate == null) gate = link.bridge.GetComponentInParent<GateBridge>();
+        if (gate == null)
+        {
+            foreach (var candidate in FindObjectsByType<GateBridge>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (candidate == null || candidate.source != link.bridge) continue;
+                gate = candidate;
+                break;
+            }
+        }
+
+        if (gate != null && gate.HasFinalIsland)
+        {
+            forward = gate.BridgeForward;
+            if (forward.sqrMagnitude < 0.001f) forward = b.transform.forward;
+            forward.y = 0f;
+            forward.Normalize();
+            Vector3 entrance = gate.DeckEntrance;
+            float along = Mathf.Clamp(gate.bridgeLength * (b.RevealIsFinal ? 0.39f : 0.29f), 4.5f, 11f);
+            focus = entrance + forward * along;
+            focus.y = Mathf.Max(entrance.y, b.transform.position.y) + 1.6f;
+            radius = Mathf.Clamp(gate.bridgeLength * (b.RevealIsFinal ? 0.25f : 0.19f), 4.2f, 7.2f);
+        }
+        else
+        {
+            // Старый/неполный Bake: всё равно не считаем огромные bounds острова.
+            forward = b.transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
+            forward.Normalize();
+            focus = b.transform.position + forward * 7.0f + Vector3.up * 1.7f;
+            radius = 4.6f;
+        }
+        return true;
+    }
+
+    // центр построенных стадий (HutStages, ShopStages, TentStages); для моста отдельный береговой кадр
     internal static Vector3 FocusPoint(BuildingController b, out float radius)
     {
+        Vector3 bridgeFocus, bridgeDirection;
+        if (TryBridgeShot(b, out bridgeFocus, out radius, out bridgeDirection)) return bridgeFocus;
         radius = 0f;
         Transform root = null;
         if (b.stages != null) root = b.stages.transform;

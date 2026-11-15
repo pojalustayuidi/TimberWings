@@ -13,7 +13,7 @@ sealed class LeoFootPlacement
         public Vector3[] sole;
         public float soleY, legLength;
         public Vector3 anchor, groundUp;
-        public float groundY;
+        public float groundY, groundVelocity;
         public bool planted, sampled;
     }
 
@@ -68,8 +68,8 @@ sealed class LeoFootPlacement
 
     public void Reset()
     {
-        if (left != null) left.planted = left.sampled = false;
-        if (right != null) right.planted = right.sampled = false;
+        if (left != null) { left.planted = left.sampled = false; left.groundVelocity = 0f; }
+        if (right != null) { right.planted = right.sampled = false; right.groundVelocity = 0f; }
     }
 
     struct Target
@@ -90,7 +90,7 @@ sealed class LeoFootPlacement
         // a fully straight leg would otherwise drag the planted boot inward.
         if (rig.hips != null)
         {
-            float drop = Mathf.Min(.085f * scale, Mathf.Max(a.pelvisDrop, b.pelvisDrop));
+            float drop = Mathf.Min(.074f * scale, Mathf.Max(a.pelvisDrop, b.pelvisDrop));
             rig.hips.position -= Vector3.up * drop;
         }
         Solve(left, a);
@@ -106,8 +106,10 @@ sealed class LeoFootPlacement
         float lift = (local.y - foot.rest.y) * scale;
         float passing = Mathf.Sin(step.swing * Mathf.PI) * move;
         // Give each boot a clear track as it passes the other leg.
-        float track = Mathf.Lerp(.031f, .044f, run) * move;
-        local.x += Mathf.Sign(foot.rest.x) * (.025f * brace + track + .013f * passing);
+        // Slightly separate the boots during recovery so they remain readable
+        // from behind; the spacing eases out at rest and on tight pivots.
+        float track = Mathf.Lerp(.032f, .050f, run) * move * (1f - .28f * Mathf.Abs(turn));
+        local.x += Mathf.Sign(foot.rest.x) * (.025f * brace + track + .011f * passing);
         local.z += (isLeft ? .053f : -.045f) * brace;
         local.y = foot.rest.y + foot.soleY;
         Vector3 support = model.TransformPoint(local);
@@ -134,13 +136,29 @@ sealed class LeoFootPlacement
             float amount = foot.sampled ? 1f - Mathf.Exp(-24f * dt) : 1f;
             Vector3 normal = Vector3.Slerp(Vector3.up, ground.normal, .85f);
             foot.groundUp = Vector3.Slerp(foot.sampled ? foot.groundUp : Vector3.up, normal, amount);
-            foot.groundY = foot.sampled ? Mathf.Max(ground.point.y, Mathf.Lerp(foot.groundY, ground.point.y, amount)) : ground.point.y;
+            // Previous code jumped uphill instantly and slid downhill slowly.
+            // A short critically damped contact removes that asymmetric snap.
+            // Recover the first ground sample immediately, but don't teleport the
+            // boot when the next probe switches triangles near a ledge/stone.
+            if (!foot.sampled)
+            {
+                foot.groundY = ground.point.y;
+                foot.groundVelocity = 0f;
+            }
+            else
+                foot.groundY = Mathf.SmoothDamp(foot.groundY, ground.point.y,
+                    ref foot.groundVelocity, .065f, 3.5f * scale, Mathf.Max(.001f, dt));
             foot.sampled = true;
             support.y = foot.groundY;
             up = foot.groundUp;
-            flat = Quaternion.FromToRotation(Vector3.up, up) * flat;
+            // Only align strongly to the ground while the sole is actually
+            // carrying weight. During the middle of a swing the ankle should
+            // follow its swing arc, not twist to match a rock below it.
+            float swingAir = step.stance ? 0f : Mathf.Sin(Mathf.PI * Mathf.Clamp01(step.swing));
+            float incline = Mathf.Clamp01(1f - .78f * move * swingAir);
+            flat = Quaternion.FromToRotation(Vector3.up, Vector3.Slerp(Vector3.up, up, incline)) * flat;
         }
-        else foot.sampled = false;
+        else { foot.sampled = false; foot.groundVelocity = 0f; }
 
         Vector3 hop = cheer.FootOffset(isLeft);
         float pitch = LeoMotionProfile.FootPitch(gait, phase, run) * move + cheer.FootPitch(isLeft);

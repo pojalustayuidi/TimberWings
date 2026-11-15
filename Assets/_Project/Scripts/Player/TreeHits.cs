@@ -33,7 +33,10 @@ public class TreeHits : MonoBehaviour
     {
         if (shake != null) StopCoroutine(shake);
         shake = StartCoroutine(ShakeRoutine(strength));
-        Chips(strength, contact);
+        // ImpactFx already receives the same hit via GameEvents.ChopHit and creates
+        // pooled wood chips, dust and the impact flash. Avoid a second per-hit system.
+        // Keep the old lightweight fallback for isolated test scenes without _Vibe.
+        if (ImpactFx.Instance == null) Chips(strength, contact);
     }
 
     IEnumerator ShakeRoutine(float strength)

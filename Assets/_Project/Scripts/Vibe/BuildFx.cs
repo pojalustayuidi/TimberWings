@@ -420,11 +420,12 @@ public class BuildFxHook : MonoBehaviour
     // деталь встала на место: стук, искры и пыль (не чаще RevealLandFxInterval, чтобы не сыпалось на каждую из сотни деталей)
     void OnLand(Piece p)
     {
-        if (Time.time - lastLandFx < GameBalance.RevealLandFxInterval) return;
+        // Landing is a small, tactile event. Avoid a full hammer flash above the part.
+        if (Time.time - lastLandFx < Mathf.Max(0.18f, GameBalance.RevealLandFxInterval)) return;
         lastLandFx = Time.time;
-        if (ImpactFx.Instance != null) ImpactFx.Instance.HammerTick(p.t.position);
-        SfxManager.Play("thock", 0.18f, Random.Range(0.95f, 1.12f));
-        if (!VibeSettings.ReduceEffects) CameraFollow.Shake(0.008f, 0.05f);
+        if (ImpactFx.Instance != null) ImpactFx.Instance.BuildPieceLand(p.t.position);
+        SfxManager.Play("thock", 0.14f, Random.Range(0.95f, 1.09f));
+        if (!VibeSettings.ReduceEffects) CameraFollow.Shake(0.005f, 0.045f);
     }
 
     // конец сборки: все детали на своих местах (всегда, даже если прервали). fire: сыграть отложенную общую вспышку
@@ -503,7 +504,7 @@ public class BuildFxHook : MonoBehaviour
             {
                 dustAt = Time.time + GameBalance.RevealDustInterval;
                 Vector3 p = Anchor.position + new Vector3(Random.Range(-1.2f, 1.2f), 0f, Random.Range(-1.2f, 1.2f));
-                ImpactFx.Instance.StageBurst(p, 0.4f);   // маленькое облачко: пыль, искры, щепки
+                ImpactFx.Instance.BuildAmbientDust(p); // только пыль, без золотых колец и вспышек
             }
             yield return null;
         }

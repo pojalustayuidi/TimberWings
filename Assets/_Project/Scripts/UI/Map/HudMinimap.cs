@@ -576,7 +576,11 @@ public partial class HudMinimap : MonoBehaviour
         foreach (var p in pois)
         {
             if (p.mini == null) continue;
-            if (p.t == null || FogHides(p)) { p.mini.gameObject.SetActive(false); continue; }
+            if (p.t == null || FogHides(p))
+            {
+                if (p.mini.gameObject.activeSelf) p.mini.gameObject.SetActive(false);
+                continue;
+            }
             Vector2 pos = (ToMap(p.t.position) - pm) * ppu; float mag = pos.magnitude;
             float scale, alpha; bool edge = false;
             if (mag <= maxR)
@@ -587,9 +591,13 @@ public partial class HudMinimap : MonoBehaviour
             }
             else if (p.pinned) { edge = true; pos = pos / mag * maxR; scale = 0.82f + 0.08f * Mathf.Sin(time * 5f); alpha = 1f; }
             else if (edgePips && p.hintRadius <= 0f) { edge = true; pos = pos / mag * maxR; scale = 0.5f; alpha = 0.7f; }
-            else { p.mini.gameObject.SetActive(false); continue; }
+            else
+            {
+                if (p.mini.gameObject.activeSelf) p.mini.gameObject.SetActive(false);
+                continue;
+            }
 
-            p.mini.gameObject.SetActive(true);
+            if (!p.mini.gameObject.activeSelf) p.mini.gameObject.SetActive(true);
             p.mini.localScale = Vector3.one * (scale * markerScale);
             if (p.miniGroup != null) p.miniGroup.alpha = alpha;
             layPois.Add(p); layPos.Add(pos); layRad.Add(markerPx * 0.5f * scale * markerScale * 0.95f); layEdge.Add(edge);

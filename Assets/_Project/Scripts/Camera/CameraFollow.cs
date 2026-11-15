@@ -31,6 +31,10 @@ public class CameraFollow : MonoBehaviour
 
     [Header("Масштаб кадра")]
     public float fieldOfView = 35f;   // если камера Perspective
+    [Header("Stage 4 — плавный FOV")]
+    [Range(.05f, .5f)] public float runningFovSmooth = .20f;
+    float currentFovVelocity;
+
     public float orthoSize = 7f;      // если камера Orthographic
 
     [Header("Плавность (больше = мягче и медленнее)")]
@@ -115,6 +119,8 @@ public class CameraFollow : MonoBehaviour
     float peekNextCheck, peekStrength;
     readonly Dictionary<Renderer, Hidden> hidden = new Dictionary<Renderer, Hidden>();
     readonly Dictionary<Collider, Renderer[]> rendererCache = new Dictionary<Collider, Renderer[]>();
+    readonly List<Collider> staleCacheKeys = new List<Collider>(32);
+    float nextCachePrune;
     readonly RaycastHit[] hits = new RaycastHit[32];
     readonly List<Renderer> toRestore = new List<Renderer>();
     readonly LeoCelebrationCamera leoCelebration = new LeoCelebrationCamera();
@@ -137,7 +143,13 @@ public class CameraFollow : MonoBehaviour
         ClearPeek();
     }
 
-    void OnDisable() { RestoreAll(); ClearPeek(); }
+    void OnDisable()
+    {
+        RestoreAll();
+        ClearPeek();
+        treeCache.Clear();
+        rendererCache.Clear();
+    }
 
     static void ClearPeek()
     {
@@ -218,7 +230,7 @@ public class CameraFollow : MonoBehaviour
         }
 
         // ---------- зум
-        if (allowScrollZoom && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera && !StoryInspection.Active)
+        if (allowScrollZoom && !ArrivalIntroSequence.Active && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera && !StoryInspection.Active)
         {
             float s = Input.mouseScrollDelta.y;
             if (Mathf.Abs(s) > 0.01f) userZoom = Mathf.Clamp(userZoom - s * zoomStep, zoomMin, zoomMax);
@@ -260,7 +272,9 @@ public class CameraFollow : MonoBehaviour
 
         // ---------- масштаб кадра
         if (cam.orthographic) cam.orthographicSize = orthoSize * zoom;
-        else cam.fieldOfView = fieldOfView + speedFovBoost * speed01;
+        else cam.fieldOfView = Mathf.SmoothDamp(cam.fieldOfView,
+            fieldOfView + speedFovBoost * speed01, ref currentFovVelocity,
+            Mathf.Max(.05f, runningFovSmooth), Mathf.Infinity, dt);
 
         // ---------- мягкое следование за фокусом
         Vector3 wantFocus = pos + lookOffset + ahead + focusBias;
@@ -376,9 +390,28 @@ public class CameraFollow : MonoBehaviour
         return tree;
     }
 
+    // Destroyed Unity colliders can stay in dictionaries long after trees disappear.
+    // Prune both caches periodically without allocating a new list every frame.
+    void PruneDestroyedColliderCache()
+    {
+        if (Time.unscaledTime < nextCachePrune) return;
+        nextCachePrune = Time.unscaledTime + 8f;
+        staleCacheKeys.Clear();
+        foreach (var entry in treeCache)
+            if (entry.Key == null) staleCacheKeys.Add(entry.Key);
+        foreach (var key in staleCacheKeys) treeCache.Remove(key);
+
+        staleCacheKeys.Clear();
+        foreach (var entry in rendererCache)
+            if (entry.Key == null) staleCacheKeys.Add(entry.Key);
+        foreach (var key in staleCacheKeys) rendererCache.Remove(key);
+        staleCacheKeys.Clear();
+    }
+
     // ------------------------------------------------------------ прозрачность преград
     void HandleBlockers(Vector3 targetPoint)
     {
+        PruneDestroyedColliderCache();
         Vector3 from = camPos;
         Vector3 dir = targetPoint - from;
         float dist = dir.magnitude;

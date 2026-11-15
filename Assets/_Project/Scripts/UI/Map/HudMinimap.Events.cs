@@ -7,7 +7,7 @@ using UnityEngine;
 
 public partial class HudMinimap
 {
-    readonly List<BuildingController> hooked = new List<BuildingController>();
+    readonly HashSet<BuildingController> hooked = new HashSet<BuildingController>();
     bool eventsOn, rescanPending, firstBakeDone;
 
     // Расширения для следующих частей (туман, маршрут, след): вызываются после каждой печати
@@ -39,9 +39,8 @@ public partial class HudMinimap
         GameEvents.TimeOfDayChanged -= OnPhaseChanged;
         SaveSystem.Loaded -= OnSaveLoaded;
         FloatingIsland.GateOpened -= OnGateOpened;
-        for (int i = 0; i < hooked.Count; i++)
+        foreach (var b in hooked)
         {
-            var b = hooked[i];
             if (b == null) continue;
             b.StageBuilt -= OnBuildingChanged;
             b.Finished -= OnBuildingChanged;
@@ -53,15 +52,17 @@ public partial class HudMinimap
     void HookBuildings()
     {
         if (!eventsOn) return;
-        hooked.RemoveAll(b => b == null);
+        hooked.RemoveWhere(IsMissingBuilding);
         foreach (var b in FindObjectsByType<BuildingController>(FindObjectsSortMode.None))
         {
-            if (b == null || hooked.Contains(b)) continue;
+            // HashSet.Add одновременно регистрирует новый объект и отсекает повторные подписки.
+            if (b == null || !hooked.Add(b)) continue;
             b.StageBuilt += OnBuildingChanged;
             b.Finished += OnBuildingChanged;
-            hooked.Add(b);
         }
     }
+
+    static bool IsMissingBuilding(BuildingController b) => b == null;
 
     void OnQuestDone(string id) { rescanPending = true; }
 

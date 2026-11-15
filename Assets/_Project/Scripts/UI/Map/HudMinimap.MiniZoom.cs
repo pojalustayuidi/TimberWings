@@ -30,7 +30,9 @@ public partial class HudMinimap
 
     void SetMiniZoom(float z)
     {
-        miniZoomTarget = Mathf.Clamp(z, minMiniZoom, maxMiniZoom);
+        float value = Mathf.Clamp(z, minMiniZoom, maxMiniZoom);
+        if (Mathf.Approximately(value, miniZoomTarget)) return;
+        miniZoomTarget = value;
         PlayerPrefs.SetFloat(ZoomPref, miniZoomTarget);
     }
 
@@ -51,20 +53,39 @@ public partial class HudMinimap
         }
         miniZoom = Mathf.Lerp(miniZoom, miniZoomTarget, 1f - Mathf.Exp(-12f * dt));
         if (Mathf.Abs(miniZoom - miniZoomTarget) < 0.001f) miniZoom = miniZoomTarget;
-        if (miniZoomIn != null) miniZoomIn.interactable = miniZoomTarget < maxMiniZoom - 0.01f;
-        if (miniZoomOut != null) miniZoomOut.interactable = miniZoomTarget > minMiniZoom + 0.01f;
+        if (miniZoomIn != null)
+        {
+            bool canZoomIn = miniZoomTarget < maxMiniZoom - 0.01f;
+            if (miniZoomIn.interactable != canZoomIn) miniZoomIn.interactable = canZoomIn;
+        }
+        if (miniZoomOut != null)
+        {
+            bool canZoomOut = miniZoomTarget > minMiniZoom + 0.01f;
+            if (miniZoomOut.interactable != canZoomOut) miniZoomOut.interactable = canZoomOut;
+        }
         FollowMiniZoomButtons();
     }
 
-    // Кнопки стоят у левой кромки круга и каждый кадр едут за ним в мировых координатах:
+    // Кнопки остаются у левой кромки круга при изменениях Canvas или safe area:
     // не зависят от якорей, safe area и масштаба Canvas (раньше при растянутых якорях sizeDelta добавлялся к размеру родителя и кнопки превращались в большой квадрат)
     void FollowMiniZoomButtons()
     {
         if (miniMask == null) return;
         float r = miniMask.rect.width * 0.5f;
         Vector2 c = miniMask.rect.center;
-        if (miniZoomIn != null) miniZoomIn.transform.position = miniMask.TransformPoint(c + new Vector2(-r * 0.97f, 22f));
-        if (miniZoomOut != null) miniZoomOut.transform.position = miniMask.TransformPoint(c + new Vector2(-r * 0.97f, -22f));
+        // Не помечаем Canvas грязным каждой записью неизменной world-position.
+        if (miniZoomIn != null)
+        {
+            Vector3 wanted = miniMask.TransformPoint(c + new Vector2(-r * 0.97f, 22f));
+            if ((miniZoomIn.transform.position - wanted).sqrMagnitude > 0.000001f)
+                miniZoomIn.transform.position = wanted;
+        }
+        if (miniZoomOut != null)
+        {
+            Vector3 wanted = miniMask.TransformPoint(c + new Vector2(-r * 0.97f, -22f));
+            if ((miniZoomOut.transform.position - wanted).sqrMagnitude > 0.000001f)
+                miniZoomOut.transform.position = wanted;
+        }
         bool show = !open;                                                       // пока открыта большая карта, мини-кнопки не нужны
         if (miniZoomIn != null && miniZoomIn.gameObject.activeSelf != show) miniZoomIn.gameObject.SetActive(show);
         if (miniZoomOut != null && miniZoomOut.gameObject.activeSelf != show) miniZoomOut.gameObject.SetActive(show);

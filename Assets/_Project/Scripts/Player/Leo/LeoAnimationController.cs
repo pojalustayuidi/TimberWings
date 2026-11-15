@@ -15,6 +15,9 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     public LayerMask groundMask=~0;
     [Header("Вид")]
     public bool blink=true,carryVisuals=true;
+    [Tooltip("Через сколько секунд без рубки Лео убирает топор на пояс. 0 = топор всегда в руке.")]
+    public float autoSheatheDelay=2.5f;
+    float lastToolUse=-100f;
     public TrailRenderer axeTrail;
     public string CurrentState{get;private set;}
     readonly LeoImpactClock impact=new LeoImpactClock();
@@ -57,6 +60,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     {
         impact.Clear();legacy.Clear();phase=.25f;move=run=speedSmooth=actionWeight=holster=turn=talk=posePhase=cancelPhase=0;loadPitch=loadRoll=loadPitchVel=loadRollVel=adjustWeight=fullWeight=0;adjustStart=-10;lastCarried=-1;pendingAdjust=false;previousVelocity=smoothAcceleration=Vector3.zero;hitFrame=-1;target=null;contactPoint=null;wasChopping=cancelling=false;
         previousPosition=transform.position;previousRotation=transform.rotation;nextBlink=Time.time+3;blinkAt=-10;feet?.Reset();CurrentState="Idle";
+        holster=autoSheatheDelay>0f?1f:0f;lastToolUse=-100f;
         airWater.Reset();
         if(rig!=null&&rig.HasRest)rig.ResetPose();if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}trailWasOn=false;
     }
@@ -152,7 +156,11 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         fullWeight=Mathf.MoveTowards(fullWeight,capacityNow>0&&carriedNow>=capacityNow?1:0,dt*1.6f);
         float yaw=Mathf.DeltaAngle(previousRotation.eulerAngles.y,transform.eulerAngles.y);previousRotation=transform.rotation;
         turn=Mathf.Lerp(turn,Mathf.Clamp(yaw/Mathf.Max(.001f,dt)/180f,-1,1),k);
-        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active;
+        // Стройка (в том числе подход к стене) и простой: топор уходит на пояс, а не торчит из руки.
+        bool building=BuildWorkPose.TryGetFocus(player,out _);
+        if(chopping||actionWeight>.02f)lastToolUse=now;
+        bool idleSheathe=autoSheatheDelay>0f&&!chopping&&now-lastToolUse>autoSheatheDelay;
+        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active||building||idleSheathe;
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
         float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
         float holsterRate = chopping || motion.InMotion ? 8f :

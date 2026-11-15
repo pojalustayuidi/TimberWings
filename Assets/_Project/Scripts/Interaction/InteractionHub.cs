@@ -47,6 +47,12 @@ public class InteractionHub : MonoBehaviour
     {
         OwnsInput = false;
         Current = null;
+        if (worldTag != null) worldTag.visible = false;
+        shown = null;
+        shownPrompt = null;
+        placed = false;
+        wasBusy = false;
+        timer = 0f;
     }
 
     void OnDestroy()
@@ -63,8 +69,14 @@ public class InteractionHub : MonoBehaviour
         return promptFormat.Replace("{key}", k).Replace("{prompt}", prompt);
     }
 
+    static bool IsAlive(IInteractable item)
+    {
+        return item != null && (!(item is Object unityObject) || unityObject != null);
+    }
+
     void Update()
     {
+        if (!IsAlive(Current)) Current = null;
         bool busy = DialogueManager.IsBusy || DialogueSequence.AnyPlaying || StoryInspection.Active;
         // E, которой только что закончили диалог (пропуск последней реплики), второй раз не считаем
         bool lockInput = busy || wasBusy;
@@ -83,6 +95,7 @@ public class InteractionHub : MonoBehaviour
             Current.Interact();
         }
 
+        if (!IsAlive(Current)) Current = null;
         busy |= StoryInspection.Active;
         OwnsInput = busy || Current != null || DialogueManager.BlocksUntilRelease || StoryInspection.SuppressPlayerAction;
         UpdatePrompt(busy);
@@ -99,7 +112,12 @@ public class InteractionHub : MonoBehaviour
         for (int i = 0; i < all.Count; i++)
         {
             var it = all[i];
-            if (it == null || it.Anchor == null || !it.CanInteract) continue;
+            if (!IsAlive(it))
+            {
+                all.RemoveAt(i--); // deregistration may have been skipped by a destroyed scene object
+                continue;
+            }
+            if (it.Anchor == null || !it.CanInteract) continue;
 
             Vector3 d = it.Anchor.position - me;
             d.y = 0f;

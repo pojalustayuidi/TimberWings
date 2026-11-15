@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 [DisallowMultipleComponent]
 public sealed class MysticAtmosphere : MonoBehaviour
@@ -45,6 +46,13 @@ public sealed class MysticAtmosphere : MonoBehaviour
     [Min(1f)] public float signatureFar = 5f;
     public Color nightFoliageTint = new Color(0.72f, 0.86f, 1f);
 
+    [Header("Visual Polish 3.5.2 — тёмный мистический лес")]
+    [Tooltip("Ночной грейд меняется в runtime-копии уже существующего Authored_Night_Volume.")]
+    public bool restoreMysteriousNight = true;
+    [Tooltip("Отрицательная экспозиция (EV): -0.9 = темнее без полного исчезновения тропы.")]
+    [Range(-1.8f, 0f)] public float mysteriousNightExposure = -0.95f;
+    [Range(0f, 0.5f)] public float mysteriousNightVignette = 0.32f;
+
     const float SwingBreezeDuration = 8.8f;
     float weight, clock, nextCheck, signatureAlpha;
     float nextEchoAt;
@@ -54,9 +62,18 @@ public sealed class MysticAtmosphere : MonoBehaviour
     Quaternion swingRest, motesRest;
     MaterialPropertyBlock block;
 
+    ColorAdjustments authoredNightGrade;
+    Vignette authoredNightVignette;
+    float sourceExposure, sourceContrast, sourceSaturation, sourceVignette;
+    Color sourceFilter;
+    bool nightProfileCached;
+    bool sourceExposureOverride, sourceContrastOverride, sourceSaturationOverride,
+         sourceFilterOverride, sourceVignetteOverride;
+
     static readonly int Alpha = Shader.PropertyToID("_Alpha");
     static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
+    static readonly int VeilIntensity = Shader.PropertyToID("_Intensity");
 
     public static float Boundary(float distance, float radius, float feather)
     {
@@ -100,6 +117,7 @@ public sealed class MysticAtmosphere : MonoBehaviour
             }
         }
         ResetView();
+        ConfigureExistingNightVolume();
         if (ambience != null && ambience.clip != null && !ambience.isPlaying)
             ambience.Play();
     }
@@ -108,6 +126,7 @@ public sealed class MysticAtmosphere : MonoBehaviour
     {
         float dt = Mathf.Min(Time.deltaTime, 0.1f);
         clock += dt;
+        ConfigureExistingNightVolume();
         var player = PlayerMovement.Instance;
         Vector3 position = player != null ? player.transform.position : transform.position + Vector3.right * 999f;
         Vector3 delta = position - transform.position;
@@ -122,13 +141,13 @@ public sealed class MysticAtmosphere : MonoBehaviour
         float effects = reduce ? 0.55f : 1f;
         swingAllowed = nearZone && isNight && dark > 0.08f && !reduce && swing != null &&
             (position - swing.position).sqrMagnitude < 19f * 19f;
-        SetVolumes(night, weight * effects);
+        SetVolumes(night, weight);
         SetLighting(position, nearZone, dark, reduce, false);
         SetEngravingGlow(nearZone ? dark : 0f);
         SetCrownTint(night);
         UpdateAudio(position, night, isNight ? dark : 0f);
 
-        foreach (var rune in runes) Opacity(rune, Mathf.Lerp(0.12f, 0.72f, night), false);
+        UpdateRuneMagic(position, nearZone, night, reduce, false);
         float distance = signatureAnchor != null ? Vector3.Distance(position, signatureAnchor.position) : 999f;
         float target = SecretVisibility(isNight, night, distance, signatureNear, signatureFar);
         signatureAlpha = isNight ? Mathf.MoveTowards(signatureAlpha, target, dt * 1.25f) : 0f;
@@ -195,6 +214,66 @@ public sealed class MysticAtmosphere : MonoBehaviour
         return 3.65f * rise * settle * Mathf.Sin(elapsed * (2f * Mathf.PI / 4.25f));
     }
 
+    // Контроллер 3.4 уже создал ночной Volume (приоритет 97).
+    // Он и должен затемнять участок — не глобальный Fog и не новый световой менеджер.
+    void ConfigureExistingNightVolume()
+    {
+        if (!Application.isPlaying || nightVolume == null) return;
+        if (!nightProfileCached)
+        {
+            VolumeProfile runtime = nightVolume.profile; // отдельная runtime-копия, не serialized sharedProfile
+            if (runtime == null) return;
+            if (!runtime.TryGet(out authoredNightGrade)) authoredNightGrade = runtime.Add<ColorAdjustments>(true);
+            if (!runtime.TryGet(out authoredNightVignette)) authoredNightVignette = runtime.Add<Vignette>(true);
+            if (authoredNightGrade == null || authoredNightVignette == null) return;
+            sourceExposure = authoredNightGrade.postExposure.value;
+            sourceContrast = authoredNightGrade.contrast.value;
+            sourceSaturation = authoredNightGrade.saturation.value;
+            sourceFilter = authoredNightGrade.colorFilter.value;
+            sourceVignette = authoredNightVignette.intensity.value;
+            sourceExposureOverride = authoredNightGrade.postExposure.overrideState;
+            sourceContrastOverride = authoredNightGrade.contrast.overrideState;
+            sourceSaturationOverride = authoredNightGrade.saturation.overrideState;
+            sourceFilterOverride = authoredNightGrade.colorFilter.overrideState;
+            sourceVignetteOverride = authoredNightVignette.intensity.overrideState;
+            nightProfileCached = true;
+        }
+        if (authoredNightGrade == null || authoredNightVignette == null) return;
+        if (restoreMysteriousNight)
+        {
+            authoredNightGrade.postExposure.Override(mysteriousNightExposure);
+            authoredNightGrade.contrast.Override(13f);
+            authoredNightGrade.saturation.Override(-14f);
+            authoredNightGrade.colorFilter.Override(new Color(0.77f, 0.87f, 0.93f));
+            authoredNightVignette.intensity.Override(mysteriousNightVignette);
+        }
+        else
+        {
+            RestoreExistingNightGrade();
+        }
+    }
+
+    void RestoreExistingNightGrade()
+    {
+        if (!nightProfileCached) return;
+        if (authoredNightGrade != null)
+        {
+            authoredNightGrade.postExposure.Override(sourceExposure);
+            authoredNightGrade.postExposure.overrideState = sourceExposureOverride;
+            authoredNightGrade.contrast.Override(sourceContrast);
+            authoredNightGrade.contrast.overrideState = sourceContrastOverride;
+            authoredNightGrade.saturation.Override(sourceSaturation);
+            authoredNightGrade.saturation.overrideState = sourceSaturationOverride;
+            authoredNightGrade.colorFilter.Override(sourceFilter);
+            authoredNightGrade.colorFilter.overrideState = sourceFilterOverride;
+        }
+        if (authoredNightVignette != null)
+        {
+            authoredNightVignette.intensity.Override(sourceVignette);
+            authoredNightVignette.intensity.overrideState = sourceVignetteOverride;
+        }
+    }
+
     void SetVolumes(float night, float volumeWeight)
     {
         if (dayVolume != null) dayVolume.weight = volumeWeight * (1f - night);
@@ -224,6 +303,28 @@ public sealed class MysticAtmosphere : MonoBehaviour
         if (light == null) return;
         light.enabled = intensity > 0.004f;
         light.intensity = intensity;
+    }
+
+    // 3.4: Real rune renderers already baked into the mystic grove. Give each
+    // a quiet, independent pulse rather than adding more glow objects or lights.
+    // Outside the grove the effect settles down, so it does not spread to the island.
+    void UpdateRuneMagic(Vector3 viewer, bool nearby, float night, bool reduced, bool preview)
+    {
+        float darkness = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.15f, 0.88f, night));
+        for (int i = 0; i < runes.Length; i++)
+        {
+            Renderer rune = runes[i];
+            if (rune == null) continue;
+            float proximity = preview ? 1f : nearby
+                ? Boundary(Vector3.Distance(viewer, rune.bounds.center), 13f, 7f) : 0f;
+            float pulse = reduced ? 1f : 0.92f + 0.08f * Mathf.Sin(clock * 0.72f + i * 1.73f);
+            float energy = darkness * proximity * (reduced ? 0.55f : 1f) * pulse;
+            // The existing veil shader uses _Alpha and _Intensity; no material clones.
+            Opacity(rune, 0.10f + 0.57f * energy, false);
+            rune.GetPropertyBlock(block);
+            block.SetFloat(VeilIntensity, 0.85f + 0.60f * energy);
+            rune.SetPropertyBlock(block);
+        }
     }
 
     void SetEngravingGlow(float darkness)
@@ -354,7 +455,7 @@ public sealed class MysticAtmosphere : MonoBehaviour
         SetCrownTint(dark);
         foreach (var r in signature) Opacity(r, dark >= 0.65f ? dark : 0f, true);
         foreach (var r in apparitions) Opacity(r, dark >= 0.65f ? dark * 0.12f : 0f, true);
-        foreach (var r in runes) Opacity(r, Mathf.Lerp(0.12f, 0.72f, dark), false);
+        UpdateRuneMagic(Vector3.zero, true, dark, true, true);
         HideLegacyFloorText();
     }
 
@@ -364,6 +465,7 @@ public sealed class MysticAtmosphere : MonoBehaviour
         SetLighting(Vector3.zero, false, 0f, true, false);
         SetEngravingGlow(0f);
         SetCrownTint(0f);
+        UpdateRuneMagic(Vector3.zero, false, 0f, true, false);
         if (ambience != null) ambience.volume = 0f;
         if (swingCreak != null) swingCreak.Stop();
         foreach (var source in nightEchoes) if (source != null) source.Stop();
@@ -383,6 +485,7 @@ public sealed class MysticAtmosphere : MonoBehaviour
     {
         if (block == null) block = new MaterialPropertyBlock();
         ResetView();
+        RestoreExistingNightGrade();
         if (ambience != null) ambience.Stop();
         if (restPoseCaptured && swing != null) swing.localRotation = swingRest;
         if (restPoseCaptured && motes != null) motes.localRotation = motesRest;

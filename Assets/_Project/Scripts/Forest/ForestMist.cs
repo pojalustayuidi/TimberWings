@@ -21,9 +21,17 @@ public class ForestMist : MonoBehaviour
     [Tooltip("С какого расстояния до дерева-хранителя дымка начинает окрашиваться, м")]
     public float TintRadius = 24f;
 
+    [Header("Visual Polish 3.5.3 — осенний лес")]
+    [Tooltip("Не создавать крупные белые облачные клочья в осеннем уголке: там остаётся общий туман мира.")]
+    public bool noAutumnCloudPuffs = true;
+    [Tooltip("Плавность выключения локальной дымки при входе в осенний биом, сек.")]
+    [Range(0.6f, 4f)] public float autumnFadeSeconds = 1.8f;
+
     ParticleSystem ps;
     float weight, nextCheck, tint;
     Color tintColor = new Color(0.92f, 0.95f, 1f);
+    float autumnFade, nextAutumnParticleTrim;
+    ParticleSystem.Particle[] mistParticles;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Boot()
@@ -55,6 +63,7 @@ public class ForestMist : MonoBehaviour
         main.gravityModifier = 0f;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.maxParticles = 48;
+        mistParticles = new ParticleSystem.Particle[48];
 
         var em = ps.emission;
         em.rateOverTime = 0f;
@@ -98,21 +107,41 @@ public class ForestMist : MonoBehaviour
 
         var pm = PlayerMovement.Instance;
         float target = 0f;
+        float autumnTarget = 0f;
         if (pm != null && ForestZone.All.Count > 0)
         {
             Vector3 p = pm.transform.position;
             transform.position = p;
             var z = ForestZone.At(p);
-            if (z != null && !z.IsNeutral) target = z.Weight(p);
+            if (z != null && !z.IsNeutral)
+            {
+                target = z.Weight(p);
+                if (noAutumnCloudPuffs && z.biome == ForestBiome.Autumn)
+                    autumnTarget = target;
+            }
         }
         weight = Mathf.MoveTowards(weight, target, Time.deltaTime * 0.25f);
+        autumnFade = Mathf.MoveTowards(autumnFade, autumnTarget,
+            Time.deltaTime / Mathf.Max(0.1f, autumnFadeSeconds));
+
+        // Старые мировые частицы не должны оставаться белыми облаками 18 секунд
+        // после входа в осеннюю зону. Укорачиваем остаток их жизни, не удаляя резко.
+        if (autumnFade > 0.45f && mistParticles != null && Time.time >= nextAutumnParticleTrim)
+        {
+            nextAutumnParticleTrim = Time.time + 0.5f;
+            int n = ps.GetParticles(mistParticles);
+            float cap = Mathf.Lerp(6f, 2.2f, autumnFade);
+            for (int i = 0; i < n; i++)
+                mistParticles[i].remainingLifetime = Mathf.Min(mistParticles[i].remainingLifetime, cap);
+            if (n > 0) ps.SetParticles(mistParticles, n);
+        }
 
         if (Time.time >= nextCheck)
         {
             nextCheck = Time.time + 0.5f;
             float mul = VibeSettings.ReduceEffects ? 0.5f : 1f;
             var em = ps.emission;
-            em.rateOverTime = maxRate * weight * mul;
+            em.rateOverTime = maxRate * weight * (1f - autumnFade) * mul;
 
             // ночью дымка тусклее
             float day = 1f - 0.5f * DayNightCycle.Night01;

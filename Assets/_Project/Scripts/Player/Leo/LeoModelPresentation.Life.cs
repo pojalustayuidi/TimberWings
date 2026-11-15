@@ -15,6 +15,7 @@ public sealed partial class LeoModelPresentation
     int workBeatIndex;
     bool workHitSent;
     bool workRequested;
+    bool workStow;            // стройка началась (в том числе подход к стене): топор надо убрать на пояс
     bool workStrikePending;   // в этом кадре молоток коснулся здания: событие уйдёт, когда молоток встанет в позу удара
 
     void ResetWorkPose()
@@ -23,12 +24,14 @@ public sealed partial class LeoModelPresentation
         workBeatIndex = 0;
         workHitSent = false;
         workRequested = false;
+        workStow = false;
         workStrikePending = false;
     }
 
     void ReadWorkPose(float speed, float dt, bool allowed, bool chopping)
     {
         bool atWork = player != null && BuildWorkPose.TryGetFocus(player, out _);
+        workStow = atWork;
         bool ready = atWork && BuildWorkPose.IsReady && !player.AutoWalking;
         // Микродвижение Rigidbody/поворот модели не должны переоткрывать позу удара.
         // Именно это сбивало цикл молотка и заставляло Лео дёргаться.

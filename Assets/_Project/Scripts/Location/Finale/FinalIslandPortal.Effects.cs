@@ -90,7 +90,7 @@ public sealed partial class FinalIslandPortal
 
     void UpdateVortex(Camera view, bool calm)
     {
-        if (calm || charge < .28f)
+        if (calm || charge < .095f)
         {
             if (trails != null) trails.enabled = false;
             return;
@@ -98,7 +98,9 @@ public sealed partial class FinalIslandPortal
         if (!triedVortex) CreateVortex();
         if (trails == null) return;
         trails.enabled = true;
-        vortexClock += Time.unscaledDeltaTime * Mathf.Lerp(.38f, 1.45f, drawIn);
+        float energy = Mathf.Clamp01((charge - .09f) / .65f);
+        float ambient = playing ? 1f : .42f;
+        vortexClock += Time.unscaledDeltaTime * Mathf.Lerp(.18f, 1.45f, Mathf.Max(drawIn, energy)) * ambient;
         Vector3 cameraForward = transform.InverseTransformDirection(view.transform.forward);
         for (int i = 0; i < TrailCount; i++)
         {
@@ -107,14 +109,15 @@ public sealed partial class FinalIslandPortal
             Color tint = i % 7 == 0 ? GoldTrail : Color.Lerp(MintTrail, VioletTrail, Mathf.Repeat(i * .382f, 1f));
             tint.a = Mathf.SmoothStep(0f, 1f, head / .15f) *
                 (1f - LeoPortalPose.Ease(head, .88f, 1f)) *
-                Mathf.Lerp(.27f, .85f, drawIn) * LeoPortalPose.Ease(charge, .28f, .77f);
+                Mathf.Lerp(.09f, .85f, Mathf.Max(drawIn, energy)) *
+                Mathf.Lerp(.32f, 1f, energy) * ambient;
             for (int k = 0; k < TrailSegments; k++)
             {
                 float from = k / (float)TrailSegments, to = (k + 1f) / TrailSegments;
                 Vector3 a = VortexPoint(i, head - length * (1f - from));
                 Vector3 b = VortexPoint(i, head - length * (1f - to));
                 Vector3 across = Vector3.Cross(b - a, cameraForward).normalized;
-                float width = (.014f + .018f * drawIn) * (1f + .22f * (i % 3));
+                float width = (.010f + .023f * Mathf.Max(drawIn, energy)) * (1f + .22f * (i % 3));
                 int v = (i * TrailSegments + k) * 4;
                 trailVertices[v] = a - across * (width * from);
                 trailVertices[v + 1] = a + across * (width * from);

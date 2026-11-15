@@ -7,7 +7,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[DisallowMultipleComponent]
+// Speaker faces the body at execution order 450 in LateUpdate. The head
+// should solve only afterwards, against its final body direction this frame.
+[DefaultExecutionOrder(500), DisallowMultipleComponent]
 public class NpcLife : MonoBehaviour
 {
     [Header("Ссылки (пусто = найдутся сами)")]
@@ -56,6 +58,8 @@ public class NpcLife : MonoBehaviour
     readonly HashSet<string> triggerParams = new HashSet<string>();
 
     Transform player;
+    Speaker actorSpeaker;
+    MiraMotion miraMotion;
     float findTimer;
     Vector3 baseLocalPos;
     Vector3 baseLocalScale;
@@ -71,6 +75,8 @@ public class NpcLife : MonoBehaviour
 
     void Awake()
     {
+        actorSpeaker = GetComponent<Speaker>();
+        miraMotion = GetComponentInChildren<MiraMotion>(true);
         if (dialogue == null) dialogue = GetComponentInParent<DialogueSequence>();
         if (dialogue == null) dialogue = GetComponentInChildren<DialogueSequence>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
@@ -95,6 +101,8 @@ public class NpcLife : MonoBehaviour
 
     void OnDisable()
     {
+        wasPlaying = false; // re-enabling after a scene transition must not emit a false DialogueEnded event
+        talkWeight = 0f;
         if (head != null && headHasApplied && Quaternion.Angle(head.localRotation, headLastApplied) < 0.01f)
             head.localRotation = headBaseLocal;
         headHasApplied = false;
@@ -207,29 +215,47 @@ public class NpcLife : MonoBehaviour
     // голову поворачиваем в LateUpdate: Animator к этому моменту уже выставил позу, мы добавляем поверх
     void LateUpdate()
     {
-        var actor = GetComponent<Speaker>();
-        Speaker partner;
-        bool facingPartner = actor != null && Speaker.TryGetConversationPartner(actor, out partner);
+        // MiraMotion owns Mira's procedural neck, eyelids and expressions.
+        // Applying a second head rotation in NpcLife *after* MiraMotion and
+        // Speaker makes the head appear to twist away from Leo in dialogue.
+        if (miraMotion != null && miraMotion.isActiveAndEnabled)
+        {
+            headHasApplied = false;
+            curYaw = curPitch = 0f;
+            return;
+        }
+        if (actorSpeaker == null) actorSpeaker = GetComponent<Speaker>();
+        Speaker partner = null;
+        bool facingPartner = actorSpeaker != null
+            && Speaker.TryGetConversationPartner(actorSpeaker, out partner)
+            && partner != null;
         if (!lookAtPlayer || head == null || model == null || (!facingPartner && !FindPlayer())) return;
 
         float targetYaw = 0f, targetPitch = 0f;
-        Vector3 eye = facingPartner ? head.position : player.position + Vector3.up * playerEyeHeight;
+        // Previously facingPartner used head.position itself: zero direction,
+        // so the head never turned toward the person speaking.
+        Vector3 eye = facingPartner && partner != null
+            ? partner.transform.position + Vector3.up * playerEyeHeight
+            : player.position + Vector3.up * playerEyeHeight;
         Vector3 to = eye - head.position;
         Vector3 flat = new Vector3(to.x, 0f, to.z);
 
-        if (!facingPartner && flat.sqrMagnitude <= lookRadius * lookRadius && flat.sqrMagnitude > 0.01f)
+        if (flat.sqrMagnitude > 0.01f && (facingPartner || flat.sqrMagnitude <= lookRadius * lookRadius))
         {
             Vector3 fwd = model.forward;
             fwd.y = 0f;
             if (fwd.sqrMagnitude > 0.0001f)
             {
                 float yaw = Vector3.SignedAngle(fwd, flat, Vector3.up);
-                // игрок сзади (за пределом поворота головы): смотрим прямо, а не выкручиваем шею
-                if (Mathf.Abs(yaw) <= maxHeadYaw + 40f)
+                // Пока корпус Speaker поворачивается, взгляд идёт следом,
+                // но шея не выворачивается на 120–180 градусов.
+                float limitYaw = facingPartner ? Mathf.Min(maxHeadYaw, 24f) : maxHeadYaw;
+                float limitPitch = facingPartner ? Mathf.Min(maxHeadPitch, 14f) : maxHeadPitch;
+                if (Mathf.Abs(yaw) <= limitYaw + (facingPartner ? 22f : 40f))
                 {
-                    targetYaw = Mathf.Clamp(yaw, -maxHeadYaw, maxHeadYaw);
+                    targetYaw = Mathf.Clamp(yaw, -limitYaw, limitYaw);
                     float pitch = -Mathf.Atan2(to.y, flat.magnitude) * Mathf.Rad2Deg;
-                    targetPitch = Mathf.Clamp(pitch, -maxHeadPitch, maxHeadPitch);
+                    targetPitch = Mathf.Clamp(pitch, -limitPitch, limitPitch);
                 }
             }
         }

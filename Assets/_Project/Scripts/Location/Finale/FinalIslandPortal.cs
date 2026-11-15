@@ -108,6 +108,7 @@ public sealed partial class FinalIslandPortal : MonoBehaviour, IInteractable, IP
             StopAllCoroutines();
             Release(false);
         }
+        else StopEffects();
     }
 
     void OnSaveChanged()
@@ -222,7 +223,8 @@ public sealed partial class FinalIslandPortal : MonoBehaviour, IInteractable, IP
         if (bridge == null) return;
         if (!playing)
         {
-            charge = Mathf.MoveTowards(charge, bridge.WalkwayActive ? .13f : .02f, Time.unscaledDeltaTime * .9f);
+            float idleCharge = bridge.WalkwayActive ? .13f : bridge.Stage == 2 ? .055f : .02f;
+            charge = Mathf.MoveTowards(charge, idleCharge, Time.unscaledDeltaTime * .9f);
             drawIn = Mathf.MoveTowards(drawIn, 0f, Time.unscaledDeltaTime * 2f);
         }
         bool calm = VibeSettings.ReduceEffects;
@@ -239,7 +241,18 @@ public sealed partial class FinalIslandPortal : MonoBehaviour, IInteractable, IP
             portalLight.intensity = idle + charge * 2.8f + drawIn * (calm ? .35f : 1.8f);
         }
 
-        if (!playing || camera == null || actor == null) return;
+        if (!playing)
+        {
+            // The baked portal has a whisper of motion when explored, but no
+            // permanent screen-wide VFX or extra world objects.
+            Camera view = Camera.main;
+            if (!calm && Time.timeScale > 0f && bridge.WalkwayActive && view != null &&
+                (view.transform.position - transform.position).sqrMagnitude < 20f * 20f)
+                UpdateVortex(view, false);
+            else if (trails != null) trails.enabled = false;
+            return;
+        }
+        if (camera == null || actor == null) return;
         ApplyEntryPose();
         elapsed += Time.unscaledDeltaTime;
         float blend = Mathf.SmoothStep(0f, 1f, elapsed / 1.05f);

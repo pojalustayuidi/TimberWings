@@ -7,6 +7,11 @@ public class PlayerMovement : MonoBehaviour
     public bool useBalanceSpeed = true;   // true = брать GameBalance.PlayerSpeed (GDD: 4 м/с)
     public float acceleration = 50f;   // разгон до полной скорости за ~0.1 с
     public float rotationSpeed = 15f;
+    [Header("Stage 4 — плавный разворот модели")]
+    [Tooltip("Предел угловой скорости: быстрый ввод не делает резкий поворот на 180 градусов за один кадр")]
+    [Range(120f, 900f)] public float maxTurnDegreesPerSecond = 460f;
+    [Tooltip("Разворот к собеседнику и дереву, градусов/с; физику игрока не меняем")]
+    [Range(120f, 900f)] public float actionTurnDegreesPerSecond = 340f;
     public float cameraYaw = 45f;      // как yaw в CameraFollow
 
     [Header("Анимация")]
@@ -118,13 +123,15 @@ public class PlayerMovement : MonoBehaviour
     Vector3 Steer(Vector3 want)
     {
         Vector3 origin = transform.position + Vector3.up * 0.5f;
-        for (int i = 0; i < steerAngles.Length; i++)
+        if (!PathBlocked(origin, want)) return want;
+
+        for (int i = 1; i < steerAngles.Length; i++)
         {
             float a = steerAngles[i] * autoSteerSign;
             Vector3 d = Quaternion.Euler(0f, a, 0f) * want;
             if (PathBlocked(origin, d))
                 continue;
-            if (i > 0) autoSteerSign = Mathf.Sign(a);   // свернули в эту сторону: дальше держимся её, не мечемся
+            autoSteerSign = Mathf.Sign(a);   // свернули в эту сторону: дальше держимся её, не мечемся
             return d;
         }
         return want;   // всё закрыто: идём прямо, «застрял» сдастся сам
@@ -172,6 +179,7 @@ public class PlayerMovement : MonoBehaviour
         PlayerSkills.Changed -= OnSkillsChanged;
         SaveSystem.Loaded -= ClearDash;
         SaveSystem.NewGameStarted -= ClearDash;
+        CancelWalk(); // a disabled controller must not resume an obsolete automatic walk
     }
 
     // навык сбросили: рывок и перезарядка пропадают сразу (смена уровня их не трогает)
@@ -230,6 +238,22 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    // Один контролируемый разворот для перемещения, рубки и диалогов.
+    // Используем экспоненциальное сглаживание с верхним угловым пределом:
+    // на 30 и 144 FPS ощущение практически одинаковое.
+    void FaceDirection(Vector3 direction, float maxDegrees)
+    {
+        if (model == null || direction.sqrMagnitude < .0001f) return;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < .0001f) return;
+        Quaternion target = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        float dt = Mathf.Min(Time.deltaTime, .06f);
+        float smoothing = 1f - Mathf.Exp(-Mathf.Max(1f, rotationSpeed) * dt);
+        Quaternion smoothed = Quaternion.Slerp(model.rotation, target, smoothing);
+        model.rotation = Quaternion.RotateTowards(model.rotation, smoothed,
+            Mathf.Max(120f, maxDegrees) * dt);
+    }
+
     void Update()
     {
         float moveX = MobileInput.Horizontal;
@@ -249,8 +273,16 @@ public class PlayerMovement : MonoBehaviour
                 Vector3 d = focus.position - transform.position;
                 d.y = 0f;
                 if (d.sqrMagnitude > 0.01f)
-                    model.rotation = Quaternion.Slerp(model.rotation, Quaternion.LookRotation(d), 1f - Mathf.Exp(-10f * Time.deltaTime));
+                    FaceDirection(d, actionTurnDegreesPerSecond);
             }
+        }
+
+        // Stage 4.3: while Leo celebrates, accidental WASD/dash does not skip the pose.
+        // ControlLocked is deliberately NOT used here: it belongs to fall/respawn safety.
+        if (LeoCelebration.IsPlaying)
+        {
+            input = Vector3.zero;
+            if (AutoWalking) CancelWalk();
         }
 
         // управление отнято (падение с острова): ввода нет, автоход отменён
@@ -271,7 +303,7 @@ public class PlayerMovement : MonoBehaviour
                 Vector3 d = tree.position - transform.position;
                 d.y = 0f;
                 if (d.sqrMagnitude > 0.01f)
-                    model.rotation = Quaternion.Slerp(model.rotation, Quaternion.LookRotation(d), 1f - Mathf.Exp(-12f * Time.deltaTime));
+                    FaceDirection(d, actionTurnDegreesPerSecond);
             }
         }
         // автоход к дереву: ручной ввод, разговор и рубка его прерывают
@@ -287,7 +319,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        if (inspecting && !ControlLocked)
+        if (inspecting && !ControlLocked && !LeoCelebration.IsPlaying)
             input = Quaternion.Euler(0f, -cameraYaw, 0f) * StoryInspection.WalkDirection;
 
         bool isMoving = input != Vector3.zero;
@@ -296,11 +328,7 @@ public class PlayerMovement : MonoBehaviour
         {
             moveDirection = Quaternion.Euler(0, cameraYaw, 0) * input;
 
-            if (model != null)
-            {
-                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-                model.rotation = Quaternion.Slerp(model.rotation, targetRotation, rotationSpeed * Time.deltaTime);
-            }
+            FaceDirection(moveDirection, maxTurnDegreesPerSecond);
         }
         else
         {
@@ -336,6 +364,12 @@ public class PlayerMovement : MonoBehaviour
         if (ControlLocked) return;   // падение: скорость не трогаем, летим по инерции и гравитации (или двигает IslandEdgeGuard)
 
         Vector3 v = rb.linearVelocity;
+        if (LeoCelebration.IsPlaying)
+        {
+            // Freeze only horizontal motion. The jump is visual; gravity and ground collisions remain intact.
+            rb.linearVelocity = new Vector3(0f, v.y, 0f);
+            return;
+        }
         if (StoryInspection.Active)
         {
             Vector3 walk = StoryInspection.WalkDirection;

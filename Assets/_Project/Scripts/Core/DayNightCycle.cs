@@ -183,6 +183,10 @@ public class DayNightCycle : MonoBehaviour
     public float fogDensityDay = 0.010f;
     public float fogDensityNight = 0.009f;
 
+    [Header("Visual Polish 3.5.4 — яркость ночи")]
+    [Tooltip("1 = ночь как в 3.5.3; 0.64 = заметно темнее. Затрагивает только ночной свет, ambient и ночную экспозицию, не плотность тумана.")]
+    [Range(0.35f, 1f)] public float nightBrightness = 0.64f;
+
     [Header("Цветокоррекция (Volume)")]
     public float volumeDawnPriority = 16f;
     public float volumeDuskPriority = 17f;
@@ -193,6 +197,8 @@ public class DayNightCycle : MonoBehaviour
     float extMul = 1f;                // сглаженный ExternalSpeed
     DayPhase lastPhase;
     bool bound, started;
+    bool lastBalancedGrade;
+    float lastNightBrightness = -1f;
     float bindTimer;
 
     Light sun, moon;
@@ -415,8 +421,31 @@ public class DayNightCycle : MonoBehaviour
             // ночь: синий фильтр, выдержку приподнимаем, чтобы деревья и дома читались
             SetGrade(nightCA, 0.30f, 8f, -8f, new Color(0.72f, 0.82f, 1f));
         }
+        // Ночную экспозицию оставляем положительной (читаются деревья, мост и портал),
+        // но не настолько высокой, чтобы магические частицы выгорали в белый.
+        bool balanced = LightingRig.Instance != null && LightingRig.Instance.balancedLook;
+        if (balanced)
+        {
+            BalanceGrade(dawnCA);
+            BalanceGrade(duskCA);
+            BalanceGrade(nightCA);
+            // 3.5.4: нейтрализуем избыточную ночную экспозицию, не затрагивая
+            // рассвет и закат. Вместо отдельного Volume используется текущий DayNight Night.
+            float darkness = 1f - Mathf.Clamp01(nightBrightness);
+            nightCA.postExposure.Override(Mathf.Clamp(
+                nightCA.postExposure.value - 0.70f * darkness, -0.55f, 0.18f));
+        }
+        lastBalancedGrade = balanced;
+        lastNightBrightness = nightBrightness;
         gradeStyled = st != null;
         gradeRev = CloudCandyStyle.Revision;
+    }
+
+    static void BalanceGrade(ColorAdjustments ca)
+    {
+        ca.postExposure.Override(Mathf.Clamp(ca.postExposure.value, -0.12f, 0.18f));
+        ca.contrast.Override(Mathf.Clamp(ca.contrast.value, -10f, 9f));
+        ca.saturation.Override(Mathf.Clamp(ca.saturation.value, -12f, 12f));
     }
 
     static void SetGrade(ColorAdjustments ca, float exposure, float contrast, float saturation, Color filter)
@@ -508,7 +537,10 @@ public class DayNightCycle : MonoBehaviour
         // Cloud Candy: цвета и числа из ассета стиля (нет ассета или он выключен = прежние значения полей)
         CloudCandyStyle st = CloudCandyStyle.Current;
         if (st != null) st.ApplyTo(this);
-        if (gradeRev != CloudCandyStyle.Revision || gradeStyled != (st != null)) ApplyGrades(st);
+        bool balance = LightingRig.Instance != null && LightingRig.Instance.balancedLook;
+        if (gradeRev != CloudCandyStyle.Revision || gradeStyled != (st != null) || lastBalancedGrade != balance ||
+            Mathf.Abs(lastNightBrightness - nightBrightness) > 0.001f)
+            ApplyGrades(st);
 
         float e = SunElevation(t);
         float wd, wn, wt;
@@ -517,7 +549,7 @@ public class DayNightCycle : MonoBehaviour
 
         // --- солнце: ниже горизонта выключено, тогда главным светом (и источником теней) становится луна
         float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-1.5f, 16f, e));
-        float sunI = sunMaxIntensity * k;
+        float sunI = (balance ? Mathf.Min(sunMaxIntensity, 1.15f) : sunMaxIntensity) * k;
         sun.intensity = sunI;
         sun.color = SunColor(e, st);
         if (st != null) sun.shadowStrength = st.sunShadowStrength;
@@ -530,7 +562,11 @@ public class DayNightCycle : MonoBehaviour
         float em = MoonElevation(t);
         float mk = wn * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-2f, 10f, em));
         moon.color = moonColor;
-        moon.intensity = moonIntensity * mk;
+        // Чуть менее яркий лунный свет оставляет силуэты и настоящие источники света
+        // выразительными. Ночью он приглушается, днём и на закате не меняется.
+        float nightDim = balance ? Mathf.Lerp(1f, nightBrightness, wn) : 1f;
+        moon.intensity = (balance ? Mathf.Min(moonIntensity, 0.62f) : moonIntensity) * mk *
+            Mathf.Lerp(1f, nightDim, 0.75f);
         bool moonOn = mk > 0.005f;
         if (moon.enabled != moonOn) moon.enabled = moonOn;
         LightShadows ms = sun.shadows != LightShadows.None ? sun.shadows : LightShadows.Hard;   // качество теней то же, что у солнца (его ставит LightingRig)
@@ -544,15 +580,44 @@ public class DayNightCycle : MonoBehaviour
         Color eqTw = Color.Lerp(ambDawnEq, ambDuskEq, dusk);
         Color grTw = Color.Lerp(ambDawnGround, ambDuskGround, dusk);
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = Mix(ambDaySky, skyTw, ambNightSky, wd, wt, wn);
-        RenderSettings.ambientEquatorColor = Mix(ambDayEq, eqTw, ambNightEq, wd, wt, wn);
-        RenderSettings.ambientGroundColor = Mix(ambDayGround, grTw, ambNightGround, wd, wt, wn);
+        Color skyAmbient = Mix(ambDaySky, skyTw, ambNightSky, wd, wt, wn);
+        Color equatorAmbient = Mix(ambDayEq, eqTw, ambNightEq, wd, wt, wn);
+        Color groundAmbient = Mix(ambDayGround, grTw, ambNightGround, wd, wt, wn);
+        if (balance)
+        {
+            // Чуть приглушённые ночные синие тона: силуэты и руны читаются без «неоновой» подсветки.
+            skyAmbient = Color.Lerp(skyAmbient, new Color(0.29f, 0.36f, 0.51f), wn * 0.18f);
+            equatorAmbient = Color.Lerp(equatorAmbient, new Color(0.24f, 0.29f, 0.40f), wn * 0.18f);
+            groundAmbient = Color.Lerp(groundAmbient, new Color(0.17f, 0.21f, 0.28f), wn * 0.18f);
+            // 3.5.4: не затемняем объекты дополнительным чёрным фильтром.
+            // Уменьшаем реальный заполняющий свет, чтобы костры, фонари и руны
+            // сохраняли контраст с окружающим лесом.
+            skyAmbient *= nightDim;
+            equatorAmbient *= nightDim;
+            groundAmbient *= nightDim;
+        }
+        RenderSettings.ambientSkyColor = skyAmbient;
+        RenderSettings.ambientEquatorColor = equatorAmbient;
+        RenderSettings.ambientGroundColor = groundAmbient;
 
         // --- туман и фон камеры
         Color fogTw = Color.Lerp(fogDawn, fogDusk, dusk);
         Color fog = Mix(fogDay, fogTw, fogNight, wd, wt, wn);
         RenderSettings.fog = PerformanceBoot.DistanceFog;
         RenderSettings.fogMode = st != null ? st.fogMode : FogMode.ExponentialSquared;
+        // Небольшая общая цветовая связка между небом, землёй и дымкой; не трогаем
+        // плотность IslandAbyss — она и дальше управляет дальним туманом острова.
+        if (balance)
+        {
+            Color target = Mix(new Color(0.73f, 0.82f, 0.91f),
+                Color.Lerp(new Color(0.85f, 0.72f, 0.71f), new Color(0.77f, 0.61f, 0.63f), dusk),
+                new Color(0.17f, 0.22f, 0.36f), wd, wt, wn);
+            fog = Color.Lerp(fog, target, 0.18f);
+            // Одинаковая плотность тумана во всех биомах сохраняется;
+            // лишь его ночной оттенок немного темнеет вместе с небом.
+            float fogDark = wn * (1f - Mathf.Clamp01(nightBrightness)) * 0.35f;
+            fog = Color.Lerp(fog, new Color(0.035f, 0.065f, 0.125f), fogDark);
+        }
         RenderSettings.fogColor = fog;
         RenderSettings.fogDensity = Mathf.Lerp(fogDensityDay, fogDensityNight, wn);
 

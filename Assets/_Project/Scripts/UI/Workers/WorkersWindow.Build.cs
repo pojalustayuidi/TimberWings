@@ -129,7 +129,8 @@ public partial class WorkersWindow
         table = new WorkerPackTable(inner);
         table.onClosed = OnTableClosed;
         table.onPaid = MarkDirty;
-        table.onShake = () => { shakeT = 0.45f; };
+        table.onShake = () => { shakeDur = 0.45f; shakeAmp = 9f; shakeT = shakeDur; };
+        table.onShakeEx = (dur, amp) => { shakeDur = Mathf.Max(0.05f, dur); shakeAmp = amp; shakeT = shakeDur; };
         BuildOddsOverlay();
 
         ov.gameObject.SetActive(false);

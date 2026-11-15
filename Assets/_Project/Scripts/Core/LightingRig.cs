@@ -59,6 +59,14 @@ public class LightingRig : MonoBehaviour
     public float volumePriority = 15f;                              // Vibe Grade = 10, Vibe Forest = 20
     public float capPriority = 100f;                                // «потолок»: гасит Bloom на Низком поверх всех
 
+    [Header("Visual Polish 3.5 — единый мягкий свет")]
+    [Tooltip("Отключить для сравнения с прежним видом. Не создаёт дополнительные Volume и не меняет ассет стиля.")]
+    public bool balancedLook = true;
+    [Tooltip("Локальные тени кроме FireLightPool: пул сохраняет собственный бюджет в 1 источник.")]
+    [Range(0, 2)] public int localShadowCastersMedium = 1;
+    [Range(0, 3)] public int localShadowCastersHigh = 2;
+    [Range(4f, 35f)] public float localShadowRange = 18f;
+
     [Header("Фонари")]
     public float lightRescanInterval = 3f;                          // как часто искать новые фонари, секунды (реальное время)
 
@@ -124,6 +132,7 @@ public class LightingRig : MonoBehaviour
 
     readonly Dictionary<Light, LightShadows> authored = new Dictionary<Light, LightShadows>();
     readonly List<Light> dead = new List<Light>();
+    readonly List<Light> localShadowCandidates = new List<Light>(24);
     float nextRescan;
 
     UniversalRenderPipelineAsset urp;
@@ -156,17 +165,23 @@ public class LightingRig : MonoBehaviour
         if (Instance == this) Instance = null;
         if (urp != null && urpShadowDistOrig >= 0f) urp.shadowDistance = urpShadowDistOrig;
         if (qsShadowDistOrig >= 0f) QualitySettings.shadowDistance = qsShadowDistOrig;
+        // Сцена может пережить переинициализацию LightingRig: возвращаем авторские тени.
+        foreach (var pair in authored)
+            if (pair.Key != null) pair.Key.shadows = pair.Value;
+        authored.Clear();
         if (sunCreated && sun != null) Destroy(sun.gameObject);
         if (gradeProfile != null) Destroy(gradeProfile);
         if (capProfile != null) Destroy(capProfile);
     }
 
     int styleRev = -1;
+    bool appliedBalancedLook;
 
     void Update()
     {
         // правка стиля в инспекторе (в том числе в Play Mode): пересчитываем сразу
-        if (styleRev != CloudCandyStyle.Revision) { styleRev = CloudCandyStyle.Revision; Apply(); }
+        if (styleRev != CloudCandyStyle.Revision || appliedBalancedLook != balancedLook)
+        { styleRev = CloudCandyStyle.Revision; Apply(); }
 
         // фонари могут появиться позже (стройка): подхватываем их с текущим качеством
         if (Time.unscaledTime < nextRescan) return;
@@ -230,6 +245,7 @@ public class LightingRig : MonoBehaviour
         ApplyVolume(p);
         ApplyPointLights(p);
         EnsurePostProcessing();
+        appliedBalancedLook = balancedLook;
     }
 
     void ApplySun(Preset p)
@@ -249,7 +265,8 @@ public class LightingRig : MonoBehaviour
         {
             var cs = CloudCandyStyle.Current;
             sun.color = cs != null ? cs.sunNoon : sunColor;
-            sun.intensity = cs != null ? cs.sunMaxIntensity : sunIntensity;
+            float authoredIntensity = cs != null ? cs.sunMaxIntensity : sunIntensity;
+            sun.intensity = balancedLook ? Mathf.Min(1.15f, authoredIntensity) : authoredIntensity;
             sun.shadowStrength = cs != null ? cs.sunShadowStrength : sunShadowStrength;
             if (controlSunTransform) sun.transform.rotation = Quaternion.Euler(sunPitch, sunYaw, 0f);
         }
@@ -333,9 +350,13 @@ public class LightingRig : MonoBehaviour
     void ApplyGrade()
     {
         var cs = CloudCandyStyle.Current;
-        colorAdj.postExposure.Override(cs != null ? cs.postExposure : 0.10f);
-        colorAdj.contrast.Override(cs != null ? cs.contrast : 10f);
-        colorAdj.saturation.Override(cs != null ? cs.saturation : 10f);
+        float exposure = cs != null ? cs.postExposure : 0.10f;
+        float contrast = cs != null ? cs.contrast : 10f;
+        float saturation = cs != null ? cs.saturation : 10f;
+        // Сохраняем оттенок исходного CloudCandyStyle, но не выбеливаем дневную картинку.
+        colorAdj.postExposure.Override(balancedLook ? Mathf.Min(exposure, 0.12f) : exposure);
+        colorAdj.contrast.Override(balancedLook ? Mathf.Clamp(contrast, -10f, 9f) : contrast);
+        colorAdj.saturation.Override(balancedLook ? Mathf.Clamp(saturation, -10f, 8f) : saturation);
         colorAdj.colorFilter.Override(cs != null ? cs.colorFilter : new Color(1f, 0.95f, 0.88f));
         vignette.color.Override(cs != null ? cs.vignetteColor : Color.black);
         vignette.smoothness.Override(cs != null ? cs.vignetteSmoothness : 0.45f);
@@ -344,28 +365,76 @@ public class LightingRig : MonoBehaviour
 
     void ApplyVolume(Preset p)
     {
-        gradeBloom.intensity.Override(p.bloom);
-        gradeBloom.threshold.Override(p.bloomThreshold);   // выше 1: светятся только действительно яркие места
-        gradeBloom.scatter.Override(p.bloomScatter);
-        vignette.intensity.Override(p.vignette);
+        // Вся магия 3.4 остаётся видимой, но крупный bloom больше не съедает силуэты и текст.
+        float limit = GameSettings.LightQuality == LightQualityLevel.High ? 0.30f : 0.21f;
+        gradeBloom.intensity.Override(balancedLook ? Mathf.Min(p.bloom, limit) : p.bloom);
+        gradeBloom.threshold.Override(balancedLook ? Mathf.Max(p.bloomThreshold, 1.15f) : p.bloomThreshold);
+        gradeBloom.scatter.Override(balancedLook ? Mathf.Min(p.bloomScatter, 0.62f) : p.bloomScatter);
+        vignette.intensity.Override(balancedLook ? Mathf.Min(p.vignette, 0.16f) : p.vignette);
 
-        capVolume.weight = p.bloomOn ? 0f : 1f;
+        // Уже существующий Island Light Cap имеет приоритет выше Forest Look.
+        // Поэтому единое ограничение bloom действует и под кронами, и у портала.
+        if (balancedLook)
+        {
+            capBloom.intensity.Override(p.bloomOn ? Mathf.Min(p.bloom, limit) : 0f);
+            capBloom.threshold.Override(Mathf.Max(p.bloomThreshold, 1.15f));
+            capBloom.scatter.Override(Mathf.Min(p.bloomScatter, 0.62f));
+            capVolume.weight = 1f;
+        }
+        else
+        {
+            capBloom.intensity.Override(0f);
+            capBloom.threshold.overrideState = false;
+            capBloom.scatter.overrideState = false;
+            capVolume.weight = p.bloomOn ? 0f : 1f;
+        }
     }
 
-    // фонари и прочие точечные/прожекторные: Низкое = без реальных теней
+    // 3.5: бюджет локальных теней в той же LightingRig, без нового менеджера.
+    // «Урезанный атлас 2048x2048» часто вызывали сразу несколько дальних фонарей;
+    // FireLightPool уже выдаёт не более одной теневой лампы отдельно и здесь не учитывается.
     void ApplyPointLights(Preset p)
     {
+        localShadowCandidates.Clear();
+        Transform player = PlayerMovement.Instance != null ? PlayerMovement.Instance.transform : null;
+        Camera camera = Camera.main;
+        Vector3 viewer = player != null ? player.position : camera != null ? camera.transform.position : transform.position;
+        bool haveViewer = player != null || camera != null;
+
         foreach (var l in FindObjectsByType<Light>(FindObjectsSortMode.None))
         {
             if (l.type != LightType.Point && l.type != LightType.Spot) continue;
-            // огни ведёт FireLightPool (Lights пула и выключенные исходные Light фонарей): тени у них решает пул
             if (l.GetComponent<FirePoolLight>() != null || l.GetComponent<FireSource>() != null) continue;
 
-            LightShadows orig;
-            if (!authored.TryGetValue(l, out orig)) { orig = l.shadows; authored[l] = orig; }
+            LightShadows original;
+            if (!authored.TryGetValue(l, out original)) { original = l.shadows; authored[l] = original; }
+            bool lantern = IsLantern(l);
+            LightShadows intended = lantern ? p.lantern : p.otherLightShadows ? original : LightShadows.None;
+            if (!balancedLook)
+            {
+                l.shadows = intended;
+                continue;
+            }
 
-            if (IsLantern(l)) l.shadows = p.lantern;
-            else l.shadows = p.otherLightShadows ? orig : LightShadows.None;
+            // Сначала отключаем всем, затем выбираем ближайшие подходящие источники.
+            l.shadows = LightShadows.None;
+            if (intended != LightShadows.None && l.isActiveAndEnabled &&
+                (!haveViewer || (l.transform.position - viewer).sqrMagnitude <= localShadowRange * localShadowRange))
+                localShadowCandidates.Add(l);
+        }
+
+        if (balancedLook && localShadowCandidates.Count > 0)
+        {
+            localShadowCandidates.Sort((a, b) =>
+                (a.transform.position - viewer).sqrMagnitude.CompareTo((b.transform.position - viewer).sqrMagnitude));
+            int cap = GameSettings.LightQuality == LightQualityLevel.High ? localShadowCastersHigh :
+                GameSettings.LightQuality == LightQualityLevel.Medium ? localShadowCastersMedium : 0;
+            for (int i = 0; i < Mathf.Min(Mathf.Max(0, cap), localShadowCandidates.Count); i++)
+            {
+                Light l = localShadowCandidates[i];
+                LightShadows original = authored[l];
+                l.shadows = IsLantern(l) ? p.lantern : p.otherLightShadows ? original : LightShadows.None;
+            }
         }
 
         dead.Clear();

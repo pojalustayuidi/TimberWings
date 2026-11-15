@@ -11,12 +11,15 @@ public sealed class TWCampfireCozyEmbers : MonoBehaviour
     [SerializeField] private Transform emberVisual;
     [SerializeField, Range(0f, 0.10f)] private float pulseAmount = 0.035f;
     [SerializeField, Range(0.1f, 8f)] private float pulseSpeed = 2.2f;
+    [Header("Visual Polish 3.3 — угли")]
+    [SerializeField, Range(0f, 0.06f)] private float slowBreathAmount = 0.013f;
+    [SerializeField, Range(0.05f, 2f)] private float slowBreathSpeed = 0.28f;
     private Vector3 restScale = Vector3.one;
     private bool ready;
     private ParticleSystem sparks, smoke, hearts;
     private ParticleSystem.MinMaxCurve originalSparks, originalSmoke, originalHearts;
     private bool ratesCaptured, ratesApplied;
-
+    private float nextRatesAt;
 
     public void Assign(Transform mesh)
     {
@@ -51,7 +54,8 @@ public sealed class TWCampfireCozyEmbers : MonoBehaviour
         if (sparks != null) originalSparks = sparks.emission.rateOverTime;
         if (smoke != null) originalSmoke = smoke.emission.rateOverTime;
         if (hearts != null) originalHearts = hearts.emission.rateOverTime;
-        ratesCaptured = true;
+        // Если старый костёр собран без этих систем, попробуем позднее.
+        ratesCaptured = sparks != null || smoke != null || hearts != null;
     }
 
     private static ParticleSystem GetPS(Transform stage, string key)
@@ -74,10 +78,13 @@ public sealed class TWCampfireCozyEmbers : MonoBehaviour
 
     private void ApplyQuietRates()
     {
-        if (!Application.isPlaying || !ratesCaptured || ratesApplied) return;
-        SetRate(sparks, originalSparks, .55f);
-        SetRate(smoke, originalSmoke, .55f);
-        SetRate(hearts, originalHearts, .30f);
+        if (!Application.isPlaying || !ratesCaptured) return;
+        float night = Mathf.Clamp01(DayNightCycle.Night01);
+        float reduced = VibeSettings.ReduceEffects ? 0.55f : 1f;
+        // Днём спокойный дым, ночью чуть заметнее искры; прежние потоки не ускоряем резко.
+        SetRate(sparks, originalSparks, Mathf.Lerp(0.52f, 0.68f, night) * reduced);
+        SetRate(smoke, originalSmoke, Mathf.Lerp(0.52f, 0.45f, night) * reduced);
+        SetRate(hearts, originalHearts, 0.30f * reduced);
         ratesApplied = true;
     }
 
@@ -93,9 +100,21 @@ public sealed class TWCampfireCozyEmbers : MonoBehaviour
     private void LateUpdate()
     {
         if (!ready || emberVisual == null) return;
-        float phase = Mathf.Sin(Time.time * pulseSpeed * 2f * Mathf.PI);
-        float intensity = 1f + pulseAmount * phase;
-        emberVisual.localScale = Vector3.Scale(restScale, new Vector3(intensity, 1f + .35f * pulseAmount * phase, intensity));
+        float t = Time.time;
+        float small = Mathf.Sin(t * pulseSpeed * 2f * Mathf.PI);
+        float slow = Mathf.Sin(t * slowBreathSpeed * 2f * Mathf.PI + 1.2f);
+        float visualScale = VibeSettings.ReduceEffects ? 0.55f : 1f;
+        float pulse = (pulseAmount * small + slowBreathAmount * slow) * visualScale;
+        float vertical = (0.35f * pulseAmount * small + slowBreathAmount * slow) * visualScale;
+        emberVisual.localScale = Vector3.Scale(restScale, new Vector3(1f + pulse, 1f + vertical, 1f + pulse));
+
+        // Дорогие ParticleSystem-модули трогаем не каждый кадр; настройки можно менять на ходу.
+        if (t >= nextRatesAt)
+        {
+            nextRatesAt = t + 0.85f;
+            if (!ratesCaptured) CaptureParticles();
+            ApplyQuietRates();
+        }
     }
 
     private void OnDisable()

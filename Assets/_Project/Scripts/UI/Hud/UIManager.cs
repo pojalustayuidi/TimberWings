@@ -130,8 +130,11 @@ public class UIManager : MonoBehaviour
         if (xpFillBar != null)
         {
             // при новом уровне полоса не едет назад, а сразу начинается заново
-            if (targetFill < xpFillBar.fillAmount - 0.5f) xpFillBar.fillAmount = 0f;
-            xpFillBar.fillAmount = Mathf.Lerp(xpFillBar.fillAmount, targetFill, 1f - Mathf.Exp(-fillSpeed * dt));
+            float current = xpFillBar.fillAmount;
+            if (targetFill < current - 0.5f) current = 0f;
+            float next = Mathf.Lerp(current, targetFill, 1f - Mathf.Exp(-fillSpeed * dt));
+            if (Mathf.Abs(next - targetFill) < 0.0005f) next = targetFill;
+            if (!Mathf.Approximately(xpFillBar.fillAmount, next)) xpFillBar.fillAmount = next;
         }
 
         woodPulse?.Tick(dt, pulseTime, pulseAmount);
@@ -144,10 +147,14 @@ public class UIManager : MonoBehaviour
 
     // Компактные значения HUD: маленькие суммы остаются точными, крупные не ломают панель.
     // 700 -> 700, 12 500 -> 12.5K, 1 250 000 -> 1.25M.
-    static string FormatResourceCount(int value)
+    // Один экземпляр культуры вместо повторного поиска в каждом обновлении счётчиков.
+    static readonly System.Globalization.CultureInfo ResourceCulture =
+        System.Globalization.CultureInfo.GetCultureInfo("ru-RU");
+
+    static string FormatResourceCount(long value)
     {
         if (value < 0) return "−" + FormatResourceCount(-value);
-        if (value < 10000) return value.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("ru-RU"));
+        if (value < 10000) return value.ToString("N0", ResourceCulture);
         if (value < 1000000) return FormatCompact(value / 1000d, "K");
         if (value < 1000000000) return FormatCompact(value / 1000000d, "M");
         return FormatCompact(value / 1000000000d, "B");
@@ -156,14 +163,14 @@ public class UIManager : MonoBehaviour
     static string FormatGainCount(int value)
     {
         // Приросты до 999 показываем точно: игрок видит и +1, и +40, и +700.
-        if (value < 1000) return value.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("ru-RU"));
+        if (value < 1000) return value.ToString("N0", ResourceCulture);
         return FormatResourceCount(value);
     }
 
     static string FormatCompact(double value, string suffix)
     {
         string format = value >= 100 ? "0" : value >= 10 ? "0.#" : "0.##";
-        return value.ToString(format, System.Globalization.CultureInfo.GetCultureInfo("ru-RU")) + suffix;
+        return value.ToString(format, ResourceCulture) + suffix;
     }
 
     public void UpdateResources(int wood, int coins)
@@ -201,10 +208,10 @@ public class UIManager : MonoBehaviour
     // currentXP и nextLevelXP — опыт ВНУТРИ уровня (см. PlayerStats.RefreshUI)
     public void UpdateXP(int level, int currentXP, int nextLevelXP)
     {
-        if (levelText != null)
+        if (levelText != null && level != lastLevel)
         {
             levelText.text = "LVL " + level;
-            if (lastLevel != int.MinValue && level != lastLevel) levelPulse?.Kick();
+            if (lastLevel != int.MinValue) levelPulse?.Kick();
         }
         lastLevel = level;
 

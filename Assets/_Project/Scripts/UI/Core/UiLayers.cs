@@ -27,4 +27,5 @@ public static class UiLayers
     public const int MainMenu        = 5000;
     public const int Fade            = 29000; // CampSleep, IslandEdgeGuard («вы упали»)
     public const int SaveIndicator   = 30000; // всегда поверх
+    public const int Cursor          = 32000; // курсор мыши (GameCursor), выше вообще всего
 }

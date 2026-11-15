@@ -34,11 +34,12 @@ sealed class LeoCelebrationCamera
             source = celebration;
             sequence = celebration.Sequence;
             orbitMode = isOrbit;
-            skipped = userLook || !ChooseArc(cam, target, mask);
+            // Geometry can prevent the shot, but a mouse movement cannot skip Leo's celebration.
+            skipped = !ChooseArc(cam, target, mask);
         }
 
         if (source == null) return false;
-        if (userLook || orbitMode != isOrbit || CameraVibe.RevealActive || DialoguePreferences.ConversationOwnsCamera)
+        if (orbitMode != isOrbit || CameraVibe.RevealActive || DialoguePreferences.ConversationOwnsCamera)
             skipped = true;
 
         if (playing && !skipped)

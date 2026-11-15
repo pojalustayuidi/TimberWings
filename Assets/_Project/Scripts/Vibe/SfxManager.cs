@@ -459,6 +459,28 @@ public class SfxManager : MonoBehaviour
                 }, 0.6f);
             case "hint":    // всплыла подсказка: две мягкие ноты
                 return VibeSynth.Make("hint", 0.4f, t => VibeSynth.Bell(660f, t, 0.12f) + VibeSynth.Bell(880f, t - 0.09f, 0.16f), 0.6f);
+            case "riser":   // зарядка редкой карты: тон ползёт вверх, шум крепнет, в конце короткий вдох перед ударом
+            {
+                float lp = 0f;
+                return VibeSynth.Make("riser", 1.6f, t =>
+                {
+                    float k = t / 1.6f;
+                    float ph = 2f * Mathf.PI * (160f * t + 900f * t * t * t / (3f * 2.56f));
+                    lp += 0.25f * (VibeSynth.Noise() - lp);
+                    float tail = t > 1.5f ? (1.6f - t) * 10f : 1f;
+                    return (Mathf.Sin(ph) * 0.6f + Mathf.Sin(ph * 1.5f) * 0.25f + lp * 0.5f) * k * k * tail;
+                }, 0.55f);
+            }
+            case "boom":    // удар при открытии легендарной и мифической карты: низкий «бум» с падающим тоном и шорохом
+            {
+                float lp = 0f;
+                return VibeSynth.Make("boom", 1.4f, t =>
+                {
+                    lp += 0.12f * (VibeSynth.Noise() - lp);
+                    float ph = 2f * Mathf.PI * (45f * t + 65f * (1f - Mathf.Exp(-5f * t)) / 5f);
+                    return Mathf.Sin(ph) * VibeSynth.Env(t, 0.004f, 0.45f) + lp * VibeSynth.Env(t, 0.001f, 0.12f) * 0.9f;
+                }, 0.9f);
+            }
             case "ui":
                 return VibeSynth.Make("ui", 0.07f, t => VibeSynth.Sin(880f, t) * VibeSynth.Env(t, 0.002f, 0.02f), 0.5f);
         }

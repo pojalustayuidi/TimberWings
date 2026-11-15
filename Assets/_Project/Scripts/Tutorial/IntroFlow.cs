@@ -135,6 +135,9 @@ public class IntroFlow : MonoBehaviour, ISaveable
 
         if (!started)
         {
+            // После заставки новой игры сначала проигрывается ArrivalIntroSequence.
+            // На загрузке сохранения и при запуске GameScene из редактора обучение ведёт себя как раньше.
+            if (ArrivalIntroSequence.Active) return;
             if (Time.unscaledTime >= beginAt) Begin();
             return;
         }

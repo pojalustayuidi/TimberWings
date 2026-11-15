@@ -35,13 +35,13 @@ public sealed class BridgeQaWindow : EditorWindow
     }
 
     [MenuItem(Menu + "1. К началу стройки", false, 1041)]
-    static void MenuPrepare() { if (Ready()) PrepareBridge(); }
+    static void MenuPrepare() => PrepareBridge();
 
     [MenuItem(Menu + "2. Достроить мост", false, 1042)]
-    static void MenuComplete() { if (Ready()) SetBridgeSteps(3); }
+    static void MenuComplete() => SetBridgeSteps(3);
 
     [MenuItem(Menu + "3. К порталу", false, 1043)]
-    static void MenuPortal() { if (Ready()) GoToPortal(); }
+    static void MenuPortal() => GoToPortal();
 
     void OnInspectorUpdate()
     {
@@ -279,12 +279,16 @@ public sealed class BridgeQaWindow : EditorWindow
         GateBridge gate = FindGate();
         BuildingController site = FindBridgeSite(gate, StoryFlow.Instance);
         FinalIslandPortal portal = FindPortal(gate);
-        if (!site.IsFinished || portal == null || !portal.IsBaked)
+        if (!site.IsFinished || portal == null || !portal.IsBaked || portal.Anchor == null)
         {
-            Debug.LogWarning("[Bridge QA] Сначала дострой мост и сделай Editor Bake с порталом.");
+            Debug.LogWarning("[Bridge QA] Сначала дострой мост и сделай Editor Bake с привязанным порталом.");
             return;
         }
-        StoryFlow.Instance.EditorTestJumpToChapter("gunnar");
+        if (!StoryFlow.Instance.EditorTestJumpToChapter("gunnar"))
+        {
+            Debug.LogWarning("[Bridge QA] Не удалось подготовить главу gunnar. Телепорт отменён.");
+            return;
+        }
         Teleport(portal.Anchor.position);
     }
 

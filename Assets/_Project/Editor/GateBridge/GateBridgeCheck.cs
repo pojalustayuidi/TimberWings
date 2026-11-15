@@ -1,13 +1,14 @@
 #if UNITY_EDITOR
 // Assets/_Project/Editor/GateBridge/GateBridgeCheck.cs (Editor)
-// Tools > BuilderSim > Локация > Проверить мост и финальный остров (работает в Edit Mode, сцену не меняет: всё включённое временно возвращается).
-// Проверяет: число и цены оплачиваемых этапов, соответствие этапов и видов, ссылки, швы и непрерывность настила, бортики,
-// проходимость с обоих берегов по сетке (капсула Лео), опасные края дальнего острова, место для камеры, радиус записки, положение зоны стройки.
-// Это проверка геометрии и ссылок, а не Play Mode: сохранения, показ стройки и финал надо смотреть в игре (список в PATCH_NOTES.md).
+// Проверяет активную игровую сцену без создания GateBridge и без вызова Preview.
+// Проверяет данные, ссылки, геометрию и коллизии; временные изменения объектов восстанавливаются.
+// Переключение четырёх стадий нужно проверять отдельно в изолированном Play Mode.
 using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public static class GateBridgeCheck
 {
@@ -23,11 +24,32 @@ public static class GateBridgeCheck
     {
         sb = new StringBuilder("=== Проверка моста и финального острова ===\n");
         fails = 0; warns = 0;
-        string err;
-        var gb = GateBridgeBuilder.FindOrCreate(out err);
-        if (gb == null || gb.walkway == null) { EditorUtility.DisplayDialog("GateBridge", "Мост не собран: " + (err ?? "сначала запусти сборку"), "OK"); return; }
+        var scene = SceneManager.GetActiveScene();
+        if (EditorApplication.isPlayingOrWillChangePlaymode ||
+            PrefabStageUtility.GetCurrentPrefabStage() != null ||
+            !scene.IsValid() || !scene.isLoaded || string.IsNullOrEmpty(scene.path))
+        {
+            EditorUtility.DisplayDialog("GateBridge", "Открой сохранённую игровую сцену в Edit Mode.", "OK");
+            return;
+        }
+        // A validator must never call GateBridgeBuilder.FindOrCreate: it modifies the scene.
+        var bridges = new List<GateBridge>();
+        foreach (GameObject root in scene.GetRootGameObjects())
+            bridges.AddRange(root.GetComponentsInChildren<GateBridge>(true));
+        if (bridges.Count != 1)
+        {
+            EditorUtility.DisplayDialog("GateBridge", "Ожидается один GateBridge в активной сцене, найдено: " + bridges.Count, "OK");
+            return;
+        }
+        GateBridge gb = bridges[0];
+        if (gb.walkway == null)
+        {
+            EditorUtility.DisplayDialog("GateBridge", "У GateBridge отсутствует Walkway — сначала выполни Editor Bake.", "OK");
+            return;
+        }
         var fi = gb.GetComponent<GateBridgePlacement>();
         if (fi == null) { EditorUtility.DisplayDialog("GateBridge", "Нет GateBridgePlacement на объекте моста.", "OK"); return; }
+        string err;
         var p = GateBridgeBuilder.MakePlan(fi, gb, out err);
         if (p == null) { EditorUtility.DisplayDialog("GateBridge", err, "OK"); return; }
 
@@ -35,19 +57,23 @@ public static class GateBridgeCheck
         CheckRefs(gb, fi);
         CheckStates(gb);
 
-        // временное состояние: проход открыт, стена ворот снята
+        // The physics checks need the walkway and an open gate temporarily.
         bool walkWas = gb.walkway.activeSelf;
         var gate = fi.GateRoot;
         bool gateWas = gate != null && gate.gameObject.activeSelf;
-        gb.walkway.SetActive(true);
-        if (gate != null) gate.gameObject.SetActive(false);
-        Physics.SyncTransforms();
         try
         {
+            gb.walkway.SetActive(true);
+            if (gate != null) gate.gameObject.SetActive(false);
+            Physics.SyncTransforms();
             CheckDeck(gb, p);
             CheckWalk(gb, fi, p);
             CheckCameraSpace(gb, p);
             CheckNote(gb, p);
+        }
+        catch (System.Exception ex)
+        {
+            Fail("исключение во время проверки физики: " + ex.Message);
         }
         finally
         {
@@ -58,15 +84,29 @@ public static class GateBridgeCheck
         CheckZone(gb, p);
 
         sb.AppendLine("\nИтого: FAIL " + fails + ", WARN " + warns + ".");
-        Debug.Log(sb.ToString());
+        if (fails > 0) Debug.LogWarning(sb.ToString(), gb);
+        else Debug.Log(sb.ToString(), gb);
         EditorUtility.DisplayDialog("GateBridge", sb.ToString(), "OK");
     }
 
     // ------------------------------------------------------------ данные стройки
     static BuildingController FindBridgeSite()
     {
-        foreach (var b in Object.FindObjectsByType<BuildingController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            if (b.SiteKind == BuildSiteKind.Bridge) return b;
+        Scene scene = SceneManager.GetActiveScene();
+        foreach (GameObject root in scene.GetRootGameObjects())
+            foreach (BuildingController b in root.GetComponentsInChildren<BuildingController>(true))
+                if (b != null && b.SiteKind == BuildSiteKind.Bridge) return b;
+        return null;
+    }
+
+    static T FindSceneComponent<T>() where T : Component
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            var found = root.GetComponentInChildren<T>(true);
+            if (found != null) return found;
+        }
         return null;
     }
 
@@ -79,14 +119,20 @@ public static class GateBridgeCheck
         else Fail("оплачиваемых этапов " + n + ", ожидалось 3 (GameBalance.Bridge*)");
         if (b.data != null)
         {
-            for (int i = 0; i < Mathf.Min(n, GameBalance.BridgeWood.Length); i++)
+            if (b.data.steps == null || b.data.steps.Length < n)
+                Fail("неполные данные этапов BuildSiteData: ожидалось " + n + " записей");
+            else
             {
-                var s = b.data.steps[i];
-                if (s.woodCost != GameBalance.BridgeWood[i] || s.plankCost != GameBalance.BridgePlanks[i] || s.coinCost != GameBalance.BridgeCoins[i])
-                    Warn("этап " + (i + 1) + " «" + s.name + "»: цена в Build Site Data (" + s.woodCost + "/" + s.plankCost + "/" + s.coinCost + ") отличается от GameBalance ("
-                         + GameBalance.BridgeWood[i] + "/" + GameBalance.BridgePlanks[i] + "/" + GameBalance.BridgeCoins[i] + "). Цены сборка не меняет");
+                for (int i = 0; i < Mathf.Min(n, GameBalance.BridgeWood.Length); i++)
+                {
+                    var step = b.data.steps[i];
+                    if (step == null) { Fail("у этапа " + (i + 1) + " нет данных"); continue; }
+                    if (step.woodCost != GameBalance.BridgeWood[i] || step.plankCost != GameBalance.BridgePlanks[i] || step.coinCost != GameBalance.BridgeCoins[i])
+                        Warn("этап " + (i + 1) + " «" + step.name + "»: цена в Build Site Data (" + step.woodCost + "/" + step.plankCost + "/" + step.coinCost + ") отличается от GameBalance ("
+                             + GameBalance.BridgeWood[i] + "/" + GameBalance.BridgePlanks[i] + "/" + GameBalance.BridgeCoins[i] + "). Цены сборка не меняет");
+                }
+                Ok("этапы по порядку: " + string.Join(", ", System.Array.ConvertAll(b.data.steps, x => x != null ? x.name : "<null>")));
             }
-            Ok("этапы по порядку: " + string.Join(", ", System.Array.ConvertAll(b.data.steps, x => x.name)));
         }
         else Warn("у зоны моста нет Build Site Data: работают запасные поля");
         sb.AppendLine("     вид по этапам: 0 сдано = вид 1 (сломан); 1 сдано «Опоры» = вид 2, новые опоры и тросы; 2 сдано «Настил» = вид 2 + доски (DeckStep2); 3 сдано = вид 3 и проход");
@@ -115,7 +161,7 @@ public static class GateBridgeCheck
             else Ok("BuildStageLink связывает стройку и RiverBridge");
         }
         if (fi.GateRoot == null) Warn("у GateBridgePlacement нет GateWalls: проход не закрыт до стройки (запусти BuildWalls)"); else Ok("GateWalls есть");
-        var sf = Object.FindFirstObjectByType<StoryFlow>(FindObjectsInactive.Include);
+        var sf = FindSceneComponent<StoryFlow>();
         if (sf == null) Warn("StoryFlow в сцене нет");
         else if (sf.noteSpot == gb.noteSpot && gb.noteSpot != null) Ok("StoryFlow.noteSpot = площадка дальнего острова");
         else Fail("StoryFlow.noteSpot не указывает на NoteSpot площадки");
@@ -124,22 +170,25 @@ public static class GateBridgeCheck
 
     static void CheckStates(GateBridge gb)
     {
-        var was = new bool[3];
-        for (int i = 0; i < 3; i++) was[i] = gb.stages[i] != null && gb.stages[i].activeSelf;
-        bool stepWas = gb.deckStep2.activeSelf, walkWas = gb.walkway.activeSelf;
-        int[,] cases = { { 1, 0 }, { 2, 1 }, { 2, 2 }, { 3, 3 } };
-        bool allOk = true;
-        for (int c = 0; c < 4; c++)
+        // Preview() mutates GateBridge's internal stage/stepsDone/previewWalk and finale.
+        // Its effects cannot be safely undone by restoring GameObject.activeSelf only.
+        if (gb.stages == null || gb.stages.Length != 3 ||
+            gb.stages[0] == null || gb.stages[1] == null || gb.stages[2] == null ||
+            gb.deckStep2 == null || gb.walkway == null)
         {
-            gb.Preview(cases[c, 0], cases[c, 1], false);
-            bool ok = gb.stages[0].activeSelf == (cases[c, 0] == 1) && gb.stages[1].activeSelf == (cases[c, 0] == 2) && gb.stages[2].activeSelf == (cases[c, 0] == 3)
-                      && gb.deckStep2.activeSelf == (cases[c, 0] == 2 && cases[c, 1] >= 2) && !gb.walkway.activeSelf;
-            if (!ok) { allOk = false; Fail("состояние «сдано " + cases[c, 1] + "» показывает неверные объекты"); }
+            Fail("неполный набор видов моста, настила или прохода; переключение не проверялось");
+            return;
         }
-        if (allOk) Ok("4 состояния стройки (0, 1, 2, 3 сдано) показывают разные объекты, проход закрыт при любом виде без завершённой стройки");
-        for (int i = 0; i < 3; i++) gb.stages[i].SetActive(was[i]);
-        gb.deckStep2.SetActive(stepWas);
-        gb.walkway.SetActive(walkWas);
+        if (gb.deckStep2.transform.IsChildOf(gb.stages[1].transform))
+            Ok("DeckStep2 является частью вида Stage2");
+        else Warn("DeckStep2 не находится внутри Stage2; проверь визуальную смену этапов");
+        if (gb.walkway == gb.stages[0] || gb.walkway == gb.stages[1] || gb.walkway == gb.stages[2] ||
+            gb.walkway.transform.IsChildOf(gb.stages[0].transform) ||
+            gb.walkway.transform.IsChildOf(gb.stages[1].transform) ||
+            gb.walkway.transform.IsChildOf(gb.stages[2].transform))
+            Fail("Walkway должен быть независим от переключаемых видов Stage1/2/3");
+        else Ok("Walkway не зависит от переключения видимых стадий");
+        sb.AppendLine("INFO Четыре состояния (0/1/2/3) следует проверить в изолированном Play Mode; Edit Mode-аудит не вызывает Preview().");
     }
 
     // ------------------------------------------------------------ настил
@@ -299,7 +348,7 @@ public static class GateBridgeCheck
 
     static void CheckNote(GateBridge gb, GBPlan p)
     {
-        var sf = Object.FindFirstObjectByType<StoryFlow>(FindObjectsInactive.Include);
+        var sf = FindSceneComponent<StoryFlow>();
         if (gb.noteSpot == null || sf == null) return;
         float r = sf.noteRadius;
         Vector3 n = gb.noteSpot.position;

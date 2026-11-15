@@ -26,21 +26,29 @@ public class UiInputGuard : MonoBehaviour
         instance = go.AddComponent<UiInputGuard>();
     }
 
-    /// <summary>Единственное место, где создаётся и чинится EventSystem. Окна вызывают его перед построением UI.</summary>
+    /// <summary>Единая точка создания и починки EventSystem; окна вызывают её перед созданием UI.</summary>
     public static void EnsureEventSystem()
     {
         var es = EventSystem.current != null ? EventSystem.current : FindFirstObjectByType<EventSystem>();
         if (es == null)
         {
             var go = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-            DontDestroyOnLoad(go);   // после перезагрузки сцены EventSystem без этого умирает, и в окнах ничего не нажимается
+            DontDestroyOnLoad(go);
             es = go.GetComponent<EventSystem>();
         }
         if (!es.gameObject.activeSelf) es.gameObject.SetActive(true);
         if (!es.enabled) es.enabled = true;
-        var module = es.GetComponent<BaseInputModule>();
-        if (module == null) module = es.gameObject.AddComponent<StandaloneInputModule>();
-        if (!module.enabled) module.enabled = true;
+
+        // Всегда оставляем единственный активный модуль старого ввода.
+        // Ранее EnsureEventSystem мог включить несовместимый InputSystemUIInputModule.
+        var modules = es.GetComponents<BaseInputModule>();
+        StandaloneInputModule standalone = null;
+        foreach (var module in modules)
+            if (module is StandaloneInputModule legacy) { standalone = legacy; break; }
+        if (standalone == null) standalone = es.gameObject.AddComponent<StandaloneInputModule>();
+        foreach (var module in modules)
+            if (module != null && module != standalone && module.enabled) module.enabled = false;
+        if (!standalone.enabled) standalone.enabled = true;
         if (EventSystem.current != es) EventSystem.current = es;
     }
 
@@ -59,36 +67,19 @@ public class UiInputGuard : MonoBehaviour
     void Check()
     {
 #if ENABLE_LEGACY_INPUT_MANAGER
-        var es = EventSystem.current != null ? EventSystem.current : FindFirstObjectByType<EventSystem>();
-        if (es == null)
-        {
-            var go = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-            DontDestroyOnLoad(go);
-            es = go.GetComponent<EventSystem>();
-        }
-
-        if (!es.gameObject.activeSelf) es.gameObject.SetActive(true);
-        if (!es.enabled) es.enabled = true;
-
-        // нужен именно StandaloneInputModule (старый Input); любой другой модуль на этом EventSystem выключаем
-        var modules = es.GetComponents<BaseInputModule>();
-        StandaloneInputModule standalone = null;
-        string found = "";
-        for (int i = 0; i < modules.Length; i++)
-        {
-            found += modules[i].GetType().Name + (modules[i].enabled ? "(on) " : "(off) ");
-            if (modules[i] is StandaloneInputModule) standalone = (StandaloneInputModule)modules[i];
-        }
-        if (standalone == null) standalone = es.gameObject.AddComponent<StandaloneInputModule>();
-        for (int i = 0; i < modules.Length; i++)
-            if (modules[i] != standalone && modules[i].enabled) modules[i].enabled = false;
-        if (!standalone.enabled) standalone.enabled = true;
-        if (EventSystem.current != es) EventSystem.current = es;
-
+        EnsureEventSystem();
+        // Диагностическая строка нужна только при первом запуске, а не каждую секунду.
         if (!logged)
         {
             logged = true;
-            Debug.Log("[UiInputGuard] EventSystem: " + es.name + ", модули: " + (found.Length > 0 ? found : "нет") + "-> активен StandaloneInputModule");
+            var es = EventSystem.current;
+            var modules = es.GetComponents<BaseInputModule>();
+            var found = new System.Text.StringBuilder(80);
+            foreach (var module in modules)
+                if (module != null) found.Append(module.GetType().Name)
+                    .Append(module.enabled ? "(on) " : "(off) ");
+            Debug.Log("[UiInputGuard] EventSystem: " + es.name + ", модули: " +
+                (found.Length > 0 ? found.ToString() : "нет") + "-> активен StandaloneInputModule");
         }
 #endif
     }

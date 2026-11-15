@@ -22,7 +22,12 @@ public class Speaker : MonoBehaviour
     public float turnSpeed = 6f;
     [System.NonSerialized] public bool externalFacing;
     [Tooltip("Скорость доворота к собеседнику во время диалога, градусов/с")]
-    public float dialogueTurnDegrees = 720f;
+    public float dialogueTurnDegrees = 320f;
+    [Tooltip("Ограничение реальной скорости разговора: старые NPC с 720 градусов/с не щёлкают головой и корпусом")]
+    [Range(160f, 540f)] public float maxConversationTurn = 340f;
+    [Header("Stage 4.1 — плавный разворот в диалоге")]
+    [Tooltip("Плавность старта и торможения поворота к собеседнику")]
+    [Range(1f, 12f)] public float conversationTurnEase = 4.5f;
 
     static readonly List<Speaker> all = new List<Speaker>();
 
@@ -30,18 +35,61 @@ public class Speaker : MonoBehaviour
     Transform player;
     float findTimer;
     Quaternion dialogueRotation;
+    Quaternion beforeConversationRotation;
     bool facingConversation,returningFromConversation;
+    Speaker lastFacingPartner;
+    MiraRig miraFaceRig;
+
+    // Mira has a procedural visual root driven by MiraMotion. Turning the NPC
+    // scene root instead of that visual rotates prompts and other components,
+    // while MiraMotion can restore a different local orientation each frame.
+    // Use the real visible model for dialogues, without changing authored pivots.
+    Transform DialogueVisual(PlayerMovement movement)
+    {
+        if (movement == null)
+        {
+            if (miraFaceRig == null) miraFaceRig = GetComponentInChildren<MiraRig>(true);
+            if (miraFaceRig != null && miraFaceRig.gameObject.activeInHierarchy)
+                return miraFaceRig.transform;
+        }
+        return turnRoot != null ? turnRoot : movement != null ? movement.model : transform;
+    }
+
+    // A prefab's transform.forward does not always coincide with the face.
+    // Mira's eyes are generated in front of her head (+Z in the model data);
+    // measuring them also works if her visible mesh was authored facing 180°
+    // away from the NPC's root. No prefab or inspector changes required.
+    Quaternion FaceTargetRotation(Transform visual, Vector3 towards)
+    {
+        Quaternion target = Quaternion.LookRotation(towards);
+        if (miraFaceRig == null || !miraFaceRig.gameObject.activeInHierarchy ||
+            miraFaceRig.head == null || miraFaceRig.eyeL == null || miraFaceRig.eyeR == null)
+            return target;
+
+        Vector3 eyeMidpoint = (miraFaceRig.eyeL.position + miraFaceRig.eyeR.position) * 0.5f;
+        Vector3 face = visual.InverseTransformDirection(eyeMidpoint - miraFaceRig.head.position);
+        face.y = 0f;
+        if (face.sqrMagnitude < 0.0001f) return target;
+        float faceYaw = Vector3.SignedAngle(Vector3.forward, face.normalized, Vector3.up);
+        return target * Quaternion.Euler(0f, -faceYaw, 0f);
+    }
 
     public Vector3 BubblePoint { get { return transform.position + bubbleOffset; } }
 
     void OnEnable() { if (!all.Contains(this)) all.Add(this); }
-    void OnDisable() { all.Remove(this); facingConversation=returningFromConversation=false; }
+    void OnDisable()
+    {
+        all.Remove(this);
+        StopVoice(); // disabling only this component must not leave an orphan recorded line playing
+        facingConversation = returningFromConversation = false;
+        lastFacingPartner = null;
+    }
 
     public static Speaker Find(string name)
     {
         if (string.IsNullOrEmpty(name)) return null;
         foreach (var s in all)
-            if (s != null && string.Equals(s.displayName, name, System.StringComparison.OrdinalIgnoreCase)) return s;
+            if (s != null && s.isActiveAndEnabled && string.Equals(s.displayName, name, System.StringComparison.OrdinalIgnoreCase)) return s;
         return null;
     }
 
@@ -113,10 +161,11 @@ public class Speaker : MonoBehaviour
     // перед новой репликой глушим голоса всех остальных: две озвучки одновременно быть не может
     public static void StopAllVoices(Speaker except)
     {
-        for (int i = 0; i < all.Count; i++)
+        for (int i = all.Count - 1; i >= 0; i--)
         {
             var s = all[i];
-            if (s != null && s != except) s.StopVoice();
+            if (s == null) { all.RemoveAt(i); continue; }
+            if (s != except) s.StopVoice();
         }
     }
 
@@ -130,7 +179,7 @@ public class Speaker : MonoBehaviour
         // also steer this model toward the player from Update.
         if (externalFacing) return;
         Speaker addressee;
-        if (TryGetConversationPartner(this,out addressee)) return;
+        if (TryGetConversationPartner(this,out addressee) || returningFromConversation) return;
         if (!faceNearbyPlayer) return;
 
         if (player == null)
@@ -159,20 +208,46 @@ public class Speaker : MonoBehaviour
         // visual root *after* those poses, so a head-yaw limit cannot leave a
         // speaker looking 60-120 degrees away from their partner.
         var movement=GetComponent<PlayerMovement>();
-        Transform visual=turnRoot!=null?turnRoot:movement!=null?movement.model:transform;
+        Transform visual=DialogueVisual(movement);
         // Never rotate the player's Rigidbody root merely for eye contact.
         if(visual==null||movement!=null&&visual==transform)return;
-        Speaker partner;
-        if(TryGetConversationPartner(this,out partner))
+        Speaker partner = null;
+        bool faceLocalPlayer = miraFaceRig != null && DialogueSequence.Focus == transform &&
+            PlayerMovement.Instance != null;
+        if (faceLocalPlayer || TryGetConversationPartner(this, out partner))
         {
-            Vector3 direction=partner.transform.position-transform.position;
+            // In Mira's player-initiated conversation, face the person standing
+            // in front of her, even if a dialogue line refers to another NPC.
+            Vector3 direction = faceLocalPlayer
+                ? PlayerMovement.Instance.transform.position - transform.position
+                : partner.transform.position - transform.position;
             direction.y=0;
             if(direction.sqrMagnitude>.0001f)
             {
-                if(!facingConversation){dialogueRotation=visual.rotation;facingConversation=true;}
+                if (!facingConversation)
+                {
+                    beforeConversationRotation = visual.rotation;
+                    facingConversation = true;
+                }
+                if (lastFacingPartner != partner)
+                {
+                    // A new speaker can take over within the same conversation.
+                    // Rebase interpolation to the current orientation, not the
+                    // target of the previous NPC.
+                    dialogueRotation = visual.rotation;
+                    lastFacingPartner = partner;
+                }
                 returningFromConversation=false;
-                dialogueRotation=Quaternion.RotateTowards(dialogueRotation,Quaternion.LookRotation(direction),
-                    Mathf.Max(120f,dialogueTurnDegrees)*Mathf.Min(Time.deltaTime,.1f));
+                float turnDt = Mathf.Min(Time.deltaTime, .1f);
+                float maxStep = Mathf.Min(Mathf.Max(120f, dialogueTurnDegrees),
+                    Mathf.Clamp(maxConversationTurn, 160f, 540f)) * turnDt;
+                // Match the visible face, not an arbitrary root +Z axis.
+                // Otherwise Mira can complete a perfectly smooth 180-degree
+                // turn and end up with her back to Leo.
+                Quaternion targetRotation = FaceTargetRotation(visual, direction);
+                Quaternion easedTarget = Quaternion.Slerp(dialogueRotation, targetRotation,
+                    1f - Mathf.Exp(-Mathf.Max(1f, conversationTurnEase) * turnDt));
+                dialogueRotation=Quaternion.RotateTowards(dialogueRotation, easedTarget, maxStep);
                 visual.rotation=dialogueRotation;
             }
         }
@@ -181,9 +256,25 @@ public class Speaker : MonoBehaviour
             // NPC procedural animators may have restored their authored root
             // this frame. Blend the final orientation back, without snapping.
             facingConversation=false;returningFromConversation=true;
-            Quaternion normal=visual.rotation;
-            dialogueRotation=Quaternion.RotateTowards(dialogueRotation,normal,
-                Mathf.Max(120f,dialogueTurnDegrees)*Mathf.Min(Time.deltaTime,.1f));
+            lastFacingPartner = null;
+            // If this NPC is configured to watch the player, don't spin toward
+            // its pre-dialogue heading and immediately spin back toward Leo.
+            Quaternion normal = beforeConversationRotation;
+            if (faceNearbyPlayer && player != null)
+            {
+                Vector3 toPlayer = player.position - transform.position;
+                toPlayer.y = 0f;
+                if (toPlayer.sqrMagnitude > .01f && toPlayer.sqrMagnitude <= faceRadius * faceRadius)
+                    normal = FaceTargetRotation(visual, toPlayer);
+            }
+            else if (miraFaceRig == null && Quaternion.Angle(visual.rotation, dialogueRotation) >= .35f)
+                normal = visual.rotation; // a non-Mira animator owns this orientation
+            float turnDt = Mathf.Min(Time.deltaTime, .1f);
+            float maxStep = Mathf.Min(Mathf.Max(120f, dialogueTurnDegrees),
+                Mathf.Clamp(maxConversationTurn, 160f, 540f)) * turnDt;
+            Quaternion easedTarget = Quaternion.Slerp(dialogueRotation, normal,
+                1f - Mathf.Exp(-Mathf.Max(1f, conversationTurnEase) * turnDt));
+            dialogueRotation = Quaternion.RotateTowards(dialogueRotation, easedTarget, maxStep);
             visual.rotation=dialogueRotation;
             if(Quaternion.Angle(dialogueRotation,normal)<.35f)returningFromConversation=false;
         }

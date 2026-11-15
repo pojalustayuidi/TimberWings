@@ -14,15 +14,39 @@ public class CandyWaterFx : MonoBehaviour
     [Range(1, 40)] public int weight = 1;
     public float lifetime = 1.1f;
 
+    [Header("Visual Polish 3.3 — брызги водопада")]
+    [Tooltip("Лёгкие нерегулярные пульсации струи без дополнительных ParticleSystem.")]
+    public bool softSurge = true;
+    [Range(0f, 0.35f)] public float surgeAmount = 0.16f;
+    [Range(0.05f, 2f)] public float surgeSpeed = 0.48f;
+
     static readonly List<CandyWaterFx> All = new List<CandyWaterFx>();
     ParticleSystem ps;
+    int allocatedParticles;
+    float nextPulseAt;
+    float pulseSeed;
 
     void OnEnable()
     {
         ps = GetComponent<ParticleSystem>();
-        All.Add(this);
+        // Разные водопады не должны синхронно «дышать».
+        Vector3 p = transform.position;
+        pulseSeed = Mathf.Abs(p.x * 0.173f + p.z * 0.117f + p.y * 0.053f);
+        if (!All.Contains(this)) All.Add(this);
+        CandyWaterQuality.Changed -= Rebalance;
         CandyWaterQuality.Changed += Rebalance;
         Rebalance();
+    }
+
+    void Update()
+    {
+        if (!softSurge || allocatedParticles <= 0 || ps == null || !ps.isPlaying) return;
+        if (Time.time < nextPulseAt) return;
+        nextPulseAt = Time.time + 0.22f; // модуль Emission не меняется каждый кадр
+        float wave = Mathf.PerlinNoise(pulseSeed + 0.37f, Time.time * Mathf.Max(0.05f, surgeSpeed));
+        float factor = 1f + (wave * 2f - 1f) * Mathf.Clamp(surgeAmount, 0f, 0.35f);
+        var em = ps.emission;
+        em.rateOverTime = allocatedParticles * factor / Mathf.Max(0.2f, lifetime);
     }
 
     void OnDisable()
@@ -46,11 +70,16 @@ public class CandyWaterFx : MonoBehaviour
     void SetCount(int n)
     {
         if (ps == null) return;
+        allocatedParticles = Mathf.Max(0, n);
         var main = ps.main;
-        main.maxParticles = Mathf.Max(0, n);
+        main.maxParticles = Mathf.Max(1, allocatedParticles); // лимит живых частиц, не число эмиттеров
         var em = ps.emission;
-        em.rateOverTime = n / Mathf.Max(0.2f, lifetime);
-        if (n <= 0) { if (ps.isPlaying) ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); }
+        em.rateOverTime = allocatedParticles / Mathf.Max(0.2f, lifetime);
+        nextPulseAt = 0f; // новое качество применяем сразу
+        if (allocatedParticles <= 0)
+        {
+            if (ps.isPlaying) ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
         else if (!ps.isPlaying) ps.Play();
     }
 
@@ -59,6 +88,7 @@ public class CandyWaterFx : MonoBehaviour
     public static CandyWaterFx Create(Transform parent, string name, Vector3 localPos, float scale, float halfWidth, int weight, Material mat)
     {
         var go = new GameObject(name);
+        go.SetActive(false); // Configure modules fully before CandyWaterFx.OnEnable can start emission.
         go.transform.SetParent(parent, false);
         go.transform.localPosition = localPos;
         go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);   // ось конуса вверх
@@ -110,7 +140,8 @@ public class CandyWaterFx : MonoBehaviour
         r.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
         r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
 
-        ps.Play();
+        go.SetActive(true); // OnEnable now assigns the shared water particle budget.
+        if (go.activeInHierarchy && !ps.isPlaying) ps.Play();
         return fx;
     }
 }

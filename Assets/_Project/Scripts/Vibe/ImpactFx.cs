@@ -24,6 +24,15 @@ public class ImpactFx : MonoBehaviour
     public bool hitStop = true;
     public float hitStopSeconds = 0.05f;
 
+    [Header("Visual Polish 3.1 — точность удара")]
+    [Tooltip("Короткий, локальный акцент для хороших и идеальных ритм-ударов. Не влияет на урон или награды.")]
+    public bool qualityAccent = true;
+    [Range(1, 18)] public int normalChips = 8;
+    [Range(1, 18)] public int goodAccentChips = 4;
+    [Range(1, 18)] public int perfectAccentChips = 9;
+    [Tooltip("Минимальный промежуток между визуальными акцентами качества, секунды")]
+    [Range(0f, 0.4f)] public float qualityFxCooldown = 0.085f;
+
     [Header("Бег")]
     public bool footDust = true;
     [Tooltip("Через сколько метров пути выпускать облачко")]
@@ -37,6 +46,12 @@ public class ImpactFx : MonoBehaviour
 
     [Header("Стройка")]
     public bool buildEffects = true;
+
+    [Header("Visual Polish 3.2 — строительные эффекты")]
+    [Tooltip("Вместо взрывных вспышек — древесные щепки и мягкая пыль. Не влияет на строительство.")]
+    public bool quietWoodBuild = true;
+    [Tooltip("Сила строительной пыли при ударах и посадке деталей (0 отключает пыль).")]
+    [Range(0f, 1.5f)] public float buildDust = 0.85f;
 
     // цвета в стиле проекта (тёплая палитра)
     static readonly Color Warm = new Color(1f, 0.82f, 0.4f, 1f);
@@ -54,6 +69,11 @@ public class ImpactFx : MonoBehaviour
     Vector3 lastPos;
     float stepAcc;
     bool hitStopBusy;
+    float hitStopPreviousScale = 1f;
+    float hitStopAppliedScale;
+    Vector3 lastTreeHit;
+    int lastTreeHitFrame = -1;
+    float lastQualityFxAt = -100f;
     bool reduced;
     float reducedAt;
     static Sprite ringSprite;
@@ -82,6 +102,7 @@ public class ImpactFx : MonoBehaviour
     void OnEnable()
     {
         GameEvents.ChopHit += OnChopHit;
+        GameEvents.ChopQuality += OnChopQuality;
         GameEvents.TreeChopped += OnTreeChopped;
         GameEvents.LevelUp += OnLevelUp;
         GameEvents.QuestDone += OnQuestDone;
@@ -92,10 +113,17 @@ public class ImpactFx : MonoBehaviour
     void OnDisable()
     {
         GameEvents.ChopHit -= OnChopHit;
+        GameEvents.ChopQuality -= OnChopQuality;
         GameEvents.TreeChopped -= OnTreeChopped;
         GameEvents.LevelUp -= OnLevelUp;
         GameEvents.QuestDone -= OnQuestDone;
-        if (hitStopBusy) { Time.timeScale = 1f; hitStopBusy = false; }
+        if (hitStopBusy)
+        {
+            // Respect pause/settings systems that may have changed timeScale meanwhile.
+            if (Mathf.Approximately(Time.timeScale, hitStopAppliedScale))
+                Time.timeScale = hitStopPreviousScale;
+            hitStopBusy = false;
+        }
     }
 
     // множитель количества частиц
@@ -143,6 +171,9 @@ public class ImpactFx : MonoBehaviour
             dustPoint.z = bark.z;
             p = bark;
         }
+        lastTreeHit = p;
+        lastTreeHitFrame = Time.frameCount;
+        // New quality accents are applied by OnChopQuality in this same frame.
         var lib = reduced ? null : FxLibrary.Get();
         if (lib != null && lib.chopHit != null) FxLibrary.Spawn(lib.chopHit, p, 1f, 2.5f);   // готовый префаб (Cartoon FX): без своей вспышки и искр
         else
@@ -150,9 +181,38 @@ public class ImpactFx : MonoBehaviour
             Emit(flash, p, 1);
             Emit(sparks, p, Mathf.Max(2, Mathf.RoundToInt(7 * M)));
         }
-        Emit(chips, p, Mathf.Max(2, Mathf.RoundToInt(5 * M)));
+        // Directional bark chips read much better than a second point burst.
+        Vector3 away = player.position - p;
+        away.y = Mathf.Max(.25f, Mathf.Abs(away.y) * .25f);
+        EmitDir(chips, p, Mathf.Max(2, Mathf.RoundToInt(normalChips * M)), away.normalized,
+                1.8f, 4.2f, .65f);
         Emit(dust, dustPoint, Mathf.Max(1, Mathf.RoundToInt(3 * M)));
         if (fallingLeaves && !reduced) DropLeaves(2 + Random.Range(0, 3));
+    }
+
+    // The rhythm system raises ChopQuality right after ChopHit. This is purely VFX:
+    // a good hit gets a tiny bark burst, a perfect hit adds a golden glint.
+    // Failed hits and timed/animation-mode hits keep the existing baseline impact.
+    void OnChopQuality(int quality)
+    {
+        if (!qualityAccent || !chopImpact || player == null || quality <= 0 ||
+            lastTreeHitFrame != Time.frameCount ||
+            Time.unscaledTime - lastQualityFxAt < qualityFxCooldown) return;
+
+        lastQualityFxAt = Time.unscaledTime;
+        bool quiet = VibeSettings.ReduceEffects;
+        int amount = quality >= 2 ? perfectAccentChips : goodAccentChips;
+        amount = Mathf.Max(1, Mathf.RoundToInt(amount * (quiet ? .33f : 1f)));
+
+        Vector3 away = player.position - lastTreeHit;
+        away.y = Mathf.Max(.35f, away.y + .45f);
+        EmitDir(chips, lastTreeHit, amount, away.normalized, 2f, quality >= 2 ? 5.2f : 3.9f, .45f);
+        if (quality >= 2 && !quiet)
+        {
+            Emit(flash, lastTreeHit + Vector3.up * .04f, 1,
+                 new Color(1f, .91f, .58f, .76f), .57f);
+            Emit(sparks, lastTreeHit, 3);
+        }
     }
 
     void OnTreeChopped()
@@ -216,9 +276,12 @@ public class ImpactFx : MonoBehaviour
     {
         if (hitStopBusy || Time.timeScale < 0.99f || DialogueManager.IsBusy) yield break;
         hitStopBusy = true;
-        Time.timeScale = 0.06f;
+        hitStopPreviousScale = Time.timeScale;
+        hitStopAppliedScale = 0.06f;
+        Time.timeScale = hitStopAppliedScale;
         yield return new WaitForSecondsRealtime(Mathf.Clamp(hitStopSeconds, 0.01f, 0.12f));
-        Time.timeScale = 1f;
+        if (Mathf.Approximately(Time.timeScale, hitStopAppliedScale))
+            Time.timeScale = hitStopPreviousScale;
         hitStopBusy = false;
     }
 
@@ -277,78 +340,128 @@ public class ImpactFx : MonoBehaviour
             if (all[i].GetComponent<BuildFxHook>() == null) all[i].gameObject.AddComponent<BuildFxHook>();
     }
 
-    // стадия готова (power 1) или стройка завершена (power ~1.7)
+    // Стадия готова или построено целиком. Один читаемый акцент, без серии взрывов:
+    // золотая волна отвечает за завершение, а обыденная пыль — только за процесс.
     public void StageBurst(Vector3 pos, float power)
     {
+        if (!buildEffects) return;
+        bool completed = power > 1.3f;
         var lib = reduced ? null : FxLibrary.Get();
-        GameObject prefab = lib != null ? (power > 1.3f ? (lib.buildDone != null ? lib.buildDone : lib.stageBuilt) : lib.stageBuilt) : null;
-        if (prefab != null) FxLibrary.Spawn(prefab, pos + Vector3.up * 0.1f, power * 0.82f, 4f);
-        Vector3 g = pos + Vector3.up * 0.06f;
-        Emit(ring, g, 1, new Color(Gold.r, Gold.g, Gold.b, 0.77f), 3.8f * power);
-        Emit(dust, pos + Vector3.up * 0.3f, Mathf.Max(4, Mathf.RoundToInt(13 * power * M)));
-        Emit(risers, pos + Vector3.up * 0.2f, Mathf.Max(5, Mathf.RoundToInt(18 * power * M)));
-        Emit(chips, pos + Vector3.up * 1f, Mathf.Max(3, Mathf.RoundToInt(6 * power * M)));
-        if (power > 1.3f) StartCoroutine(SecondRing(g, power));
+        GameObject prefab = lib != null ?
+            (completed ? (lib.buildDone != null ? lib.buildDone : lib.stageBuilt) : lib.stageBuilt) : null;
+        if (prefab != null)
+            FxLibrary.Spawn(prefab, pos + Vector3.up * 0.1f, Mathf.Min(1.15f, power * 0.65f), 3.0f);
+
+        Vector3 ground = pos + Vector3.up * 0.06f;
+        // На промежуточной стадии волна меньше. Финал заметный, но камера и дом видны.
+        if (!reduced || completed)
+            Emit(ring, ground, 1,
+                new Color(Gold.r, Gold.g, Gold.b, reduced ? 0.33f : (completed ? 0.70f : 0.47f)),
+                completed ? 4.3f : 2.8f);
+        EmitBuildDust(pos + Vector3.up * 0.2f, completed ? 10 : 6);
+        if (!reduced)
+        {
+            Emit(risers, pos + Vector3.up * 0.2f, completed ? 14 : 7);
+            Emit(chips, pos + Vector3.up * 0.7f, completed ? 6 : 3);
+        }
     }
 
-    // удар молотка по площадке (зовёт BuildFxHook, пока идёт стройка)
+    // Тихая атмосферная пыль без вспышек, колец, звука и движения камеры.
+    // Используется между стадиями сборки: старый StageBurst каждые 0.5 с
+    // запускал полноценный праздничный эффект, из-за чего здание было плохо видно.
+    public void BuildAmbientDust(Vector3 worldPoint)
+    {
+        if (!buildEffects || reduced) return;
+        EmitBuildDust(worldPoint + Vector3.up * 0.12f, 3);
+    }
+
+    // Короткий физически понятный контакт детали со своим местом.
+    // worldPoint уже является точкой посадки — НЕ прибавляем 1.1 м, как HammerTick.
+    public void BuildPieceLand(Vector3 worldPoint)
+    {
+        if (!buildEffects || reduced) return;
+        EmitBuildDust(worldPoint + Vector3.up * 0.05f, 3);
+        if (!quietWoodBuild)
+            Emit(flash, worldPoint, 1, new Color(1f, 0.88f, 0.62f, 0.28f), 0.32f);
+        EmitDir(bSplinters, worldPoint, 3, Vector3.up, 0.4f, 1.8f, 0.85f);
+    }
+
+    void EmitBuildDust(Vector3 worldPoint, int baseCount)
+    {
+        if (buildDust <= 0f) return;
+        int count = Mathf.RoundToInt(baseCount * Mathf.Clamp(buildDust, 0f, 1.5f) * M);
+        if (count > 0) Emit(dust, worldPoint, count);
+    }
+
+    // Запасной удар для стройки без Лео, а также для работающей лесопилки.
+    // Здесь pos — точка на земле, поэтому небольшая прибавка высоты намеренная.
     public void HammerTick(Vector3 pos)
     {
-        Vector3 p = pos + Vector3.up * 1.1f;
-        Emit(flash, p, 1);
-        Emit(sparks, p, Mathf.Max(2, Mathf.RoundToInt(5 * M)));
-        Emit(chips, p, Mathf.Max(1, Mathf.RoundToInt(3 * M)));
-        Emit(dust, pos + Vector3.up * 0.1f, Mathf.Max(1, Mathf.RoundToInt(2 * M)));
+        if (!buildEffects) return;
+        Vector3 contact = pos + Vector3.up * 0.72f;
+        if (!quietWoodBuild)
+            Emit(flash, contact, 1, new Color(1f, 0.86f, 0.55f, .42f), .42f);
+        EmitDir(bSplinters, contact, reduced ? 1 : 3,
+            Vector3.up, .7f, 2.5f, .9f);
+        EmitBuildDust(pos + Vector3.up * 0.12f, 3);
     }
 
-    // Удар молотка героя по зданию (зовёт BuildFxHook по событию BuildStrikes.Struck, ровно в кадр контакта).
-    // point: где молоток коснулся здания; normal: от стены наружу (искры летят от стены); ground: земля под ударом;
-    // power: 0.8..1.9 (растёт к концу этапа, каждый третий удар тяжелее); progress: 0..1
+    // Удар молотка: основное — направленные щепки. Сильный третий удар
+    // получает аккуратный световой акцент, но не взрыв, закрывающий Лео.
     public void BuildHit(Vector3 point, Vector3 normal, Vector3 ground, float power, float progress)
     {
+        if (!buildEffects) return;
         normal = SafeNormal(normal);
         Vector3 p = point + normal * 0.05f;
-        power = Mathf.Max(0.5f, power);
+        power = Mathf.Clamp(power, 0.5f, 2.2f);
+        bool accent = power > 1.35f || progress > 0.9f;
 
-        // В игре эффект перекрывал кисть и голову Лео. Акцент — на щепках и пыли,
-        // короткий свет оставляем небольшим, как у ручного инструмента, а не взрыв.
-        Emit(flash, p, 1, new Color(1f, 0.87f, 0.56f, .63f), .43f + .25f * power);
-        Emit(bFlare, p, 1, new Color(1f, .95f, .74f, .64f), .28f + .18f * power);
-        EmitDir(bSparks, p, Mathf.Max(2, Mathf.RoundToInt(5 * power * M)), normal, 2.6f, 6.2f, .50f);
-        EmitDir(bSplinters, p, Mathf.Max(3, Mathf.RoundToInt(7 * power * M)), normal + Vector3.up * .45f, 1.6f, 4.4f, .7f);
-        Emit(dust, ground + Vector3.up * .1f + normal * .3f, Mathf.Max(1, Mathf.RoundToInt((1f + power * 1.4f) * M)));
+        EmitDir(bSplinters, p, Mathf.Max(1, Mathf.RoundToInt((accent ? 7 : 5) * M)),
+            normal + Vector3.up * 0.42f, 1.3f, accent ? 4.2f : 3.2f, 0.58f);
+        EmitBuildDust(ground + Vector3.up * 0.12f + normal * 0.18f, accent ? 4 : 3);
         if (reduced) return;
-        Emit(bPop, p, 1, new Color(1f, .82f, .45f, .45f), .55f + .34f * power);
-        Kick(p + normal * .8f, .44f + .26f * power);
+
+        if (quietWoodBuild)
+        {
+            if (accent)
+            {
+                Emit(bFlare, p, 1, new Color(1f, .90f, .65f, .35f), .30f);
+                EmitDir(bSparks, p, 2, normal, 1.8f, 3.8f, .55f);
+                Kick(p + normal * .55f, .16f);
+            }
+        }
+        else
+        {
+            // Оригинальный более яркий режим оставлен в Inspector для сравнения.
+            Emit(flash, p, 1, new Color(1f, .87f, .56f, .63f), .43f + .25f * power);
+            Emit(bFlare, p, 1, new Color(1f, .95f, .74f, .64f), .28f + .18f * power);
+            EmitDir(bSparks, p, Mathf.Max(2, Mathf.RoundToInt(5 * power * M)), normal, 2.6f, 6.2f, .5f);
+            Emit(bPop, p, 1, new Color(1f, .82f, .45f, .45f), .55f + .34f * power);
+            Kick(p + normal * .8f, .44f + .26f * power);
+        }
     }
 
-    // Финальный удар этапа: «последний гвоздь». Крупнее обычного, с волной по земле, несколькими кольцами и микро-паузой.
+    // Последний удар этапа: вес молотка чувствуется благодаря более крупным щепкам
+    // и короткому тёплому акценту. Финальная волна здания отдельно придёт от StageBurst.
+    // Не запускаем второй hit-stop: иначе он иногда совпадал с началом камеры показа.
     public void BuildSlam(Vector3 point, Vector3 normal, Vector3 ground, float power)
     {
+        if (!buildEffects) return;
         normal = SafeNormal(normal);
         Vector3 p = point + normal * 0.06f;
-        power = Mathf.Max(1f, power);
+        power = Mathf.Clamp(power, 1f, 2.2f);
 
-        Emit(flash, p, 1, new Color(1f, .92f, .62f, .84f), 1.05f * power);
-        Emit(bFlare, p, 1, new Color(1f, .97f, .82f, .84f), .8f * power);
-        EmitDir(bSparks, p, Mathf.Max(5, Mathf.RoundToInt(18 * power * M)), normal, 3.2f, 8.5f, .8f);
-        EmitDir(bSplinters, p, Mathf.Max(5, Mathf.RoundToInt(12 * power * M)), normal + Vector3.up * .6f, 2f, 5.4f, .9f);
-        Emit(dust, ground + Vector3.up * .15f + normal * .3f, Mathf.Max(3, Mathf.RoundToInt(10 * power * M)));
+        EmitDir(bSplinters, p, Mathf.Max(3, Mathf.RoundToInt(10 * M)),
+            normal + Vector3.up * .5f, 2f, 5f, .75f);
+        EmitBuildDust(ground + Vector3.up * .12f + normal * .2f, 7);
         if (reduced) return;
 
-        Emit(bPop, p, 1, new Color(1f, 0.85f, 0.5f, 0.9f), 2.8f * power);
-        Emit(ring, ground + Vector3.up * 0.05f, 1, new Color(1f, 0.92f, 0.7f, 0.7f), 4.2f * power);    // волна по земле
-        StartCoroutine(SlamEcho(p, ground, power));
-        Kick(p + normal * 1f, 2.1f);
-        if (hitStop) StartCoroutine(HitStop());
-    }
-
-    // эхо финального удара: второе кольцо чуть позже, оно «догоняет» первое
-    IEnumerator SlamEcho(Vector3 p, Vector3 ground, float power)
-    {
-        yield return new WaitForSeconds(0.11f);
-        Emit(bPop, p, 1, new Color(1f, 0.9f, 0.6f, 0.55f), 3.8f * power);
-        Emit(ring, ground + Vector3.up * 0.05f, 1, new Color(1f, 0.95f, 0.8f, 0.45f), 6.4f * power);
+        Emit(bFlare, p, 1, new Color(1f, .93f, .70f, quietWoodBuild ? .52f : .75f),
+            quietWoodBuild ? .56f : .88f);
+        EmitDir(bSparks, p, quietWoodBuild ? 4 : 12, normal, 2.2f, 6f, .6f);
+        if (!quietWoodBuild)
+            Emit(bPop, p, 1, new Color(1f, .85f, .5f, .55f), 1.5f);
+        Kick(p + normal * .7f, quietWoodBuild ? .36f : .8f);
     }
 
     // вспышка света на стене: подвинуть лампу и «зажечь»

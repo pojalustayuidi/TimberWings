@@ -234,14 +234,25 @@ public sealed class RicoMerchant : MonoBehaviour
         bool near = Mathf.Abs(offset.y) < 2.5f && new Vector2(offset.x, offset.z).sqrMagnitude < GreetingRadius * GreetingRadius;
         Vector3 localOffset = transform.InverseTransformDirection(offset);
         bool inFront = near && localOffset.z > 0f;
-        if (Speaker.TryGetConversationPartner(speaker, out var partner))
+        Speaker partner = null;
+        bool inConversation = speaker != null && Speaker.TryGetConversationPartner(speaker, out partner);
+        if (inConversation)
             localOffset = transform.InverseTransformDirection(partner.transform.position - transform.position);
         else if (!inFront)
             localOffset = Vector3.zero;
-        float targetYaw = localOffset.z > 0f
-            ? Mathf.Clamp(Mathf.Atan2(localOffset.x, localOffset.z) * Mathf.Rad2Deg, -MaxTurn, MaxTurn)
-            : 0f;
-        yaw = Mathf.LerpAngle(yaw, targetYaw, 1f - Mathf.Exp(-6f * Time.deltaTime));
+
+        // Greet from the counter with the small authored head/body turn. During
+        // a real conversation, allow a full turn toward someone behind the stall.
+        // Only the Visual child rotates: the capsule and shop trigger remain in place.
+        float targetYaw = inConversation
+            ? Mathf.Atan2(localOffset.x, localOffset.z) * Mathf.Rad2Deg
+            : localOffset.z > 0f
+                ? Mathf.Clamp(Mathf.Atan2(localOffset.x, localOffset.z) * Mathf.Rad2Deg, -MaxTurn, MaxTurn)
+                : 0f;
+        float turnDt = Mathf.Min(Time.deltaTime, .1f);
+        yaw = inConversation
+            ? Mathf.MoveTowardsAngle(yaw, targetYaw, Mathf.Max(120f, speaker.dialogueTurnDegrees) * turnDt)
+            : Mathf.LerpAngle(yaw, targetYaw, 1f - Mathf.Exp(-6f * turnDt));
         visual.localRotation = Quaternion.Euler(0f, yaw, 0f);
 
         if (!graph.IsValid()) return;

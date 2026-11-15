@@ -14,6 +14,7 @@
 // Если объект/канвас уничтожили посреди полёта — колбэк всё равно вызывается ровно один раз.
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -27,6 +28,12 @@ public class ChopRewards : MonoBehaviour
     public float iconSize = 46f;        // размер летящего бревна (единицы канваса)
     public float spawnHeight = 1.2f;    // на какой высоте над позицией дерева стартуют брёвна, м
 
+    [Header("Visual Polish 3.1 — много брёвен")]
+    [Tooltip("Максимальное число летящих иконок за одну награду. Все брёвна начисляются, даже если их больше.")]
+    [Range(1, 24)] public int maxFlyingIconsPerReward = 8;
+    [Tooltip("Количество автоматически переиспользуемых иконок, если Editor-пул не назначен")]
+    [Range(0, 48)] public int runtimePoolLimit = 12;
+
     [Header("XP")]
     public float xpDelay = 0.25f;
 
@@ -34,30 +41,73 @@ public class ChopRewards : MonoBehaviour
     public RectTransform logPoolRoot;
     public Image[] logPool;
     bool[] poolUsed;
+    readonly Stack<Image> runtimeAvailable = new Stack<Image>();
+    readonly HashSet<Image> runtimeManaged = new HashSet<Image>();
 
     Image Rent(Canvas canvas)
     {
-        if (logPool == null || logPoolRoot == null) return null;
-        var poolCanvas = logPoolRoot.GetComponentInParent<Canvas>();
-        if (poolCanvas == null || poolCanvas.rootCanvas != canvas) return null;
-        if (poolUsed == null || poolUsed.Length != logPool.Length) poolUsed = new bool[logPool.Length];
-        for (int i = 0; i < logPool.Length; i++)
+        if (logPool != null && logPoolRoot != null)
         {
-            if (poolUsed[i] || logPool[i] == null) continue;
-            poolUsed[i] = true; logPool[i].enabled = true; logPool[i].color = Color.white;
-            return logPool[i];
+            var poolCanvas = logPoolRoot.GetComponentInParent<Canvas>();
+            if (poolCanvas != null && poolCanvas.rootCanvas == canvas)
+            {
+                if (poolUsed == null || poolUsed.Length != logPool.Length)
+                    poolUsed = new bool[logPool.Length];
+                for (int i = 0; i < logPool.Length; i++)
+                {
+                    if (poolUsed[i] || logPool[i] == null) continue;
+                    poolUsed[i] = true;
+                    logPool[i].gameObject.SetActive(true);
+                    logPool[i].enabled = true;
+                    logPool[i].color = Color.white;
+                    return logPool[i];
+                }
+            }
         }
-        return null; // A rare overflow follows the original flight path/timing.
+
+        // Without an editor-configured pool, reuse a small persistent runtime pool.
+        // No more GameObject + Image allocations for every single chopped log.
+        while (runtimeAvailable.Count > 0)
+        {
+            var reused = runtimeAvailable.Pop();
+            if (reused == null) { runtimeManaged.Remove(reused); continue; }
+            reused.gameObject.SetActive(true);
+            reused.enabled = true;
+            reused.color = Color.white;
+            return reused;
+        }
+        if (runtimeManaged.Count >= runtimePoolLimit) return null;
+        var go = new GameObject("FlyLogPooled", typeof(RectTransform), typeof(Image));
+        go.layer = canvas.gameObject.layer;
+        go.transform.SetParent(transform, false);
+        var image = go.GetComponent<Image>();
+        image.raycastTarget = false;
+        image.preserveAspect = true;
+        runtimeManaged.Add(image);
+        return image;
     }
     void Return(Image image)
     {
-        if (image == null || logPool == null) return;
+        if (image == null) return;
+        if (runtimeManaged.Contains(image))
+        {
+            // Keep the inactive icon across Canvas/scene changes on ChopRewards.
+            image.transform.SetParent(transform, false);
+            image.enabled = false;
+            image.gameObject.SetActive(false);
+            image.rectTransform.localScale = Vector3.one;
+            image.rectTransform.localRotation = Quaternion.identity;
+            runtimeAvailable.Push(image);
+            return;
+        }
+        if (logPool == null) return;
         for (int i = 0; i < logPool.Length; i++) if (logPool[i] == image)
         {
             if (poolUsed != null && i < poolUsed.Length) poolUsed[i] = false;
             image.enabled = false;
             if (logPoolRoot != null) image.transform.SetParent(logPoolRoot, false);
-            image.rectTransform.localScale = Vector3.one; image.rectTransform.localRotation = Quaternion.identity;
+            image.rectTransform.localScale = Vector3.one;
+            image.rectTransform.localRotation = Quaternion.identity;
             return;
         }
     }
@@ -132,8 +182,15 @@ public class ChopRewards : MonoBehaviour
             else
             {
                 canvas = canvas.rootCanvas;
-                for (int i = 0; i < logs; i++)
-                    StartCoroutine(FlyLog(canvas, cam, worldPos, target, i * stagger, onLog));
+                int visualCount = Mathf.Min(logs, Mathf.Max(1, maxFlyingIconsPerReward));
+                // One visual can represent several logical logs; no rewards are lost.
+                int baseCount = logs / visualCount;
+                int remainder = logs % visualCount;
+                for (int i = 0; i < visualCount; i++)
+                {
+                    int awardCount = baseCount + (i < remainder ? 1 : 0);
+                    StartCoroutine(FlyLog(canvas, cam, worldPos, target, i * stagger, awardCount, onLog));
+                }
             }
         }
 
@@ -167,7 +224,7 @@ public class ChopRewards : MonoBehaviour
         return u * u * a + 2f * u * t * b + t * t * c;
     }
 
-    IEnumerator FlyLog(Canvas canvas, Camera cam, Vector3 worldPos, HudGainAnchor target, float delay, Action onLog)
+    IEnumerator FlyLog(Canvas canvas, Camera cam, Vector3 worldPos, HudGainAnchor target, float delay, int awardCount, Action onLog)
     {
         GameObject go = null;
         Image pooled = null;
@@ -243,7 +300,7 @@ public class ChopRewards : MonoBehaviour
 
             // 3) приземление: счётчик, плашка, подпрыгивание панели
             landed = true;
-            Safe(onLog);   // тут игра добавляет бревно -> UIManager сам покажет «+N бревна»
+            Award(onLog, awardCount); // gameplay gets exactly the reserved number of logs
             if (target != null)
             {
                 target.Punch();
@@ -254,7 +311,12 @@ public class ChopRewards : MonoBehaviour
         {
             if (pooled != null) Return(pooled);
             else if (go != null) Destroy(go);
-            if (!landed) Safe(onLog);   // прервали (канвас/сцена исчезли) — бревно всё равно засчитываем
+            if (!landed) Award(onLog, awardCount); // aborted flight must settle all its logs
         }
+    }
+
+    static void Award(Action callback, int count)
+    {
+        for (int i = 0; i < count; i++) Safe(callback);
     }
 }

@@ -9,6 +9,9 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
     public BackpackTag backpack;
     public Speaker speaker;
     public bool basicLocomotion = true, blink = true, readBackpack = true;
+    [Tooltip("Через сколько секунд без рубки Лео убирает топор на пояс. 0 = топор всегда в руке.")]
+    public float autoSheatheDelay = 2.5f;
+    float lastToolUse = -100f;
     readonly LeoAirWaterMotion airWater = new LeoAirWaterMotion();
     float holster, nextBlink = 3f, blinkAt = -10f;
     Vector3 previousPosition;
@@ -30,6 +33,7 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
             previousPosition = player.transform.position;
         }
         rig.PrepareAnimationRest();
+        if (autoSheatheDelay > 0f) holster = 1f;   // старт сразу с топором на поясе, без «моргания» в руке
         chopBook = LeoMotionProfile.Load();
         InitializeLocomotion();
         nextBlink = Time.time + 3f;
@@ -69,7 +73,8 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
         ResetChopPose();
         ResetWorkPose();
         airWater.Reset();
-        holster = 0f;
+        holster = autoSheatheDelay > 0f ? 1f : 0f;
+        lastToolUse = -100f;
     }
 
     void LateUpdate()
@@ -123,7 +128,12 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
             rig.Rotate(rig.head, new Vector3(Mathf.Sin(now * 4f) * voice * 1.5f, 0f, 0f));
             rig.Rotate(rig.jaw, new Vector3(Mathf.Abs(Mathf.Sin(now * 9f)) * voice * 3f, 0f, 0f));
         }
-        bool sheath = blocked || motion.StowTool || inspecting || (!chopping && (talking || workRequested || workWeight > .001f));
+        // Топор в руке нужен только пока рубим. Раньше он убирался лишь когда Лео уже стоял у стены
+        // (workRequested), а пока шёл к месту стройки топор так и торчал из руки: поэтому «летал».
+        if (chopping || chopWeight > .02f) lastToolUse = now;
+        bool idleSheathe = autoSheatheDelay > 0f && now - lastToolUse > autoSheatheDelay;
+        bool sheath = blocked || motion.StowTool || inspecting ||
+            (!chopping && (talking || workRequested || workStow || workWeight > .001f || idleSheathe));
         float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
         holster = Mathf.MoveTowards(holster, wantedHolster, dt * (chopping || motion.InMotion ? 8f : 5.5f));
         if (chopHitFrame == Time.frameCount && !sheath) holster = 0f;

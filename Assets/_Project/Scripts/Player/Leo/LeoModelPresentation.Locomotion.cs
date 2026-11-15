@@ -33,7 +33,10 @@ public sealed partial class LeoModelPresentation
         LeoCelebration.Pose cheer)
     {
         float dt = Mathf.Min(.1f, frameTime);
-        if (travel > Mathf.Max(.8f, frameTime * 20f))
+        // A real dash / brief frame hitch is not a teleport. Do not reset
+        // cadence and planted feet unless movement exceeds plausible velocity.
+        float expected = player != null ? Mathf.Max(4f, player.CurrentSpeed) * Mathf.Max(frameTime, .02f) : 0f;
+        if (travel > Mathf.Max(.8f, expected * 1.65f + .28f))
         {
             ResetLocomotion();
             travel = 0f;

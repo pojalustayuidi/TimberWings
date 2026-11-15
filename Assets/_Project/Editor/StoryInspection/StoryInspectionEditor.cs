@@ -29,10 +29,11 @@ static class StoryInspectionEditor
         public Vector3 offset;
         public string atmosphere;
         public bool authored;
-        public bool Present => source.gameObject.activeInHierarchy;
+        public bool Present => source != null && source.gameObject.activeInHierarchy;
         public bool Available => Present && source.enabled;
         public int VoiceMatches => source is DialogueSequence seq && seq.lines != null
-            ? seq.lines.Count(line => line != null && VoiceIds.Contains(VoiceId.Make("Лео", line.text))) : 0;
+            ? seq.lines.Count(line => line != null && !string.IsNullOrWhiteSpace(line.text) &&
+                VoiceIds.Contains(VoiceId.Make("Лео", line.text))) : 0;
     }
 
     [MenuItem(Menu + "Install / Update", false, 10)]
@@ -45,11 +46,13 @@ static class StoryInspectionEditor
         var addedSources = RestoreGroveLinks(scene);
         var candidates = FindCandidates(scene);
         var createdObjects = new HashSet<GameObject>(TWGroveArt.RestoreMissingInspectionProps(
-            !candidates.Any(b => b.kind == Kind.ThreeMarks && b.Available),
-            !candidates.Any(b => b.kind == Kind.Duck && b.Available)));
+            // An existing but inactive story source must not trigger a duplicate prop.
+            !candidates.Any(b => b.kind == Kind.ThreeMarks),
+            !candidates.Any(b => b.kind == Kind.Duck)));
         if (createdObjects.Count > 0) candidates = FindCandidates(scene);
         var selected = SelectBindings(candidates);
         var selectedSources = new HashSet<MonoBehaviour>(selected.Select(b => b.source));
+        int updatedBindings = 0;
 
         foreach (var binding in candidates)
         {
@@ -59,13 +62,24 @@ static class StoryInspectionEditor
             var inspection = target.GetComponent<StoryInspection>();
             bool created = inspection == null;
             if (created) inspection = Undo.AddComponent<StoryInspection>(target);
+            bool ownsSource = inspection.ownsGroveSource || addedSources.Contains(target);
+            bool ownsObject = inspection.ownsGroveObject || createdObjects.Contains(target);
+            bool modified = created || inspection.source != binding.source || inspection.kind != binding.kind ||
+                inspection.superseded == winner || inspection.enabled != winner ||
+                inspection.ownsGroveSource != ownsSource || inspection.ownsGroveObject != ownsObject;
+            Transform oldDetail = inspection.detail;
+            Transform oldBridge = inspection.bridgeEngraving;
+            Transform oldCopiedDetail = inspection.copiedDetail;
+            Transform oldCopiedBridge = inspection.copiedBridge;
+            AudioClip oldAtmosphere = inspection.atmosphere;
+
             Undo.RecordObject(inspection, "Bind story inspection");
             inspection.source = binding.source;
             inspection.kind = binding.kind;
             inspection.superseded = !winner;
             inspection.enabled = winner;
-            inspection.ownsGroveSource |= addedSources.Contains(target);
-            inspection.ownsGroveObject |= createdObjects.Contains(target);
+            inspection.ownsGroveSource = ownsSource;
+            inspection.ownsGroveObject = ownsObject;
             if (created) inspection.detailOffset = binding.offset;
             if (winner)
             {
@@ -74,12 +88,19 @@ static class StoryInspectionEditor
                 if (inspection.atmosphere == null && binding.atmosphere != null)
                     inspection.atmosphere = AssetDatabase.LoadAssetAtPath<AudioClip>(AudioRoot + binding.atmosphere + ".wav");
             }
+            modified |= inspection.detail != oldDetail || inspection.bridgeEngraving != oldBridge ||
+                inspection.copiedDetail != oldCopiedDetail || inspection.copiedBridge != oldCopiedBridge ||
+                inspection.atmosphere != oldAtmosphere;
+            if (!modified) continue;
+            updatedBindings++;
             PrefabUtility.RecordPrefabInstancePropertyModifications(inspection);
         }
 
         Undo.CollapseUndoOperations(group);
-        if (candidates.Count > 0) EditorSceneManager.MarkSceneDirty(scene);
-        Debug.Log($"Story Inspection: установлено {selected.Count} привязок в {scene.name}. Добавлено объектов Южной рощи: {createdObjects.Count}.");
+        if (updatedBindings > 0 || addedSources.Count > 0 || createdObjects.Count > 0)
+            EditorSceneManager.MarkSceneDirty(scene);
+        Debug.Log($"Story Inspection: целей {selected.Count}, обновлено {updatedBindings}, " +
+            $"добавлено объектов Южной рощи {createdObjects.Count}. Сцена: {scene.name}.");
         Audit();
     }
 
@@ -89,6 +110,10 @@ static class StoryInspectionEditor
         var own = get(chosen);
         if (own != null) return own;
         if (existing != null && existing.IsChildOf(chosen.source.transform)) return existing;
+        // Reuse the tracked copy if the binding was cleared by another Editor action.
+        // Cloning it again on every Install would create duplicate engravings.
+        if (copied != null && copied != chosen.source.transform &&
+            copied.IsChildOf(chosen.source.transform)) return copied;
         var template = all.Where(other => other.kind == chosen.kind && other != chosen).Select(get).FirstOrDefault(item => item != null);
         if (template == null) return null;
         var clone = Object.Instantiate(template.gameObject, chosen.source.transform, false);
@@ -105,7 +130,8 @@ static class StoryInspectionEditor
         var roots = Components<GroveArtState>(scene).Select(state => state.artRoot)
             .Where(root => root != null && root.gameObject.activeInHierarchy).ToList();
         if (roots.Count == 0) return added;
-        var handles = Components<GroveArtHandle>(scene).Where(h => h.gameObject.activeInHierarchy &&
+        // Include inactive handles: otherwise an authored hidden prop can be treated as missing.
+        var handles = Components<GroveArtHandle>(scene).Where(h =>
             roots.Any(root => h.transform.IsChildOf(root))).ToArray();
 
         foreach (var key in new[] { "OldMark", "DuckStool" })
@@ -114,7 +140,7 @@ static class StoryInspectionEditor
             if (candidates.Any(h => h.GetComponent<GroveChopBlock>() != null)) continue;
             string exactName = key == "OldMark" ? "07_Камень_трёх_зарубок" : "08_Пень_который_не_рубят";
             var target = candidates.Length > 0 ? candidates[0].gameObject : roots.SelectMany(root =>
-                    root.GetComponentsInChildren<Transform>()).FirstOrDefault(t => t.name == exactName)?.gameObject;
+                    root.GetComponentsInChildren<Transform>(true)).FirstOrDefault(t => t.name == exactName)?.gameObject;
             if (target == null || target.GetComponent<GroveChopBlock>() != null) continue;
             TWGroveProps.FinishInspectionProp(target, key, addCollider: false);
             added.Add(target);
@@ -139,6 +165,21 @@ static class StoryInspectionEditor
 
         foreach (Kind kind in Enum.GetValues(typeof(Kind)))
             Check(bindings.Any(b => b.kind == kind), $"не найдена цель {kind}.");
+
+        // Duplicates in the scene may be intentional (inactive archive copies).
+        // Only multiple installed, enabled bindings for the same kind are erroneous.
+        foreach (var group in candidates.GroupBy(b => b.kind))
+        {
+            int activeBindings = group.Count(b =>
+            {
+                if (!b.Available) return false;
+                var inspection = b.source.GetComponent<StoryInspection>();
+                return inspection != null && inspection.enabled && !inspection.superseded &&
+                    inspection.source == b.source && inspection.kind == b.kind;
+            });
+            Check(activeBindings <= 1,
+                $"для {group.Key} обнаружено {activeBindings} активных привязок; оставь одну основную.");
+        }
 
         var voice = new Dictionary<string, string>();
         foreach (var binding in bindings)
@@ -170,10 +211,19 @@ static class StoryInspectionEditor
         if (bindings.Any(b => b.kind == Kind.Finale))
             voice[VoiceId.Make("Лео", StoryInspection.FinaleLine)] = StoryInspection.FinaleLine;
 
-        int imported = VoiceIds.Count(HasVoice);
-        foreach (string id in VoiceIds.Where(id => !HasVoice(id)))
+        // Avoid repeated AssetDatabase lookups for voice IDs referenced more than once.
+        var voiceAvailability = new Dictionary<string, bool>();
+        bool HasCachedVoice(string id)
+        {
+            if (voiceAvailability.TryGetValue(id, out bool found)) return found;
+            found = HasVoice(id);
+            voiceAvailability.Add(id, found);
+            return found;
+        }
+        int imported = VoiceIds.Count(HasCachedVoice);
+        foreach (string id in VoiceIds.Where(id => !HasCachedVoice(id)))
             Check(false, $"отсутствует {id}.wav.");
-        foreach (var line in voice.Where(pair => !VoiceIds.Contains(pair.Key) && !HasVoice(pair.Key)))
+        foreach (var line in voice.Where(pair => !VoiceIds.Contains(pair.Key) && !HasCachedVoice(pair.Key)))
             Check(false, $"для текущей реплики нужен {line.Key}.wav — «{line.Value}».");
 
         string rigSource = RigSource(scene);
@@ -215,18 +265,32 @@ static class StoryInspectionEditor
     static void Restore()
     {
         if (!TryScene(out var scene)) return;
+        var installed = Components<StoryInspection>(scene).Where(item => item != null).ToArray();
+        if (installed.Length == 0)
+        {
+            Debug.Log("Story Inspection: нет установленных привязок для восстановления.");
+            return;
+        }
+        int ownedObjects = installed.Count(item => item.ownsGroveObject);
+        if (!EditorUtility.DisplayDialog("Story Inspection — Restore",
+            $"Снять {installed.Length} привязок и удалить {ownedObjects} созданных инструментом объектов? " +
+            "Действие поддерживает Undo. Сцена не будет сохранена автоматически.",
+            "Restore", "Отмена")) return;
+
         Undo.IncrementCurrentGroup();
         int group = Undo.GetCurrentGroup();
         Undo.SetCurrentGroupName("Restore story interactions");
         int count = 0;
-        foreach (var inspection in Components<StoryInspection>(scene).ToArray())
+        foreach (var inspection in installed)
         {
             if (inspection == null) continue;
             if (inspection.ownsGroveObject) Undo.DestroyObjectImmediate(inspection.gameObject);
             else
             {
-                if (inspection.copiedDetail != null) Undo.DestroyObjectImmediate(inspection.copiedDetail.gameObject);
-                if (inspection.copiedBridge != null) Undo.DestroyObjectImmediate(inspection.copiedBridge.gameObject);
+                Transform detail = inspection.copiedDetail;
+                Transform bridge = inspection.copiedBridge;
+                DestroyOwnedCopy(inspection, detail);
+                if (!ReferenceEquals(detail, bridge)) DestroyOwnedCopy(inspection, bridge);
                 if (inspection.ownsGroveSource && inspection.source != null) Undo.DestroyObjectImmediate(inspection.source);
                 Undo.DestroyObjectImmediate(inspection);
             }
@@ -235,6 +299,19 @@ static class StoryInspectionEditor
         Undo.CollapseUndoOperations(group);
         if (count > 0) EditorSceneManager.MarkSceneDirty(scene);
         Debug.Log($"Story Inspection: снято {count} привязок. Сохрани сцену.");
+    }
+
+    static void DestroyOwnedCopy(StoryInspection inspection, Transform copy)
+    {
+        if (copy == null) return;
+        // Never destroy an external visual, a prefab asset, or the source object itself.
+        if (copy == inspection.transform || !copy.IsChildOf(inspection.transform) ||
+            EditorUtility.IsPersistent(copy.gameObject))
+        {
+            Debug.LogWarning("Story Inspection: пропущено удаление детали вне исходного объекта.", inspection);
+            return;
+        }
+        Undo.DestroyObjectImmediate(copy.gameObject);
     }
 
     static bool TryScene(out Scene scene)

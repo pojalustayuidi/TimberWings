@@ -15,9 +15,18 @@ public static class VoiceBank
     public static bool Enabled = true;
 
     static readonly Dictionary<string, AudioClip> cache = new Dictionary<string, AudioClip>();
+    static readonly Dictionary<string, AudioClip> voice21Cache = new Dictionary<string, AudioClip>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatic() { cache.Clear(); }
+    static void ResetStatic()
+    {
+        cache.Clear();
+        voice21Cache.Clear();
+#if UNITY_EDITOR
+        seen = null;
+        exportPath = null;
+#endif
+    }
 
     public static AudioClip Find(string speakerDisplayName, string text)
     {
@@ -30,7 +39,11 @@ public static class VoiceBank
         // Проверяем записи 2.1 ПЕРЕД старой AudioLibrary: в старых проектах
         // replaceLegacyVoices=true, поэтому обычный fallback Resources/Voice
         // для новых строк был бы недоступен.
-        var newer = Resources.Load<AudioClip>(Voice21Folder + id);
+        if (!voice21Cache.TryGetValue(id, out var newer))
+        {
+            newer = Resources.Load<AudioClip>(Voice21Folder + id);
+            voice21Cache[id] = newer; // includes missing clips: don't retry every time an NPC speaks
+        }
         if (newer != null) return newer;
         var library = DialogueAudioLibrary.Current;
         if (library != null)

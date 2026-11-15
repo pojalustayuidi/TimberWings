@@ -121,6 +121,8 @@ public partial class PlayerInteraction : MonoBehaviour
     int clickDownFrame = -1;           // кадр, в котором ЛКМ нажали на дереве
     float farToastAt;
     static readonly System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult> uiHits = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>(8);
+    static UnityEngine.EventSystems.PointerEventData uiPointer;
+    static UnityEngine.EventSystems.EventSystem uiPointerSystem;
     float nextHitAt;
     bool chopParamResolved;
 
@@ -228,8 +230,14 @@ public partial class PlayerInteraction : MonoBehaviour
     {
         var es = UnityEngine.EventSystems.EventSystem.current;
         if (es == null) return false;
+        if (uiPointer == null || uiPointerSystem != es)
+        {
+            uiPointerSystem = es;
+            uiPointer = new UnityEngine.EventSystems.PointerEventData(es);
+        }
+        uiPointer.position = pos;
         uiHits.Clear();
-        es.RaycastAll(new UnityEngine.EventSystems.PointerEventData(es) { position = pos }, uiHits);
+        es.RaycastAll(uiPointer, uiHits);
         for (int i = 0; i < uiHits.Count; i++)
         {
             var sel = uiHits[i].gameObject.GetComponentInParent<UnityEngine.UI.Selectable>();
@@ -397,6 +405,12 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void Update()
     {
+        // Do not let LMB start chopping or auto-walk during the unskippable joy pose.
+        if (LeoCelebration.IsPlaying)
+        {
+            clickArmed = false;
+            return;
+        }
         UpdateClick();
         ResourceItem arrived = leoWalkArrival;
         bool enterRhythm = leoEnterRhythmOnArrival;

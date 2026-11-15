@@ -28,7 +28,8 @@ public class WorkerPackTable
     // колбэки окна
     public Action onClosed;      // стол закрыт (окно обновляет вкладки и монеты)
     public Action onPaid;        // монеты списаны, рабочий выдан (окно помечает себя грязным)
-    public Action onShake;       // тряхнуть окно (Редкий и выше)
+    public Action onShake;       // тряхнуть окно (старый вызов: длительность 0,45 с, амплитуда 9)
+    public Action<float, float> onShakeEx;   // тряхнуть окно с заданными длительностью и амплитудой (Редкий и выше, зарядка)
 
     public bool Active { get { return stage != Stage.Idle; } }
 
@@ -86,6 +87,9 @@ public class WorkerPackTable
     readonly Image[] rStars = new Image[5];
     Button againBtn, doneBtn;
     readonly Spark[] sparks = new Spark[48];
+    readonly WorkerPackFx packFx;       // эффекты по редкости: зарядка, кольца, столб света, баннер, блик
+    float tease;                    // длина зарядки выбранной карты, с (0 у Обычного и при «Уменьшить эффекты»)
+    float lastDt;
 
     public WorkerPackTable(RectTransform parent)
     {
@@ -111,6 +115,11 @@ public class WorkerPackTable
         glowRt = glow.rectTransform;
         Anch(glowRt, Mid, Mid, ResultPos, new Vector2(720f, 720f));
         glow.raycastTarget = false;
+
+        // задний слой эффектов (аура, вторые лучи, столб света) лежит под картами; передний создаётся ниже
+        packFx = new WorkerPackFx(root);
+        packFx.dim = dim;
+        packFx.onShake = (d, a) => { if (onShakeEx != null) onShakeEx(d, a); else if (onShake != null) onShake(); };
 
         // Подарочная коробка вместо сундука: мягкая тень, корпус, крышка, белая лента, бант-камень. Цвета корпуса и крышки подбираются под пак в Begin
         packArt = UiKit.MakeImage(root, "PackArt_Glow", PetUi.GlowSprite, false);
@@ -140,18 +149,19 @@ public class WorkerPackTable
 
         BuildInfo();
 
-        var fx = NewRT("Fx", root);
-        Stretch(fx);
+        var fxRoot = NewRT("Fx", root);
+        Stretch(fxRoot);
         for (int i = 0; i < sparks.Length; i++)
         {
-            var im = UiKit.MakeImage(fx, "Spark", PetUi.SparkSprite, false);
+            var im = UiKit.MakeImage(fxRoot, "Spark", PetUi.SparkSprite, false);
             im.raycastTarget = false;
             Anch(im.rectTransform, Mid, Mid, Vector2.zero, new Vector2(16f, 16f));
             im.gameObject.SetActive(false);
             sparks[i] = new Spark { img = im, rt = im.rectTransform };
         }
+        packFx.BuildFront(fxRoot);
 
-        flash = UiKit.MakeImage(root, "Flash", null, false);
+        flash =UiKit.MakeImage(root, "Flash", null, false);
         Stretch(flash.rectTransform);
         flash.color = new Color(1f, 1f, 1f, 0f);
         flash.raycastTarget = false;
@@ -321,6 +331,8 @@ public class WorkerPackTable
         burstDone = flashDone = false;
         for (int i = 0; i < 3; i++) dealt[i] = false;
         lastMouse = Input.mousePosition;
+        tease = 0f;
+        packFx.Reset();
 
         Color pc = WorkerUi.PackColor(type);
         chestBodyImg.color = Color.Lerp(Color.white, pc, 0.55f);
@@ -378,6 +390,7 @@ public class WorkerPackTable
     {
         stage = Stage.Idle;
         draft = null;
+        if (packFx != null) packFx.Reset();
         if (root != null) root.gameObject.SetActive(false);
     }
 
@@ -438,6 +451,7 @@ public class WorkerPackTable
     {
         if (stage == Stage.Idle) return;
         t += dt;
+        lastDt = dt;
         bgRays.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -Time.unscaledTime * 4f);
 
         switch (stage)
@@ -451,8 +465,8 @@ public class WorkerPackTable
                 HandleMouse();
                 break;
             case Stage.Flip:
-                PoseFlip(t);
-                if (t >= FlipEnd) EnterReveal();
+                PoseFlipWarped(t);
+                if (t >= FlipEnd + tease) EnterReveal();
                 break;
             case Stage.Reveal:
                 if (rays.gameObject.activeSelf) raysRt.localRotation = Quaternion.Euler(0f, 0f, -Time.unscaledTime * 18f);
@@ -466,6 +480,7 @@ public class WorkerPackTable
                 break;
         }
         TickSparks(dt);
+        packFx.Tick(dt, pick >= 0 && (stage == Stage.Flip || stage == Stage.Reveal) ? slots[pick].rt.anchoredPosition : Vector2.zero);
     }
 
     // ------------------------------------------------------------ раздача
@@ -603,6 +618,7 @@ public class WorkerPackTable
         pick = index;
         stage = Stage.Flip;
         t = 0f;
+        tease = WorkerPackFx.TeaseDuration(r.rarity);
         burstDone = flashDone = false;
         Tick1();
 
@@ -645,6 +661,29 @@ public class WorkerPackTable
             n++;
         }
         return 0;
+    }
+
+    // Время переворота с «зарядкой»: карта доезжает до центра (0..TeaseAt), зависает рубашкой вверх и заряжается (tease секунд),
+    // дальше обычный переворот, сдвинутый на длину зарядки. Результат выбран заранее, зарядка его не меняет.
+    const float TeaseAt = 0.45f;
+
+    void PoseFlipWarped(float tt)
+    {
+        if (tease <= 0f || tt < TeaseAt) { PoseFlip(tt); return; }
+        if (tt >= TeaseAt + tease) { PoseFlip(tt - tease); return; }
+
+        PoseFlip(TeaseAt);
+        float k = Mathf.Clamp01((tt - TeaseAt) / tease);
+        var c = slots[pick];
+        Vector2 shake; float add; Color tint;
+        packFx.Tease(res.rarity, k, lastDt, c.rt.anchoredPosition, out shake, out add, out tint);
+        c.rt.anchoredPosition += shake;
+        c.rt.localScale = new Vector3(1.3f + add, 1.3f + add, 1f);
+        // по цвету рубашки видно, что внутри (как метеор в гача-играх)
+        Color pc = WorkerUi.PackColor(type);
+        c.backFrame.color = Color.Lerp(Color.Lerp(Color.white, pc, 0.55f), tint, Mathf.Clamp01(k * 1.4f) * 0.8f);
+        c.backFill.color = Color.Lerp(Color.Lerp(Color.white, pc, 0.45f), tint, k * 0.55f);
+        c.halo.color = new Color(tint.r, tint.g, tint.b, 0.55f * k);
     }
 
     void PoseFlip(float tt)
@@ -788,7 +827,10 @@ public class WorkerPackTable
             SpawnSpark(at, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * sp, Color.Lerp(acc, Color.white, UnityEngine.Random.value * 0.5f), UnityEngine.Random.Range(0.6f, 1.2f), UnityEngine.Random.Range(12f, 28f));
         }
         CandyFx.Confetti(UiCandy.Kit, slots[pick].rt, 14 + 8 * (int)res.rarity);   // конфетти из карты (нет CandyFxKit: без него)
-        if (withShake && res.rarity >= WorkerRarity.Rare && onShake != null) onShake();
+        if (res.rarity >= WorkerRarity.Legendary && !VibeSettings.ReduceEffects)
+            CandyFx.Confetti(UiCandy.Kit, slots[pick].rt, res.rarity == WorkerRarity.Mythic ? 40 : 22);
+        // кольца, осколки, баннер, столб света, блик, звук и тряска окна по редкости (тряска и там, и там только у Редкого и выше)
+        packFx.Reveal(res.rarity, slots[pick].rt.anchoredPosition, slots[pick].body, CW, CH);
         if (SfxManager.Instance != null) SfxManager.Play("ui", 0.8f, 0.7f + 0.15f * (int)res.rarity);
     }
 

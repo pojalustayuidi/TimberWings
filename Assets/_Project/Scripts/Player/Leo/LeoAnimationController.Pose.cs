@@ -47,6 +47,8 @@ public sealed partial class LeoAnimationController
             worldPlant, ground, groundMask, Mathf.Min(Time.deltaTime, .1f), f.cheer);
         LeoAxePose.RestWrist(rig, f.move);
         f.motion.Apply(rig, f.holster);
+        // Спокойный хват как основа: рубка и убирание на пояс плавно уходят от него.
+        LeoAxePose.Carry(rig, transform, LeoAxePose.CarryWeight(f.holster), arm * f.move);
         float palmRoll = LeoAxePose.RightArm(rig, transform, book, chop, f.actionPhase, f.action, f.bark);
         LeoAxePose.Place(rig, transform, f.holster, palmRoll);
         LeoAxePose.LeftArm(rig, transform, f.actionPhase, f.action * chop.left);

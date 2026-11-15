@@ -159,6 +159,7 @@ public sealed partial class StoryInspection : MonoBehaviour
         Abort();
         prop?.Dispose();
         prop = null;
+        DisposeStoryMagic();
         triedProp = false;
     }
 
@@ -333,6 +334,9 @@ public sealed partial class StoryInspection : MonoBehaviour
     {
         beat = next;
         beatStart = Time.time;
+        if (next == Beat.Look) StartStoryMagic();
+        else if (next == Beat.Detail) PulseStoryMagic();
+        else if (next == Beat.Recover) StopStoryMagic();
     }
 
     void PlayAtmosphere()
@@ -354,6 +358,7 @@ public sealed partial class StoryInspection : MonoBehaviour
     void Update()
     {
         if (current != this) return;
+        UpdateStoryMagic();
         if (player == null || !player.isActiveAndEnabled || player.ControlLocked || camera == null ||
             !camera.isActiveAndEnabled || Time.time > expires || SaveSystem.IsLoading || BuildingController.AnyRevealing ||
             WaterSwim.Swimming || (source != null && !source.isActiveAndEnabled))
@@ -441,6 +446,7 @@ public sealed partial class StoryInspection : MonoBehaviour
     {
         DialogueManager.StopInspection(this);
         if (ambience != null) ambience.Stop();
+        DisposeStoryMagic();
         if (prop != null && (subject == Kind.Knife || !accepted)) prop.ResetPose();
         RestoreCamera();
         current = null;

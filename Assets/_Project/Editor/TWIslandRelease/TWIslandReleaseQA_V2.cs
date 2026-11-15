@@ -20,6 +20,24 @@ namespace IslandV2
         static double started;
         static string phase;
 
+        // Register once per domain reload; do not keep sampling after Play is stopped.
+        [InitializeOnLoadMethod]
+        static void RegisterPlayModeCleanup()
+        {
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            EditorApplication.update -= Update;
+        }
+
+        static void OnPlayModeChanged(PlayModeStateChange change)
+        {
+            if (change != PlayModeStateChange.ExitingPlayMode &&
+                change != PlayModeStateChange.EnteredEditMode) return;
+            EditorApplication.update -= Update;
+            FrameTimes.Clear();
+            phase = null;
+        }
+
         [MenuItem(Menu + "7 · QA / День, FPS и Game View", false, 217)]
         static void Day() { Begin("DAY"); }
 
@@ -54,6 +72,8 @@ namespace IslandV2
             if (!Application.isPlaying)
             {
                 EditorApplication.update -= Update;
+                FrameTimes.Clear();
+                phase = null;
                 Debug.LogWarning("TW RELEASE QA: Play Mode завершён раньше измерения.");
                 return;
             }
@@ -95,11 +115,12 @@ namespace IslandV2
             int renderers = art.GetComponentsInChildren<MeshRenderer>(true).Length;
             Transform bridge = root.transform.Find(IslandBlockout.GeneratedName + "/" + IslandBlockout.BridgeName);
             int bridgeCols = bridge == null ? -1 : bridge.GetComponentsInChildren<Collider>(true).Length;
-            int tris = 0;
+            // Large generated islands can exceed Int32 when counting all triangles.
+            long tris = 0;
             foreach (var filter in art.GetComponentsInChildren<MeshFilter>(true))
                 if (filter.sharedMesh != null)
                     for (int sub = 0; sub < filter.sharedMesh.subMeshCount; sub++)
-                        tris += (int)filter.sharedMesh.GetIndexCount(sub) / 3;
+                        tris += (long)filter.sharedMesh.GetIndexCount(sub) / 3;
             var sb = new StringBuilder();
             sb.AppendLine("TIMBER WINGS / ISLAND RELEASE CANDIDATE / " + phase);
             sb.AppendLine("UTC: " + DateTime.UtcNow.ToString("O"));

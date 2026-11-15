@@ -43,6 +43,8 @@ public class HudIntro : MonoBehaviour
 
     void Update()
     {
+        // Не показываем обучающий HUD во время короткой сценки прибытия Лео.
+        if (ArrivalIntroSequence.Active) return;
         t += Time.unscaledDeltaTime;
         bool done = true;
         foreach (var it in items)

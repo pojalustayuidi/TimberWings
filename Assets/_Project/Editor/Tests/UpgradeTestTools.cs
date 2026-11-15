@@ -20,11 +20,17 @@ public static class UpgradeTestTools
 
     static UpgradeTestTools()
     {
+        EditorApplication.playModeStateChanged -= OnPlayMode;
         EditorApplication.playModeStateChanged += OnPlayMode;
     }
 
     static void OnPlayMode(PlayModeStateChange s)
     {
+        if (s == PlayModeStateChange.ExitingPlayMode || s == PlayModeStateChange.EnteredEditMode)
+        {
+            EditorApplication.update -= WaitAndOpen;
+            return;
+        }
         if (s != PlayModeStateChange.EnteredPlayMode || !EditorPrefs.GetBool(AutoKey, false)) return;
         waitUntil = EditorApplication.timeSinceStartup + 20.0;   // ждём, пока StoryFlow создаст окно и игрока
         EditorApplication.update -= WaitAndOpen;

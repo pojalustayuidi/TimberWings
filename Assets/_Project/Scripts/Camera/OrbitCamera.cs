@@ -37,6 +37,8 @@ public class OrbitCamera : MonoBehaviour
     static OrbitCamera instance;
 
     public static bool Active { get; private set; }   // орбита сейчас реально рулит камерой
+    // Текущий игровой yaw без временного BuildReveal.yawBias: нужен только ракурсу моста.
+    public static float CurrentYaw { get { return instance != null ? instance.yaw : 0f; } }
 
     // true: вместо курсора на экране прицел (мышь крутит камеру, курсор скрыт)
     public static bool CrosshairActive { get { return Active && instance != null && instance.crosshairOn; } }
@@ -166,6 +168,11 @@ public class OrbitCamera : MonoBehaviour
     public float revealMinDist = 6f;         // ближе этого камера на показе не подъезжает
     public float revealSweepMul = 1.6f;      // облёт шире, чем в изометрии (там 25°): в 3D он выглядит живее
     public float revealFocusSmooth = 0.35f;  // фокус на показе плавнее обычного (у обычного 0.06, он слишком жёсткий)
+    [Header("Stage 4 — кинопереходы")]
+    [Tooltip("Сглаживание угла обзора между бегом, диалогом и показом постройки")]
+    [Range(.05f,.5f)] public float cinematicFovSmooth = .22f;
+    [Tooltip("Нижняя граница высоты точки фокуса относительно ног Лео при показе постройки")]
+    [Range(-.5f, 2f)] public float revealMinFocusHeight = .4f;
 
     [Header("Столкновения")]
     public float collisionRadius = 0.3f;
@@ -215,6 +222,7 @@ public class OrbitCamera : MonoBehaviour
     float wasFov, wasYaw;
 
     float yaw;
+    float fovVelocity;
     float curDist;
     float manualDist,manualDistVel,curDistVel,collisionHold;
     Vector3 focus, focusVel;
@@ -223,6 +231,11 @@ public class OrbitCamera : MonoBehaviour
     bool cursorHeld;
     bool wasConversation;
     float resumeLookAt, dialogueYawOffset;
+    float dialogueYawTarget, dialogueYawVelocity;
+    Transform dialogueYawFocus;
+    [Header("Stage 4.1 — плавная камера диалогов")]
+    [Tooltip("Плавность перехода к кинематографичному углу и обратно")]
+    [Range(.12f, 1.2f)] public float dialogueYawSmooth = .48f;
     bool crosshairOn;
     float aimT, chT;
     GameObject chGo;
@@ -278,7 +291,7 @@ public class OrbitCamera : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(toggleKey) && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera && !StoryInspection.Active)
+        if (Input.GetKeyDown(toggleKey) && !LeoCelebration.IsPlaying && !ArrivalIntroSequence.Active && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera && !StoryInspection.Active)
         {
             Enabled = !Enabled;
             PlayerPrefs.Save();
@@ -328,9 +341,13 @@ public class OrbitCamera : MonoBehaviour
         follow.enabled = false;           // OnDisable вернёт скрытые преграды и уберёт окно в листве
         cam.orthographic = false;
         cam.fieldOfView = fov;
+        fovVelocity = 0f;
 
         // старт за спиной персонажа
         yaw = player.model != null ? player.model.eulerAngles.y : follow.yaw;
+        dialogueYawFocus = null;
+        dialogueYawTarget = dialogueYawOffset = dialogueYawVelocity = 0f;
+        wasConversation = false;
         curDist = distance;
         manualDist = Mathf.Clamp(distance, distMin, distMax);
         manualDistVel = curDistVel = collisionHold = 0f;
@@ -597,17 +614,30 @@ public class OrbitCamera : MonoBehaviour
         if (conversation != wasConversation)
         {
             resumeLookAt = Time.unscaledTime + lookResumeDelay;
-            if (conversation)
+            if (!conversation)
             {
-                Vector3 d = DialogueSequence.Focus.position - player.transform.position; d.y = 0;
-                float side = d.sqrMagnitude > .01f ? Vector3.Dot(d.normalized, Quaternion.Euler(0,yaw,0) * Vector3.right) : 1f;
-                dialogueYawOffset = Mathf.Abs(side) < .4f ? (side < 0 ? -28f : 28f) : 0f;
+                dialogueYawTarget = 0f;
+                dialogueYawFocus = null;
             }
+            else dialogueYawFocus = null;
             wasConversation = conversation;
+        }
+        // The conversation may start before its Focus is initialized.
+        // Re-frame once the actual speaker exists, and when a scene switches
+        // speaker, rather than silently keeping the previous/zero yaw.
+        if (conversation && DialogueSequence.Focus != null &&
+            dialogueYawFocus != DialogueSequence.Focus)
+        {
+            dialogueYawFocus = DialogueSequence.Focus;
+            Vector3 d = dialogueYawFocus.position - player.transform.position;
+            d.y = 0f;
+            float side = d.sqrMagnitude > .01f
+                ? Vector3.Dot(d.normalized, Quaternion.Euler(0f, yaw, 0f) * Vector3.right) : 1f;
+            dialogueYawTarget = Mathf.Abs(side) < .4f ? (side < 0f ? -18f : 18f) : 0f;
         }
         // ---------- ввод
         Vector2 delta = Vector2.zero;
-        bool modal = MobileInput.ModalOpen || conversation || StoryInspection.Active || !Application.isFocused;
+        bool modal = MobileInput.ModalOpen || conversation || StoryInspection.Active || LeoCelebration.IsPlaying || ArrivalIntroSequence.Active || !Application.isFocused;
         // окно, диалог, показ стройки или возврат фокуса закончились: мышь оживает через короткую паузу
         if (wasModal && !modal) resumeLookAt = Mathf.Max(resumeLookAt, Time.unscaledTime + lookResumeDelay);
         wasModal = modal;
@@ -621,6 +651,8 @@ public class OrbitCamera : MonoBehaviour
         crosshairOn = wantLock && mouseLook;   // прицел только в режиме «мышью» (с ПКМ курсор нужен как был)
 
         if (dt < .0001f) { UpdateCrosshair(Mathf.Min(Time.unscaledDeltaTime,.05f)); return; }
+        dialogueYawOffset = Mathf.SmoothDampAngle(dialogueYawOffset, dialogueYawTarget,
+            ref dialogueYawVelocity, Mathf.Max(.12f, dialogueYawSmooth), Mathf.Infinity, dt);
 
         if (!modal)
         {
@@ -714,12 +746,18 @@ public class OrbitCamera : MonoBehaviour
         aimT = Mathf.MoveTowards(aimT, crosshairOn ? 1f : 0f, dt / 0.25f);
         float aim = Mathf.SmoothStep(0f, 1f, aimT);
         float dialogueMix = reveal || VibeSettings.ReduceEffects ? 0f : Mathf.Clamp01(CameraVibe.DialogueShown);
-        float yawBias = follow.yawBias * (reveal ? Mathf.Lerp(1f, revealSweepMul, rv) : 1f) + dialogueYawOffset * dialogueMix + arcOffset;
+        // Мост использует абсолютный береговой ракурс, а не обычный относительный
+        // разворот здания. Не умножаем его на revealSweepMul повторно.
+        float revealYawScale = reveal && !CameraVibe.BridgeRevealShowing ? Mathf.Lerp(1f, revealSweepMul, rv) : 1f;
+        float yawBias = follow.yawBias * revealYawScale + dialogueYawOffset * dialogueMix + arcOffset;
         Vector3 shoulder = Quaternion.Euler(0f, yaw + yawBias, 0f) * Vector3.right * (shoulderOffset * aim);
         Vector3 pivot = target.position + focusOffset;
         Vector3 personal = ahead + shoulder + Vector3.up * (shoulderLift * aim);
         if (focusWallClamp && !reveal) personal = ClampFocusOffset(pivot, personal, target);   // плечо и взгляд вперёд не уводят фокус в стену
         Vector3 wantFocus = pivot + personal + follow.focusBias;
+        // CameraVibe may focus below ground while the bridge is building.
+        // Keep reveal focus above Leo's feet without moving the player or bridge.
+        if (reveal) wantFocus.y = Mathf.Max(wantFocus.y, player.transform.position.y + revealMinFocusHeight);
         float horizontalSmooth = Mathf.Lerp(followSmooth, movingFollowSmooth, moveBlend);
         float heightSmooth = verticalFollowSmooth;
         if (reveal)
@@ -790,7 +828,9 @@ public class OrbitCamera : MonoBehaviour
         }
 
         float runFov = VibeSettings.ReduceEffects || chopping || conversation ? 0f : runFovBoost * moveBlend;
-        cam.fieldOfView = reveal ? Mathf.Lerp(fov, revealFov, rv) : fov + runFov;
+        float wantedFov = reveal ? Mathf.Lerp(fov, revealFov, rv) : fov + runFov;
+        cam.fieldOfView = Mathf.SmoothDamp(cam.fieldOfView, wantedFov, ref fovVelocity,
+            Mathf.Max(.05f, cinematicFovSmooth), Mathf.Infinity, dt);
         cam.transform.SetPositionAndRotation(focus + back * curDist + shake, rot);
 
         bool userLook = delta.sqrMagnitude > .09f || Mathf.Abs(Input.mouseScrollDelta.y) > .01f ||

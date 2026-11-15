@@ -220,9 +220,22 @@ public sealed class LeoRig : MonoBehaviour
 #endif
     [ContextMenu("Вернуть позу покоя")]
     public void ResetPose(){if(!HasRest)return;for(int i=0;i<joints.Length;i++)if(joints[i]!=null){joints[i].localPosition=positions[i];joints[i].localRotation=rotations[i];joints[i].localScale=scales[i];}}
-    public Quaternion RestRotation(Transform joint){if(HasRest)for(int i=0;i<joints.Length;i++)if(joints[i]==joint)return rotations[i];return joint!=null?joint.localRotation:Quaternion.identity;}
-    public Vector3 RestPosition(Transform joint){if(HasRest)for(int i=0;i<joints.Length;i++)if(joints[i]==joint)return positions[i];return joint!=null?joint.localPosition:Vector3.zero;}
-    public Vector3 RestScale(Transform joint){if(HasRest)for(int i=0;i<joints.Length;i++)if(joints[i]==joint)return scales[i];return joint!=null?joint.localScale:Vector3.one;}
+    // Rest lookups run dozens of times per frame (every Rotate, jacket hem, cargo). A linear scan over
+    // ~150 joints each time is replaced with a dictionary rebuilt only when the joint array changes.
+    Dictionary<Transform,int> restIndex;Transform[] restIndexSource;
+    int RestIndexOf(Transform joint)
+    {
+        if(joint==null||!HasRest)return -1;
+        if(restIndex==null||!ReferenceEquals(restIndexSource,joints))
+        {
+            restIndex=new Dictionary<Transform,int>(joints.Length);restIndexSource=joints;
+            for(int i=0;i<joints.Length;i++)if(joints[i]!=null&&!restIndex.ContainsKey(joints[i]))restIndex.Add(joints[i],i);
+        }
+        int index;return restIndex.TryGetValue(joint,out index)?index:-1;
+    }
+    public Quaternion RestRotation(Transform joint){int i=RestIndexOf(joint);return i>=0?rotations[i]:joint!=null?joint.localRotation:Quaternion.identity;}
+    public Vector3 RestPosition(Transform joint){int i=RestIndexOf(joint);return i>=0?positions[i]:joint!=null?joint.localPosition:Vector3.zero;}
+    public Vector3 RestScale(Transform joint){int i=RestIndexOf(joint);return i>=0?scales[i]:joint!=null?joint.localScale:Vector3.one;}
     public void Rotate(Transform joint,Vector3 euler){if(joint!=null)joint.localRotation=RestRotation(joint)*Quaternion.Euler(euler);}
     // ---- Carrier tiers ----------------------------------------------------------------------------------
     // FRAME (permanent, follows the capacity upgrade; stays when logs are sold):
@@ -309,8 +322,12 @@ public sealed class LeoRig : MonoBehaviour
         axeRoot.SetPositionAndRotation(Vector3.Lerp(held, axeHolster.position, t),
             Quaternion.Slerp(tool, axeHolster.rotation, t));
         float release = openFingers ?? t;
-        if(fingersR!=null)for(int i=0;i<fingersR.Length;i++)Rotate(fingersR[i],new Vector3(42*release,0,0));
-        if(fingerTipsR!=null)for(int i=0;i<fingerTipsR.Length;i++)Rotate(fingerTipsR[i],new Vector3(35*release,0,0));
+        // Held: the fingers close around the handle (same curl as the left hand on the haft),
+        // released: they open as before. The old code left the right hand flat on the handle.
+        float finger = Mathf.Lerp(-36f, 42f, release), tip = Mathf.Lerp(-30f, 35f, release);
+        if(fingersR!=null)for(int i=0;i<fingersR.Length;i++)Rotate(fingersR[i],new Vector3(finger,0,0));
+        if(fingerTipsR!=null)for(int i=0;i<fingerTipsR.Length;i++)Rotate(fingerTipsR[i],new Vector3(tip,0,0));
+        if(thumbR!=null)Rotate(thumbR,new Vector3(-12f*(1f-release),0,0));
     }
     public void EquipHammer(bool equipped)
     {

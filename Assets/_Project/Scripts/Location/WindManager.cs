@@ -22,9 +22,10 @@ public sealed class WindManager : MonoBehaviour
 {
     static WindManager inst;
     static readonly List<WindAgent> agents = new List<WindAgent>(128);
+    static float gustFactor = 1f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatic() { inst = null; agents.Clear(); }
+    static void ResetStatic() { inst = null; agents.Clear(); gustFactor = 1f; }
 
     public static void Add(WindAgent a)
     {
@@ -68,12 +69,15 @@ public sealed class WindManager : MonoBehaviour
     public static Quaternion Pose(WindAgent a, float time)
     {
         float tt = time * a.speed + a.phase;
-        return a.r0 * Quaternion.Euler(Mathf.Sin(tt) * a.angle, 0f, Mathf.Cos(tt * 0.8f) * a.angle);
+        float angle = a.angle * gustFactor;
+        return a.r0 * Quaternion.Euler(Mathf.Sin(tt) * angle, 0f, Mathf.Cos(tt * 0.8f) * angle);
     }
 
     void Update()
     {
         float time = Time.time;
+        // Один расчёт порыва на весь лес, а не PerlinNoise для каждого дерева.
+        gustFactor = Mathf.Lerp(0.87f, 1.16f, Mathf.PerlinNoise(time * 0.075f, 5.73f));
         for (int i = 0; i < agents.Count; i++)
         {
             var a = agents[i];

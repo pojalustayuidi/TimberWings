@@ -1,29 +1,46 @@
 // Assets/_Project/Editor/Common/EditorAssets.cs (Editor)
-// Общие помощники работы с ассетами для Editor-билдеров (раньше EnsureFolder был скопирован в 18 файлов).
+// Общие помощники работы с ассетами для Editor-билдеров.
 // Подключение: using static EditorAssets;
-using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
 
 public static class EditorAssets
 {
-    // Создаёт папку и все недостающие родительские ("Assets/A/B/C"). Если папка уже есть: ничего не делает.
+    // Creates missing subfolders under Assets. Existing folders are unchanged.
     public static void EnsureFolder(string path)
     {
-        if (string.IsNullOrEmpty(path) || AssetDatabase.IsValidFolder(path)) return;
-        string parent = Path.GetDirectoryName(path).Replace('\\', '/');
-        if (!string.IsNullOrEmpty(parent) && !AssetDatabase.IsValidFolder(parent)) EnsureFolder(parent);
-        AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
+        if (string.IsNullOrEmpty(path)) return;
+        path = path.Replace('\\', '/').TrimEnd('/');
+        if (AssetDatabase.IsValidFolder(path)) return;
+
+        // AssetDatabase.CreateFolder needs a valid parent. Never recurse above Assets.
+        if (!path.StartsWith("Assets/", System.StringComparison.Ordinal))
+        {
+            Debug.LogWarning("[EditorAssets] Cannot create a folder outside Assets: " + path);
+            return;
+        }
+
+        string parent = Path.GetDirectoryName(path)?.Replace('\\', '/');
+        if (string.IsNullOrEmpty(parent))
+        {
+            Debug.LogWarning("[EditorAssets] Folder has no parent: " + path);
+            return;
+        }
+
+        if (!AssetDatabase.IsValidFolder(parent)) EnsureFolder(parent);
+        if (AssetDatabase.IsValidFolder(parent) && !AssetDatabase.IsValidFolder(path))
+            AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
     }
 
     // Список префабов <-> строка путей (для хранения в EditorPrefs).
     public static string PathsOf(GameObject[] a)
     {
         if (a == null) return "";
-        var l = new List<string>();
-        foreach (var g in a) l.Add(g != null ? AssetDatabase.GetAssetPath(g) : "");
-        return string.Join("|", l);
+        var paths = new string[a.Length];
+        for (int i = 0; i < a.Length; i++)
+            paths[i] = a[i] != null ? AssetDatabase.GetAssetPath(a[i]) : "";
+        return string.Join("|", paths);
     }
 
     public static GameObject[] FromPaths(string s)

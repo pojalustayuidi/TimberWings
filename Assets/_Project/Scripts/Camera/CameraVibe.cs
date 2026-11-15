@@ -16,6 +16,9 @@ public class CameraVibe : MonoBehaviour
     public float dialogueZoom = 0.88f;           // < 1 = ближе
     [Range(0f, 0.8f)] public float dialogueFocusShare = 0.4f;   // какая доля пути от игрока к говорящему
     public float dialogueMaxDist = 12f;          // дальше говорящего не ищем
+    [Header("Stage 4.1 — композиция диалога")]
+    [Tooltip("Маленький боковой сдвиг двухперсонажного кадра, без изменения yaw управления")]
+    [Range(0f, .65f)] public float dialogueTwoShotSide = .24f;
 
     [Header("Притяжение к персонажам")]
     public bool npcPull = true;
@@ -49,6 +52,9 @@ public class CameraVibe : MonoBehaviour
     float refreshT;
     float dialogueShown, dialogueShownVelocity;
     Transform dialoguePartner;
+    Transform framedDialoguePartner;
+    bool wasDialogueBusy;
+    float dialogueFrameSign = 1f;
     public static float DialogueShown { get { return inst != null ? inst.dialogueShown : 0f; } }
     public static Transform DialoguePartner { get { return inst != null ? inst.dialoguePartner : null; } }
 
@@ -81,6 +87,8 @@ public class CameraVibe : MonoBehaviour
     static bool revealOn;
     static Vector3 revealPoint;
     static float revealAmount, revealYaw, revealRadius;
+    static bool revealBridge;
+    static Vector3 revealBridgeForward;
     float revealShown, revealShownVel;      // сглаженная доля показа (только для плавного ухода после ClearReveal)
 
     // point: куда смотрит камера; amount: 0 = обычный вид, 1 = полный наезд; yawDegrees: облёт в градусах (уже умножен на amount)
@@ -88,13 +96,26 @@ public class CameraVibe : MonoBehaviour
     public static void SetReveal(Vector3 point, float amount, float yawDegrees, float radius = 0f)
     {
         revealOn = true;
+        revealBridge = false;
         revealRadius = radius;
         revealPoint = point;
         revealAmount = Mathf.Clamp01(amount);
         revealYaw = yawDegrees;
     }
 
+    // Специальный ракурс моста: камера остаётся со стороны исходного берега.
+    // По горизонтали она смотрит вдоль настила, а не крутится вокруг центра острова.
+    public static void SetBridgeReveal(Vector3 point, float amount, float sweepDegrees, float radius, Vector3 forward)
+    {
+        SetReveal(point, amount, sweepDegrees, radius);
+        revealBridge = true;
+        revealBridgeForward = Vector3.ProjectOnPlane(forward, Vector3.up).normalized;
+    }
+
+    // Сохраняем тип ракурса на короткий хвост возврата камеры — иначе
+    // свободная камера повторно умножит угол и дёрнется при завершении.
     public static void ClearReveal() { revealOn = false; }
+    public static bool BridgeRevealShowing { get { return revealBridge && (revealOn || RevealShown > .001f); } }
 
     // для OrbitCamera: сглаженная доля показа 0..1 (держится и пока камера возвращается после показа), точка и размер здания
     public static float RevealShown { get { return inst != null ? inst.revealShown : 0f; } }
@@ -104,7 +125,7 @@ public class CameraVibe : MonoBehaviour
 
     void Awake() { cf = GetComponent<CameraFollow>(); inst = this; }
 
-    void OnDestroy() { if (inst == this) inst = null; revealOn = false; revealRadius = 0f; }
+    void OnDestroy() { if (inst == this) inst = null; revealOn = false; revealBridge = false; revealRadius = 0f; }
 
     void OnEnable()
     {
@@ -115,6 +136,8 @@ public class CameraVibe : MonoBehaviour
     void OnDisable()
     {
         dialogueShown = 0f; dialogueShownVelocity = 0f; dialoguePartner = null;
+        wasDialogueBusy = false; dialogueFrameSign = 1f;
+        framedDialoguePartner = null;
         GameEvents.TreeChopped -= OnChop;
         GameEvents.LevelUp -= OnLevelUp;
         if (cf != null) { cf.focusBias = Vector3.zero; cf.zoomBias = 1f; cf.yawBias = 0f; }
@@ -185,10 +208,34 @@ public class CameraVibe : MonoBehaviour
         Vector3 wantBias = Vector3.zero;
         float wantZoom = 1f;
 
-        // A whole sequence owns one partner, including the pauses between its lines.
+        // A whole sequence owns one partner, including pauses between lines.
+        // Focus may arrive one or more frames after ConversationOwnsCamera;
+        // choose the two-shot side on the first valid partner, not only at
+        // the frame where the dialogue boolean first changes.
         bool busy = dialogueFocus && DialoguePreferences.ConversationOwnsCamera;
-        if (busy) dialoguePartner = DialogueSequence.Focus;
-        dialogueShown = Mathf.SmoothDamp(dialogueShown, busy ? 1f : 0f, ref dialogueShownVelocity, .4f, Mathf.Infinity, dt);
+        if (busy)
+        {
+            Transform current = DialogueSequence.Focus;
+            if (current != null)
+                dialoguePartner = current;
+            else if (!wasDialogueBusy)
+                dialoguePartner = null;
+            if (dialoguePartner != null && dialoguePartner != framedDialoguePartner)
+            {
+                framedDialoguePartner = dialoguePartner;
+                Vector3 d = dialoguePartner.position - pos;
+                d.y = 0f;
+                if (d.sqrMagnitude > .01f)
+                {
+                    Vector3 tangent = Vector3.Cross(Vector3.up, d.normalized);
+                    dialogueFrameSign = Vector3.Dot(tangent, cf.transform.right) >= 0f ? 1f : -1f;
+                }
+            }
+        }
+        else framedDialoguePartner = null;
+        wasDialogueBusy = busy;
+        dialogueShown = Mathf.SmoothDamp(dialogueShown, busy ? 1f : 0f,
+            ref dialogueShownVelocity, .4f, Mathf.Infinity, dt);
         if (!busy && dialogueShown < .001f) dialoguePartner = null;
         if (busy)
         {
@@ -196,12 +243,18 @@ public class CameraVibe : MonoBehaviour
             {
                 Vector3 d = dialoguePartner.position - pos; d.y = 0f;
                 wantBias = Vector3.ClampMagnitude(d, dialogueMaxDist) * dialogueFocusShare;
+                // Keep both faces in frame. The side is selected once at the
+                // start of the conversation, so the shot cannot flip mid-line.
+                if (d.sqrMagnitude > 1f && !VibeSettings.ReduceEffects)
+                    wantBias += Vector3.Cross(Vector3.up, d.normalized) * (dialogueFrameSign * dialogueTwoShotSide);
                 wantZoom = VibeSettings.ReduceEffects ? 1f : dialogueZoom;
             }
         }
         else
         {
-            if (npcPull)
+            // Avoid a new automatic NPC pull while the previous dialogue
+            // composition is still fading out; the two offsets otherwise fight.
+            if (npcPull && dialogueShown < .04f)
             {
                 Speaker s = Nearest(pos, npcPullRadius, t);
                 if (s != null)
@@ -269,7 +322,15 @@ public class CameraVibe : MonoBehaviour
             Vector3 toPoint = revealPoint - pos - cf.lookOffset;
             biasOut = Vector3.Lerp(bias, toPoint, revealShown);
             zoomNow = Mathf.Lerp(zoomNow, GameBalance.RevealZoom, revealShown);
-            cf.yawBias = revealOn ? revealYaw : cf.yawBias * (1f - Mathf.Clamp01(dt / 0.3f));
+            if (revealOn && revealBridge && revealBridgeForward.sqrMagnitude > 0.001f)
+            {
+                float baseYaw = OrbitCamera.Active ? OrbitCamera.CurrentYaw : cf.yaw;
+                float bridgeYaw = Mathf.Atan2(revealBridgeForward.x, revealBridgeForward.z) * Mathf.Rad2Deg + revealYaw;
+                // Quaternion yaw changes with the reveal blend: no snap when
+                // entering or leaving the construction cinematic.
+                cf.yawBias = Mathf.DeltaAngle(baseYaw, bridgeYaw) * Mathf.SmoothStep(0f, 1f, revealShown);
+            }
+            else cf.yawBias = revealOn ? revealYaw : cf.yawBias * (1f - Mathf.Clamp01(dt / 0.3f));
         }
         else cf.yawBias = 0f;
 

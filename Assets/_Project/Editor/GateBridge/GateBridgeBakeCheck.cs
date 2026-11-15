@@ -1,7 +1,10 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 internal static class GateBridgeBakeCheck
 {
@@ -13,9 +16,13 @@ internal static class GateBridgeBakeCheck
         void Error(string message) { errors++; result.AppendLine("ОШИБКА: " + message); }
 
         if (!bridge.HasFinalIsland) Error("Нет готовой геометрии/ссылок на дальний остров.");
+        // Multiple portals usually indicate an incomplete or repeated bake.
+        var portals = bridge.GetComponentsInChildren<FinalIslandPortal>(true);
+        if (portals.Length != 1)
+            Error("Ожидался один FinalIslandPortal, найдено: " + portals.Length + ".");
         if (!bridge.HasBakedFinale)
         {
-            var portal = bridge.GetComponentInChildren<FinalIslandPortal>(true);
+            var portal = portals.Length > 0 ? portals[0] : null;
             Error(portal != null ? portal.BakeIssue ?? "Портал не привязан к GateBridgeFinale."
                 : "В сцене нет компонента FinalIslandPortal.");
         }
@@ -23,6 +30,15 @@ internal static class GateBridgeBakeCheck
         else if (bridge.walkway.GetComponent<MeshCollider>() == null) Error("На Walkway нет MeshCollider.");
         if (bridge.source == null) Error("Нет RiverBridge: этапы не будут сохраняться.");
         if (bridge.stages == null || bridge.stages.Length != 3) Error("Нет трёх стадий стройки.");
+
+        int zones = 0, generatedRoots = 0;
+        foreach (Transform child in bridge.transform)
+        {
+            if (child.name == "BuildZone") zones++;
+            if (child.name == GateBridgeBuilder.OwnedRootName) generatedRoots++;
+        }
+        if (zones > 1) Error("Найдено несколько BuildZone под GateBridge: " + zones + ".");
+        if (generatedRoots > 1) Error("Найдено несколько GB_Final под GateBridge: " + generatedRoots + ".");
 
         var zone = bridge.transform.Find("BuildZone");
         if (zone == null) Error("Нет запечённой зоны стройки GateBridge/BuildZone.");
@@ -41,6 +57,8 @@ internal static class GateBridgeBakeCheck
         else
         {
             if (root.Find("FinalIsland/Portal") == null) Error("В GB_Final отсутствует запечённый Portal.");
+            if (portals.Length == 1 && !portals[0].transform.IsChildOf(root))
+                Error("FinalIslandPortal находится вне запечённого корня GB_Final.");
             foreach (var filter in root.GetComponentsInChildren<MeshFilter>(true))
                 if (filter.sharedMesh == null || !EditorUtility.IsPersistent(filter.sharedMesh))
                     Error("Не сохранён mesh asset: " + filter.gameObject.name);
@@ -58,13 +76,34 @@ internal static class GateBridgeBakeCheck
     [MenuItem("Tools/BuilderSim/Локация/Проверить запечённый финал", false, 105)]
     static void CheckMenu()
     {
-        var bridge = Object.FindFirstObjectByType<GateBridge>(FindObjectsInactive.Include);
+        // Object.FindFirstObjectByType can accidentally select a bridge in another loaded scene.
+        Scene scene = SceneManager.GetActiveScene();
+        if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrEmpty(scene.path) ||
+            PrefabStageUtility.GetCurrentPrefabStage() != null)
+        {
+            EditorUtility.DisplayDialog("Editor Bake GateBridge",
+                "Открой сохранённую игровую сцену (не Prefab Mode).", "OK");
+            return;
+        }
+        var bridges = new List<GateBridge>();
+        foreach (GameObject root in scene.GetRootGameObjects())
+            bridges.AddRange(root.GetComponentsInChildren<GateBridge>(true));
+        if (bridges.Count != 1)
+        {
+            EditorUtility.DisplayDialog("Editor Bake GateBridge",
+                "В активной сцене ожидается ровно один GateBridge, найдено: " + bridges.Count + ".", "OK");
+            return;
+        }
+        GateBridge bridge = bridges[0];
         string result = Validate(bridge);
-        Debug.Log(result, bridge);
+        if (result.Contains("ОШИБКА:") || result.Contains("Проверка обнаружила ошибок:"))
+            Debug.LogWarning(result, bridge);
+        else Debug.Log(result, bridge);
         EditorUtility.DisplayDialog("TimberWings - Editor Bake", result, "OK");
     }
 
     [MenuItem("Tools/BuilderSim/Локация/Проверить запечённый финал", true)]
-    static bool ValidateMenu() => !EditorApplication.isPlayingOrWillChangePlaymode;
+    static bool ValidateMenu() => !EditorApplication.isPlayingOrWillChangePlaymode &&
+        PrefabStageUtility.GetCurrentPrefabStage() == null;
 }
 #endif

@@ -132,6 +132,12 @@ public class InteractionHint : MonoBehaviour
         }
     }
 
+    void OnDisable()
+    {
+        if (worldTag != null) worldTag.visible = false;
+        placed = false;
+    }
+
     void OnDestroy()
     {
         if (holder != null) Destroy(holder.gameObject);

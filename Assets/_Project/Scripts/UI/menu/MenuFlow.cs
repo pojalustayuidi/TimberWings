@@ -86,7 +86,13 @@ public static class MenuFlow
         Time.timeScale = 1f;
         var req = Consume();
         if (req == MenuRequest.Continue) SaveSystem.Load();
-        else if (req == MenuRequest.NewGame) SaveSystem.NewGame();
+        else if (req == MenuRequest.NewGame)
+        {
+            SaveSystem.NewGame();
+            // Сценка прибытия должна включиться до Start/Update игрока и первого DialogueSequence.
+            // Прямой вызов надёжнее зависимости от подписки на event при смене сцены.
+            ArrivalIntroSequence.BeginForNewGame();
+        }
         // None: игровая сцена запущена из редактора напрямую, всё как раньше (автозагрузка в SaveAutoRunner)
     }
 }
@@ -96,6 +102,60 @@ sealed class MenuFlowRunner : MonoBehaviour
 {
     static MenuFlowRunner inst;
     CanvasGroup group;
+
+    // Canvas главного меню отключаем на время интро: иначе на части сцен
+    // доска/кнопки могут отрисоваться поверх RenderTexture VideoPlayer.
+    // Сохраняем ссылки и восстанавливаем состояние при ошибке загрузки.
+    readonly System.Collections.Generic.List<Canvas> suppressedMenuCanvases =
+        new System.Collections.Generic.List<Canvas>(4);
+    readonly System.Collections.Generic.List<MainMenuLife> suppressedMenuLife =
+        new System.Collections.Generic.List<MainMenuLife>(2);
+    readonly System.Collections.Generic.List<AudioSource> mutedMenuAudio =
+        new System.Collections.Generic.List<AudioSource>(4);
+
+    void HideMenuForIntro()
+    {
+        RestoreMenuAfterIntro();
+        var activeScene = SceneManager.GetActiveScene();
+        if (activeScene.buildIndex != MenuFlow.MainMenuScene) return;
+
+        // _MenuFlow живёт в DontDestroyOnLoad, поэтому сюда не попадает.
+        foreach (var c in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+        {
+            if (c == null || c.gameObject.scene != activeScene || !c.enabled) continue;
+            suppressedMenuCanvases.Add(c);
+            c.enabled = false;
+        }
+
+        // Помимо картинки меню в MainMenuLife есть петля ветра/костра.
+        // Не даём этим звукам накладываться на дорожку MP4.
+        foreach (var life in FindObjectsByType<MainMenuLife>(FindObjectsSortMode.None))
+        {
+            if (life == null || life.gameObject.scene != activeScene) continue;
+            foreach (var sound in life.GetComponents<AudioSource>())
+            {
+                if (sound == null || sound.mute) continue;
+                mutedMenuAudio.Add(sound);
+                sound.mute = true;
+            }
+            if (!life.enabled) continue;
+            suppressedMenuLife.Add(life);
+            life.enabled = false;
+        }
+    }
+
+    void RestoreMenuAfterIntro()
+    {
+        foreach (var c in suppressedMenuCanvases)
+            if (c != null) c.enabled = true;
+        suppressedMenuCanvases.Clear();
+        foreach (var life in suppressedMenuLife)
+            if (life != null) life.enabled = true;
+        suppressedMenuLife.Clear();
+        foreach (var sound in mutedMenuAudio)
+            if (sound != null) sound.mute = false;
+        mutedMenuAudio.Clear();
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { inst = null; }
@@ -116,7 +176,9 @@ sealed class MenuFlowRunner : MonoBehaviour
     {
         var canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = UiLayers.MainMenu;
+        // Экранное видео и чёрная шторка всегда выше UI главного меню.
+        // Даже если отдельные канвасы меню получили нестандартный sortingOrder.
+        canvas.sortingOrder = UiLayers.SaveIndicator + 100;
         gameObject.AddComponent<GraphicRaycaster>();
         group = gameObject.AddComponent<CanvasGroup>();
         group.alpha = 0f; group.blocksRaycasts = false; group.interactable = false;
@@ -156,18 +218,27 @@ sealed class MenuFlowRunner : MonoBehaviour
 
         yield return Fade(1f, 0.35f);
 
-        // сцена грузится в фоне (активация позже), пока играет заставка
+        // 1. Сначала играем интро. Параллельная SceneManager.LoadSceneAsync с запрещённой
+        //    активацией может задерживать VideoPlayer.Prepare и давать «пропуск» ролика.
+        if (kind == MenuRequest.NewGame)
+        {
+            HideMenuForIntro();
+            yield return PlayIntro();
+        }
+
+        // 2. Затем загружаем сцену: до завершения видео игрок не создаётся и не разговаривает.
         var op = SceneManager.LoadSceneAsync(buildIndex);
         if (op == null)
         {
+            // Загрузка не удалась — вернём меню и его звук.
+            RestoreMenuAfterIntro();
             MenuFlow.Busy = false;
             yield return Fade(0f, 0.3f);
             yield break;
         }
         op.allowSceneActivation = false;
 
-        if (kind == MenuRequest.NewGame) yield return PlayIntro();                 // видео-заставка
-        else if (kind == MenuRequest.Continue) yield return ContinueSplash(op);    // короткая заставка «С возвращением»
+        if (kind == MenuRequest.Continue) yield return ContinueSplash(op);  // «С возвращением»
 
         while (op.progress < 0.9f) yield return null;
         yield return new WaitForSecondsRealtime(0.05f);
@@ -175,6 +246,9 @@ sealed class MenuFlowRunner : MonoBehaviour
         while (!op.isDone) yield return null;
         yield return null;                             // кадр на Start новой сцены под чёрным
 
+        // Старая сцена уже выгружена. На случай другого сценария восстановления
+        // всё равно очищаем сохранённые ссылки/состояния.
+        RestoreMenuAfterIntro();
         MenuFlow.Busy = false;
         yield return Fade(0f, 0.5f);
     }
@@ -249,11 +323,13 @@ sealed class MenuFlowRunner : MonoBehaviour
 #endif
     }
 
-    static bool SkipPressed()
+    // Предотвращаем случайный пропуск 55-секундной заставки из-за клика/переключения окна.
+    // Удержание Escape 0.8 с — явное действие игрока (доступно на ПК).
+    static bool SkipPressed(ref float hold, float delta)
     {
-        if (Input.anyKeyDown) return true;               // клавиатура, мышь, кнопки геймпада
-        if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began) return true;
-        return false;
+        if (Input.GetKey(KeyCode.Escape)) hold += Mathf.Max(0f, delta);
+        else hold = 0f;
+        return hold >= 0.8f;
     }
 
     IEnumerator PlayIntro()
@@ -261,7 +337,7 @@ sealed class MenuFlowRunner : MonoBehaviour
         string path = IntroPath();
         if (path == null)
         {
-            Debug.LogWarning("MenuFlow: нет видео заставки Assets/StreamingAssets/" + MenuFlow.IntroFile + ", заставка пропущена.");
+            Debug.LogError("MenuFlow: НЕ НАЙДЕНО интро Assets/StreamingAssets/" + MenuFlow.IntroFile + ". Проверь путь и регистр букв.");
             yield break;
         }
 
@@ -314,7 +390,7 @@ sealed class MenuFlowRunner : MonoBehaviour
         vp.Play();
 
         // подсказка про пропуск: появляется через секунду и гаснет
-        var hint = UiKit.MakeLabel(crt, "Нажмите любую клавишу, чтобы пропустить", 26f, new Color(1f, 0.945f, 0.816f, 1f), TextAlignmentOptions.BottomRight, true);
+        var hint = UiKit.MakeLabel(crt, "Удерживайте Esc, чтобы пропустить", 26f, new Color(1f, 0.945f, 0.816f, 1f), TextAlignmentOptions.BottomRight, true);
         var hr = hint.rectTransform;
         hr.anchorMin = hr.anchorMax = new Vector2(1f, 0f); hr.pivot = new Vector2(1f, 0f);
         hr.anchoredPosition = new Vector2(-32f, 24f); hr.sizeDelta = new Vector2(900f, 40f);
@@ -322,6 +398,7 @@ sealed class MenuFlowRunner : MonoBehaviour
         hint.raycastTarget = false; hint.alpha = 0f;
 
         float t0 = Time.unscaledTime;
+        float skipHeld = 0f;
         float hardStop = vp.length > 0.5 ? (float)vp.length + 3f : 180f;
         float vol = GameAudio.MusicLevel;
         if (asrc != null) asrc.volume = vol;
@@ -330,10 +407,19 @@ sealed class MenuFlowRunner : MonoBehaviour
         while (!failed && !ended)
         {
             float e = Time.unscaledTime - t0;
-            if (e > hardStop) break;
-            if (e > 0.5f && SkipPressed()) break;        // 0.5 с: нажатие, которым запустили игру, не считается
-
-            if (!raw.enabled && vp.texture != null && vp.frame >= 1) { raw.texture = vp.texture; raw.enabled = true; }
+            if (e > hardStop) { Debug.LogWarning("MenuFlow: видео превысило допустимую длительность."); break; }
+            if (e > 1.25f && SkipPressed(ref skipHeld, Time.unscaledDeltaTime))
+            {
+                Debug.Log("MenuFlow: интро пропущено удержанием Esc.");
+                break;
+            }
+            // В разных версиях Unity первый декодированный кадр может иметь frame == 0.
+            // После Prepare источником изображения служит VideoPlayer.texture.
+            if (vp.texture != null && (vp.frame >= 0 || vp.time > 0.02d))
+            {
+                if (!raw.enabled) raw.enabled = true;
+                raw.texture = vp.texture;
+            }
             hint.alpha = Mathf.Clamp01((e - 1f) / 0.6f) * (1f - Mathf.Clamp01((e - 5f) / 0.8f));
             yield return null;
         }
