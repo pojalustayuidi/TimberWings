@@ -39,14 +39,12 @@ namespace IslandV2
         {
             for(int i=0;i<6;i++)
             {
-                float angle=42+i*55.2f;var m=Bench(false);
-                for(int mark=0;mark<=i;mark++)
-                {
-                    float xx=(mark-i*0.5f)*0.075f;
-                    Rod(m,"DarkWood",new Vector3(xx-0.012f,0.93f,-0.241f),new Vector3(xx+0.012f,1.06f,-0.241f),0.007f);
-                }
-                Vector2 point=x.Site("Bench_"+i,TWMysticContext.Ring(angle,7.2f));float facing=Mathf.Atan2(point.x,point.y)*Mathf.Rad2Deg+180;
-                var bench=x.Prop(a,m,"Bench_"+i,"01_Скамья_круга_"+(i+1),point,facing);
+                string key = "Bench_" + i;
+                float angle = 42 + i * 55.2f;
+                var model = new TWMysticModel(TWMysticBenchPolish.Load(key));
+                Vector2 point = x.Site(key, TWMysticContext.Ring(angle, 7.2f));
+                float facing = Mathf.Atan2(point.x, point.y) * Mathf.Rad2Deg + 180;
+                var bench = x.Prop(a, model, key, "01_Скамья_круга_" + (i + 1), point, facing);
                 Capsule(bench,new Vector3(0,0.48f,0),0.34f,3.2f,0,surface);
                 if(i==1 || i==4)Ghost(a,bench.transform,i);
             }
@@ -87,22 +85,6 @@ namespace IslandV2
             Memory(x,a,"Bench_Memory","07_Незанятое_место",TWMysticContext.Ring(42+4*55.2f,8.5f),
                 "осмотреть старую дощечку",new[]{"Скамьи отмечены зарубками. У этой лежит дощечка — имя на ней давно стёрлось.","Лео","«Если услышишь зов после заката — не отвечай из-за деревьев»."});
             Details(x,a);
-        }
-        internal static TWMysticModel Bench(bool broken)
-        {
-            var m=new TWMysticModel();
-            for(int j=0;j<3;j++)
-                Box(m,"Wood",new Vector3(0,0.51f,-0.20f+j*0.2f),new Vector3(3.0f,0.13f,0.18f));
-            Box(m,"Wood",new Vector3(0,0.99f,-0.30f),new Vector3(2.94f,0.28f,0.11f));
-            Box(m,"DarkWood",new Vector3(0,0.35f,0),new Vector3(2.65f,0.14f,0.13f));
-            foreach(int s in new[]{-1,1})
-            {
-                Rod(m,"DarkWood",new Vector3(s*1.18f,0,-0.12f),new Vector3(s*1.18f,1.15f,-0.12f),0.075f);
-                Rod(m,"DarkWood",new Vector3(s*1.18f,0,0.28f),new Vector3(s*1.18f,0.5f,0.28f),0.075f);
-                Rock(m,new Vector3(s*1.18f,0.06f,0.08f),new Vector3(0.24f,0.09f,0.33f),s*17);
-                Box(m,"Rope",new Vector3(s*1.18f,0.78f,-0.12f),new Vector3(0.18f,0.10f,0.18f));
-            }
-            return m;
         }
         static void Gate(TWMysticContext x,TWMysticAssets a,Surface surface)
         {

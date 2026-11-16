@@ -59,6 +59,15 @@ namespace IslandV2
     internal sealed class TWMysticModel
     {
         readonly Dictionary<string, SoftMesh> parts = new Dictionary<string, SoftMesh>();
+        readonly Mesh authoredMesh;
+
+        public TWMysticModel() { }
+
+        public TWMysticModel(Mesh authoredMesh)
+        {
+            this.authoredMesh = authoredMesh;
+        }
+
         public SoftMesh Part(string key)
         {
             if (!parts.TryGetValue(key, out SoftMesh part)) { part = new SoftMesh(); parts.Add(key, part); }
@@ -67,6 +76,13 @@ namespace IslandV2
 
         public GameObject Finish(TWMysticAssets assets, Transform parent, string name, Vector3 position, Quaternion rotation)
         {
+            if (authoredMesh != null)
+            {
+                var mesh = UnityEngine.Object.Instantiate(authoredMesh);
+                mesh.name = name;
+                return Place(mesh, assets.scenery);
+            }
+
             var combine = new List<CombineInstance>(); var temporary = new List<Mesh>();
             try
             {
@@ -85,10 +101,16 @@ namespace IslandV2
                 var mesh = new Mesh { name = name, indexFormat = temporary.Sum(m => m.vertexCount) > 65000 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
                 // One draw call per movable prop; palette is baked into vertex colours.
                 mesh.CombineMeshes(combine.ToArray(), true, false); mesh.RecalculateBounds();
-                var go = assets.Object(parent, name, assets.Save(mesh, name), new[] { emissive ? assets.lamp : assets.scenery }, true);
-                go.transform.SetPositionAndRotation(position, rotation); return go;
+                return Place(mesh, emissive ? assets.lamp : assets.scenery);
             }
             finally { foreach (Mesh mesh in temporary) UnityEngine.Object.DestroyImmediate(mesh); }
+
+            GameObject Place(Mesh mesh, Material material)
+            {
+                var go = assets.Object(parent, name, assets.Save(mesh, name), new[] { material }, true);
+                go.transform.SetPositionAndRotation(position, rotation);
+                return go;
+            }
         }
     }
 }

@@ -95,7 +95,8 @@ namespace IslandV2
 
             Vector2 point = x.Site("SecretBench", new Vector2(1.5f, -9.5f));
             float yaw = Mathf.Atan2(point.x, point.y) * Mathf.Rad2Deg;
-            var bench = x.Prop(assets, TWMysticModels.Bench(false), "SecretBench", "Седьмая_скамья_komarov", point, yaw);
+            var model = new TWMysticModel(TWMysticBenchPolish.Load("SecretBench"));
+            var bench = x.Prop(assets, model, "SecretBench", "Седьмая_скамья_komarov", point, yaw);
             if (bench.GetComponent<BoxCollider>() == null)
             {
                 var c = bench.AddComponent<BoxCollider>();
@@ -114,8 +115,7 @@ namespace IslandV2
             // A continuous back panel supports the delicate night inlay.
             if (bench.transform.Find("Signature_Backboard") == null)
             {
-                var board = new TWMysticModel();
-                TWMysticModels.Box(board, "Wood", new Vector3(0, 1.0f, -0.35f), new Vector3(2.6f, 0.84f, 0.13f));
+                var board = new TWMysticModel(TWMysticBenchPolish.Load("Signature_Backboard"));
                 board.Finish(assets, bench.transform, "Signature_Backboard", bench.transform.position, bench.transform.rotation);
             }
             if (bench.transform.Find("Signature_Inlay") == null)
