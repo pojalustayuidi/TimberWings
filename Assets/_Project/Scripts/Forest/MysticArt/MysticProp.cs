@@ -20,8 +20,8 @@ public sealed class MysticProp : MonoBehaviour, IInteractable
         }
     }
 
-    public Transform Anchor => transform;
-    public Vector3 PromptPoint => transform.position + Vector3.up * 1.05f;
+    public Transform Anchor => key == "Gunnar_Memory" ? transform.Find("Bridge_Engraving") ?? transform : transform;
+    public Vector3 PromptPoint => Anchor.position + Vector3.up * 1.05f;
     public string Prompt => "осмотреть гравировку";
     public float Radius => 2.2f;
     public bool CanInteract
@@ -29,7 +29,7 @@ public sealed class MysticProp : MonoBehaviour, IInteractable
         get
         {
             var player = PlayerMovement.Instance;
-            return player != null && Mathf.Abs(player.transform.position.y - transform.position.y) < 2f
+            return player != null && Mathf.Abs(player.transform.position.y - Anchor.position.y) < 2f
                 && InspectionTitle != null && StoryInspection.CanInspectEngraving(this);
         }
     }

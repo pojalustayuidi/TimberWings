@@ -94,11 +94,12 @@ public partial class DialogueManager : MonoBehaviour
         Say(Speaker.Find(speakerName), text, clip, onDone, speakerName);
     }
 
-    internal static void SayInspection(StoryInspection owner, Speaker who, string text, Action done, float readingTime = 0f)
+    internal static void SayInspection(StoryInspection owner, Speaker who, string text, Action done,
+        float readingTime = 0f, AudioClip clip = null)
     {
         var manager = Instance;
         if (manager == null) { done?.Invoke(); return; }
-        manager.Enqueue(who, text, null, done, "Лео", owner, readingTime);
+        manager.Enqueue(who, text, clip, done, "Лео", owner, readingTime);
     }
 
     internal static void StopInspection(StoryInspection owner)

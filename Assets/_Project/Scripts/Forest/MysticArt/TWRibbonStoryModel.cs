@@ -1,6 +1,7 @@
 using UnityEngine;
 
-// Visual-only V5 story ribbon marker. Preserves the authored Ribbon_Memory encounter.
+// The scene-authored ribbon uses GPU vertex motion. Legacy scenes can still
+// use the two wooden-marker pivots serialized by the older baker.
 // The original MysticProp, DialogueSequence, StoryInspection and save identity stay untouched.
 [DisallowMultipleComponent, DefaultExecutionOrder(500)]
 public sealed class TWRibbonStoryModel : MonoBehaviour
@@ -11,9 +12,15 @@ public sealed class TWRibbonStoryModel : MonoBehaviour
     [SerializeField] bool[] originalStates;
     [SerializeField] bool capturedOriginals;
 
-    Transform obsoleteRuntimeRibbon;
+    public const string BakedClothName = "Ribbon_Cloth";
 
-    public bool HasVisual => shortTail != null && longTail != null;
+    static readonly int WindAmount = Shader.PropertyToID("_ClothWindAmount");
+    Renderer cloth;
+    MaterialPropertyBlock wind;
+    float appliedWind = -1f;
+
+    public bool HasAuthoredCloth => longTail != null && longTail.name == BakedClothName;
+    public bool HasVisual => longTail != null && (HasAuthoredCloth || shortTail != null);
     public bool HasCapturedOriginals => capturedOriginals;
 
     public void CaptureOriginals(Renderer[] renderers)
@@ -30,7 +37,6 @@ public sealed class TWRibbonStoryModel : MonoBehaviour
     {
         shortTail = shorter;
         longTail = longer;
-        obsoleteRuntimeRibbon = null;
     }
 
     public void HideOriginals()
@@ -51,29 +57,22 @@ public sealed class TWRibbonStoryModel : MonoBehaviour
     {
         if (!Application.isPlaying) return;
 
-        // StoryInspectionProp in the current build creates its old flat ribbon at Start.
-        // Hide that visual so the existing cutscene uses only our new authored geometry.
-        // Other inspection types and their movable meshes are not affected.
-        if (obsoleteRuntimeRibbon == null)
-            obsoleteRuntimeRibbon = transform.Find("Inspection visual · Ribbon");
-        if (obsoleteRuntimeRibbon == null)
-        {
-            for (int i = 0; i < transform.childCount; i++)
-            {
-                Transform child = transform.GetChild(i);
-                if (child.name.StartsWith("Inspection visual") && child.name.EndsWith("Ribbon"))
-                {
-                    obsoleteRuntimeRibbon = child;
-                    break;
-                }
-            }
-        }
-        if (obsoleteRuntimeRibbon != null && obsoleteRuntimeRibbon.gameObject.activeSelf)
-            obsoleteRuntimeRibbon.gameObject.SetActive(false);
-
         if (!HasVisual) return;
-        float t = Time.time;
         float strength = VibeSettings.ReduceEffects ? .20f : 1f;
+        if (HasAuthoredCloth)
+        {
+            if (appliedWind == strength) return;
+            if (cloth == null) cloth = longTail.GetComponent<Renderer>();
+            if (cloth == null) return;
+            if (wind == null) wind = new MaterialPropertyBlock();
+            cloth.GetPropertyBlock(wind);
+            wind.SetFloat(WindAmount, strength);
+            cloth.SetPropertyBlock(wind);
+            appliedWind = strength;
+            return;
+        }
+
+        float t = Time.time;
         shortTail.localRotation = Quaternion.Euler(Mathf.Sin(t * 1.32f + .7f) * .45f * strength,
             Mathf.Sin(t * .79f) * .60f * strength, Mathf.Sin(t * 1.09f) * .65f * strength);
         longTail.localRotation = Quaternion.Euler(Mathf.Sin(t * 1.07f) * .55f * strength,
@@ -83,7 +82,7 @@ public sealed class TWRibbonStoryModel : MonoBehaviour
     void OnDisable()
     {
         if (shortTail != null) shortTail.localRotation = Quaternion.identity;
-        if (longTail != null) longTail.localRotation = Quaternion.identity;
-        obsoleteRuntimeRibbon = null;
+        if (longTail != null && !HasAuthoredCloth) longTail.localRotation = Quaternion.identity;
+        appliedWind = -1f;
     }
 }

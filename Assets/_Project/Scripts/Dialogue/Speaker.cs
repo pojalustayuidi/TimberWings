@@ -37,6 +37,7 @@ public class Speaker : MonoBehaviour
     Quaternion dialogueRotation;
     Quaternion beforeConversationRotation;
     bool facingConversation,returningFromConversation;
+    bool playerSpeaker;
     Speaker lastFacingPartner;
     MiraRig miraFaceRig;
 
@@ -44,15 +45,12 @@ public class Speaker : MonoBehaviour
     // scene root instead of that visual rotates prompts and other components,
     // while MiraMotion can restore a different local orientation each frame.
     // Use the real visible model for dialogues, without changing authored pivots.
-    Transform DialogueVisual(PlayerMovement movement)
+    Transform DialogueVisual()
     {
-        if (movement == null)
-        {
-            if (miraFaceRig == null) miraFaceRig = GetComponentInChildren<MiraRig>(true);
-            if (miraFaceRig != null && miraFaceRig.gameObject.activeInHierarchy)
-                return miraFaceRig.transform;
-        }
-        return turnRoot != null ? turnRoot : movement != null ? movement.model : transform;
+        if (miraFaceRig == null) miraFaceRig = GetComponentInChildren<MiraRig>(true);
+        if (miraFaceRig != null && miraFaceRig.gameObject.activeInHierarchy)
+            return miraFaceRig.transform;
+        return turnRoot != null ? turnRoot : transform;
     }
 
     // A prefab's transform.forward does not always coincide with the face.
@@ -76,7 +74,11 @@ public class Speaker : MonoBehaviour
 
     public Vector3 BubblePoint { get { return transform.position + bubbleOffset; } }
 
-    void OnEnable() { if (!all.Contains(this)) all.Add(this); }
+    void OnEnable()
+    {
+        playerSpeaker = TryGetComponent<PlayerMovement>(out _);
+        if (!all.Contains(this)) all.Add(this);
+    }
     void OnDisable()
     {
         all.Remove(this);
@@ -177,7 +179,7 @@ public class Speaker : MonoBehaviour
 
         // The dialogue override is applied after NPC animation scripts. Do not
         // also steer this model toward the player from Update.
-        if (externalFacing) return;
+        if (externalFacing || playerSpeaker) return;
         Speaker addressee;
         if (TryGetConversationPartner(this,out addressee) || returningFromConversation) return;
         if (!faceNearbyPlayer) return;
@@ -203,14 +205,10 @@ public class Speaker : MonoBehaviour
 
     void LateUpdate()
     {
-        if (externalFacing) return;
-        // Mira/Oskar pose their heads and torsos in LateUpdate. Override the
-        // visual root *after* those poses, so a head-yaw limit cannot leave a
-        // speaker looking 60-120 degrees away from their partner.
-        var movement=GetComponent<PlayerMovement>();
-        Transform visual=DialogueVisual(movement);
-        // Never rotate the player's Rigidbody root merely for eye contact.
-        if(visual==null||movement!=null&&visual==transform)return;
+        // PlayerMovement owns Leo's visual root. This override is for NPCs.
+        if (externalFacing || playerSpeaker) return;
+        Transform visual = DialogueVisual();
+        if (visual == null) return;
         Speaker partner = null;
         bool faceLocalPlayer = miraFaceRig != null && DialogueSequence.Focus == transform &&
             PlayerMovement.Instance != null;

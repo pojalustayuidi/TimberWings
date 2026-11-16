@@ -316,7 +316,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
 
             bool done = false;
             if (inspection != null)
-                DialogueManager.SayInspection(inspection, who, l.text, () => done = true);
+                DialogueManager.SayInspection(inspection, who, l.text, () => done = true, clip: l.voice);
             else
                 DialogueManager.Say(who, l.text, l.voice, () => done = true, who != null ? who.displayName : l.speaker);
             while (!done) yield return null;

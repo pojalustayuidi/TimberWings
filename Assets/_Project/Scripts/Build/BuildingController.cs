@@ -367,6 +367,7 @@ public class BuildingController : MonoBehaviour
 
     float currentBuildTimer = 0f;
     bool isBuilding = false;
+    bool workPresentationStarted;
     bool stageRunning = false;    // режим окна: этап запущен кнопкой «Играть»
     bool isFinished = false;
     int step = 0;                 // сколько этапов уже сдано
@@ -667,7 +668,13 @@ public class BuildingController : MonoBehaviour
 
         if (!isBuilding && !BeginBuilding()) return;
 
-        if (BuildWorkPose.IsApproaching(this)) return;
+        if (BuildWorkPose.IsPreparing(this)) return;
+        if (!workPresentationStarted)
+        {
+            workPresentationStarted = true;
+            if (stages != null) HutBuildSite.SetWorkingFor(stages, true);
+            if (buildingVFX != null) buildingVFX.Play();
+        }
 
         currentBuildTimer += Time.deltaTime;
         float progress = GetProgress();
@@ -716,9 +723,9 @@ public class BuildingController : MonoBehaviour
     {
         if (!BuildWorkPose.TryBegin(this, inside)) return false;
         isBuilding = true;
+        workPresentationStarted = false;
         finishWaitFrom = -1f;
-        if (stages != null) { HutBuildSite.SetWorkingFor(stages, true); HutBuildSite.SetProgressFor(stages, GetProgress()); }
-        if (buildingVFX != null) buildingVFX.Play();
+        if (stages != null) HutBuildSite.SetProgressFor(stages, GetProgress());
 
         if (ring != null) ring.visible = true;
         else if (progressCanvas != null) progressCanvas.SetActive(true);

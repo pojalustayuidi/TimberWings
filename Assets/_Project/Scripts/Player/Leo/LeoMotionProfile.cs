@@ -39,10 +39,14 @@ public static class LeoMotionProfile
     }
     public static float RunBlend(float speed) => Smooth((speed - 1.55f) / 2.05f);
     public static float MaxCadence(float run) => Mathf.Lerp(1.85f, 2.52f, run);
+    // The legs are half a cycle apart. Overlap the two contacts at every ground speed.
+    internal static float GroundStance(Gait gait) => Mathf.Max(gait.stance, .53f);
+
     public static float PelvisHeight(Gait gait, float phase, float run)
     {
-        float midStance = Mathf.Cos((phase - gait.stance * .5f) * Mathf.PI * 4f);
-        return -gait.drop + gait.bob * midStance * Mathf.Lerp(1f, -.82f, run);
+        float midStance = Mathf.Cos((phase - GroundStance(gait) * .5f) * Mathf.PI * 4f);
+        float bob = gait.bob * Mathf.Lerp(.50f, .36f, run);
+        return -gait.drop + bob * midStance;
     }
     static bool Number(float value){return !float.IsNaN(value)&&!float.IsInfinity(value);}
     static bool Vector(float[] value){return value!=null&&value.Length==3&&Number(value[0])&&Number(value[1])&&Number(value[2]);}
@@ -85,39 +89,48 @@ public static class LeoMotionProfile
         Vector3 to = after > end ? (V(next) - V(a)) * (.74f * span / (after - start)) : Vector3.zero;
         return Vector3.Lerp(V(a), V(b), Smooth(t)) + (t * (1f - t)) * ((1f - t) * from - t * to);
     }
-    // Stance: foot moves back at exactly body speed. Swing: cubic Hermite whose end tangents equal the stance
-    // velocity -> no speed jump at toe-off and almost zero ground speed at touchdown (no skating, crisp contact).
-    public static GaitPose Foot(Gait gait,float phase,Vector3 rest)
+    public static GaitPose Foot(Gait gait, float phase, Vector3 rest)
     {
-        phase=Mathf.Repeat(phase,1);bool stance=phase<gait.stance;float span=gait.stride*gait.stance*.5f;
-        float swing=0,z,lift=0;
-        if(stance)z=span-phase*gait.stride;
+        phase = Mathf.Repeat(phase, 1f);
+        float stanceFraction = GroundStance(gait);
+        bool stance = phase < stanceFraction;
+        // Keep the authored reach after lengthening the part of the cycle spent on the ground.
+        float contactDistance = gait.stride * gait.stance;
+        float span = contactDistance * .5f;
+        float contactSpeed = contactDistance / stanceFraction;
+        float swing = 0f;
+        float lift = 0f;
+        float z;
+        if (stance)
+        {
+            z = span - phase * contactSpeed;
+        }
         else
         {
-            float ds=Mathf.Max(.05f,1-gait.stance);swing=(phase-gait.stance)/ds;
-            float s = swing;
-            // Keep the ground velocity at the boundary, with a short toe-off
-            // and heel catch so the long stride fits the actual leg length.
-            float edge = 1f - Smooth(Mathf.Min(s, 1f - s) / .28f);
-            z = Mathf.Lerp(-span, span, Smooth(s))
-                - gait.stride * ds * s * (1f - s) * (1f - 2f * s) * edge;
-            // The knee leads the recovery, with a longer reach and a softer heel catch at the end.
-            lift = Mathf.Sin(Mathf.PI * s) * gait.lift * Mathf.Lerp(1.28f, .72f, s);
+            float duration = 1f - stanceFraction;
+            swing = (phase - stanceFraction) / duration;
+            float edge = 1f - Smooth(Mathf.Min(swing, 1f - swing) / .28f);
+            // Match the horizontal velocity on either side of toe-off and heel strike.
+            z = Mathf.Lerp(-span, span, Smooth(swing)) -
+                contactSpeed * duration * swing * (1f - swing) * (1f - 2f * swing) * edge;
+            float clearance = Mathf.Sin(Mathf.PI * swing);
+            lift = clearance * clearance * gait.lift * Mathf.Lerp(1.08f, .72f, swing);
         }
-        return new GaitPose{foot=rest+new Vector3(0,lift,z),stance=stance,swing=swing,phase=phase};
+        return new GaitPose { foot = rest + new Vector3(0f, lift, z), stance = stance, swing = swing, phase = phase };
     }
     // Foot pitch in degrees, toe-down positive: heel strike (toe up) -> flat -> heel-off -> toe-off -> toe clearance.
     public static float FootPitch(Gait gait,float phase,float run)
     {
         phase = Mathf.Repeat(phase, 1f);
         float strike = Mathf.Lerp(16f, 9f, run), off = Mathf.Lerp(24f, 29f, run), clear = Mathf.Lerp(7f, 14f, run);
-        if(phase<gait.stance)
+        float stance = GroundStance(gait);
+        if (phase < stance)
         {
-            float u=phase/gait.stance;
+            float u = phase / stance;
             if (u < .20f) return -strike * (1f - Smooth(u / .20f));
             return off * Smooth((u - .62f) / .38f);
         }
-        float s=(phase-gait.stance)/Mathf.Max(.05f,1-gait.stance);
+        float s = (phase - stance) / (1f - stance);
         return s < .55f ? Mathf.Lerp(off, -clear, Smooth(s / .55f)) : Mathf.Lerp(-clear, -strike, Smooth((s - .55f) / .45f));
     }
     public static Gait Mix(Gait a,Gait b,float k)

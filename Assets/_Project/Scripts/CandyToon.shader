@@ -49,6 +49,9 @@ Shader "Project/CandyToon"
         _RimStrength ("Rim strength (0 = off)", Range(0, 1)) = 0
         _RimPower ("Rim power", Range(0.5, 8)) = 3
 
+        [HideInInspector] [Toggle(TW_CLOTH_WIND)] _ClothWind ("Cloth wind", Float) = 0
+        [HideInInspector] _ClothWindAmount ("Cloth wind amount", Float) = 1
+
         [Header(Emission)]
         // свечение ламп и окон: красит FireSource через MaterialPropertyBlock (без него стекла и фонари вечером оставались тёмными)
         [HDR] _EmissionColor ("Emission", Color) = (0, 0, 0, 1)
@@ -89,7 +92,22 @@ Shader "Project/CandyToon"
             float _RimPower;
             float _PeekSupport;
             float4 _EmissionColor;
+            float _ClothWindAmount;
         CBUFFER_END
+
+        float3 CandyClothPosition(float3 position, float2 uv)
+        {
+        #if defined(TW_CLOTH_WIND)
+            // UV.x measures the distance along the cloth from the fastening.
+            float release = smoothstep(0.15, 1.0, uv.x) * _ClothWindAmount;
+            float flutter = _Time.y * 1.56 - uv.x * 3.65;
+            float gust = 0.72 + 0.28 * sin(_Time.y * 0.61);
+            position += float3(0.0035 * sin(flutter * 0.77),
+                0.0023 * sin(flutter + 0.66),
+                0.0090 * gust * sin(flutter) + 0.0025 * sin(flutter * 1.66)) * release;
+        #endif
+            return position;
+        }
         ENDHLSL
 
         // ------------------------------------------------------------------ основной проход
@@ -105,6 +123,7 @@ Shader "Project/CandyToon"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #pragma shader_feature_local_vertex _ TW_CLOTH_WIND
             #pragma multi_compile_fog
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX
@@ -116,6 +135,7 @@ Shader "Project/CandyToon"
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
                 float3 normalOS : NORMAL;
                 float4 color : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -143,7 +163,7 @@ Shader "Project/CandyToon"
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
 
-                float3 posWS = TransformObjectToWorld(v.positionOS.xyz);
+                float3 posWS = TransformObjectToWorld(CandyClothPosition(v.positionOS.xyz, v.uv));
                 float3 nWS = TransformObjectToWorldNormal(v.normalOS);
                 o.positionWS = posWS;
                 o.positionCS = TransformWorldToHClip(posWS);
@@ -237,6 +257,7 @@ Shader "Project/CandyToon"
             #pragma vertex vertShadow
             #pragma fragment fragShadow
             #pragma multi_compile_instancing
+            #pragma shader_feature_local_vertex _ TW_CLOTH_WIND
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
@@ -247,6 +268,7 @@ Shader "Project/CandyToon"
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
                 float3 normalOS : NORMAL;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -257,7 +279,7 @@ Shader "Project/CandyToon"
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                float3 posWS = TransformObjectToWorld(v.positionOS.xyz);
+                float3 posWS = TransformObjectToWorld(CandyClothPosition(v.positionOS.xyz, v.uv));
                 float3 nWS = TransformObjectToWorldNormal(v.normalOS);
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                 float3 lightDir = normalize(_LightPosition - posWS);
@@ -292,10 +314,12 @@ Shader "Project/CandyToon"
             #pragma vertex vertDepth
             #pragma fragment fragDepth
             #pragma multi_compile_instancing
+            #pragma shader_feature_local_vertex _ TW_CLOTH_WIND
 
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -305,7 +329,7 @@ Shader "Project/CandyToon"
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                o.positionCS = TransformObjectToHClip(CandyClothPosition(v.positionOS.xyz, v.uv));
                 return o;
             }
 

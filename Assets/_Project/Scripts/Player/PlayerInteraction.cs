@@ -135,6 +135,7 @@ public partial class PlayerInteraction : MonoBehaviour
     public Transform CurrentTarget { get; private set; }
     public ResourceItem TargetItem { get; private set; }
     public bool IsChopping { get; private set; }
+    bool waitingForChopAxe;
     public float Progress { get; private set; }
 
     PlayerInventory inventory;
@@ -575,7 +576,7 @@ public partial class PlayerInteraction : MonoBehaviour
     public void NotifyHit()
     {
         if (RhythmChop) return;   // в ритм-режиме удары идут от нажатий E (ResolveHit), Animation Event не нужен
-        if (!IsChopping || TargetItem == null) return;
+        if (!IsChopping || waitingForChopAxe || !LeoAxeReady || TargetItem == null) return;
         var th = TargetItem.GetComponent<TreeHits>();
         if (th == null) th = TargetItem.GetComponentInChildren<TreeHits>();
         if (th == null) th = TargetItem.gameObject.AddComponent<TreeHits>();   // TreeHits нигде не добавлялся, дерево не реагировало на удары
@@ -646,12 +647,19 @@ public partial class PlayerInteraction : MonoBehaviour
         if (!IsChopping)
         {
             IsChopping = true;
+            waitingForChopAxe = true;
             bool resume = savedItem == TargetItem && Time.time <= savedUntil;
             if (!resume) chainLock = LumberSkills.ChainNow;   // серия фиксируется на всё дерево; при возобновлении (пауза 0.5 с) остаётся прежней
             holdTime = resume ? savedHold : 0f;
             savedItem = null;
             Progress = Mathf.Clamp01(holdTime / Mathf.Max(0.1f, GatherTime));
             hitsDone = Mathf.FloorToInt(Progress * GameBalance.HitsPerTree);
+        }
+
+        if (!LeoAxeReady) return;
+        if (waitingForChopAxe)
+        {
+            waitingForChopAxe = false;
             nextHitAt = Time.time + Mathf.Max(0.05f, firstHitDelay);
             bonusClock = 0f;                       // маркер бонуса стартует с левого края
             bonusNextAt = Time.time + 0.2f;        // защита от случайного Пробела в момент начала рубки
@@ -854,6 +862,7 @@ public partial class PlayerInteraction : MonoBehaviour
             savedUntil = Time.time + GameBalance.ChopGrace;
         }
         IsChopping = false;
+        waitingForChopAxe = false;
         if (rhythmActive)
         {
             rhythmActive = false;
@@ -916,6 +925,7 @@ public partial class PlayerInteraction : MonoBehaviour
             return;
         }
 
+        if (!LeoAxeReady) return;
         rhythmClock += Time.deltaTime;
 
         if (pendingHit && Time.time >= pendingDue)

@@ -9,8 +9,7 @@ sealed class StoryInspectionProp
     readonly Transform owner;
     readonly MeshFilter backing;
     readonly Mesh original, scenery, part;
-    readonly Transform visual, support;
-    readonly Mesh supportMesh;
+    readonly Transform visual;
     readonly Material ownedMaterial;
     readonly bool usesBakedArrow;
     readonly Vector3 restPoint;
@@ -18,14 +17,28 @@ sealed class StoryInspectionProp
     Vector3 releasePosition;
     Quaternion releaseRotation;
     bool hasRelease, arrowMoved;
-    readonly StoryInspection.Kind kind;
+    readonly bool authored;
+    readonly Transform engraving;
 
     public Vector3 RestGrip => owner.TransformPoint(restPoint);
     public Quaternion RestRotation => owner.rotation * restRotation;
     public Vector3 Grip => visual.position;
+    public bool Authored => authored;
+    public bool IsValid => visual != null;
+    public Transform Engraving => engraving;
+
+    StoryInspectionProp(Transform owner, Transform visual)
+    {
+        this.owner = owner;
+        this.visual = visual;
+        authored = true;
+        restPoint = visual.localPosition;
+        restRotation = visual.localRotation;
+        engraving = visual.Find(StoryInspection.GunnarEngravingFocusName);
+    }
 
     StoryInspectionProp(Transform owner, MeshFilter backing, Mesh original, Mesh scenery, Mesh part,
-        Transform visual, Transform support, Mesh supportMesh, Material ownedMaterial, StoryInspection.Kind kind, bool usesBakedArrow)
+        Transform visual, Material ownedMaterial, StoryInspection.Kind kind, bool usesBakedArrow)
     {
         this.owner = owner;
         this.backing = backing;
@@ -33,28 +46,25 @@ sealed class StoryInspectionProp
         this.scenery = scenery;
         this.part = part;
         this.visual = visual;
-        this.support = support;
-        this.supportMesh = supportMesh;
         this.ownedMaterial = ownedMaterial;
-        this.kind = kind;
         this.usesBakedArrow = usesBakedArrow;
-        restPoint = kind switch
-        {
-            StoryInspection.Kind.Knife => new Vector3(-.12f, .425f, .255f),
-            StoryInspection.Kind.CopperArrow => new Vector3(.02f, usesBakedArrow ? .435f : .46f, .02f),
-            _ => new Vector3(.035f, .402f, .075f)
-        };
+        restPoint = kind == StoryInspection.Kind.CopperArrow
+            ? new Vector3(.02f, usesBakedArrow ? .435f : .46f, .02f)
+            : new Vector3(.035f, .402f, .075f);
         restRotation = usesBakedArrow ? Quaternion.identity : Quaternion.LookRotation(Vector3.up, Vector3.right);
         ResetPose();
-        if (support != null)
-        {
-            support.localPosition = restPoint;
-            support.localRotation = restRotation;
-        }
     }
 
     public static StoryInspectionProp Create(Transform owner, StoryInspection.Kind kind)
     {
+        if (kind == StoryInspection.Kind.Knife)
+        {
+            Transform knife = owner.Find(StoryInspection.GunnarKnifeModelName);
+            return knife == null ? null : new StoryInspectionProp(owner, knife);
+        }
+
+        if (kind != StoryInspection.Kind.CopperArrow && kind != StoryInspection.Kind.Board) return null;
+
         var filter = owner.GetComponent<MeshFilter>();
         var renderer = owner.GetComponent<MeshRenderer>();
         Mesh source = filter != null ? filter.sharedMesh : null;
@@ -85,9 +95,7 @@ sealed class StoryInspectionProp
         var piece = bakedArrow ? Object.Instantiate(source) : BuildArtefact(kind);
         if (bakedArrow) piece.SetTriangles(moving, 0);
         Transform visual = AddVisual(owner, "Inspection visual · " + kind, piece, material);
-        Mesh supportMesh = kind == StoryInspection.Kind.Knife ? BuildArtefact(kind, true) : null;
-        Transform support = supportMesh != null ? AddVisual(owner, "Gunnar knife · holder", supportMesh, material) : null;
-        return new StoryInspectionProp(owner, filter, source, rest, piece, visual, support, supportMesh, ownedMaterial, kind, bakedArrow);
+        return new StoryInspectionProp(owner, filter, source, rest, piece, visual, ownedMaterial, kind, bakedArrow);
     }
 
     static Transform AddVisual(Transform owner, string name, Mesh mesh, Material material)
@@ -104,6 +112,9 @@ sealed class StoryInspectionProp
 
     public static bool CanSeparate(Transform owner, StoryInspection.Kind kind)
     {
+        if (kind == StoryInspection.Kind.Knife) return owner.Find(StoryInspection.GunnarKnifeModelName) != null;
+        if (kind == StoryInspection.Kind.Ribbon)
+            return owner.TryGetComponent<TWRibbonStoryModel>(out var cloth) && cloth.HasVisual;
         var filter = owner.GetComponent<MeshFilter>();
         return filter != null && TrySplit(filter.sharedMesh, kind, out _, out _);
     }
@@ -175,6 +186,7 @@ sealed class StoryInspectionProp
 
     public void ResetPose()
     {
+        if (visual == null) return;
         hasRelease = false;
         arrowMoved = false;
         visual.localPosition = usesBakedArrow ? Vector3.zero : restPoint;
@@ -191,16 +203,19 @@ sealed class StoryInspectionProp
 
     public void Dispose()
     {
+        if (authored)
+        {
+            ResetPose();
+            return;
+        }
         if (backing != null && scenery != null && backing.sharedMesh == scenery) backing.sharedMesh = original;
         if (visual != null) Object.Destroy(visual.gameObject);
         if (scenery != null) Object.Destroy(scenery);
         if (part != null) Object.Destroy(part);
-        if (support != null) Object.Destroy(support.gameObject);
-        if (supportMesh != null) Object.Destroy(supportMesh);
         if (ownedMaterial != null) Object.Destroy(ownedMaterial);
     }
 
-    static Mesh BuildArtefact(StoryInspection.Kind kind, bool support = false)
+    static Mesh BuildArtefact(StoryInspection.Kind kind)
     {
         var vertices = new List<Vector3>();
         var colours = new List<Color32>();
@@ -234,53 +249,16 @@ sealed class StoryInspectionProp
             Prism(new[] { new Vector2(left, bottom), new Vector2(right, bottom),
                 new Vector2(right, top), new Vector2(left, top) }, low, high, color);
 
-        var steel = new Color32(151, 174, 173, 255);
-        var edge = new Color32(206, 216, 207, 255);
         var wood = new Color32(106, 68, 48, 255);
         var brass = new Color32(192, 141, 83, 255);
         var engraving = new Color32(46, 27, 22, 255);
 
-        if (support)
-        {
-            Box(-.095f, -.18f, .095f, .305f, -.075f, -.029f, wood);
-            Box(-.092f, -.175f, .092f, .300f, -.031f, -.026f, new Color32(140, 101, 72, 255));
-        }
-        else if (kind == StoryInspection.Kind.Knife)
-        {
-            Prism(new[] { new Vector2(-.046f, .081f), new Vector2(.060f, .081f),
-                new Vector2(.052f, .216f), new Vector2(-.015f, .315f), new Vector2(-.044f, .249f) },
-                -.012f, .012f, steel);
-            Prism(new[] { new Vector2(.044f, .09f), new Vector2(.060f, .09f),
-                new Vector2(.052f, .216f), new Vector2(-.015f, .315f), new Vector2(.031f, .219f) },
-                -.0122f, .0122f, edge);
-            Prism(new[] { new Vector2(-.027f, -.14f), new Vector2(.024f, -.14f),
-                new Vector2(.041f, -.11f), new Vector2(.034f, .075f),
-                new Vector2(-.033f, .075f), new Vector2(-.039f, -.11f) }, -.026f, .026f, wood);
-            Box(-.059f, .065f, .059f, .086f, -.030f, .030f, brass);
-            Box(-.027f, -.142f, .024f, -.133f, -.027f, .027f, brass);
-
-            // Two shallow strokes forming the Cyrillic Г on the front of the pommel.
-            Box(-.018f, -.121f, -.010f, -.084f, .026f, .027f, engraving);
-            Box(-.010f, -.092f, .016f, -.084f, .026f, .027f, engraving);
-        }
-        else if (kind == StoryInspection.Kind.CopperArrow)
+        if (kind == StoryInspection.Kind.CopperArrow)
         {
             Box(-.021f, -.22f, .021f, .095f, -.013f, .013f, brass);
             Prism(new[] { new Vector2(-.079f, .077f), new Vector2(.077f, .077f), new Vector2(.007f, .235f) },
                 -.014f, .014f, new Color32(214, 146, 79, 255));
             Box(-.031f, -.159f, .031f, -.117f, -.015f, .015f, engraving);
-        }
-        else if (kind == StoryInspection.Kind.Ribbon)
-        {
-            var cloth = new Color32(172, 150, 192, 255);
-            Prism(new[] { new Vector2(-.071f, -.245f), new Vector2(.079f, -.215f),
-                new Vector2(.058f, .205f), new Vector2(.010f, .251f), new Vector2(-.061f, .213f) },
-                -.009f, .009f, cloth);
-            for (int i = 0; i < 6; i++)
-            {
-                float y = -.116f + i * .042f;
-                Box(-.046f, y, .002f, y + (i == 5 ? .005f : .008f), .009f, .010f, engraving);
-            }
         }
         else
         {

@@ -41,7 +41,8 @@ internal sealed class LeoBuildMotion
         bool allowed, bool debug)
     {
         bool ready = BuildWorkPose.TryGetStrikeTarget(player, out var contact);
-        bool playing = ready && allowed && speed < .58f && holster >= .99f && HasHammer(rig);
+        bool playing = ready && allowed && speed < .58f && holster >= 1f &&
+            HasHammer(rig) && rig.IsAxeStowed;
         if (playing) target = contact;
         Advance(dt, playing);
         if (debug && BuildWorkPose.HasWork(player) && Time.time >= nextLogAt)
@@ -146,10 +147,10 @@ internal sealed class LeoBuildMotion
 
         if (rig.fingersR != null)
             foreach (Transform finger in rig.fingersR)
-                rig.Rotate(finger, new Vector3(Mathf.Lerp(42f, -42f, draw), 0f, 0f));
+                rig.Rotate(finger, new Vector3(-42f * draw, 0f, 0f));
         if (rig.fingerTipsR != null)
             foreach (Transform joint in rig.fingerTipsR)
-                rig.Rotate(joint, new Vector3(Mathf.Lerp(35f, -35f, draw), 0f, 0f));
+                rig.Rotate(joint, new Vector3(-35f * draw, 0f, 0f));
 
         if (!contactFrame) return;
         contactFrame = false;

@@ -10,7 +10,7 @@ public sealed partial class StoryInspection : MonoBehaviour
         Knife, Ribbon, Board, Finale, BenchMarks, Witness, Arch, Stump, ThreeMarks, CopperArrow, Duck, Cart
     }
 
-    enum Beat { Approach, Look, Reach, Detail, React, Recover }
+    enum Beat { Approach, Look, Reach, Lift, Detail, React, Replace, Recover }
 
     public const string FinaleLine = "«Седьмую скамью я всё-таки унёс»... Дядя, о чём ты?";
 
@@ -48,6 +48,9 @@ public sealed partial class StoryInspection : MonoBehaviour
     DialogueSequence sequence;
     Camera camera;
     StoryInspectionProp prop;
+    TWRibbonStoryModel authoredRibbon;
+    Vector3 approachFacing;
+    ActorPose lastForestPose, recoveryActorPose;
     Coroutine scene;
     Kind subject;
     Beat beat;
@@ -55,6 +58,10 @@ public sealed partial class StoryInspection : MonoBehaviour
     float beatStart, hold, expires, pickedAt;
     bool engraveBridge, accepted, releasing, actionArmed, knifeInHand, arrowTurned, pickedKnife, wasReacting, triedProp;
     AudioSource ambience;
+
+    bool AuthoredKnife => !engraveBridge && subject == Kind.Knife && prop != null && prop.Authored && prop.IsValid;
+    bool AuthoredRibbon => !engraveBridge && subject == Kind.Ribbon && detail != null &&
+        authoredRibbon != null && authoredRibbon.HasAuthoredCloth;
 
     internal bool ShowBridgeOnMap => !superseded && bridgeEngraving != null && source is DialogueSequence knife && knife.InspectionSeen;
 
@@ -81,7 +88,7 @@ public sealed partial class StoryInspection : MonoBehaviour
         get
         {
             if (engraveBridge && bridgeEngraving != null) return Centre(bridgeEngraving);
-            if (subject == Kind.Knife && prop != null) return prop.RestGrip;
+            if (subject == Kind.Knife && prop != null && prop.IsValid) return prop.RestGrip;
             return detail != null ? detail.position : transform.TransformPoint(detailOffset);
         }
     }
@@ -117,7 +124,8 @@ public sealed partial class StoryInspection : MonoBehaviour
     internal static bool AllowsReplay(DialogueSequence interaction)
     {
         var found = For(interaction);
-        return found != null && found.source == interaction && (found.kind != Kind.Knife || found.bridgeEngraving == null);
+        return found != null && found.source == interaction &&
+            (found.kind != Kind.Knife || found.bridgeEngraving == null || (found.prop != null && found.prop.Authored));
     }
 
     internal static bool CanInspectEngraving(MysticProp interaction)
@@ -148,8 +156,14 @@ public sealed partial class StoryInspection : MonoBehaviour
     {
         if (superseded || triedProp || (kind != Kind.Knife && kind != Kind.CopperArrow && kind != Kind.Ribbon && kind != Kind.Board)) return;
         triedProp = true;
+        if (kind == Kind.Ribbon)
+        {
+            TryGetComponent<TWRibbonStoryModel>(out authoredRibbon);
+            return;
+        }
         prop = StoryInspectionProp.Create(transform, kind);
-        if (prop == null) Debug.LogWarning($"Story Inspection: не удалось отделить визуальную деталь {kind}. Используется исходная модель.", this);
+        if (prop == null && kind != Kind.Knife)
+            Debug.LogWarning($"Story Inspection: не удалось отделить визуальную деталь {kind}. Используется исходная модель.", this);
     }
 
     void OnDisable()
@@ -159,6 +173,7 @@ public sealed partial class StoryInspection : MonoBehaviour
         Abort();
         prop?.Dispose();
         prop = null;
+        authoredRibbon = null;
         DisposeStoryMagic();
         triedProp = false;
     }
@@ -172,6 +187,7 @@ public sealed partial class StoryInspection : MonoBehaviour
     {
         if (Active || DialogueManager.IsBusy || DialogueSequence.AnyPlaying || DialogueManager.BlocksUntilRelease ||
             SaveSystem.IsLoading || BuildingController.AnyRevealing || BuildingController.AnyRestorePending ||
+            OtherCinematicActive || BuildWorkPose.LockedSite != null ||
             MobileInput.ModalOpen || WaterSwim.Swimming || Time.timeScale <= 0f) return;
 
         var actor = PlayerMovement.Instance;
@@ -200,6 +216,8 @@ public sealed partial class StoryInspection : MonoBehaviour
         engraveBridge = kind == Kind.Knife && interaction != source;
         accepted = releasing = actionArmed = SkipRequested = knifeInHand = arrowTurned = pickedKnife = false;
         wasReacting = false;
+        approachFacing = Vector3.zero;
+        lastForestPose = recoveryActorPose = default;
         hold = 0f;
         suppressHeldAction = false;
         current = this;
@@ -210,6 +228,7 @@ public sealed partial class StoryInspection : MonoBehaviour
             PrepareProp();
             if (kind == Kind.Knife) prop?.ResetPose();
             OpenCamera();
+            HideGameplayHud();
             scene = StartCoroutine(PlaySafely(line()));
         }
         catch (Exception error)
@@ -242,29 +261,22 @@ public sealed partial class StoryInspection : MonoBehaviour
     IEnumerator Play(string line)
     {
         SetBeat(Beat.Approach);
-        bool reach = !engraveBridge && (subject == Kind.Knife || subject == Kind.Ribbon);
-        if (reach && actorRig != null)
+        bool reach = AuthoredKnife || (!engraveBridge && subject == Kind.Ribbon);
+        if (reach && actorRig != null && (AuthoredKnife || AuthoredRibbon))
         {
-            bool knife = subject == Kind.Knife;
-            float stop = knife ? .36f : .48f;
-            Vector3 initial = transform.InverseTransformPoint(player.transform.position);
-            int detour = knife && bridgeEngraving != null && initial.z < .02f && Mathf.Abs(initial.x) < .52f ? 1 : 0;
-            float side = initial.x > .12f ? .56f : -.56f;
-            float approachTime = detour > 0 ? 2.25f : 1.55f;
-            while (!SkipRequested && BeatTime < approachTime)
+            Vector3 stance = ChooseStance();
+            while (!SkipRequested && BeatTime < 2.65f && StepToStance(stance)) yield return null;
+            walkDirection = Vector3.zero;
+            // Face at the stopping point even if terrain prevented reaching the planned stance.
+            if (Flat(Focus - player.transform.position).sqrMagnitude > .16f)
+                approachFacing = Flat(Focus - player.transform.position);
+        }
+        else if (reach && actorRig != null)
+        {
+            while (!SkipRequested && BeatTime < 1.55f)
             {
-                Vector3 position = player.transform.position;
-                Vector3 goal = Focus;
-                if (detour > 0)
-                {
-                    Vector3 local = transform.InverseTransformPoint(position);
-                    if (detour == 1 && Mathf.Abs(local.x) >= .50f) detour = 2;
-                    if (detour == 2 && local.z >= .27f) detour = 0;
-                    if (detour > 0) goal = transform.TransformPoint(new Vector3(side, local.y, detour == 1 ? local.z : .33f));
-                }
-                Vector3 direction = goal - position;
-                direction.y = 0f;
-                if (direction.magnitude <= (detour == 0 ? stop : .04f) || !GroundAhead(direction.normalized)) break;
+                Vector3 direction = Flat(Focus - player.transform.position);
+                if (direction.sqrMagnitude <= .48f * .48f || !GroundAhead(direction.normalized)) break;
                 walkDirection = direction.normalized * 1.40f;
                 yield return null;
             }
@@ -278,7 +290,13 @@ public sealed partial class StoryInspection : MonoBehaviour
         if (reach && !SkipRequested)
         {
             SetBeat(Beat.Reach);
-            while (!SkipRequested && BeatTime < .46f) yield return null;
+            float reachTime = AuthoredKnife ? .70f : AuthoredRibbon ? .30f : .46f;
+            while (!SkipRequested && BeatTime < reachTime && (!AuthoredKnife || !knifeInHand)) yield return null;
+            if (AuthoredKnife && knifeInHand && !SkipRequested)
+            {
+                SetBeat(Beat.Lift);
+                while (!SkipRequested && BeatTime < KnifeLiftTime) yield return null;
+            }
         }
 
         SetBeat(Beat.Detail);
@@ -319,7 +337,17 @@ public sealed partial class StoryInspection : MonoBehaviour
             DialogueSeen.Mark("inspection/" + id);
             MapPoi.ReportInspection(discovered);
         }
+        if (AuthoredKnife && knifeInHand)
+        {
+            knifeReplaceFromLift = lastForestPose.lift;
+            knifeReplaceFromTurn = lastForestPose.turn;
+            SetBeat(Beat.Replace);
+            while (knifeInHand && BeatTime < KnifeReplaceTime + KnifeSeatTime + .06f) yield return null;
+        }
+
         wasReacting = beat == Beat.React;
+        if (actorRig != null && (AuthoredKnife || AuthoredRibbon))
+            recoveryActorPose = lastForestPose;
         releasePose = inspectionPose;
         SetBeat(Beat.Recover);
         releasing = true;
@@ -328,13 +356,15 @@ public sealed partial class StoryInspection : MonoBehaviour
         Close();
     }
 
+    static bool OtherCinematicActive => ArrivalIntroSequence.Active || LeoCelebration.IsPlaying || EndingSequence.Active;
+
     float BeatTime => Time.time - beatStart;
 
     void SetBeat(Beat next)
     {
         beat = next;
         beatStart = Time.time;
-        if (next == Beat.Look) StartStoryMagic();
+        if (next == Beat.Look && !AuthoredKnife && !AuthoredRibbon) StartStoryMagic();
         else if (next == Beat.Detail) PulseStoryMagic();
         else if (next == Beat.Recover) StopStoryMagic();
     }
@@ -361,11 +391,15 @@ public sealed partial class StoryInspection : MonoBehaviour
         UpdateStoryMagic();
         if (player == null || !player.isActiveAndEnabled || player.ControlLocked || camera == null ||
             !camera.isActiveAndEnabled || Time.time > expires || SaveSystem.IsLoading || BuildingController.AnyRevealing ||
-            WaterSwim.Swimming || (source != null && !source.isActiveAndEnabled))
+            WaterSwim.Swimming || OtherCinematicActive || MobileInput.ModalOpen ||
+            source == null || !source.isActiveAndEnabled)
         {
             Abort();
             return;
         }
+        // The normal camera follows Leo in its own LateUpdate. Give it its
+        // previous gameplay transform and lens before it evaluates this frame.
+        if (cameraOpened) ApplyCamera(gameplayPose);
         if (Time.timeScale <= 0f) return;
 
         if (!MobileInput.ActionHeld)
@@ -381,8 +415,8 @@ public sealed partial class StoryInspection : MonoBehaviour
 
         if (walkDirection == Vector3.zero && !releasing && player.model != null)
         {
-            Vector3 direction = Focus - player.transform.position;
-            direction.y = 0f;
+            Vector3 direction = approachFacing.sqrMagnitude > .001f
+                ? approachFacing : Flat(Focus - player.transform.position);
             if (direction.sqrMagnitude > .008f)
                 player.model.rotation = Quaternion.Slerp(player.model.rotation, Quaternion.LookRotation(direction), 1f - Mathf.Exp(-12f * Time.deltaTime));
         }
@@ -398,39 +432,24 @@ public sealed partial class StoryInspection : MonoBehaviour
     void LateUpdate()
     {
         if (current != this || camera == null) return;
-        if (prop != null && !engraveBridge)
+        try
         {
-            if (subject == Kind.Knife) PlaceKnife();
-            if (subject == Kind.CopperArrow && !arrowTurned && beat == Beat.React && BeatTime >= .43f)
+            if (prop != null && prop.IsValid && !engraveBridge)
             {
-                prop.TurnArrow();
-                arrowTurned = true;
+                if (AuthoredKnife) PlaceAuthoredKnife();
+                if (subject == Kind.CopperArrow && !arrowTurned && beat == Beat.React && BeatTime >= .43f)
+                {
+                    prop.TurnArrow();
+                    arrowTurned = true;
+                }
             }
+            UpdateCamera();
         }
-        UpdateCamera();
-    }
-
-    void PlaceKnife()
-    {
-        if (actorRig == null || actorRig.handR == null) return;
-        Transform hand = actorRig.handR;
-        Vector3 grip = LeoAxePose.Grip(hand);
-        if (!knifeInHand && !pickedKnife && (beat == Beat.Reach || beat == Beat.Detail) &&
-            Vector3.Distance(grip, prop.RestGrip) < .085f)
+        catch (Exception error)
         {
-            knifeInHand = pickedKnife = true;
-            pickedAt = Time.time;
+            Debug.LogException(error, this);
+            Abort();
         }
-        if (!knifeInHand) return;
-        if (beat == Beat.Recover && BeatTime > .26f)
-        {
-            prop.Release(Smooth((BeatTime - .26f) / .15f));
-            if (BeatTime >= .41f) knifeInHand = false;
-            return;
-        }
-        float attach = Smooth((Time.time - pickedAt) / .10f);
-        prop.Hold(Vector3.Lerp(prop.RestGrip, grip, attach),
-            Quaternion.Slerp(prop.RestRotation, LeoAxePose.ToolRotation(hand), attach));
     }
 
     void Abort()
@@ -438,28 +457,38 @@ public sealed partial class StoryInspection : MonoBehaviour
         if (current != this) return;
         if (scene != null) StopCoroutine(scene);
         scene = null;
-        if (sequence != null) sequence.CancelInspection(this);
-        Close();
+        try
+        {
+            if (sequence != null) sequence.CancelInspection(this);
+        }
+        finally { Close(); }
     }
 
     void Close()
     {
-        DialogueManager.StopInspection(this);
-        if (ambience != null) ambience.Stop();
-        DisposeStoryMagic();
-        if (prop != null && (subject == Kind.Knife || !accepted)) prop.ResetPose();
-        RestoreCamera();
-        current = null;
-        releasedFrame = Time.frameCount;
-        suppressHeldAction = MobileInput.ActionHeld;
-        walkDirection = Vector3.zero;
-        player = null;
-        playerCapsule = null;
-        actorRig = null;
-        legacyPresentation = null;
-        actorSpeaker = null;
-        sequence = null;
-        camera = null;
+        try
+        {
+            DialogueManager.StopInspection(this);
+            if (ambience != null) ambience.Stop();
+            DisposeStoryMagic();
+            if (prop != null && (subject == Kind.Knife || !accepted)) prop.ResetPose();
+        }
+        finally
+        {
+            RestoreCamera();
+            RestoreGameplayHud();
+            current = null;
+            releasedFrame = Time.frameCount;
+            suppressHeldAction = MobileInput.ActionHeld;
+            walkDirection = Vector3.zero;
+            player = null;
+            playerCapsule = null;
+            actorRig = null;
+            legacyPresentation = null;
+            actorSpeaker = null;
+            sequence = null;
+            camera = null;
+        }
     }
 
     static float Smooth(float x) => Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(x));

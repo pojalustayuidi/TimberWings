@@ -39,7 +39,7 @@ internal static class TWRibbonStoryBaker
     [MenuItem(Menu + "Build / Replace in Open Scene", false, 20)]
     static void Build()
     {
-        if (!FindRibbon(out var target, out var scene)) return;
+        if (!FindRibbon(out var target, out var scene) || ProtectAuthoredCloth(target)) return;
         EnsureFolder();
         var material = FindOrCreateMaterial();
         if (material == null) return;
@@ -129,7 +129,7 @@ internal static class TWRibbonStoryBaker
     [MenuItem(Menu + "Restore Original Visual", false, 21)]
     static void Restore()
     {
-        if (!FindRibbon(out var target, out var scene)) return;
+        if (!FindRibbon(out var target, out var scene) || ProtectAuthoredCloth(target)) return;
         var controller = target.GetComponent<TWRibbonStoryModel>();
         if (controller == null)
         {
@@ -175,6 +175,13 @@ internal static class TWRibbonStoryBaker
         if (okay) Debug.Log("Ribbon V5 validation OK: one marker, inspection bound, dialogue source intact.", target);
         else Debug.LogWarning("Ribbon V5 validation incomplete: run Story Inspection > Install / Update, " +
             "then Ribbon V5 > Build / Replace. See Inspector for bindings.", target);
+    }
+
+    static bool ProtectAuthoredCloth(MysticProp target)
+    {
+        if (!target.TryGetComponent<TWRibbonStoryModel>(out var model) || !model.HasAuthoredCloth) return false;
+        Debug.LogWarning("Ribbon V5 — это инструмент для старой модели. Новая лента уже запечена в игровой сцене.", target);
+        return true;
     }
 
     static void RemoveGeneratedVisuals(Transform target)

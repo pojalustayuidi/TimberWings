@@ -15,7 +15,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     public LayerMask groundMask=~0;
     [Header("Вид")]
     public bool blink=true,carryVisuals=true;
-    [Tooltip("Через сколько секунд без рубки Лео убирает топор на пояс. 0 = топор всегда в руке (по умолчанию), например 2.5 = убирать на пояс после 2.5 с без рубки.")]
+    [Tooltip("Пауза после рубки перед тем, как убрать топор на пояс. 0 = убрать после завершения взмаха.")]
     public float autoSheatheDelay=0f;
     float lastToolUse=-100f;
     public TrailRenderer axeTrail;
@@ -54,17 +54,30 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         GameEvents.ChopHit-=Hit;GameEvents.TreeChopped-=Felled;GameEvents.ChopQuality-=Quality;SaveSystem.Loaded-=ResetState;SaveSystem.NewGameStarted-=ResetState;
         work.Reset();
         airWater.Reset();
-        if(rig!=null&&rig.HasRest){rig.ResetPose();rig.EquipHammer(false);if(backpack!=null)rig.ShowCargo(backpack.Carried,backpack.Capacity);}
+        if (rig != null && rig.HasRest)
+        {
+            holster = 1f;
+            rig.ResetPose();
+            rig.ResetTools();
+            if (backpack != null) rig.ShowCargo(backpack.Carried, backpack.Capacity);
+        }
         if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}
     }
     void ResetState()
     {
         impact.Clear();legacy.Clear();phase=.25f;move=run=speedSmooth=actionWeight=holster=turn=talk=posePhase=cancelPhase=0;loadPitch=loadRoll=loadPitchVel=loadRollVel=adjustWeight=fullWeight=0;adjustStart=-10;lastCarried=-1;pendingAdjust=false;previousVelocity=smoothAcceleration=Vector3.zero;hitFrame=-1;target=null;contactPoint=null;wasChopping=cancelling=false;
         previousPosition=transform.position;previousRotation=transform.rotation;nextBlink=Time.time+3;blinkAt=-10;feet?.Reset();CurrentState="Idle";
-        holster=autoSheatheDelay>0f?1f:0f;lastToolUse=-100f;
+        holster = 1f;
+        lastToolUse = -100f;
         work.Reset();
         airWater.Reset();
-        if(rig!=null&&rig.HasRest)rig.ResetPose();if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}trailWasOn=false;
+        if (rig != null && rig.HasRest)
+        {
+            rig.ResetPose();
+            rig.ResetTools();
+        }
+        if (axeTrail != null) { axeTrail.emitting = false; axeTrail.Clear(); }
+        trailWasOn = false;
     }
     void Felled() { if (hitFrame != Time.frameCount) Hit(); }
     void Hit()
@@ -104,18 +117,20 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         LeoAirWaterMotion.Frame motion = airWater.Read(player, dt);
         bool blocked=SaveSystem.IsLoading||BuildingController.AnyRevealing||BuildingController.AnyRestorePending||motion.InMotion||WaterSwim.Swimming||(player!=null&&player.ControlLocked&&!conversation);
         bool chopping=interaction!=null&&interaction.IsChopping&&!blocked&&!conversation&&!StoryInspection.Active&&!handsBusy;
+        bool chopReady = chopping && rig.IsAxeInHand;
         var current=chopping?interaction.CurrentTarget:null;
         if(current!=target&&chopping){if(hitFrame!=Time.frameCount)impact.Clear();target=current;}
-        if(chopping)
+        if(chopReady)
         {
             float due=interaction.AnimationHasScheduledImpact?interaction.AnimationScheduledImpact:!PlayerInteraction.RhythmChop&&interaction.useAnimationEvents?legacy.Next(interaction.animator,now):-1;
             if(due>=0)impact.Forecast(now,due,book.windup);else impact.ForgetForecast();
         }
         else impact.ForgetForecast();
         bool recovering=impact.Recovering(now,book.recovery);
-        if (chopping && !recovering)
+        if (chopReady && !recovering)
             contactPoint = LeoChopContact.TryPoint(interaction.TargetItem, transform, out Vector3 point) ? point : (Vector3?)null;
-        bool wantAction=!blocked&&!conversation&&!StoryInspection.Active&&!handsBusy&&(chopping||recovering);
+        bool wantAction = !blocked && !conversation && !StoryInspection.Active && !handsBusy &&
+            rig.IsAxeInHand && (chopReady || recovering);
         actionWeight=motion.InMotion ? 0f : Mathf.MoveTowards(actionWeight,wantAction?1:0,dt*(wantAction?12:8));
         if (wantAction && hitFrame == Time.frameCount) actionWeight = 1f;
         float desiredMove=!blocked&&!conversation&&!chopping?LeoMotionProfile.Smooth(speedSmooth/.65f):0;
@@ -162,22 +177,22 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         float yaw=Mathf.DeltaAngle(previousRotation.eulerAngles.y,transform.eulerAngles.y);previousRotation=transform.rotation;
         turn=Mathf.Lerp(turn,Mathf.Clamp(yaw/Mathf.Max(.001f,dt)/180f,-1,1),k);
         if(chopping||actionWeight>.02f)lastToolUse=now;
-        bool idleSheathe=autoSheatheDelay>0f&&!chopping&&now-lastToolUse>autoSheatheDelay;
-        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active||building||work.Weight>.001f||idleSheathe;
+        bool idleSheathe = !chopping && now - lastToolUse >= Mathf.Max(0f, autoSheatheDelay);
+        bool sheath = conversation || blocked || motion.StowTool || StoryInspection.Active ||
+            (building && !chopping) || work.Weight > .001f || idleSheathe;
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
         float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
         float holsterRate = chopping || motion.InMotion ? 8f :
             rig.Celebration.Age >= 0f || building || work.Weight > .001f ? 5.5f : 1f / Mathf.Max(.1f, book.holsterSeconds);
         if (!sheath || actionWeight < .05f)
             holster = Mathf.MoveTowards(holster, wantedHolster, dt * holsterRate);
-        if (!sheath && hitFrame == Time.frameCount) holster = 0f;
-        if (inspecting || motion.InMotion) work.Reset();
+        if (motion.InMotion) work.Reset();
         else work.Read(player, rig, speed, dt, holster,
-            !blocked && !conversation && !chopping && actionWeight < .02f, debugWork);
-        if(!chopping&&wasChopping&&!recovering){cancelPhase=posePhase;cancelling=true;}
-        if(chopping)cancelling=false;
+            !blocked && !conversation && !StoryInspection.Active && !chopping && actionWeight < .02f, debugWork);
+        if(!chopReady&&wasChopping&&!recovering){cancelPhase=posePhase;cancelling=true;}
+        if(chopReady)cancelling=false;
         float actionPhase=cancelling?cancelPhase:impact.Phase(now,book.contact,book.recovery,hitFrame==Time.frameCount);
-        posePhase=actionPhase;wasChopping=chopping;
+        posePhase=actionPhase;wasChopping=chopReady;
         talk=Mathf.MoveTowards(talk,Speaking()&&!blocked?1:0,dt*7);
         float eye=1;
         if(blink)
@@ -190,9 +205,11 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         frame.work = work.Weight;
         frame.cheer = cheer;
         frame.motion = motion;
-        if (inspecting && !motion.InMotion) frame.inspection = inspectionPose;
+        bool canInspect = inspecting && !motion.InMotion && holster >= 1f && rig.IsReadyForInspection;
+        if (canInspect) frame.inspection = inspectionPose;
         ApplyPose(frame,plantFeet&&move>.02f&&!blocked,adaptToGround&&!blocked);
-        CurrentState = motion.StowTool ? motion.Label : inspecting ? inspectionPose.state : blocked ? "Rest / blocked" :
+        rig.RecordToolPose(holster, work.Weight > .001f);
+        CurrentState = motion.StowTool ? motion.Label : canInspect ? inspectionPose.state : blocked ? "Rest / blocked" :
             building ? (player.AutoWalking ? "Build / approach" : work.Weight > .05f ? "Build / hammer" : "Build / ready") :
             rig.Celebration.Age >= 0f ? "Celebrate" : holster > .01f && holster < .99f ? "Holster" :
             frame.action > .05f ? (hitFrame == Time.frameCount ? "Contact" : recovering ? "Recover" : "Chop / ready") :

@@ -45,6 +45,8 @@ public sealed class LeoRig : MonoBehaviour
     float[] cargoReveal;
     Transform hammerHolster;
     bool hammerEquipped;
+    float axeHolsterProgress;
+    bool hammerInUse;
     Transform scarfTail, scarfShortTail;
     Quaternion scarfTailRest, scarfShortTailRest;
     Vector3 scarfLastPosition;
@@ -365,6 +367,30 @@ public sealed class LeoRig : MonoBehaviour
             if(second){Vector3 rest=RestPosition(cargoTies2);cargoTies2.localPosition=new Vector3(rest.x,middle,rest.z);}
         }
     }
+    bool HasAxeHolster => axeRoot != null && handR != null && axeHolster != null;
+    internal bool IsAxeStowed => !HasAxeHolster || axeHolsterProgress >= 1f;
+    internal bool IsAxeInHand => (!HasAxeHolster || axeHolsterProgress <= 0f) && !hammerInUse;
+    internal bool IsReadyForInspection => IsAxeStowed && !hammerInUse;
+
+    internal void RecordToolPose(float holster, bool usingHammer)
+    {
+        axeHolsterProgress = holster;
+        hammerInUse = usingHammer;
+    }
+
+    internal void ResetTools()
+    {
+        EquipHammer(false);
+        SeatAxe();
+        RecordToolPose(1f, false);
+    }
+
+    internal void SeatAxe()
+    {
+        if (axeRoot != null && axeHolster != null)
+            axeRoot.SetPositionAndRotation(AxeHolsterPosition, AxeHolsterRotation);
+    }
+
     public void PlaceAxe(float holstered) => PlaceAxe(holstered, 0f);
 
     internal void PlaceAxe(float holstered, float palmRoll, float? openFingers = null)
@@ -377,9 +403,8 @@ public sealed class LeoRig : MonoBehaviour
         axeRoot.SetPositionAndRotation(Vector3.Lerp(held, AxeHolsterPosition, t),
             Quaternion.Slerp(tool, AxeHolsterRotation, t));
         float release = openFingers ?? t;
-        // Held: the fingers close around the handle (same curl as the left hand on the haft),
-        // released: they open as before. The old code left the right hand flat on the handle.
-        float finger = Mathf.Lerp(-36f, 42f, release), tip = Mathf.Lerp(-30f, 35f, release);
+        // Release the handle back to the rest curl before freeing the wrist.
+        float finger = Mathf.Lerp(-36f, 0f, release), tip = Mathf.Lerp(-30f, 0f, release);
         if(fingersR!=null)for(int i=0;i<fingersR.Length;i++)Rotate(fingersR[i],new Vector3(finger,0,0));
         if(fingerTipsR!=null)for(int i=0;i<fingerTipsR.Length;i++)Rotate(fingerTipsR[i],new Vector3(tip,0,0));
         if(thumbR!=null)Rotate(thumbR,new Vector3(-12f*(1f-release),0,0));

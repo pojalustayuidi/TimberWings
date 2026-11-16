@@ -21,6 +21,7 @@ sealed class LeoFootPlacement
     readonly Transform model, player;
     readonly Foot left, right;
     readonly RaycastHit[] hits = new RaycastHit[16];
+    float pelvisDrop, pelvisVelocity;
 
     public LeoFootPlacement(LeoRig rig, Transform player)
     {
@@ -68,6 +69,7 @@ sealed class LeoFootPlacement
 
     public void Reset()
     {
+        pelvisDrop = pelvisVelocity = 0f;
         if (left != null) { left.planted = left.sampled = false; left.groundVelocity = 0f; }
         if (right != null) { right.planted = right.sampled = false; right.groundVelocity = 0f; }
     }
@@ -86,12 +88,18 @@ sealed class LeoFootPlacement
         Target a = ReadTarget(left, gait, phase, move, run, turn, brace, plant, adapt, groundMask, scale, dt, cheer, true);
         Target b = ReadTarget(right, gait, phase + .5f, move, run, turn, brace, plant, adapt, groundMask, scale, dt, cheer, false);
 
-        // Absorb a little extra reach at heel strike and on uneven ground, where
-        // a fully straight leg would otherwise drag the planted boot inward.
+        // Let the hips settle as the weight transfers to the next foot.
         if (rig.hips != null)
         {
             float drop = Mathf.Min(.074f * scale, Mathf.Max(a.pelvisDrop, b.pelvisDrop));
-            rig.hips.position -= Vector3.up * drop;
+            if (adapt && dt > 0f)
+                pelvisDrop = Mathf.SmoothDamp(pelvisDrop, drop, ref pelvisVelocity, .075f, 1.4f * scale, dt);
+            else
+            {
+                pelvisDrop = drop;
+                pelvisVelocity = 0f;
+            }
+            rig.hips.position -= Vector3.up * pelvisDrop;
         }
         Solve(left, a);
         Solve(right, b);
@@ -121,7 +129,7 @@ sealed class LeoFootPlacement
             Vector3 drift = Vector3.ProjectOnPlane(support - foot.anchor, Vector3.up);
             float reach = .18f * scale;
             foot.anchor += Vector3.ClampMagnitude(drift, Mathf.Max(0f, drift.magnitude - reach));
-            float stance = step.phase / gait.stance;
+            float stance = step.phase / LeoMotionProfile.GroundStance(gait);
             float contact = LeoMotionProfile.Smooth(stance / .10f) *
                 (1f - LeoMotionProfile.Smooth((stance - .77f) / .23f));
             support -= Vector3.ProjectOnPlane(support - foot.anchor, Vector3.up) * contact *
@@ -131,22 +139,22 @@ sealed class LeoFootPlacement
 
         Vector3 up = Vector3.up;
         Quaternion flat = model.rotation * foot.restRotation;
-        if (adapt && TryGround(support, scale, mask, out RaycastHit ground))
+        RaycastHit ground = default;
+        bool hasGround = adapt && TryGround(support, scale, mask, out ground);
+        if (adapt && (hasGround || foot.sampled))
         {
             float amount = foot.sampled ? 1f - Mathf.Exp(-24f * dt) : 1f;
-            Vector3 normal = Vector3.Slerp(Vector3.up, ground.normal, .85f);
+            Vector3 normal = hasGround ? Vector3.Slerp(Vector3.up, ground.normal, .85f) : Vector3.up;
             foot.groundUp = Vector3.Slerp(foot.sampled ? foot.groundUp : Vector3.up, normal, amount);
-            // Previous code jumped uphill instantly and slid downhill slowly.
-            // A short critically damped contact removes that asymmetric snap.
-            // Recover the first ground sample immediately, but don't teleport the
-            // boot when the next probe switches triangles near a ledge/stone.
+            // A missed probe fades toward the uncorrected foot height before the next contact.
+            float height = hasGround ? ground.point.y : support.y;
             if (!foot.sampled)
             {
-                foot.groundY = ground.point.y;
+                foot.groundY = height;
                 foot.groundVelocity = 0f;
             }
             else
-                foot.groundY = Mathf.SmoothDamp(foot.groundY, ground.point.y,
+                foot.groundY = Mathf.SmoothDamp(foot.groundY, height,
                     ref foot.groundVelocity, .065f, 3.5f * scale, Mathf.Max(.001f, dt));
             foot.sampled = true;
             support.y = foot.groundY;

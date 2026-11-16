@@ -30,7 +30,9 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody rb;
     private BackpackTag backpack;
     private PlayerInteraction interaction;
+    private Speaker speaker;
     private Vector3 moveDirection;
+    float turnSign = 1f;
 
     // ---- автоход к цели (клик по дереву / E издалека, зовёт PlayerInteraction) ----
     // Прямо к цели, но если впереди сплошной объект (ствол, камень), берём ближайший свободный угол. NavMesh в проекте нет.
@@ -238,6 +240,7 @@ public class PlayerMovement : MonoBehaviour
         LeoPlayerVisual.Install(this);
         backpack = GetComponent<BackpackTag>();
         interaction = GetComponent<PlayerInteraction>();
+        speaker = GetComponent<Speaker>();
         if (GetComponent<WaterSwim>() == null) gameObject.AddComponent<WaterSwim>();   // плавание и утопление в реке (без WaterVolume ничего не делает)
     }
 
@@ -263,20 +266,67 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    // Один контролируемый разворот для перемещения, рубки и диалогов.
-    // Используем экспоненциальное сглаживание с верхним угловым пределом:
-    // на 30 и 144 FPS ощущение практически одинаковое.
     internal void FaceDirection(Vector3 direction, float maxDegrees)
     {
-        if (model == null || direction.sqrMagnitude < .0001f) return;
         direction.y = 0f;
-        if (direction.sqrMagnitude < .0001f) return;
-        Quaternion target = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        if (model == null || direction.sqrMagnitude < .0001f) return;
+
+        Vector3 forward = model.forward;
+        float yaw = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
+        float targetYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+        float angle = Mathf.DeltaAngle(yaw, targetYaw);
+        // Stick to the same side when a target is almost directly behind Leo.
+        if (Mathf.Abs(angle) >= 175f) angle = Mathf.Abs(angle) * turnSign;
+        else if (Mathf.Abs(angle) > .5f) turnSign = Mathf.Sign(angle);
+
         float dt = Mathf.Min(Time.deltaTime, .06f);
         float smoothing = 1f - Mathf.Exp(-Mathf.Max(1f, rotationSpeed) * dt);
-        Quaternion smoothed = Quaternion.Slerp(model.rotation, target, smoothing);
-        model.rotation = Quaternion.RotateTowards(model.rotation, smoothed,
-            Mathf.Max(120f, maxDegrees) * dt);
+        float limit = Mathf.Max(120f, maxDegrees) * dt;
+        float step = Mathf.Clamp(angle * smoothing, -limit, limit);
+        model.rotation = Quaternion.AngleAxis(step, Vector3.up) * model.rotation;
+    }
+
+    // Choose one target after interaction and movement updates, before Leo samples his pose.
+    void LateUpdate()
+    {
+        if (ControlLocked || SaveSystem.IsLoading || LeoCelebration.IsPlaying || EndingSequence.Active) return;
+
+        if (StoryInspection.Active)
+        {
+            Vector3 walk = StoryInspection.WalkDirection;
+            if (walk.sqrMagnitude > .0001f)
+                FaceDirection(walk, maxTurnDegreesPerSecond);
+            return;
+        }
+
+        if (DialogueSequence.FreezesPlayer)
+        {
+            if (TryFaceConversationPartner()) return;
+            Transform focus = DialogueSequence.Focus;
+            if (focus != null && !focus.IsChildOf(transform))
+                FaceDirection(focus.position - transform.position, actionTurnDegreesPerSecond);
+            return;
+        }
+
+        bool chopping = interaction != null && interaction.IsChopping;
+        if (BuildWorkPose.TryGetFacing(this, out var surface, out float speed))
+            FaceDirection(surface, speed);
+        else if (chopping && lockMovementWhileChopping && interaction.CurrentTarget != null)
+            FaceDirection(interaction.CurrentTarget.position - transform.position, actionTurnDegreesPerSecond);
+        else if (moveDirection.sqrMagnitude > .0001f)
+            FaceDirection(moveDirection, maxTurnDegreesPerSecond);
+        else if (!IsDashing && !AutoWalking && !chopping)
+            TryFaceConversationPartner();
+    }
+
+    bool TryFaceConversationPartner()
+    {
+        if (!DialogueSequence.TryGetFacingTarget(speaker, out var partner)) return false;
+        Vector3 direction = partner.transform.position - transform.position;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < .0001f) return false;
+        FaceDirection(direction, actionTurnDegreesPerSecond);
+        return true;
     }
 
     void Update()
@@ -292,18 +342,7 @@ public class PlayerMovement : MonoBehaviour
         bool modal = MobileInput.ModalOpen;
         bool swimming = WaterSwim.Swimming;
         bool celebrating = LeoCelebration.IsPlaying;
-        if (frozen)
-        {
-            input = Vector3.zero;
-            var focus = inspecting ? null : DialogueSequence.Focus;
-            if (focus != null && model != null)
-            {
-                Vector3 d = focus.position - transform.position;
-                d.y = 0f;
-                if (d.sqrMagnitude > 0.01f)
-                    FaceDirection(d, actionTurnDegreesPerSecond);
-            }
-        }
+        if (frozen) input = Vector3.zero;
 
         // Stage 4.3: while Leo celebrates, accidental WASD/dash does not skip the pose.
         // ControlLocked is deliberately NOT used here: it belongs to fall/respawn safety.
@@ -322,18 +361,7 @@ public class PlayerMovement : MonoBehaviour
 
         // рубка: стоим на месте и смотрим на дерево
         bool chopping = interaction != null && interaction.IsChopping;
-        if (chopping && lockMovementWhileChopping && !inspecting)
-        {
-            input = Vector3.zero;
-            Transform tree = interaction.CurrentTarget;
-            if (tree != null && model != null)
-            {
-                Vector3 d = tree.position - transform.position;
-                d.y = 0f;
-                if (d.sqrMagnitude > 0.01f)
-                    FaceDirection(d, actionTurnDegreesPerSecond);
-            }
-        }
+        if (chopping && lockMovementWhileChopping && !inspecting) input = Vector3.zero;
         // автоход к дереву: ручной ввод, разговор и рубка его прерывают
         if (AutoWalking)
         {
@@ -353,16 +381,7 @@ public class PlayerMovement : MonoBehaviour
 
         bool isMoving = input != Vector3.zero;
 
-        if (isMoving)
-        {
-            moveDirection = Quaternion.Euler(0, cameraYaw, 0) * input;
-
-            FaceDirection(moveDirection, maxTurnDegreesPerSecond);
-        }
-        else
-        {
-            moveDirection = Vector3.zero;
-        }
+        moveDirection = isMoving ? Quaternion.Euler(0, cameraYaw, 0) * input : Vector3.zero;
 
         bool dashBlocked = frozen || modal || swimming || celebrating || chopping || ControlLocked || SaveSystem.IsLoading;
         if (dashBlocked) dashUntil = 0f;

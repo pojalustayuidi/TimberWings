@@ -432,7 +432,7 @@ public partial class PlayerHeadHud : MonoBehaviour
 
         // пока камера облетает здание (показ стадии), рюкзак и полоски рубки над игроком уходят в прозрачность и возвращаются после
         revealHide = Mathf.MoveTowards(revealHide, BuildingController.AnyRevealing ? 1f : 0f, dt / 0.25f);
-        rootCg.alpha = 1f - revealHide;
+        rootCg.alpha = StoryInspection.Active ? 0f : 1f - revealHide;
 
         float scale = canvasCmp != null ? Mathf.Max(0.01f, canvasCmp.scaleFactor) : 1f;
         if (OrbitCamera.Active) sp.y += orbitGap * scale;

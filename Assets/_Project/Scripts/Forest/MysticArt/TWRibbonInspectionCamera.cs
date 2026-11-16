@@ -29,7 +29,7 @@ public sealed class TWRibbonInspectionCamera : MonoBehaviour
     void LateUpdate()
     {
         if (inspection == null) inspection = GetComponent<StoryInspection>();
-        if (inspection == null || !inspection.TWRibbonCameraActive)
+        if (inspection == null || inspection.UsesAuthoredRibbonCamera || !inspection.TWRibbonCameraActive)
         {
             wasActive = false;
             return;

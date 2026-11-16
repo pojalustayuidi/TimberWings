@@ -4,7 +4,7 @@ public partial class PlayerInteraction
 {
     public const int LeoReadbackVersion = 1;
     public bool AnimationHasScheduledImpact =>
-        IsChopping && (RhythmChop ? rhythmActive && pendingHit : !useAnimationEvents);
+        IsChopping && !waitingForChopAxe && (RhythmChop ? rhythmActive && pendingHit : !useAnimationEvents);
 
     public float AnimationScheduledImpact
     {
@@ -25,14 +25,37 @@ public partial class PlayerInteraction
     bool leoHasImpact;
     Vector3 leoImpact;
 
+    LeoRig LeoVisualRig
+    {
+        get
+        {
+            Transform model = movement != null && movement.model != null ? movement.model : transform;
+            if (leoAnimation == null || !leoAnimation.transform.IsChildOf(model))
+                leoAnimation = model.GetComponentInChildren<LeoAnimationController>();
+            if (leoAnimation != null && leoAnimation.isActiveAndEnabled && leoAnimation.rig != null)
+                return leoAnimation.rig;
+
+            if (leoPresentation == null || !leoPresentation.transform.IsChildOf(model))
+                leoPresentation = model.GetComponentInChildren<LeoModelPresentation>();
+            return leoPresentation != null && leoPresentation.isActiveAndEnabled ? leoPresentation.rig : null;
+        }
+    }
+
     Transform LeoVisual
     {
         get
         {
-            if (leoPresentation == null) leoPresentation = GetComponentInChildren<LeoModelPresentation>();
-            if (leoPresentation != null && leoPresentation.isActiveAndEnabled) return leoPresentation.transform;
-            if (leoAnimation == null) leoAnimation = GetComponentInChildren<LeoAnimationController>();
-            return leoAnimation != null && leoAnimation.isActiveAndEnabled ? leoAnimation.transform : null;
+            LeoRig rig = LeoVisualRig;
+            return rig != null ? rig.transform : null;
+        }
+    }
+
+    bool LeoAxeReady
+    {
+        get
+        {
+            LeoRig rig = LeoVisualRig;
+            return rig == null || rig.IsAxeInHand;
         }
     }
 

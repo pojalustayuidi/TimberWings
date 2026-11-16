@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 using Kind = StoryInspection.Kind;
 using Object = UnityEngine.Object;
 
-static class StoryInspectionEditor
+static partial class StoryInspectionEditor
 {
     const string Menu = "Tools/TimberWings/Story Inspection/";
     const string AudioRoot = "Assets/_Project/Art/MysticCedar/NightDetail/";

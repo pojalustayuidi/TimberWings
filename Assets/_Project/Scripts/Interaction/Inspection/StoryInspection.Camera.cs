@@ -9,7 +9,9 @@ public sealed partial class StoryInspection
         public float lens;
     }
 
-    readonly RaycastHit[] castHits = new RaycastHit[24];
+    readonly RaycastHit[] castHits = new RaycastHit[32];
+    readonly Collider[] cameraOverlaps = new Collider[16];
+    static readonly float[] closeShotAngles = { 0f, -18f, 18f, -36f, 36f, -53f, 53f };
     CameraPose gameplayPose, inspectionPose, releasePose;
     bool orthographic, cameraOpened;
 
@@ -61,7 +63,9 @@ public sealed partial class StoryInspection
         {
             float t = Smooth(BeatTime / (SkipRequested ? .43f : .69f));
             inspectionPose = Blend(releasePose, gameplayPose, t);
-            if (t < .99f) inspectionPose.position = ClearPosition(focus, inspectionPose.position);
+            if (t < .99f)
+                inspectionPose.position = ForestCamera ? ClearForestTransition(focus, inspectionPose.position, target.position) :
+                    ClearPosition(focus, inspectionPose.position);
         }
         else
         {
@@ -70,7 +74,7 @@ public sealed partial class StoryInspection
             Vector3 to = target.position - focus;
             inspectionPose = Blend(inspectionPose, target, t);
             Vector3 arc = focus + Vector3.Slerp(from, to, t);
-            inspectionPose.position = ClearPosition(focus, arc);
+            inspectionPose.position = ForestCamera ? ClearForestTransition(focus, arc, target.position) : ClearPosition(focus, arc);
         }
         ApplyCamera(inspectionPose);
     }
@@ -87,6 +91,8 @@ public sealed partial class StoryInspection
         Vector3 item = Focus;
         var rig = actorRig;
         Vector3 hero = rig != null && rig.head != null ? rig.head.position : player.transform.position + Vector3.up * .8f;
+        if (ForestCamera) return FrameForestFind(hero, ref focus);
+
         Vector3 back = player.transform.position - item;
         back.y = 0f;
         back = back.sqrMagnitude < .01f ? -player.transform.forward : back.normalized;
@@ -206,6 +212,112 @@ public sealed partial class StoryInspection
         };
     }
 
+    bool ForestCamera => AuthoredKnife || AuthoredRibbon;
+
+    CameraPose FrameForestFind(Vector3 hero, ref Vector3 focus)
+    {
+        Vector3 item = Focus;
+        Vector3 front = AuthoredRibbon ? detail.forward : transform.forward;
+        Vector3 side = AuthoredRibbon ? detail.right : transform.right;
+        if (AuthoredRibbon) front = (front + side * .86f).normalized;
+        float distance = AuthoredRibbon ? .80f : 1.14f;
+        float size = AuthoredRibbon ? .245f : .35f;
+        float elevation = AuthoredRibbon ? .23f : .40f;
+        float fov = AuthoredRibbon ? 34f : 39f;
+        if (beat == Beat.Look || beat == Beat.Reach)
+        {
+            focus = Vector3.Lerp(item, hero, .36f);
+            distance = AuthoredRibbon ? 1.55f : 1.70f;
+            size = AuthoredRibbon ? .53f : .56f;
+            elevation = .38f;
+            fov = 42f;
+            front = (front + side * .64f).normalized;
+        }
+        else if (AuthoredKnife && knifeInHand && prop.Engraving != null)
+        {
+            // The shot follows the broad face of the cap, including during the turn.
+            Transform engraving = prop.Engraving;
+            float settle = beat == Beat.Lift ? Smooth((BeatTime - .29f) / .48f) : 1f;
+            if (beat == Beat.Replace) settle = 1f - Smooth(BeatTime / KnifeReplaceTime);
+            Vector3 cap = Vector3.Lerp(prop.Grip, engraving.position, .77f);
+            focus = Vector3.Lerp(Vector3.Lerp(item, hero, .26f), cap, settle);
+            front = Vector3.Slerp((front + side * .52f).normalized, engraving.forward, settle);
+            distance = Mathf.Lerp(1.45f, beat == Beat.React ? .94f : .70f, settle);
+            size = Mathf.Lerp(.51f, beat == Beat.React ? .38f : .245f, settle);
+            elevation = Mathf.Lerp(.38f, .13f, settle);
+            fov = Mathf.Lerp(42f, 35f, settle);
+        }
+        else if (AuthoredKnife && beat != Beat.Recover && prop.Engraving != null)
+        {
+            focus = Vector3.Lerp(item, prop.Engraving.position, .64f);
+            front = (front + side * 1.05f).normalized;
+            elevation = .84f;
+            distance = .76f;
+            size = .25f;
+        }
+        else if (AuthoredRibbon && beat == Beat.React)
+        {
+            front = (front - side * .06f).normalized;
+            distance = .83f;
+        }
+
+        if (VibeSettings.ReduceEffects) distance *= 1.05f;
+        Vector3 shotDirection = (front + Vector3.up * elevation).normalized;
+        foreach (float angle in closeShotAngles)
+        {
+            Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * shotDirection;
+            if (!TryClearForestShot(focus, focus + direction * distance, out Vector3 point)) continue;
+            if ((point - focus).sqrMagnitude < distance * distance * .74f) continue;
+            return new CameraPose
+            {
+                position = point,
+                rotation = Quaternion.LookRotation(focus - point),
+                lens = orthographic ? size : fov
+            };
+        }
+        return gameplayPose;
+    }
+
+    Vector3 ClearForestTransition(Vector3 focus, Vector3 target, Vector3 alternate) =>
+        TryClearForestShot(focus, target, out Vector3 safe) ? safe : alternate;
+
+    bool TryClearForestShot(Vector3 focus, Vector3 target, out Vector3 safe)
+    {
+        safe = target;
+        Vector3 offset = target - focus;
+        float length = offset.magnitude;
+        float radius = Mathf.Clamp(camera.nearClipPlane * .8f + .06f, .12f, .27f);
+        float minimum = Mathf.Max(.29f, camera.nearClipPlane + radius);
+        if (length < minimum) return false;
+
+        Vector3 direction = offset / length;
+        const float startOffset = .08f;
+        int count = Physics.SphereCastNonAlloc(focus + direction * startOffset, radius, direction,
+            castHits, length - startOffset, ~0, QueryTriggerInteraction.Ignore);
+        bool avoidPlayer = AuthoredRibbon && (beat == Beat.Detail || beat == Beat.React);
+        float distance = length;
+        for (int i = 0; i < count; ++i)
+        {
+            var hit = castHits[i];
+            if (hit.collider == null) continue;
+            if (hit.collider.transform.IsChildOf(player.transform))
+            {
+                if (avoidPlayer) return false;
+                continue;
+            }
+            distance = Mathf.Min(distance, hit.distance + startOffset - .025f);
+        }
+        if (distance < minimum) return false;
+        safe = focus + direction * distance;
+        count = Physics.OverlapSphereNonAlloc(safe, radius, cameraOverlaps, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; ++i)
+        {
+            var obstacle = cameraOverlaps[i];
+            if (obstacle != null && (avoidPlayer || !obstacle.transform.IsChildOf(player.transform))) return false;
+        }
+        return true;
+    }
+
     Vector3 ClearPosition(Vector3 focus, Vector3 desired)
     {
         Vector3 delta = desired - focus;
@@ -231,18 +343,19 @@ public sealed partial class StoryInspection
         return gameplayPose.position;
     }
 
-    bool GroundAhead(Vector3 direction)
+    bool GroundAhead(Vector3 direction, float step = .24f)
     {
         Vector3 root = player.transform.position;
         float sole = playerCapsule != null ? playerCapsule.bounds.min.y : root.y;
-        Vector3 check = root + direction * .24f;
+        Vector3 check = root + direction * step;
         check.y = sole + .55f;
         int count = Physics.RaycastNonAlloc(check, Vector3.down, castHits, 1.15f, ~0, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < count; i++)
         {
             var hit = castHits[i];
             if (hit.collider != null && !hit.collider.transform.IsChildOf(player.transform) &&
-                hit.normal.y > .50f && hit.point.y < sole + .33f) return true;
+                hit.normal.y > .50f && hit.point.y < sole + .33f &&
+                (!(AuthoredKnife || AuthoredRibbon) || hit.point.y >= sole - .24f)) return true;
         }
         return false;
     }

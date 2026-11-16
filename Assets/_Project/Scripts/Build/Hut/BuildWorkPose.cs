@@ -26,7 +26,8 @@ public class BuildWorkPose : MonoBehaviour
     Mesh plankMesh;
     Material plankMaterial;
     bool lockMove, approaching;
-    float approachUntil, lockUntil;
+    float approachUntil, lockUntil, stowUntil;
+    const float StowTimeout = 1.75f;
     int strikes;
     float lastStrikeAt;
     float lastEndedAt = -100f, nodStartedAt = -100f;
@@ -44,6 +45,8 @@ public class BuildWorkPose : MonoBehaviour
     internal static bool HasHammerRig(BuildingController owner) => Owns(owner) && active.rig != null;
     internal static bool HasWorkTarget(BuildingController owner) => Owns(owner) && active.HasSurface;
     public static bool IsApproaching(BuildingController owner) => Owns(owner) && active.approaching;
+    internal static bool IsPreparing(BuildingController owner) => Owns(owner) &&
+        (active.approaching || (active.rig != null && !active.rig.IsAxeStowed && Time.time < active.stowUntil));
     public static int ContactCount(BuildingController owner) => Owns(owner) ? active.strikes : 0;
 
     bool HasSurface => spot.surface != null && spot.surface.enabled && spot.surface.gameObject.activeInHierarchy;
@@ -62,6 +65,22 @@ public class BuildWorkPose : MonoBehaviour
 
     internal static bool HasWork(PlayerMovement player) =>
         player != null && active != null && active.site != null && active.movement == player;
+
+    bool HoldingStill => movement != null && !approaching && !movement.AutoWalking && !movement.IsDashing &&
+        (interaction == null || !interaction.IsChopping) &&
+        (lockMove || (Mathf.Abs(MobileInput.Horizontal) <= .03f && Mathf.Abs(MobileInput.Vertical) <= .03f));
+
+    internal static bool TryGetFacing(PlayerMovement player, out Vector3 direction, out float degreesPerSecond)
+    {
+        direction = Vector3.zero;
+        degreesPerSecond = 0f;
+        if (!HasWork(player) || IsPaused || !active.HoldingStill || (active.rig != null && !active.HasSurface))
+            return false;
+
+        direction = active.Facing;
+        degreesPerSecond = active.turnSpeed;
+        return direction.sqrMagnitude > .001f;
+    }
 
     internal static bool TryGetStrikeTarget(PlayerMovement player, out BuildWorkSpot result)
     {
@@ -142,6 +161,7 @@ public class BuildWorkPose : MonoBehaviour
         strikes = 0;
         lastStrikeAt = -100f;
         lockMove = owner.lockPlayerWhileBuilding && movement != null;
+        stowUntil = Time.time + StowTimeout;
         lockUntil = Time.time + owner.BuildTime + owner.lockSafetySeconds + approachTimeout;
         if (lockMove) movement.CancelWalk();
 
@@ -232,6 +252,7 @@ public class BuildWorkPose : MonoBehaviour
         if (IsPaused)
         {
             lockUntil += Time.deltaTime;
+            stowUntil += Time.deltaTime;
             if (fallbackParam != null && animator != null) animator.SetBool(fallbackParam, false);
             return;
         }
@@ -245,17 +266,12 @@ public class BuildWorkPose : MonoBehaviour
             if (!NearStand(.06f) || !HasSurface) UseWorkPlank();
         }
 
-        if (movement == null || movement.AutoWalking || movement.IsDashing ||
-            interaction != null && interaction.IsChopping) return;
-        bool holdingStill = lockMove || Mathf.Abs(MobileInput.Horizontal) <= .03f && Mathf.Abs(MobileInput.Vertical) <= .03f;
-        if (fallbackParam != null && animator != null) animator.SetBool(fallbackParam, holdingStill);
-        if (!holdingStill || !HasSurface && rig != null) return;
-        Vector3 direction = Facing;
-        if (direction.sqrMagnitude < .001f) return;
-        if (movement.model != null)
-            movement.FaceDirection(direction, turnSpeed);
-        else if (body != null && !body.isKinematic)
-            body.MoveRotation(Quaternion.RotateTowards(body.rotation, Quaternion.LookRotation(direction), turnSpeed * Time.deltaTime));
+        if (fallbackParam != null && animator != null) animator.SetBool(fallbackParam, HoldingStill);
+        if (movement != null && movement.model == null && body != null && !body.isKinematic &&
+            TryGetFacing(movement, out Vector3 direction, out float speed))
+        {
+            body.MoveRotation(Quaternion.RotateTowards(body.rotation, Quaternion.LookRotation(direction), speed * Time.deltaTime));
+        }
     }
 
     void Strike()

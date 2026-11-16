@@ -52,11 +52,16 @@ public static class LeoAxePose
 
     public static void Place(LeoRig rig, Transform model, float holster, float palmRoll = 0f)
     {
-        if (rig.axeRoot == null || rig.handR == null || rig.axeHolster == null) return;
         float amount = Mathf.Clamp01(holster);
-        if (amount <= 0f || amount >= 1f)
+        if (amount >= 1f)
         {
-            rig.PlaceAxe(amount, palmRoll);
+            rig.SeatAxe();
+            return;
+        }
+        if (rig.axeRoot == null || rig.handR == null || rig.axeHolster == null) return;
+        if (amount <= 0f)
+        {
+            rig.PlaceAxe(0f, palmRoll);
             return;
         }
 
