@@ -52,7 +52,8 @@ public class WorkerPackTable
         public CanvasGroup cg;
         public Image halo;
         public GameObject back;
-        public Image backFrame, backFill, backTop, backShine, backMedal;
+        public Image backFrame, backFill, backTop, backShine, backMedal, backStar;
+        public Color frameBase;
         public TMP_Text backQ, backName;
         public WorkerCardView front;
         public bool faceUp;
@@ -78,7 +79,9 @@ public class WorkerPackTable
     // ============================================================ элементы
     readonly RectTransform root;
     readonly Slot[] slots = new Slot[3];
-    Image bgRays, rays, glow, flash, packArt, chestBodyImg, chestLidImg;
+    Image bgRays, rays, glow, flash, packArt, subPill, pricePlate;
+    RectTransform chestBox;
+    CanvasGroup chestCg, headCg, priceCg;
     RectTransform raysRt, glowRt, packRt;
     TMP_Text titleT, subT, priceT, honestT, hintT, smallLabel;
     CanvasGroup infoCg;
@@ -127,23 +130,10 @@ public class WorkerPackTable
         Anch(packRt, Mid, Mid, PackPos, new Vector2(250f, 250f));
         packArt.color = new Color(0.45f, 0.74f, 1f, 0.3f);
         packArt.raycastTarget = false;
-        var chest = NewRT("PackChest", root);
-        Anch(chest, Mid, Mid, PackPos + new Vector2(0f, -4f), new Vector2(148f, 112f));
-        var chestShadow = UiKit.MakeImage(chest, "Shadow", UiKit.Slot, true, 0.8f);
-        Anch(chestShadow.rectTransform, Mid, Mid, new Vector2(0f, -50f), new Vector2(150f, 34f));
-        chestShadow.color = new Color(UiCandy.Ink.r, UiCandy.Ink.g, UiCandy.Ink.b, 0.16f);
-        chestBodyImg = UiKit.MakeImage(chest, "Box", UiKit.Panel, true, 0.5f);
-        Anch(chestBodyImg.rectTransform, Mid, Mid, new Vector2(0f, -12f), new Vector2(128f, 80f));
-        chestBodyImg.color = UiCandy.Peach;
-        chestLidImg = UiKit.MakeImage(chest, "Lid", UiKit.Panel, true, 0.4f);
-        Anch(chestLidImg.rectTransform, Mid, Mid, new Vector2(0f, 26f), new Vector2(144f, 40f));
-        chestLidImg.color = UiCandy.PeachDeep;
-        var chestBand = UiKit.MakeImage(chest, "Ribbon", UiDraw.Pill, true, 0.3f);
-        Anch(chestBand.rectTransform, Mid, Mid, new Vector2(0f, 0f), new Vector2(18f, 104f));
-        chestBand.color = new Color(1f, 1f, 1f, 0.92f);
-        var chestLock = UiKit.MakeImage(chest, "GemBow", UiKit.CandyIcon(UiIcon.Gem), false);
-        Anch(chestLock.rectTransform, Mid, Mid, new Vector2(0f, 34f), new Vector2(40f, 40f));
-        chestLock.raycastTarget = false;
+        // Подарочная коробка (WorkerPackArt): корпус, лента, бант, листья. Лежит внутри packArt: трясётся, растёт и гаснет вместе с ним
+        chestBox = WorkerPackArt.GiftBox(packRt, WorkerPackType.Artel, 0.85f);
+        chestBox.anchoredPosition = new Vector2(0f, -4f);
+        chestCg = chestBox.gameObject.AddComponent<CanvasGroup>();
 
         for (int i = 0; i < 3; i++) slots[i] = MakeSlot(i);
 
@@ -165,6 +155,28 @@ public class WorkerPackTable
         Stretch(flash.rectTransform);
         flash.color = new Color(1f, 1f, 1f, 0f);
         flash.raycastTarget = false;
+
+        // лента-баннер за заголовком, пилюля с названием пака и белая плашка цены (прячутся, когда текста нет)
+        var head = NewRT("Head", root);
+        Stretch(head);
+        headCg = head.gameObject.AddComponent<CanvasGroup>();
+        headCg.blocksRaycasts = false;
+        WorkerPackArt.Banner(head, new Vector2(0f, 352f), 470f);
+        subPill = UiKit.MakeImage(head, "PackPill", UiDraw.Pill, true, 0.3f);
+        Anch(subPill.rectTransform, Mid, Mid, new Vector2(0f, 305f), new Vector2(290f, 42f));
+        subPill.color = Color.white;
+        subPill.raycastTarget = false;
+        var priceRt = NewRT("PricePlate", root);
+        Stretch(priceRt);
+        priceCg = priceRt.gameObject.AddComponent<CanvasGroup>();
+        priceCg.blocksRaycasts = false;
+        pricePlate = UiKit.MakeImage(priceRt, "Plate", UiDraw.Pill, true, 0.4f);
+        Anch(pricePlate.rectTransform, Mid, Mid, new Vector2(0f, -262f), new Vector2(790f, 52f));
+        pricePlate.color = new Color(1f, 1f, 1f, 0.92f);
+        pricePlate.raycastTarget = false;
+        var priceGift = UiKit.MakeIcon(priceRt, UiIcon.Box, 34f, "Gift");
+        Anch(priceGift.rectTransform, Mid, Mid, new Vector2(-365f, -262f), new Vector2(34f, 34f));
+        priceGift.raycastTarget = false;
 
         titleT = UiKit.MakeLabel(root, "", 46f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         Anch(titleT.rectTransform, Mid, Mid, new Vector2(0f, 355f), new Vector2(1000f, 58f));
@@ -217,19 +229,33 @@ public class WorkerPackTable
         tb.offsetMin = new Vector2(7f, -7f - 12f); tb.offsetMax = new Vector2(-7f, -7f);
         s.backShine = UiKit.MakeImage(back, "Shine", PetUi.GlowSprite, false);
         Anch(s.backShine.rectTransform, Mid, Mid, new Vector2(0f, 30f), new Vector2(CW * 1.1f, CW * 1.1f));
+        // облака внизу, как на референсе
+        float[,] cl = { { -90f, -158f, 230f, 100f }, { 10f, -170f, 270f, 112f }, { 105f, -152f, 210f, 92f }, { -10f, -138f, 200f, 80f } };
+        for (int k = 0; k < 4; k++)
+        {
+            var cloud = UiKit.MakeImage(back, "Cloud" + k, PetUi.GlowSprite, false);
+            Anch(cloud.rectTransform, Mid, Mid, new Vector2(cl[k, 0], cl[k, 1]), new Vector2(cl[k, 2], cl[k, 3]));
+            cloud.color = new Color(1f, 1f, 1f, 0.85f);
+            cloud.raycastTarget = false;
+        }
+        // двойной контур: внешний белый, внутренний тонкий
+        var ring = UiKit.MakeImage(back, "InnerRing", UiDraw.PillRing, true, 0.5f);
+        Anch(ring.rectTransform, Mid, Mid, Vector2.zero, new Vector2(CW - 26f, CH - 26f));
+        ring.color = new Color(1f, 1f, 1f, 0.9f);
+        ring.raycastTarget = false;
+        // мягкий диск и золотая четырёхконечная звезда
         s.backMedal = UiKit.MakeImage(back, "Medal", UiKit.Medallion, false);
-        Anch(s.backMedal.rectTransform, Mid, Mid, new Vector2(0f, 24f), new Vector2(150f, 150f));
-        s.backQ = UiKit.MakeLabel(s.backMedal.transform, "?", 110f, UiCandy.Ink, TextAlignmentOptions.Center, true);
+        Anch(s.backMedal.rectTransform, Mid, Mid, new Vector2(0f, 22f), new Vector2(190f, 190f));
+        s.backQ = UiKit.MakeLabel(s.backMedal.transform, "", 110f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         s.backQ.raycastTarget = false;
-        // Внутренний двойной контур и центральная вертикаль создают ощущение гравированной рубашки.
-        var innerLine = UiKit.MakeImage(back, "InnerLine", null, false);
-        Anch(innerLine.rectTransform, Mid, Mid, Vector2.zero, new Vector2(CW - 28f, CH - 28f));
-        innerLine.color = new Color(1f, 1f, 1f, 0.55f);
-        innerLine.raycastTarget = false;
-        var sigil = UiKit.MakeImage(back, "CentralSigil", UiKit.CandyIcon(UiIcon.Gem), false);
-        Anch(sigil.rectTransform, Mid, Mid, new Vector2(0f, 24f), new Vector2(62f, 62f));
-        sigil.color = new Color(1f, 1f, 1f, 0.95f);
-        sigil.raycastTarget = false;
+        s.backStar = UiKit.MakeImage(back, "Star", WorkerPackArt.Star4, false);
+        Anch(s.backStar.rectTransform, Mid, Mid, new Vector2(0f, 22f), new Vector2(136f, 136f));
+        s.backStar.color = WorkerPackArt.Gold;
+        s.backStar.raycastTarget = false;
+        var starCore = UiKit.MakeImage(back, "StarCore", WorkerPackArt.Star4, false);
+        Anch(starCore.rectTransform, Mid, Mid, new Vector2(0f, 22f), new Vector2(66f, 66f));
+        starCore.color = new Color(1f, 0.97f, 0.8f, 0.9f);
+        starCore.raycastTarget = false;
         for (int k = 0; k < 4; k++)
         {
             var st = UiKit.MakeIcon(back, UiIcon.Star, 26f, "Corner" + k);
@@ -335,8 +361,8 @@ public class WorkerPackTable
         packFx.Reset();
 
         Color pc = WorkerUi.PackColor(type);
-        chestBodyImg.color = Color.Lerp(Color.white, pc, 0.55f);
-        chestLidImg.color = Color.Lerp(Color.white, pc, 0.9f);
+        WorkerPackArt.Tint(chestBox, type);
+        chestCg.alpha = 1f;
         packArt.color = new Color(pc.r, pc.g, pc.b, 0.3f);
         root.gameObject.SetActive(true);
         stage = Stage.Deal;
@@ -350,15 +376,18 @@ public class WorkerPackTable
             s.backFill.color = Color.Lerp(Color.white, pc, 0.45f);
             s.backTop.color = pc;
             s.backShine.color = new Color(1f, 1f, 1f, 0.5f);
-            s.backMedal.color = Color.Lerp(Color.white, pc, 0.35f);
-            s.backFrame.color = Color.Lerp(Color.white, pc, 0.55f);
-            s.backName.text = WorkerText.Pack(type);
+            s.backMedal.color = new Color(1f, 1f, 1f, 0.55f);
+            s.frameBase = Color.Lerp(Color.white, pc, 0.55f);
+            s.backFrame.color = s.frameBase;
+            s.backStar.color = WorkerPackArt.Gold;
+            s.backName.text = "";
             s.halo.color = new Color(pc.r, pc.g, pc.b, 0f);
             Place(s, PackPos, 0f, 0.25f, 1f, 0f);
         }
 
         packArt.gameObject.SetActive(true);
         packArt.color = Color.Lerp(Color.white, pc, 0.35f);
+        subPill.color = Color.Lerp(Color.white, pc, 0.55f);
         packRt.anchoredPosition = PackPos;
         packRt.localScale = Vector3.one;
         bgRays.color = new Color(pc.r, pc.g, pc.b, 0.10f);
@@ -479,6 +508,8 @@ public class WorkerPackTable
                 }
                 break;
         }
+        headCg.alpha = titleT.text.Length > 0 ? 1f : 0f;
+        priceCg.alpha = priceT.text.Length > 0 ? 1f : 0f;
         TickSparks(dt);
         packFx.Tick(dt, pick >= 0 && (stage == Stage.Flip || stage == Stage.Reveal) ? slots[pick].rt.anchoredPosition : Vector2.zero);
     }
@@ -501,6 +532,7 @@ public class WorkerPackTable
             packRt.anchoredPosition = PackPos;
             packRt.localScale = Vector3.one * (1.18f + 0.5f * k);
             var c = packArt.color; c.a = 1f - k; packArt.color = c;
+            chestCg.alpha = 1f - k;
             if (k >= 1f) packArt.gameObject.SetActive(false);
         }
 
@@ -570,7 +602,12 @@ public class WorkerPackTable
             Vector2 pos = s.home + new Vector2(0f, bob + 24f * h);
             float rot = Mathf.Lerp(s.homeRot, tilt, h);
             Place(s, pos, rot, 1f + 0.10f * h, 1f, Mathf.Lerp(0.80f, 1f, h));
-            s.halo.color = new Color(pc.r, pc.g, pc.b, 0.55f * h * (0.85f + 0.15f * Mathf.Sin(Time.unscaledTime * 4f)));
+            Color hc = Color.Lerp(pc, new Color(1f, 0.66f, 0.2f, 1f), 0.75f);
+            s.halo.color = new Color(hc.r, hc.g, hc.b, 0.6f * h * (0.85f + 0.15f * Mathf.Sin(Time.unscaledTime * 4f)));
+            s.backFrame.color = Color.Lerp(s.frameBase, new Color(1f, 0.74f, 0.28f, 1f), h);
+            float pulse = 1f + (0.05f + 0.08f * h) * Mathf.Sin(Time.unscaledTime * 2.2f + i * 1.3f);
+            s.backStar.rectTransform.localScale = new Vector3(pulse, pulse, 1f);
+            s.backStar.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.unscaledTime * 1.1f + i) * 4f);
             s.backShine.rectTransform.anchoredPosition = new Vector2(Mathf.Sin(Time.unscaledTime * 1.3f + i) * 12f, 30f + Mathf.Cos(Time.unscaledTime * 1.1f + i) * 8f);
             s.backShine.color = new Color(1f, 1f, 1f, 0.12f + 0.12f * h);
         }

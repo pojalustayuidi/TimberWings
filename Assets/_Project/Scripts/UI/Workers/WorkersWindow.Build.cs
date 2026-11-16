@@ -334,6 +334,7 @@ public partial class WorkersWindow
             u.hl.raycastTarget = false;
 
             var pn = UiKit.MakePanel(holder, new Vector2(416, 715), false, 0.6f, "Panel");
+            pn.color = Color.Lerp(Color.white, pc, 0.2f);   // пастельный оттенок пака, как на референсе
             Stretch(pn.rectTransform);
             AddClick(pn, () => { packSel = ti; dirty = true; });
             var b = pn.transform;
@@ -344,17 +345,18 @@ public partial class WorkersWindow
             u.artGlow.color = new Color(pc.r, pc.g, pc.b, 0.5f);
             u.artGlow.raycastTarget = false;
             TLC(u.artGlow.rectTransform, 208, 140, 280, 280);
-            // Custom camp-style pack case: no legacy Box icon; layered wood, brass bands and a rarity gem.
-            BuildPackCaseArt(b, pc, 208f, 140f);
+            // подарочная коробка с бантом и листьями (WorkerPackArt); покачивается, см. TickPackArt
+            u.art = WorkerPackArt.GiftBox(b, type, 0.75f);
+            TLC(u.art, 208, 140, 300, 300);
+            u.artBase = u.art.anchoredPosition;
 
-            u.ribbon = UiKit.MakeImage(b, "Ribbon", UiDraw.Pill, true, 0.3f);
-            u.ribbon.color = UiCandy.Mint;
-            TL(u.ribbon.rectTransform, 268, 66, 130, 34);
-            u.ribbon.raycastTarget = false;
-            u.ribbonText = UiKit.MakeLabel(u.ribbon.transform, "ПОДАРОК", 20f, Ink, TextAlignmentOptions.Center, true);
-
-            u.priceIcon = Icon(b, UiIcon.Coin, 78, 252, 34);
-            u.priceText = Lbl(b, "", 26f, Ink, TextAlignmentOptions.Left, true, 102, 234, 300, 36);
+            // пилюля цены: белая; у подарочного пака зелёная «Бесплатно!»
+            u.priceBg = UiKit.MakeImage(b, "PricePill", UiDraw.Pill, true, 0.4f);
+            TLC(u.priceBg.rectTransform, 208, 252, 330, 44);
+            u.priceBg.color = new Color(1f, 1f, 1f, 0.9f);
+            u.priceBg.raycastTarget = false;
+            u.priceIcon = Icon(b, UiIcon.Coin, 70, 252, 30);
+            u.priceText = Lbl(b, "", 24f, Ink, TextAlignmentOptions.Center, true, 52, 234, 312, 36);
 
             Lbl(b, "Шансы выпадения", 19f, WorkerUi.Dim, TextAlignmentOptions.Left, false, 16, 284, 384, 24);
             for (int r = 0; r < 5; r++)

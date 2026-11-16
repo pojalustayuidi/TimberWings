@@ -15,8 +15,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     public LayerMask groundMask=~0;
     [Header("Вид")]
     public bool blink=true,carryVisuals=true;
-    [Tooltip("Через сколько секунд без рубки Лео убирает топор на пояс. 0 = топор всегда в руке.")]
-    public float autoSheatheDelay=2.5f;
+    [Tooltip("Через сколько секунд без рубки Лео убирает топор на пояс. 0 = топор всегда в руке (по умолчанию), например 2.5 = убирать на пояс после 2.5 с без рубки.")]
+    public float autoSheatheDelay=0f;
     float lastToolUse=-100f;
     public TrailRenderer axeTrail;
     public string CurrentState{get;private set;}

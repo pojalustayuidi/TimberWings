@@ -15,6 +15,9 @@ public sealed partial class LeoModelPresentation
     int workBeatIndex;
     bool workHitSent;
     bool workRequested;
+    [Tooltip("Раз в секунду пишет в консоль, почему Лео бьёт или не бьёт молотком. Выключить, когда разберёмся.")]
+    public bool debugWork = true;
+    float nextWorkLog;
     bool workStow;            // стройка началась (в том числе подход к стене): топор надо убрать на пояс
     bool workStrikePending;   // в этом кадре молоток коснулся здания: событие уйдёт, когда молоток встанет в позу удара
 
@@ -40,6 +43,17 @@ public sealed partial class LeoModelPresentation
         bool free = allowed && !chopping && !MobileInput.ModalOpen && player != null && !player.IsDashing;
         workRequested = free && ready && !moving && rig.hammerRoot != null && rig.handR != null && rig.HammerHolster != null;
         bool works = workRequested && holster >= .99f;
+        if (debugWork && atWork && Time.time >= nextWorkLog)
+        {
+            // Раз в секунду, пока идёт стройка: какое из условий удара не выполнено.
+            nextWorkLog = Time.time + 1f;
+            Debug.Log("[Leo work] allowed=" + allowed + " chopping=" + chopping + " modal=" + MobileInput.ModalOpen +
+                " dash=" + (player != null && player.IsDashing) + " ready=" + ready + " approaching=" + !BuildWorkPose.IsReady +
+                " autoWalk=" + (player != null && player.AutoWalking) + " moving=" + moving + " speed=" + speed.ToString("F2") +
+                " hammer=" + (rig.hammerRoot != null) + " hammerHolster=" + (rig.HammerHolster != null) +
+                " holster=" + holster.ToString("F2") + " requested=" + workRequested + " works=" + works +
+                " weight=" + workWeight.ToString("F2") + " strikes=" + BuildWorkPose.StrikeCount, this);
+        }
         workWeight = chopping ? 0f : Mathf.MoveTowards(workWeight, works ? 1f : 0f, dt * (works ? 7f : 9f));
         if (works)
         {

@@ -21,6 +21,16 @@ public sealed class LeoRig : MonoBehaviour
     [Header("Рама переноски (ступени вместимости) и вторая стяжка")]
     public Transform[] frames;
     public Transform cargoTies2;
+    // Крепление топора. Узел AxeHolster в префабе стоит на 0.39 от оси тела, на самом краю петли пояса
+    // (HolsterLoop, x 0.28-0.38), поэтому топор висел сбоку «в воздухе», а верх рукояти (y до 1.02) лез в
+    // локоть. Новое место: рукоять продета в петлю (x 0.31-0.36), чуть наклонена, верх рукояти ниже локтя
+    // (y 0.91), зазор до руки 0.10, до ноги 0.15. Задано в осях Hips, поэтому префаб перестраивать не нужно.
+    static readonly Vector3 HolsterLocalPosition = new Vector3(.335f, -.158f, -.067f);
+    static readonly Quaternion HolsterLocalRotation = new Quaternion(0f, .121f, .9927f, 0f);
+    public Vector3 AxeHolsterPosition => axeHolster == null ? Vector3.zero
+        : axeHolster.parent != null ? axeHolster.parent.TransformPoint(HolsterLocalPosition) : axeHolster.position;
+    public Quaternion AxeHolsterRotation => axeHolster == null ? Quaternion.identity
+        : axeHolster.parent != null ? axeHolster.parent.rotation * HolsterLocalRotation : axeHolster.rotation;
     public Transform handGripR,handGripL,axeHolster,axeRoot,hammerRoot,compass,compassNeedle,buildGripL,carryGripL,carryGripR;
     public Transform axeBladeTip,hammerStrike;
     [SerializeField,HideInInspector]Transform[] joints;
@@ -319,8 +329,8 @@ public sealed class LeoRig : MonoBehaviour
         Quaternion tool = LeoAxePose.ToolRotation(handR, palmRoll);
         Vector3 gripOffset = Vector3.Scale(LeoAxePose.MainGrip, axeRoot.lossyScale);
         Vector3 held = LeoAxePose.Grip(handR) - tool * gripOffset;
-        axeRoot.SetPositionAndRotation(Vector3.Lerp(held, axeHolster.position, t),
-            Quaternion.Slerp(tool, axeHolster.rotation, t));
+        axeRoot.SetPositionAndRotation(Vector3.Lerp(held, AxeHolsterPosition, t),
+            Quaternion.Slerp(tool, AxeHolsterRotation, t));
         float release = openFingers ?? t;
         // Held: the fingers close around the handle (same curl as the left hand on the haft),
         // released: they open as before. The old code left the right hand flat on the handle.

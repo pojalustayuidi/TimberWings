@@ -9,8 +9,8 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
     public BackpackTag backpack;
     public Speaker speaker;
     public bool basicLocomotion = true, blink = true, readBackpack = true;
-    [Tooltip("Через сколько секунд без рубки Лео убирает топор на пояс. 0 = топор всегда в руке.")]
-    public float autoSheatheDelay = 2.5f;
+    [Tooltip("Через сколько секунд без рубки Лео убирает топор на пояс. 0 = топор всегда в руке (по умолчанию), например 2.5 = убирать на пояс после 2.5 с без рубки.")]
+    public float autoSheatheDelay = 0f;
     float lastToolUse = -100f;
     readonly LeoAirWaterMotion airWater = new LeoAirWaterMotion();
     float holster, nextBlink = 3f, blinkAt = -10f;

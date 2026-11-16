@@ -122,7 +122,9 @@ public partial class WorkersWindow : MonoBehaviour
     class PackUi
     {
         public Image hl, artGlow;
-        public Image priceIcon, ribbon;
+        public Image priceIcon, ribbon, priceBg;
+        public RectTransform art;                 // коробка: покачивается на вкладке «Паки»
+        public Vector2 artBase;
         public TMP_Text priceText, ribbonText, reason;
         public Image[] oddIcon = new Image[5];
         public TMP_Text[] oddName = new TMP_Text[5];
@@ -278,6 +280,7 @@ public partial class WorkersWindow : MonoBehaviour
         if (!open) return;
         if (dirty || Time.unscaledTime >= refreshAt) Refresh();
         TickOpening(dt);
+        if (tab == Tab.Packs && phase == Phase.None && !oddsOpen && !VibeSettings.ReduceEffects) TickPackArt();
     }
 
     void UpdateShake(float dt)

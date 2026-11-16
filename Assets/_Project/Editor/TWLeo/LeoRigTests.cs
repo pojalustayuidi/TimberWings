@@ -40,7 +40,7 @@ public static class LeoRigTests
                 check(Vector3.Distance(leftFoot,rig.ankleL.position)<.00001f&&Vector3.Distance(rightFoot,rig.ankleR.position)<.00001f&&root.transform.position==rootPosition,pose+": поза не двигает корень и ноги.");
                 check(root.GetComponentsInChildren<Transform>(true).Length==nodeCount,pose+": объекты не генерируются.");
                 if(pose==LeoPosePreview.Pose.TPose)check(Vector3.Distance(handBefore,rig.handR.position)>.2f,"Плечо/локоть двигают кисть в контрольной T-позе.");
-                if(pose==LeoPosePreview.Pose.Talk||pose==LeoPosePreview.Pose.Compass)check(Vector3.Distance(rig.axeRoot.position,rig.axeHolster.position)<.0001f,pose+": топор на креплении пояса.");
+                if(pose==LeoPosePreview.Pose.Talk||pose==LeoPosePreview.Pose.Compass)check(Vector3.Distance(rig.axeRoot.position,rig.AxeHolsterPosition)<.0001f,pose+": топор на креплении пояса.");
                 if(pose==LeoPosePreview.Pose.AxeReady||pose==LeoPosePreview.Pose.AxeContact)check(Vector3.Distance(rig.axeRoot.TransformPoint(LeoAxePose.MainGrip),LeoAxePose.Grip(rig.handR))<.0001f,pose+": топор следует за кистью.");
                 if (pose == LeoPosePreview.Pose.BuildReady)
                 {

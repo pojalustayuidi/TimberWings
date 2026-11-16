@@ -62,8 +62,8 @@ public static class LeoAxePose
 
         Vector3 palm = Grip(rig.handR);
         Quaternion held = ToolRotation(rig.handR, palmRoll);
-        Quaternion belt = rig.axeHolster.rotation;
-        Vector3 beltGrip = rig.axeHolster.position + belt * Vector3.Scale(MainGrip, rig.axeRoot.lossyScale);
+        Quaternion belt = rig.AxeHolsterRotation;
+        Vector3 beltGrip = rig.AxeHolsterPosition + belt * Vector3.Scale(MainGrip, rig.axeRoot.lossyScale);
         // The hand carries the handle outside the thigh. It only lets go once
         // the belt socket and palm meet. Drawing the axe follows the same path.
         float travel = LeoMotionProfile.Smooth(amount / .68f);

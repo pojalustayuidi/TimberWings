@@ -265,19 +265,22 @@ public partial class WorkersWindow
             bool free = type == WorkerPackType.Artel && packs.FreePending;
             int price = m.PackPrice(type);
             bool unlocked = m.IsPackUnlocked(type);
-            u.ribbon.gameObject.SetActive(free);
 
             if (!unlocked)
             {
+                u.priceIcon.gameObject.SetActive(true);
                 u.priceIcon.sprite = UiKit.CandyIcon(UiIcon.Lock);
                 u.priceText.text = "С " + WorkerBalance.PackLevel(type) + " уровня (сейчас " + PlayerStats.Level + ")";
                 u.priceText.color = Warn;
+                u.priceBg.color = new Color(1f, 1f, 1f, 0.9f);
             }
             else
             {
+                u.priceIcon.gameObject.SetActive(!free);
                 u.priceIcon.sprite = UiKit.CandyIcon(UiIcon.Coin);
                 u.priceText.text = free ? "Бесплатно!" : price.ToString();
-                u.priceText.color = free ? Good : Ink;
+                u.priceText.color = free ? Color.white : Ink;
+                u.priceBg.color = free ? Good : new Color(1f, 1f, 1f, 0.9f);
             }
 
             // шансы видны всегда, до покупки
@@ -310,6 +313,22 @@ public partial class WorkersWindow
             bool can = m.CanOpenPack(type, out why);
             u.reason.text = can ? "" : WhyText(why, type, price);
             SetBtn(u.open, can, free ? "Открыть бесплатно" : "Открыть");
+        }
+    }
+
+    // коробки покачиваются; подарочная ещё и «дышит»
+    void TickPackArt()
+    {
+        float tm = Time.unscaledTime;
+        var m = WorkerManager.Instance;
+        for (int t = 0; t < 3; t++)
+        {
+            var u = packUi[t];
+            if (u == null || u.art == null) continue;
+            u.art.anchoredPosition = u.artBase + new Vector2(0f, 5f * Mathf.Sin(tm * 1.8f + t * 1.3f));
+            bool free = m != null && t == (int)WorkerPackType.Artel && m.Packs.FreePending;
+            float sc = 0.75f * (free ? 1f + 0.035f * Mathf.Sin(tm * 3.2f) : 1f);
+            u.art.localScale = new Vector3(sc, sc, 1f);
         }
     }
 

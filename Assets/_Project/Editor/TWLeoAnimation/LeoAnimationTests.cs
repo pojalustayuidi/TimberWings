@@ -58,7 +58,7 @@ public static class LeoAnimationTests
                 Require(Vector3.Distance(position,rig.transform.position)<.00001f&&Quaternion.Angle(rotation,rig.transform.rotation)<.01f&&Vector3.Distance(scale,rig.transform.localScale)<.00001f,"Поза сдвинула корень игрока.");
                 if (airOrWater)
                 {
-                    Require(Vector3.Distance(rig.axeRoot.position, rig.axeHolster.position) < .0002f,
+                    Require(Vector3.Distance(rig.axeRoot.position, rig.AxeHolsterPosition) < .0002f,
                         name + ": топор должен быть на поясе.");
                 }
                 else if(name!="Sheathe"&&name!="Draw"&&name!="IdleHolstered"&&(name!="Celebrate"||n==0||n==60))
@@ -84,7 +84,7 @@ public static class LeoAnimationTests
         actor.SamplePreview("Sheathe", .65f);
         Require(Vector3.Distance(LeoAxePose.Grip(rig.handR), rig.axeRoot.TransformPoint(LeoAxePose.MainGrip)) < .005f,
             "Рукоять отрывается от ладони до передачи в крепление.");
-        actor.SamplePreview("Sheathe",1);Require(Vector3.Distance(rig.axeRoot.position,rig.axeHolster.position)<.0002f&&Quaternion.Angle(rig.axeRoot.rotation,rig.axeHolster.rotation)<.15f,"Топор не закрепился на поясе.");
+        actor.SamplePreview("Sheathe",1);Require(Vector3.Distance(rig.axeRoot.position,rig.AxeHolsterPosition)<.0002f&&Quaternion.Angle(rig.axeRoot.rotation,rig.AxeHolsterRotation)<.15f,"Топор не закрепился на поясе.");
         Celebration(actor, rig, book);
         AirAndWater(actor, rig);
         Require(rig.logUpgrade!=null&&rig.cargo!=null&&rig.cargo.Length==12&&rig.frames!=null&&rig.frames.Length==3,"Нет 12 слотов брёвен или рамы переноски.");
@@ -126,7 +126,7 @@ public static class LeoAnimationTests
         actor.SamplePreview("Celebrate", .815f / duration);
         Require(SoleHeight(rig.ankleL) > soleL + .22f * rig.transform.lossyScale.y &&
             SoleHeight(rig.ankleR) > soleR + .22f * rig.transform.lossyScale.y, "В прыжке обе подошвы должны оторваться от земли.");
-        Require(Vector3.Distance(rig.axeRoot.position, rig.axeHolster.position) < .0002f,
+        Require(Vector3.Distance(rig.axeRoot.position, rig.AxeHolsterPosition) < .0002f,
             "Во время прыжка топор должен оставаться в креплении.");
 
         actor.SamplePreview("Celebrate", 1.145f / duration);
