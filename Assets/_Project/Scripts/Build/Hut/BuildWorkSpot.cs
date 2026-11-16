@@ -1,226 +1,330 @@
-// Assets/_Project/Scripts/Build/Hut/BuildWorkSpot.cs   (НЕ в папке Editor!)
-// Рабочее место героя на стройке: у какой стены встать и в какую точку бить молотком.
-//   BuildWorkSpotFinder.Compute(...)  считает место один раз, когда этап начался (BuildWorkPose)
-//   BuildStrikes.Struck               событие «молоток ударил по зданию»: на него подписаны эффекты (BuildFxHook)
-//
-// Точка удара ищется так (от точного к грубому, первый сработавший вариант):
-//   1) луч по коллайдерам самого здания (точная поверхность и нормаль);
-//   2) луч по габаритам (bounds) каждой детали здания;
-//   3) грань общего ящика здания.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 public struct BuildWorkSpot
 {
-    public bool valid;
-    public bool approachAllowed; // false means hammer in place instead of risky auto-walk
-    public Vector3 stand;     // куда встать герою (чуть снаружи от стены)
-    public Vector3 hit;       // точка на стене, куда бьёт молоток
-    public Vector3 normal;    // от стены наружу, по горизонтали
-    public Vector3 center;    // центр здания (для камеры)
-    public float radius;      // размер здания, метры
-    public float groundY;     // высота земли у стены
+    public Vector3 stand;     // position of the player root
+    public Vector3 hit;       // point on the visible material
+    public Vector3 normal;    // actual surface normal, facing the player
+    public float radius;      // framing radius, not a reach limit
+    public float groundY;
+    internal Renderer surface;
 }
 
-// один удар молотка по зданию
 public struct BuildStrikeInfo
 {
     public BuildingController site;
-    public Vector3 point;     // где молоток коснулся здания
-    public Vector3 normal;    // наружу от стены
-    public Vector3 ground;    // земля под ударом (пыль)
-    public float power;       // 0.8 .. 1.9: растёт к концу этапа, каждый третий удар тяжелее
-    public float progress;    // 0..1: сколько этапа уже построено
-    public int index;         // номер удара на этом этапе, с нуля
+    public Vector3 point;
+    public Vector3 normal;
+    public Vector3 ground;
+    public float power;
+    public float progress;
+    public int index;
 }
 
 public static class BuildStrikes
 {
     public static event Action<BuildStrikeInfo> Struck;
-    public static void Raise(BuildStrikeInfo s) { if (Struck != null) Struck(s); }
+    public static void Raise(BuildStrikeInfo strike) => Struck?.Invoke(strike);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatic() { Struck = null; }
+    static void ResetStatic() => Struck = null;
 }
 
-public static class BuildWorkSpotFinder
+internal static class BuildWorkSpotFinder
 {
-    const float StandOff = 0.72f;     // насколько герой встаёт дальше от стены, чем точка удара (сам PlayerMovement не подходит ближе 0.3 м)
-    const float HitHeight = 0.9f;     // высота удара над ногами героя (как у молотка в позе работы)
-    static readonly RaycastHit[] hits = new RaycastHit[24];
-    static readonly Collider[] obstacles = new Collider[32];
-    static readonly List<Renderer> parts = new List<Renderer>();
+    const float WalkRange = 3.1f;
+    const float WorkHeight = .90f;
+    const float BoardDepth = .24f;
+    static readonly float[] Heights = { WorkHeight, .73f, 1.04f };
+    static readonly float[] WorkpieceAngles = { 0f, -45f, 45f, -90f, 90f, 180f };
+    static readonly string[] Decoration = { "ground", "shadow", "glow", "flame", "foliage", "crew", "pathstone", "garland" };
+    static readonly RaycastHit[] groundHits = new RaycastHit[16];
+    static readonly Collider[] obstacles = new Collider[24];
+    static readonly List<Vector3> vertices = new List<Vector3>();
+    static readonly List<int> indices = new List<int>();
+    static readonly List<Contact> candidates = new List<Contact>();
+    static readonly Contact[] closest = new Contact[Heights.Length];
 
-    // Do not auto-walk the player into solid geometry or off the island.
-    // Trigger zones are ignored; the player's own colliders are also ignored.
-    static bool StandSafe(Vector3 pos, float feetY)
+    struct Contact
     {
-        int count = Physics.OverlapCapsuleNonAlloc(pos + Vector3.up * .28f,
-            pos + Vector3.up * 1.45f, .26f, obstacles,
-            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
-        Transform player = PlayerMovement.Instance != null ? PlayerMovement.Instance.transform : null;
-        if (count == obstacles.Length) return false; // crowded: don't gamble on omitted colliders
+        public Vector3 point, normal;
+        public float score;
+        public Renderer renderer;
+    }
+
+    static Transform GeometryRoot(BuildingController site)
+    {
+        if (site.stages != null) return site.stages.transform;
+        var link = site.GetComponent<BuildStageLink>();
+        var gate = site.GetComponentInParent<GateBridge>();
+        if (gate != null && gate.stages != null)
+        {
+            int stage = gate.Stage - 1;
+            if (stage >= 0 && stage < gate.stages.Length && gate.stages[stage] != null)
+                return gate.stages[stage].transform;
+        }
+        if (link != null && link.bridge != null) return link.bridge.transform;
+        var tent = link != null && link.tent != null ? link.tent : site.GetComponentInParent<TentStages>();
+        if (tent != null && tent.stage1 != null) return tent.stage1.transform;
+        var shop = link != null && link.shop != null ? link.shop : site.GetComponentInParent<ShopStages>();
+        if (shop != null) return shop.transform;
+        return site.transform;
+    }
+
+    static bool IsWorkMesh(Transform item, Transform root, bool campfire)
+    {
+        bool fuel = !campfire;
+        for (Transform node = item; node != null; node = node.parent)
+        {
+            string name = node.name;
+            foreach (string word in Decoration)
+                if (name.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0) return false;
+            if (name.IndexOf("fuel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("log", StringComparison.OrdinalIgnoreCase) >= 0) fuel = true;
+            if (node == root) break;
+        }
+        return fuel;
+    }
+
+    public static bool TryFind(BuildingController site, PlayerMovement player, CapsuleCollider capsule,
+        out BuildWorkSpot spot)
+    {
+        spot = default;
+        Transform root = GeometryRoot(site);
+        Vector3 feet = Feet(player, capsule);
+        float scale = player.model.lossyScale.y;
+        var region = new Bounds(feet + Vector3.up * WorkHeight * scale,
+            new Vector3(WalkRange * 2f, .5f * scale, WalkRange * 2f));
+        bool campfire = site.SiteKind == BuildSiteKind.Campfire;
+
+        candidates.Clear();
+        foreach (var filter in root.GetComponentsInChildren<MeshFilter>())
+        {
+            if (!filter.TryGetComponent<MeshRenderer>(out var renderer) || !renderer.enabled ||
+                !renderer.bounds.Intersects(region) || !IsWorkMesh(filter.transform, root, campfire)) continue;
+            var mesh = filter.sharedMesh;
+            if (mesh == null || !mesh.isReadable) continue;
+            CollectContacts(filter, renderer, mesh, feet, scale, region);
+        }
+
+        candidates.Sort((a, b) => a.score.CompareTo(b.score));
+        int count = Mathf.Min(12, candidates.Count);
         for (int i = 0; i < count; i++)
         {
-            var c = obstacles[i];
-            if (c == null || !c.enabled) continue;
-            if (player != null && c.transform.IsChildOf(player)) continue;
-            return false;
+            if (!TryStand(candidates[i], player, capsule, feet, scale, out spot)) continue;
+            candidates.Clear();
+            return true;
         }
-        // A ground ray is required: an apparent stand point can lie outside a floating island.
-        return Physics.Raycast(pos + Vector3.up * .65f, Vector3.down, 1.25f,
+        candidates.Clear();
+        return false;
+    }
+
+    static void CollectContacts(MeshFilter filter, MeshRenderer renderer, Mesh mesh, Vector3 feet,
+        float scale, Bounds region)
+    {
+        // Merged models (including the bridge) have empty space inside their bounds.
+        // Intersect actual triangles with the hand-height planes, once per approach.
+        mesh.GetVertices(vertices);
+        var toWorld = filter.transform.localToWorldMatrix;
+        for (int i = 0; i < vertices.Count; i++) vertices[i] = toWorld.MultiplyPoint3x4(vertices[i]);
+        for (int i = 0; i < closest.Length; i++) closest[i] = default;
+        float minY = region.min.y, maxY = region.max.y;
+
+        for (int sub = 0; sub < mesh.subMeshCount; sub++)
+        {
+            if (mesh.GetTopology(sub) != MeshTopology.Triangles) continue;
+            mesh.GetTriangles(indices, sub, true);
+            for (int i = 0; i < indices.Count; i += 3)
+            {
+                Vector3 a = vertices[indices[i]], b = vertices[indices[i + 1]], c = vertices[indices[i + 2]];
+                if (Mathf.Max(a.y, Mathf.Max(b.y, c.y)) < minY ||
+                    Mathf.Min(a.y, Mathf.Min(b.y, c.y)) > maxY) continue;
+                Vector3 normal = Vector3.Cross(b - a, c - a).normalized;
+                if (normal == Vector3.zero || Mathf.Abs(normal.y) > .70f) continue;
+
+                for (int h = 0; h < Heights.Length; h++)
+                {
+                    float y = feet.y + Heights[h] * scale;
+                    if (!TrySlice(a, b, c, y, feet, out Vector3 point)) continue;
+                    Vector3 outward = Flat(feet - point);
+                    float distance = outward.sqrMagnitude;
+                    if (distance > WalkRange * WalkRange || Vector3.Dot(normal, outward) <= .01f) continue;
+                    float score = distance + .40f * Mathf.Abs(Heights[h] - WorkHeight);
+                    if (closest[h].renderer != null && score >= closest[h].score) continue;
+                    closest[h] = new Contact { point = point, normal = normal, renderer = renderer, score = score };
+                }
+            }
+        }
+        foreach (var contact in closest)
+            if (contact.renderer != null) candidates.Add(contact);
+    }
+
+    static bool TrySlice(Vector3 a, Vector3 b, Vector3 c, float y, Vector3 feet, out Vector3 point)
+    {
+        point = default;
+        Vector3 first = default, second = default;
+        int count = 0;
+        SliceEdge(a, b, y, ref count, ref first, ref second);
+        SliceEdge(b, c, y, ref count, ref first, ref second);
+        SliceEdge(c, a, y, ref count, ref first, ref second);
+        if (count < 2) return false;
+        Vector3 span = second - first;
+        float length = span.sqrMagnitude;
+        point = length > 1e-10f
+            ? first + span * Mathf.Clamp01(Vector3.Dot(feet - first, span) / length) : first;
+        return true;
+    }
+
+    static void SliceEdge(Vector3 a, Vector3 b, float y, ref int count, ref Vector3 first, ref Vector3 second)
+    {
+        if ((a.y < y) == (b.y < y)) return;
+        Vector3 point = Vector3.LerpUnclamped(a, b, (y - a.y) / (b.y - a.y));
+        if (count++ == 0) first = point; else second = point;
+    }
+
+    static bool TryStand(Contact contact, PlayerMovement player, CapsuleCollider capsule, Vector3 feet,
+        float scale, out BuildWorkSpot spot)
+    {
+        spot = default;
+        float radius = capsule.bounds.extents.x;
+        Vector3 outwards = Flat(contact.normal).normalized;
+        Vector3 right = Vector3.Cross(outwards, Vector3.up);
+        Vector3 stand = contact.point + outwards * StandOff(radius, scale) - right * (.12f * scale);
+        stand.y = feet.y;
+        Vector3 delta = Flat(stand - feet);
+        if (delta.sqrMagnitude > WalkRange * WalkRange) return false;
+
+        // Construction uses a short direct step. Check the whole route as well as both edges
+        // of the standing footprint, so the player cannot be led onto an unfinished bridge.
+        int steps = Mathf.Max(1, Mathf.CeilToInt(delta.magnitude / .29f));
+        float ground = feet.y;
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector3 sample = feet + delta * (i / (float)steps);
+            sample.y = ground;
+            if (!TrySupport(sample, player.transform, radius * .72f, out ground) ||
+                !HasClearance(sample, ground, radius, capsule.bounds.size.y, player.transform)) return false;
+        }
+
+        float height = (contact.point.y - ground) / scale;
+        if (height < .62f || height > 1.16f) return false;
+        stand.y = ground + (player.transform.position.y - feet.y);
+        spot = new BuildWorkSpot { stand = stand, hit = contact.point, normal = contact.normal,
+            groundY = ground, radius = 1.8f, surface = contact.renderer };
+        return true;
+    }
+
+    // A low or empty site can still have material to work on. A small trestle is
+    // placed on solid ground next to Leo, with the strike target on the plank itself.
+    public static bool TryPlacePlank(BuildingController site, PlayerMovement player, CapsuleCollider capsule,
+        out BuildWorkSpot spot, out Vector3 origin, out Quaternion rotation)
+    {
+        spot = default;
+        origin = default;
+        rotation = Quaternion.identity;
+        Vector3 feet = Feet(player, capsule);
+        float scale = player.model.lossyScale.y;
+        float radius = capsule.bounds.extents.x;
+        if (!TrySupport(feet, player.transform, radius * .72f, out float ground)) return false;
+        var gate = site.GetComponentInParent<GateBridge>();
+        // The bridge meshes are baked in world coordinates; their transform is not the entrance.
+        Vector3 sitePoint = gate != null ? gate.transform.position : GeometryRoot(site).position;
+        Vector3 forward = Flat(sitePoint - feet);
+        if (forward.sqrMagnitude < .04f) forward = Flat(player.model.forward);
+        forward.Normalize();
+
+        foreach (float angle in WorkpieceAngles)
+        {
+            Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
+            Vector3 right = Vector3.Cross(Vector3.up, direction);
+            Vector3 pos = feet + direction * (StandOff(radius, scale) + BoardDepth * .5f * scale) +
+                right * (.12f * scale);
+            pos.y = ground;
+            if (!TrySupport(pos, player.transform, .32f * scale, out float boardGround) ||
+                Mathf.Abs(boardGround - ground) > .13f * scale ||
+                !HasClearance(pos, boardGround, .38f * scale, scale, player.transform)) continue;
+
+            pos.y = boardGround;
+            origin = pos;
+            rotation = Quaternion.LookRotation(direction, Vector3.up);
+            spot = new BuildWorkSpot
+            {
+                stand = player.transform.position,
+                hit = pos + Vector3.up * (WorkHeight * scale) - direction * (BoardDepth * .5f * scale),
+                normal = -direction,
+                groundY = boardGround,
+                radius = 1.8f
+            };
+            return true;
+        }
+        return false;
+    }
+
+    public static Mesh CreateWorkPlank()
+    {
+        var wood = new Color(.63f, .39f, .22f);
+        var end = new Color(.85f, .60f, .33f);
+        var mesh = new GroveMesh(14);
+        mesh.BoxBeam(new Vector3(-.27f, 0f, -.13f), new Vector3(-.22f, .91f, .02f), .11f, .13f, wood);
+        mesh.BoxBeam(new Vector3(.27f, 0f, .20f), new Vector3(.22f, .91f, .02f), .11f, .13f, wood);
+        mesh.Box(new Vector3(0f, .41f, .04f), new Vector3(.59f, .09f, .12f), wood, 0f);
+        mesh.Box(new Vector3(0f, WorkHeight, 0f), new Vector3(.75f, .19f, BoardDepth), end, 0f);
+        return mesh.ToMesh("Build work plank");
+    }
+
+    static float StandOff(float bodyRadius, float scale) => Mathf.Max(bodyRadius + .045f, .60f * scale);
+
+    static Vector3 Feet(PlayerMovement player, CapsuleCollider capsule)
+    {
+        Vector3 feet = player.transform.position;
+        feet.y = capsule.bounds.min.y;
+        return feet;
+    }
+
+    static Vector3 Flat(Vector3 value) => new Vector3(value.x, 0f, value.z);
+
+    static bool TrySupport(Vector3 pos, Transform player, float edge, out float height)
+    {
+        if (!TryGround(pos, player, out height)) return false;
+        pos.y = height;
+        return Supported(pos + Vector3.right * edge, player, height) &&
+               Supported(pos - Vector3.right * edge, player, height) &&
+               Supported(pos + Vector3.forward * edge, player, height) &&
+               Supported(pos - Vector3.forward * edge, player, height);
+    }
+
+    static bool Supported(Vector3 pos, Transform player, float height)
+        => TryGround(pos, player, out float y) && Mathf.Abs(y - height) < .23f;
+
+    static bool TryGround(Vector3 pos, Transform player, out float height)
+    {
+        height = 0f;
+        int count = Physics.RaycastNonAlloc(pos + Vector3.up * .36f, Vector3.down, groundHits, .70f,
             Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        if (count == groundHits.Length) return false;
+        float nearest = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            var hit = groundHits[i];
+            if (hit.collider == null || hit.collider.attachedRigidbody != null ||
+                hit.transform.IsChildOf(player) || hit.normal.y < .62f || hit.distance >= nearest) continue;
+            nearest = hit.distance;
+            height = hit.point.y;
+        }
+        return !float.IsPositiveInfinity(nearest);
     }
 
-    // корень вида здания: стадии (HutStages), а у рынка, палатки и моста объект из BuildStageLink (так же, как в BuildReveal)
-    public static Transform RootOf(BuildingController b)
+    static bool HasClearance(Vector3 pos, float ground, float radius, float height, Transform player)
     {
-        if (b == null) return null;
-        if (b.stages != null) return b.stages.transform;
-        var link = b.GetComponent<BuildStageLink>();
-        if (link != null)
-        {
-            if (link.shop != null) return link.shop.transform;
-            if (link.tent != null) return link.tent.transform;
-            if (link.bridge != null) return link.bridge.transform;
-        }
-        return null;
-    }
-
-    public static BuildWorkSpot Compute(BuildingController site, Vector3 playerPos, float feetY)
-    {
-        var s = new BuildWorkSpot();
-        if (site == null) return s;
-
-        Transform root = RootOf(site);
-        Bounds bb = new Bounds();
-        bool has = false;
-        parts.Clear();
-        if (root != null)
-        {
-            var rs = root.GetComponentsInChildren<Renderer>(false);
-            for (int i = 0; i < rs.Length; i++)
-            {
-                var r = rs[i];
-                if (r == null || !r.enabled) continue;
-                if (r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
-                parts.Add(r);
-                if (!has) { bb = r.bounds; has = true; } else bb.Encapsulate(r.bounds);
-            }
-        }
-        if (!has)
-        {
-            var col = site.GetComponent<Collider>();
-            if (col != null) { bb = col.bounds; has = true; }
-        }
-        if (!has) return s;
-
-        // Мост и большие комплексы имеют единый огромный AABB. Подходить к его дальней
-        // границе — значит уводить Лео с острова. Ищем ближайшую реальную деталь.
-        if (Mathf.Max(bb.extents.x, bb.extents.z) > 8f)
-        {
-            Renderer closest = null;
-            float bestDistanceSq = float.PositiveInfinity;
-            Vector3 probe = playerPos + Vector3.up * HitHeight;
-            for (int i = 0; i < parts.Count; i++)
-            {
-                Renderer r = parts[i];
-                if (r == null || Mathf.Max(r.bounds.extents.x, r.bounds.extents.z) > 5f) continue;
-                Vector3 delta = r.bounds.ClosestPoint(probe) - probe;
-                delta.y = 0f;
-                float d = delta.sqrMagnitude;
-                if (d < bestDistanceSq) { bestDistanceSq = d; closest = r; }
-            }
-            if (closest == null || bestDistanceSq > 3.5f * 3.5f)
-            {
-                parts.Clear();
-                return s; // слишком далеко: молоток работает рядом с игроком, не идёт через весь мост
-            }
-            bb = closest.bounds;
-        }
-
-        Vector3 c = bb.center;
-        Vector3 e = bb.extents;
-
-        // с какой стороны подходить: с той, где сейчас стоит герой (ближайшая грань ящика здания)
-        float dx = playerPos.x - c.x, dz = playerPos.z - c.z;
-        float outX = Mathf.Abs(dx) - e.x;      // > 0: герой снаружи по X
-        float outZ = Mathf.Abs(dz) - e.z;
-        Vector3 n = outX > outZ ? new Vector3(Mathf.Sign(dx), 0f, 0f) : new Vector3(0f, 0f, Mathf.Sign(dz));
-        bool alongX = Mathf.Abs(n.x) > 0.5f;
-
-        float lo = bb.min.y + 0.25f;
-        float hi = Mathf.Max(lo, bb.max.y - 0.15f);
-        float y = Mathf.Clamp(feetY + HitHeight, lo, hi);
-
-        // точка на грани ящика: вдоль грани ближе к герою, но не в самом углу
-        Vector3 hit = new Vector3(c.x + n.x * e.x, y, c.z + n.z * e.z);
-        if (alongX) hit.z = Mathf.Clamp(playerPos.z, c.z - Mathf.Max(0f, e.z - 0.6f), c.z + Mathf.Max(0f, e.z - 0.6f));
-        else hit.x = Mathf.Clamp(playerPos.x, c.x - Mathf.Max(0f, e.x - 0.6f), c.x + Mathf.Max(0f, e.x - 0.6f));
-
-        // уточняем по настоящей поверхности: луч снаружи внутрь на высоте удара
-        float depth = 2f * (alongX ? e.x : e.z);
-        Ray ray = new Ray(hit + n * 2.5f, -n);
-        float maxDist = 2.5f + depth + 0.5f;
-        bool refined = false;
-
-        if (root != null)
-        {
-            int cnt = Physics.RaycastNonAlloc(ray, hits, maxDist, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
-            float best = float.MaxValue;
-            for (int i = 0; i < cnt; i++)
-            {
-                var h = hits[i];
-                if (h.collider == null || !h.collider.transform.IsChildOf(root)) continue;
-                if (h.distance >= best) continue;
-                best = h.distance;
-                hit = h.point;
-                Vector3 hn = h.normal;
-                hn.y = 0f;
-                if (hn.sqrMagnitude > 0.25f) n = hn.normalized;   // крыша и пол (нормаль вверх) не годятся: остаётся нормаль грани
-                refined = true;
-            }
-        }
-        if (!refined)
-        {
-            float best = float.MaxValue;
-            for (int i = 0; i < parts.Count; i++)
-            {
-                float d;
-                if (parts[i] != null && parts[i].bounds.IntersectRay(ray, out d) && d < best) best = d;
-            }
-            if (best < float.MaxValue) hit = ray.GetPoint(best);
-        }
-        parts.Clear();
-
-        Vector3 stand = hit + n * StandOff;
-        stand.y = playerPos.y;
-        Vector3 walkDelta = stand - playerPos;
-        walkDelta.y = 0f;
-        if (walkDelta.sqrMagnitude > 3.4f * 3.4f) return s;
-
-        // Prefer the same contact point; move the player slightly farther away
-        // instead of walking into the fire pit / hut collider. Never cross the edge.
-        bool safe = false;
-        for (int i = 0; i < 4; i++)
-        {
-            Vector3 candidate = stand + n * (.23f * i);
-            if (!StandSafe(candidate, feetY)) continue;
-            stand = candidate;
-            safe = true;
-            break;
-        }
-        // Keep the reliable hit location even when the approach point is unsafe:
-        // visual work can continue from the hero's current place without walking off an island.
-        s.approachAllowed = safe;
-        s.valid = true;
-        s.hit = hit;
-        s.normal = n;
-        s.stand = stand;
-        s.center = c;
-        s.radius = Mathf.Max(e.x, e.z, e.y * 0.8f);
-        s.groundY = feetY;
-        return s;
+        pos.y = ground;
+        int count = Physics.OverlapCapsuleNonAlloc(pos + Vector3.up * (radius + .08f),
+            pos + Vector3.up * Mathf.Max(radius + .08f, height - radius), radius, obstacles,
+            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        if (count == obstacles.Length) return false;
+        for (int i = 0; i < count; i++)
+            if (obstacles[i] != null && !obstacles[i].transform.IsChildOf(player)) return false;
+        return true;
     }
 }

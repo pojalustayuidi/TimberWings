@@ -113,7 +113,7 @@ public class BuildFxHook : MonoBehaviour
 
         // Удары героя рисует OnStrike, ровно когда молоток коснулся стены. Этот запасной стук нужен, только если героя
         // с молотком нет (старый аниматор без Leo): хотя бы пыль и искры на площадке, как было раньше
-        if (BuildWorkPose.UsesHammer) return;
+        if (BuildWorkPose.HasHammerRig(bc) || BuildWorkPose.IsPaused) return;
         if (Time.time < tickAt) return;
         tickAt = Time.time + Random.Range(0.26f, 0.38f);
         Vector3 p = Anchor.position + new Vector3(Random.Range(-0.9f, 0.9f), 0f, Random.Range(-0.9f, 0.9f));
@@ -143,7 +143,7 @@ public class BuildFxHook : MonoBehaviour
     // финальный удар этапа («последний гвоздь»): играет в той же точке, где ударил молоток
     void Slam(float power)
     {
-        if (!haveStrike || Time.time - lastStrikeAt > 3f || ImpactFx.Instance == null) { haveStrike = false; return; }
+        if (!haveStrike || Time.time - lastStrikeAt > .15f || ImpactFx.Instance == null) { haveStrike = false; return; }
         haveStrike = false;
         ImpactFx.Instance.BuildSlam(lastStrike.point, lastStrike.normal, lastStrike.ground, power);
     }
@@ -182,10 +182,8 @@ public class BuildFxHook : MonoBehaviour
             return;
         }
 
-        bool want = bc.IsBuilding && bc.lockPlayerWhileBuilding && BuildWorkPose.IsReady &&
-                    BuildWorkPose.UsesHammer && !VibeSettings.ReduceEffects &&
-                    !BuildingController.AnyRevealing && !DialogueManager.IsBusy &&
-                    !DialogueSequence.AnyPlaying && !EndingSequence.Active;
+        bool want = bc.IsBuilding && bc.lockPlayerWhileBuilding && !BuildWorkPose.IsApproaching(bc) &&
+                    BuildWorkPose.HasWorkTarget(bc) && !VibeSettings.ReduceEffects && !BuildWorkPose.IsPaused;
         if (cameraOwner != null && cameraOwner != this)
         {
             // Another construction owns the camera. Never overwrite or clear it.

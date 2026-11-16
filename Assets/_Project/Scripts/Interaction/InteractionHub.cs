@@ -82,11 +82,22 @@ public class InteractionHub : MonoBehaviour
         bool lockInput = busy || wasBusy;
         wasBusy = busy;
 
-        timer -= Time.deltaTime;
-        if (timer <= 0f)
+        // While the actor is at work, E belongs to that site even beside trees or NPCs.
+        var workSite = BuildWorkPose.LockedSite;
+        if (workSite != null)
         {
-            timer = pickInterval;
-            Pick();
+            var workPrompt = workSite.GetComponent<BuildSiteInteractable>();
+            Current = workPrompt != null && workPrompt.CanInteract ? workPrompt : null;
+            timer = 0f;
+        }
+        else
+        {
+            timer -= Time.deltaTime;
+            if (timer <= 0f)
+            {
+                timer = pickInterval;
+                Pick();
+            }
         }
 
         if (!lockInput && !StoryInspection.SuppressPlayerAction && Current != null && Current.CanInteract && MobileInput.ActionDown)

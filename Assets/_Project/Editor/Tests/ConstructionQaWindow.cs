@@ -161,11 +161,19 @@ public sealed class ConstructionQaWindow : EditorWindow
         EditorGUILayout.LabelField("Объект", site.name + "  [" + site.SiteKind + "]");
         EditorGUILayout.LabelField("Стадии", site.StepsDone + " / " + site.StepsTotal);
         EditorGUILayout.LabelField("Состояние", site.IsFinished ? "Готово" : site.IsBuilding ? "Идёт стройка" : site.IsLocked ? "Заблокировано" : "Можно тестировать");
+        if (site.IsBuilding)
+        {
+            string hammer = BuildWorkPose.IsApproaching(site) ? "Лео подходит" :
+                BuildWorkPose.TryGetSpot(site, out _) ? "Рабочая точка выбрана" : "Поверхность недоступна";
+            EditorGUILayout.LabelField("Молоток", hammer);
+            EditorGUILayout.LabelField("Подтверждённые касания", BuildWorkPose.ContactCount(site).ToString());
+        }
         EditorGUILayout.LabelField("Требуется", site.Cost + " бр. · " +
             Math.Max(0, site.PlankTotal - site.DepositedPlanks) + " досок · " +
             Math.Max(0, site.CoinTotal - site.DepositedCoins) + " монет");
-        EditorGUILayout.LabelField("Рюкзак", inv.woodCount + "/" + inv.Capacity + " бр. · " +
-            inv.planksCount + " досок · " + inv.coinsCount + " монет");
+        if (inv != null)
+            EditorGUILayout.LabelField("Рюкзак", inv.woodCount + "/" + inv.Capacity + " бр. · " +
+                inv.planksCount + " досок · " + inv.coinsCount + " монет");
 
         using (new EditorGUI.DisabledScope(!ready))
         {

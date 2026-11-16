@@ -52,6 +52,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     void OnDisable()
     {
         GameEvents.ChopHit-=Hit;GameEvents.TreeChopped-=Felled;GameEvents.ChopQuality-=Quality;SaveSystem.Loaded-=ResetState;SaveSystem.NewGameStarted-=ResetState;
+        work.Reset();
         airWater.Reset();
         if(rig!=null&&rig.HasRest){rig.ResetPose();rig.EquipHammer(false);if(backpack!=null)rig.ShowCargo(backpack.Carried,backpack.Capacity);}
         if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}
@@ -61,7 +62,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         impact.Clear();legacy.Clear();phase=.25f;move=run=speedSmooth=actionWeight=holster=turn=talk=posePhase=cancelPhase=0;loadPitch=loadRoll=loadPitchVel=loadRollVel=adjustWeight=fullWeight=0;adjustStart=-10;lastCarried=-1;pendingAdjust=false;previousVelocity=smoothAcceleration=Vector3.zero;hitFrame=-1;target=null;contactPoint=null;wasChopping=cancelling=false;
         previousPosition=transform.position;previousRotation=transform.rotation;nextBlink=Time.time+3;blinkAt=-10;feet?.Reset();CurrentState="Idle";
         holster=autoSheatheDelay>0f?1f:0f;lastToolUse=-100f;
-        ResetWork();
+        work.Reset();
         airWater.Reset();
         if(rig!=null&&rig.HasRest)rig.ResetPose();if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}trailWasOn=false;
     }
@@ -88,7 +89,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         if(!Initialize()||Time.deltaTime<=0)return;
         float dt=Mathf.Min(.1f,Time.deltaTime),now=Time.time;Vector3 delta=transform.position-previousPosition;delta.y=0;
         previousPosition=transform.position;float size=Mathf.Max(.01f,transform.lossyScale.y);
-        bool teleport=delta.magnitude>Mathf.Max(.8f,size*1.2f);
+        float expectedTravel = player != null ? Mathf.Max(4f, player.CurrentSpeed) * Time.deltaTime : 0f;
+        bool teleport = delta.magnitude > Mathf.Max(.8f, expectedTravel * 1.65f + .28f);
         if(teleport){ResetState();delta=Vector3.zero;}
         // Cadence is measured in world metres/second. Dividing by visual scale
         // made the 0.5-size Leo take twice as many tiny steps at the same speed.
@@ -96,10 +98,12 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         float speed=teleport?0:delta.magnitude/Mathf.Max(.001f,Time.deltaTime);
         float k=1-Mathf.Exp(-12*dt);speedSmooth=Mathf.Lerp(speedSmooth,Mathf.Min(speed,18),k);
         bool conversation=DialogueSequence.FreezesPlayer;
+        bool building = BuildWorkPose.HasWork(player);
+        bool handsBusy = building && BuildWorkPose.MovementLocked;
         bool inspecting = StoryInspection.ReadPose(this, out var inspectionPose);
         LeoAirWaterMotion.Frame motion = airWater.Read(player, dt);
         bool blocked=SaveSystem.IsLoading||BuildingController.AnyRevealing||BuildingController.AnyRestorePending||motion.InMotion||WaterSwim.Swimming||(player!=null&&player.ControlLocked&&!conversation);
-        bool chopping=interaction!=null&&interaction.IsChopping&&!blocked&&!conversation&&!StoryInspection.Active;
+        bool chopping=interaction!=null&&interaction.IsChopping&&!blocked&&!conversation&&!StoryInspection.Active&&!handsBusy;
         var current=chopping?interaction.CurrentTarget:null;
         if(current!=target&&chopping){if(hitFrame!=Time.frameCount)impact.Clear();target=current;}
         if(chopping)
@@ -111,7 +115,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         bool recovering=impact.Recovering(now,book.recovery);
         if (chopping && !recovering)
             contactPoint = LeoChopContact.TryPoint(interaction.TargetItem, transform, out Vector3 point) ? point : (Vector3?)null;
-        bool wantAction=!blocked&&!conversation&&!StoryInspection.Active&&(chopping||recovering);
+        bool wantAction=!blocked&&!conversation&&!StoryInspection.Active&&!handsBusy&&(chopping||recovering);
         actionWeight=motion.InMotion ? 0f : Mathf.MoveTowards(actionWeight,wantAction?1:0,dt*(wantAction?12:8));
         if (wantAction && hitFrame == Time.frameCount) actionWeight = 1f;
         float desiredMove=!blocked&&!conversation&&!chopping?LeoMotionProfile.Smooth(speedSmooth/.65f):0;
@@ -149,7 +153,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
             if(lastCarried<LeoRig.TierMassive&&carriedNow>=LeoRig.TierMassive)loadPitchVel-=38f;        // 64: massive load
         }
         lastCarried=carriedNow;
-        bool free=!blocked&&!conversation&&!chopping&&!StoryInspection.Active&&rig.Celebration.Age<0f;
+        bool free=!blocked&&!conversation&&!chopping&&!building&&!StoryInspection.Active&&rig.Celebration.Age<0f;
         if(pendingAdjust&&free&&now-adjustStart>1.2f){pendingAdjust=false;adjustStart=now;}
         float at=now-adjustStart,adjustTarget=free&&at>=0&&at<1.05f?LeoMotionProfile.Smooth(at/.22f)*(1-LeoMotionProfile.Smooth((at-.78f)/.27f)):0;
         adjustWeight=Mathf.MoveTowards(adjustWeight,adjustTarget,dt*9f);
@@ -157,21 +161,19 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         fullWeight=Mathf.MoveTowards(fullWeight,capacityNow>0&&carriedNow>=capacityNow?1:0,dt*1.6f);
         float yaw=Mathf.DeltaAngle(previousRotation.eulerAngles.y,transform.eulerAngles.y);previousRotation=transform.rotation;
         turn=Mathf.Lerp(turn,Mathf.Clamp(yaw/Mathf.Max(.001f,dt)/180f,-1,1),k);
-        // Стройка (в том числе подход к стене) и простой: топор уходит на пояс, а не торчит из руки.
-        bool building=BuildWorkPose.TryGetFocus(player,out _);
-        if(inspecting||motion.InMotion)ResetWork();
-        else ReadWork(speed,dt,building,!blocked&&!conversation&&!StoryInspection.Active,chopping||actionWeight>.02f);
         if(chopping||actionWeight>.02f)lastToolUse=now;
         bool idleSheathe=autoSheatheDelay>0f&&!chopping&&now-lastToolUse>autoSheatheDelay;
-        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active||building||workWeight>.001f||idleSheathe;
+        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active||building||work.Weight>.001f||idleSheathe;
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
         float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
-        // На стройке топор уходит на пояс с той же скоростью, что в радости.
         float holsterRate = chopping || motion.InMotion ? 8f :
-            rig.Celebration.Age >= 0f || building || workWeight > .001f ? 5.5f : 1f / Mathf.Max(.1f, book.holsterSeconds);
+            rig.Celebration.Age >= 0f || building || work.Weight > .001f ? 5.5f : 1f / Mathf.Max(.1f, book.holsterSeconds);
         if (!sheath || actionWeight < .05f)
             holster = Mathf.MoveTowards(holster, wantedHolster, dt * holsterRate);
         if (!sheath && hitFrame == Time.frameCount) holster = 0f;
+        if (inspecting || motion.InMotion) work.Reset();
+        else work.Read(player, rig, speed, dt, holster,
+            !blocked && !conversation && !chopping && actionWeight < .02f, debugWork);
         if(!chopping&&wasChopping&&!recovering){cancelPhase=posePhase;cancelling=true;}
         if(chopping)cancelling=false;
         float actionPhase=cancelling?cancelPhase:impact.Phase(now,book.contact,book.recovery,hitFrame==Time.frameCount);
@@ -185,12 +187,13 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         }
         var frame=new PoseFrame{time=now,phase=phase,move=move,run=run,carry=carry,carried=backpack!=null?backpack.Carried:0,capacity=backpack!=null?backpack.Capacity:21,action=actionWeight*(1-LeoMotionProfile.Smooth(holster)),actionPhase=actionPhase,holster=holster,turn=turn,talk=talk,eye=eye,dash=player!=null&&player.IsDashing?1:0,quality=quality,loadPitch=loadPitch+tug*adjustWeight,loadRoll=loadRoll,adjust=adjustWeight,full=fullWeight};
         frame.bark = contactPoint;
-        frame.work = workWeight;frame.workPhase = CurrentWorkPhase;frame.workHeavy = WorkHeavy;
+        frame.work = work.Weight;
         frame.cheer = cheer;
         frame.motion = motion;
         if (inspecting && !motion.InMotion) frame.inspection = inspectionPose;
         ApplyPose(frame,plantFeet&&move>.02f&&!blocked,adaptToGround&&!blocked);
         CurrentState = motion.StowTool ? motion.Label : inspecting ? inspectionPose.state : blocked ? "Rest / blocked" :
+            building ? (player.AutoWalking ? "Build / approach" : work.Weight > .05f ? "Build / hammer" : "Build / ready") :
             rig.Celebration.Age >= 0f ? "Celebrate" : holster > .01f && holster < .99f ? "Holster" :
             frame.action > .05f ? (hitFrame == Time.frameCount ? "Contact" : recovering ? "Recover" : "Chop / ready") :
             move > .1f ? (carry > .65f ? "Heavy move" : run > .5f ? "Run" : "Walk") :

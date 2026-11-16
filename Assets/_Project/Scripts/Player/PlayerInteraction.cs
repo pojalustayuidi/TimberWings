@@ -405,10 +405,17 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void Update()
     {
-        // Do not let LMB start chopping or auto-walk during the unskippable joy pose.
-        if (LeoCelebration.IsPlaying)
+        // A tree click or held E must never replace the construction approach or move Leo during a fall.
+        if (BuildWorkPose.MovementLocked || LeoCelebration.IsPlaying || WaterSwim.Swimming ||
+            movement != null && movement.ControlLocked)
         {
             clickArmed = false;
+            HoverItem = null;
+            StopChop();
+            WalkTarget = leoWalkArrival = leoApproachAttempt = null;
+            leoEnterRhythmOnArrival = false;
+            CurrentTarget = null;
+            TargetItem = null;
             return;
         }
         UpdateClick();

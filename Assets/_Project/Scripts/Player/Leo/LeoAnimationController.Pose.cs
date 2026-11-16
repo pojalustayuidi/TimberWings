@@ -4,8 +4,7 @@ public sealed partial class LeoAnimationController
 {
     struct PoseFrame
     {
-        public float time,phase,move,run,carry,action,actionPhase,holster,turn,talk,eye,dash,loadPitch,loadRoll,adjust,full,work,workPhase;
-        public bool workHeavy;
+        public float time,phase,move,run,carry,action,actionPhase,holster,turn,talk,eye,dash,loadPitch,loadRoll,adjust,full,work;
         public int quality,carried,capacity;
         public Vector3? bark;
         public LeoCelebration.Pose cheer;
@@ -43,9 +42,10 @@ public sealed partial class LeoAnimationController
         rig.Rotate(rig.elbowL, new Vector3(-(5f + (1f - arm) * (6f + 7f * f.run)) * f.move - 8f * loaded * f.move, 0f, 0f));
         rig.Rotate(rig.upperArmR, new Vector3(-sway * (4f + 3f * f.run) * f.move, 0f, 3.5f * f.move));
         rig.Rotate(rig.elbowR, new Vector3(-5f - (2f + 5f * f.run) * f.move, 0f, 0f));
-        if (f.work > .001f) ApplyWorkBody(f);   // до постановки стоп: ноги учитывают смещение таза
+        if (f.work > .001f) work.ApplyBody(rig, transform);
         f.cheer.ApplyBody(rig, f.carry);
-        feet.Apply(gait, f.phase, f.move, f.run, Mathf.Abs(f.turn), f.action * (1f - f.move),
+        float brace = Mathf.Max(f.action, .66f * f.work) * (1f - f.move);
+        feet.Apply(gait, f.phase, f.move, f.run, Mathf.Abs(f.turn), brace,
             worldPlant, ground, groundMask, Mathf.Min(Time.deltaTime, .1f), f.cheer);
         LeoAxePose.RestWrist(rig, f.move);
         f.motion.Apply(rig, f.holster);
@@ -55,8 +55,8 @@ public sealed partial class LeoAnimationController
         LeoAxePose.Place(rig, transform, f.holster, palmRoll);
         LeoAxePose.LeftArm(rig, transform, f.actionPhase, f.action * chop.left);
         f.cheer.ApplyHands(rig, f.holster);
-        if (f.work > .001f) PlaceWorkHammer(f);
-        if(f.adjust>.001f&&f.action<.05f&&!f.motion.StowTool&&rig.cargoRoot!=null)
+        if (f.work > .001f) work.PlaceHammer(rig, transform, player);
+        if(f.adjust>.001f&&f.action<.05f&&f.work<.05f&&!f.motion.StowTool&&rig.cargoRoot!=null)
         {
             // Leo reaches back with the free hand and straightens the bundle (hand rests on top of the stack).
             int rows=(LeoRig.CargoSections(f.carried,f.capacity,12)+1)/2;

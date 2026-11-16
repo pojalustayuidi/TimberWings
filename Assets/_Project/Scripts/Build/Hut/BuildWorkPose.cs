@@ -1,358 +1,340 @@
-// Assets/_Project/Scripts/Build/Hut/BuildWorkPose.cs   (НЕ в папке Editor!)
-// Герой на стройке. Вызывает BuildingController (BeginBuilding / StopBuilding / CompleteStep):
-//   BuildWorkPose.Hold(inside, стройка.transform, true, стройка);   // начали
-//   BuildWorkPose.Hold(null, null, false);                          // закончили / отмена
-// Компонент сам вешается на героя при первом вызове.
-//
-// Что делает:
-//   1. ПОДХОД. Считает рабочее место (BuildWorkSpotFinder): стена здания и точка на ней. Герой сам подходит и встаёт у стены
-//      (PlayerMovement.WalkTo). Пока он идёт, IsReady = false: таймер стройки ждёт, чтобы все удары попадали по зданию.
-//   2. БЛОКИРОВКА. Пока этап идёт, уйти нельзя (MovementLocked читает MobileInput: ходьба и рывок молчат).
-//      Страховки: блокировка снимается сама через BuildingController.lockSafetySeconds сверх времени этапа,
-//      при остановке стройки и при выключении компонента.
-//   3. ЦЕЛЬ. Лицом к точке на стене, а не к центру здания (TryGetFocus / TryGetHit). Молоток в LeoModelPresentation целится туда же.
-//   4. УДАР. В кадр контакта молотка LeoModelPresentation зовёт NotifyStrike: уходит событие BuildStrikes.Struck
-//      (эффекты, тряска, «отскок» здания), а StrikeCount растёт (BuildingController закрывает этап на ударе).
-// Порядок выполнения 900: PlayerInteraction.StopChop сбрасывает isChopping каждый кадр, когда рядом нет дерева,
-// поэтому мы пишем флаг ПОСЛЕ него, иначе анимация мигала бы.
 using UnityEngine;
 
+// Owns one player's approach and hammer target until the site releases them.
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(900)]
 public class BuildWorkPose : MonoBehaviour
 {
-    static BuildWorkPose inst;
+    static BuildWorkPose active;
 
-    [Tooltip("Градусов в секунду: как быстро герой поворачивается к стройке")]
+    [Tooltip("Максимальная скорость разворота к рабочей поверхности, градусов/с")]
     public float turnSpeed = 420f;
-    [Tooltip("Сколько секунд даём герою дойти до рабочего места. Не дошёл: стройка начнётся там, где он стоит")]
-    public float approachTimeout = 1.65f;
+    [Tooltip("Время на короткий подход к рабочему месту, в секундах")]
+    public float approachTimeout = 2f;
 
-    Animator anim;
-    string param = "isChopping";
-    bool hasParam, hasMoving;
-    Transform focus;
-    Rigidbody rb;
-    PlayerInteraction interaction;
     PlayerMovement movement;
-    bool on, leoActive;
-    LeoModelPresentation presentation;   // кэш: раньше LateUpdate искал компонент каждый кадр
-    LeoAnimationController controller;   // новый риг: установщик отключает старый LeoModelPresentation
-
-    BuildingController site;
+    PlayerInteraction interaction;
+    CapsuleCollider capsule;
+    Rigidbody body;
+    Animator animator;
+    string fallbackParam;
+    LeoRig rig;
+    BuildingController site, lastSite;
     BuildWorkSpot spot;
-    bool hasSpot;
-    Transform standAnchor, hitAnchor;
-    bool approaching;
-    float approachUntil;
-    bool lockMove;
-    float lockUntil;
+    Transform standAnchor;
+    GameObject workPlank;
+    Mesh plankMesh;
+    Material plankMaterial;
+    bool lockMove, approaching;
+    float approachUntil, lockUntil;
     int strikes;
-    float lastStrikeAt = -10f;
-    // Tiny final-stage nod: only animated bones, never Rigidbody or player position.
-    BuildingController lastSite;
+    float lastStrikeAt;
     float lastEndedAt = -100f, nodStartedAt = -100f;
 
-    // ---------------------------------------------------------------- что спрашивают другие скрипты
-    public static bool TryGetFocus(PlayerMovement player, out Transform target)
-    {
-        target = null;
-        if (inst == null || !inst.on || player == null || inst.gameObject != player.gameObject) return false;
-        target = inst.focus;
-        return target != null;
-    }
+    internal static BuildingController LockedSite => active != null && active.lockMove ? active.site : null;
+    public static bool MovementLocked => LockedSite != null;
 
-    // точка на стене, куда бьёт молоток (мир). false = стройки нет или точка не посчитана
-    public static bool TryGetHit(PlayerMovement player, out Vector3 point)
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatic() => active = null;
+
+    static bool Owns(BuildingController owner) => owner != null && active != null && active.site == owner;
+
+    internal static bool IsActiveFor(BuildingController owner) => Owns(owner);
+    internal static bool KeepsPlayerAt(BuildingController owner) => Owns(owner) && active.lockMove;
+    internal static bool HasHammerRig(BuildingController owner) => Owns(owner) && active.rig != null;
+    internal static bool HasWorkTarget(BuildingController owner) => Owns(owner) && active.HasSurface;
+    public static bool IsApproaching(BuildingController owner) => Owns(owner) && active.approaching;
+    public static int ContactCount(BuildingController owner) => Owns(owner) ? active.strikes : 0;
+
+    bool HasSurface => spot.surface != null && spot.surface.enabled && spot.surface.gameObject.activeInHierarchy;
+
+    internal static bool IsPaused =>
+        SaveSystem.IsLoading || BuildingController.AnyRestorePending || BuildingController.AnyRevealing ||
+        MobileInput.ModalOpen || DialogueSequence.FreezesPlayer || StoryInspection.Active || LeoCelebration.IsPlaying;
+
+    public static bool TryGetSpot(BuildingController owner, out BuildWorkSpot result)
     {
-        point = Vector3.zero;
-        if (inst == null || !inst.on || !inst.hasSpot || player == null || inst.gameObject != player.gameObject) return false;
-        point = inst.spot.hit;
+        result = default;
+        if (!HasWorkTarget(owner)) return false;
+        result = active.spot;
         return true;
     }
 
-    // рабочее место этой стройки (камера, эффекты)
-    public static bool TryGetSpot(BuildingController b, out BuildWorkSpot s)
+    internal static bool HasWork(PlayerMovement player) =>
+        player != null && active != null && active.site != null && active.movement == player;
+
+    internal static bool TryGetStrikeTarget(PlayerMovement player, out BuildWorkSpot result)
     {
-        s = default(BuildWorkSpot);
-        if (inst == null || !inst.on || !inst.hasSpot || inst.site != b) return false;
-        s = inst.spot;
+        result = default;
+        if (!HasWork(player) || active.approaching || !active.HasSurface || player.model == null ||
+            player.ControlLocked || player.AutoWalking || player.IsDashing || WaterSwim.Swimming || IsPaused)
+            return false;
+
+        var visual = player.model;
+        Vector3 localHit = visual.InverseTransformPoint(active.spot.hit);
+        if (Mathf.Abs(localHit.x) > .36f || localHit.y < .54f || localHit.y > 1.24f ||
+            localHit.z < .32f || localHit.z > .86f ||
+            Vector3.Dot(visual.forward, active.Facing) < .96f) return false;
+        result = active.spot;
         return true;
     }
 
-    // герой на месте (или стройки нет): можно запускать таймер
-    public static bool IsReady { get { return inst == null || !inst.on || !inst.approaching; } }
-    // уйти нельзя: ходьба и рывок молчат (MobileInput)
-    public static bool MovementLocked { get { return inst != null && inst.on && inst.lockMove; } }
-    // бьёт ли герой настоящим молотком (а не старая анимация без молотка)
-    public static bool UsesHammer { get { return inst != null && inst.on && inst.leoActive; } }
-    public static int StrikeCount { get { return inst != null ? inst.strikes : 0; } }
-    public static float LastStrikeTime { get { return inst != null ? inst.lastStrikeAt : -10f; } }
-
-    public static void Hold(Component player, Transform focus, bool on)
+    internal static bool TryBegin(BuildingController owner, PlayerInventory inventory)
     {
-        Hold(player, focus, on, null);
+        if (active != null && active.site != null) return Owns(owner);
+        if (inventory == null || !inventory.isActiveAndEnabled || IsPaused) return false;
+
+        var actor = inventory.GetComponentInParent<PlayerMovement>();
+        if (actor != null && (!actor.isActiveAndEnabled || actor.ControlLocked || actor.IsDashing || WaterSwim.Swimming))
+            return false;
+        var host = actor != null ? actor.gameObject : inventory.gameObject;
+        var job = host.GetComponent<BuildWorkPose>();
+        if (job == null) job = host.AddComponent<BuildWorkPose>();
+        if (!job.isActiveAndEnabled) return false;
+        active = job;
+        job.Begin(owner, actor);
+        return true;
     }
 
-    public static void Hold(Component player, Transform focus, bool on, BuildingController site)
+    internal static void Release(BuildingController owner)
     {
-        if (on)
-        {
-            if (player == null) return;
-            var pi = player.GetComponentInParent<PlayerInteraction>();
-            GameObject go = pi != null ? pi.gameObject : player.gameObject;
-            var b = go.GetComponent<BuildWorkPose>();
-            if (b == null) b = go.AddComponent<BuildWorkPose>();
-            // Если по ошибке одновременно заработали две площадки, освобождаем прошлую позу:
-            // нельзя оставлять героя запертым у предыдущего объекта.
-            if (inst != null && inst != b) inst.End();
-            b.Begin(pi, focus, site);
-            inst = b;
-        }
-        else if (inst != null)
-        {
-            inst.End();
-        }
+        if (Owns(owner)) active.End();
     }
 
-    // молоток коснулся здания: face = мировая точка бойка. Зовёт LeoModelPresentation в кадр контакта
-    public static void NotifyStrike(PlayerMovement player, Vector3 face)
+    internal static bool NotifyStrike(PlayerMovement player, Vector3 face)
     {
-        if (inst == null || !inst.on || inst.site == null) return;
-        if (player != null && inst.gameObject != player.gameObject) return;
-        inst.Strike(face);
+        if (!TryGetStrikeTarget(player, out var contact)) return false;
+        float tolerance = .06f * player.model.lossyScale.y;
+        if ((face - contact.hit).sqrMagnitude > tolerance * tolerance ||
+            Time.time - active.lastStrikeAt < .13f) return false;
+        active.Strike();
+        return true;
     }
 
-    // Existing reveal events own timing; the nod is optional and never holds the reveal open.
     void OnEnable()
     {
         GameEvents.BuildRevealStarted += OnRevealStarted;
         GameEvents.BuildRevealFinished += OnRevealFinished;
     }
 
-    void OnRevealStarted(BuildingController b)
+    void Begin(BuildingController owner, PlayerMovement actor)
     {
-        if (b == null || b != lastSite || !b.RevealIsFinal ||
-            Time.time - lastEndedAt > 0.4f || DialogueSequence.FreezesPlayer ||
-            movement == null || movement.ControlLocked || VibeSettings.ReduceEffects) return;
-        nodStartedAt = Time.time;
-    }
+        movement = actor;
+        interaction = GetComponent<PlayerInteraction>();
+        capsule = GetComponent<CapsuleCollider>();
+        body = GetComponent<Rigidbody>();
+        animator = interaction != null && interaction.animator != null
+            ? interaction.animator : GetComponentInChildren<Animator>();
+        rig = FindActiveRig(actor);
+        fallbackParam = null;
+        if (rig == null && animator != null && animator.runtimeAnimatorController != null)
+        {
+            string name = interaction == null ? "isChopping" : interaction.chopBool;
+            foreach (var parameter in animator.parameters)
+                if (parameter.type == AnimatorControllerParameterType.Bool &&
+                    string.Equals(parameter.name, name, System.StringComparison.OrdinalIgnoreCase))
+                    fallbackParam = parameter.name;
+        }
 
-    void OnRevealFinished(BuildingController b)
-    {
-        if (b != null && b == lastSite) nodStartedAt = -100f;
-    }
-
-    // ---------------------------------------------------------------- старт и конец
-    void Begin(PlayerInteraction pi, Transform f, BuildingController s)
-    {
-        anim = (pi != null && pi.animator != null) ? pi.animator : GetComponentInChildren<Animator>();
-        if (pi != null && !string.IsNullOrEmpty(pi.chopBool)) param = pi.chopBool;
-        rb = GetComponent<Rigidbody>();
-        movement = GetComponent<PlayerMovement>();
-        interaction = pi;
-        presentation = GetComponentInChildren<LeoModelPresentation>();
-        controller = GetComponentInChildren<LeoAnimationController>();
-        // Молотком бьёт тот из двух компонентов, который сейчас ведёт позу Лео.
-        leoActive = (presentation != null && presentation.isActiveAndEnabled) ||
-                    (controller != null && controller.isActiveAndEnabled);
-        focus = f;
-        site = s;
+        site = owner;
         lastSite = null;
         nodStartedAt = -100f;
         strikes = 0;
-        lastStrikeAt = -10f;
-        approaching = false;
-        hasSpot = false;
-        hasParam = false;
-        hasMoving = false;
-        if (anim != null && anim.runtimeAnimatorController != null)
+        lastStrikeAt = -100f;
+        lockMove = owner.lockPlayerWhileBuilding && movement != null;
+        lockUntil = Time.time + owner.BuildTime + owner.lockSafetySeconds + approachTimeout;
+        if (lockMove) movement.CancelWalk();
+
+        if (!LeoBuildMotion.HasHammer(rig) || capsule == null || !capsule.enabled) return;
+        if (BuildWorkSpotFinder.TryFind(owner, actor, capsule, out spot))
         {
-            foreach (var p in anim.parameters)
+            if (NearStand(.04f)) return;
+            if (lockMove)
             {
-                if (p.type != AnimatorControllerParameterType.Bool) continue;
-                if (string.Equals(p.name, param, System.StringComparison.OrdinalIgnoreCase)) { param = p.name; hasParam = true; }
-                if (p.name == "IsMoving") hasMoving = true;
+                if (standAnchor == null) standAnchor = new GameObject("BuildStandSpot").transform;
+                standAnchor.position = spot.stand;
+                movement.WalkToBuildSpot(standAnchor);
+                approaching = true;
+                approachUntil = Time.time + Mathf.Max(.3f, approachTimeout);
+                return;
             }
         }
-        if (!hasParam && !leoActive) Debug.LogWarning("[BuildWorkPose] В аниматоре героя нет bool-параметра «" + param + "»: рабочая анимация не включится.", this);
+        UseWorkPlank();
+    }
 
-        lockMove = s != null && s.lockPlayerWhileBuilding;
-        lockUntil = Time.time + (s != null ? s.BuildTime + s.lockSafetySeconds : 0f) + approachTimeout;
+    static LeoRig FindActiveRig(PlayerMovement actor)
+    {
+        Transform visual = actor != null ? actor.model : null;
+        if (visual == null) return null;
+        var controller = visual.GetComponentInChildren<LeoAnimationController>();
+        if (controller != null && controller.isActiveAndEnabled) return controller.rig;
+        var presentation = visual.GetComponentInChildren<LeoModelPresentation>();
+        return presentation != null && presentation.isActiveAndEnabled ? presentation.rig : null;
+    }
 
-        if (s != null)
+    void UseWorkPlank()
+    {
+        spot = default;
+        if (!BuildWorkSpotFinder.TryPlacePlank(site, movement, capsule, out var candidate, out var origin, out var rotation))
         {
-            Transform visual = (movement != null && movement.model != null) ? movement.model : transform;
-            spot = BuildWorkSpotFinder.Compute(s, transform.position, visual.position.y);
-            hasSpot = spot.valid;
+            lockMove = false;
+            return;
         }
-        if (hasSpot)
+
+        if (plankMaterial == null)
         {
-            EnsureAnchors();
-            hitAnchor.position = spot.hit;
-            standAnchor.position = spot.stand;
-            focus = hitAnchor;   // лицом к стене, а не к центру здания
-            if (lockMove) StartApproach();   // идти к стене сам герой должен только когда он «заперт»; со свободным героем стройка бьёт откуда он стоит
+            var shader = Shader.Find("Project/CandyToon");
+            if (shader == null) { lockMove = false; return; }
+            plankMaterial = new Material(shader) { name = "Construction wood" };
+            plankMesh = BuildWorkSpotFinder.CreateWorkPlank();
         }
-        on = true;
+
+        workPlank = new GameObject("Construction work plank");
+        workPlank.transform.SetPositionAndRotation(origin, rotation);
+        workPlank.transform.localScale = Vector3.one * movement.model.lossyScale.y;
+        workPlank.AddComponent<MeshFilter>().sharedMesh = plankMesh;
+        var renderer = workPlank.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = plankMaterial;
+        spot = candidate;
+        spot.surface = renderer;
+    }
+
+    Vector3 Facing
+    {
+        get
+        {
+            Vector3 direction = HasSurface ? -spot.normal : site.transform.position - transform.position;
+            direction.y = 0f;
+            return direction.normalized;
+        }
+    }
+
+    bool NearStand(float radius)
+    {
+        Vector3 delta = spot.stand - transform.position;
+        delta.y = 0f;
+        return delta.sqrMagnitude <= radius * radius;
+    }
+
+    void Update()
+    {
+        if (site == null)
+        {
+            if (active == this) End();
+            return;
+        }
+        if (!site.isActiveAndEnabled || movement != null &&
+            (!movement.isActiveAndEnabled || movement.ControlLocked || WaterSwim.Swimming))
+        {
+            End();
+            return;
+        }
+        if (IsPaused)
+        {
+            lockUntil += Time.deltaTime;
+            if (fallbackParam != null && animator != null) animator.SetBool(fallbackParam, false);
+            return;
+        }
+
+        if (lockMove && Time.time > lockUntil) lockMove = false;
+        if (approaching)
+        {
+            if (lockMove && movement.IsWalkingTo(standAnchor) && Time.time < approachUntil) return;
+            movement.CancelWalkTo(standAnchor);
+            approaching = false;
+            if (!NearStand(.06f) || !HasSurface) UseWorkPlank();
+        }
+
+        if (movement == null || movement.AutoWalking || movement.IsDashing ||
+            interaction != null && interaction.IsChopping) return;
+        bool holdingStill = lockMove || Mathf.Abs(MobileInput.Horizontal) <= .03f && Mathf.Abs(MobileInput.Vertical) <= .03f;
+        if (fallbackParam != null && animator != null) animator.SetBool(fallbackParam, holdingStill);
+        if (!holdingStill || !HasSurface && rig != null) return;
+        Vector3 direction = Facing;
+        if (direction.sqrMagnitude < .001f) return;
+        if (movement.model != null)
+            movement.FaceDirection(direction, turnSpeed);
+        else if (body != null && !body.isKinematic)
+            body.MoveRotation(Quaternion.RotateTowards(body.rotation, Quaternion.LookRotation(direction), turnSpeed * Time.deltaTime));
+    }
+
+    void Strike()
+    {
+        int index = strikes++;
+        lastStrikeAt = Time.time;
+        float progress = site.Progress;
+        bool accent = index % 3 == 2;
+        float power = Mathf.Lerp(.85f, 1.35f, progress) * (accent ? 1.20f : 1f);
+        SfxManager.Play("build", accent ? .62f : .43f, accent ? .92f : index % 2 == 0 ? 1.09f : 1.01f);
+        BuildStrikes.Raise(new BuildStrikeInfo
+        {
+            site = site,
+            point = spot.hit + spot.normal * .012f,
+            normal = spot.normal,
+            ground = new Vector3(spot.hit.x, spot.groundY, spot.hit.z),
+            power = power,
+            progress = progress,
+            index = index
+        });
     }
 
     void End()
     {
-        if (!on) return;
-        if (approaching && movement != null && movement.AutoWalking) movement.CancelWalk();
-        on = false;
-        if (site != null) { lastSite = site; lastEndedAt = Time.time; }
-        focus = null;
+        if (active == this) active = null;
+        if (movement != null && standAnchor != null) movement.CancelWalkTo(standAnchor);
+        if (lockMove) MobileInput.SuppressHeldActionUntilRelease();
+        lastSite = site;
+        lastEndedAt = Time.time;
         site = null;
-        approaching = false;
-        lockMove = false;
-        hasSpot = false;
-        if (!leoActive && anim != null && hasParam) anim.SetBool(param, false);
-    }
-
-    void EnsureAnchors()
-    {
-        if (standAnchor == null) standAnchor = new GameObject("BuildStandSpot").transform;
-        if (hitAnchor == null) hitAnchor = new GameObject("BuildHitPoint").transform;
-    }
-
-    // герой сам идёт к стене (с обходом препятствий и мягкой остановкой, как «автоход» к дереву)
-    void StartApproach()
-    {
-        if (movement == null || !spot.approachAllowed) return;
-        Vector3 d = spot.stand - transform.position;
-        d.y = 0f;
-        // Не пытаемся идти на 20-40 см, особенно если между Лео и целью стоят
-        // камни костра / коллайдеры. Это давало почти 3 секунды топтания на месте.
-        // На небольшой дистанции персонаж просто разворачивается к точке удара.
-        Vector3 hitDelta = spot.hit - transform.position;
-        hitDelta.y = 0f;
-        if (hitDelta.sqrMagnitude < 1.35f * 1.35f) return;
-        if (d.sqrMagnitude < 1.15f * 1.15f) return;
-        if (d.sqrMagnitude > 2.7f * 2.7f) return;
-        if (movement.ControlLocked) return;
-        // Старт строительства отменяет предыдущую цель автохода (например, дерево).
-        if (movement.AutoWalking) movement.CancelWalk();
-
-        // Чуть раньше завершаем движение, чем коллайдер тела коснётся декора.
-        movement.WalkTo(standAnchor, 0.58f, OnArrived, true);
-        approaching = true;
-        approachUntil = Time.time + Mathf.Clamp(approachTimeout, 0.9f, 1.9f);
-    }
-
-    void OnArrived() { approaching = false; }
-
-    void Strike(Vector3 face)
-    {
-        // One logical hit per hammer contact; protects against duplicate animation callbacks.
-        if (Time.time - lastStrikeAt < 0.13f) return;
-        int index = strikes;
-        strikes++;
-        lastStrikeAt = Time.time;
-
-        Vector3 n = hasSpot ? spot.normal : Vector3.up;
-        Vector3 p = face;
-        // молоток дошёл до стены: эффект садим на поверхность (чуть наружу, чтобы не утонул в модели)
-        if (hasSpot && (face - spot.hit).sqrMagnitude < 0.7f * 0.7f) p = spot.hit + n * 0.03f;
-
-        float progress = site != null ? site.Progress : 0f;
-        float power = Mathf.Lerp(0.85f, 1.35f, progress);
-        if (index % 3 == 2) power *= 1.2f;   // каждый третий удар тяжелее: ритм «тук-тук-БАМ»
-
-        var info = new BuildStrikeInfo();
-        info.site = site;
-        info.point = p;
-        info.normal = n;
-        info.ground = hasSpot ? new Vector3(p.x, spot.groundY, p.z) : new Vector3(p.x, p.y - 0.9f, p.z);
-        info.power = power;
-        info.progress = progress;
-        info.index = index;
-        BuildStrikes.Raise(info);
-    }
-
-    // ---------------------------------------------------------------- кадр
-    void Update()
-    {
-        if (!on) return;
-
-        // страховка: блокировка не должна зависнуть, даже если стройка по какой-то причине не закончилась
-        if (lockMove && Time.time > lockUntil) lockMove = false;
-
-        // Приблизились к безопасной позиции — останавливаем автоход без дрожания ног.
-        // Если путь заблокирован, не заставляем Лео три секунды упираться в объект.
-        if (approaching)
+        approaching = lockMove = false;
+        spot = default;
+        if (fallbackParam != null && animator != null) animator.SetBool(fallbackParam, false);
+        if (workPlank != null)
         {
-            Vector3 delta = standAnchor != null ? standAnchor.position - transform.position : Vector3.zero;
-            delta.y = 0f;
-            bool near = delta.sqrMagnitude < 0.62f * 0.62f;
-            if (near || movement == null || !movement.AutoWalking || Time.time > approachUntil)
-            {
-                if (movement != null && movement.AutoWalking) movement.CancelWalk();
-                approaching = false;
-            }
+            workPlank.SetActive(false);
+            Destroy(workPlank);
+            workPlank = null;
         }
-
-        if (leoActive && (interaction != null && interaction.IsChopping ||
-            DialogueSequence.FreezesPlayer || movement != null && movement.ControlLocked)) return;
-        if (!leoActive && anim != null && hasParam) anim.SetBool(param, true);
-
-        // лицом к стройке, но только пока герой стоит (если пошёл, не крутим)
-        if (focus == null || approaching) return;
-        if (hasMoving && anim != null && anim.GetBool("IsMoving")) return;
-        Vector3 d = focus.position - transform.position;
-        d.y = 0f;
-        if (d.sqrMagnitude < 0.01f) return;
-        Quaternion want = Quaternion.LookRotation(d.normalized, Vector3.up);
-        if (leoActive && movement != null && movement.model != null && movement.model != transform)
-        {
-            if (Mathf.Abs(MobileInput.Horizontal) > .03f || Mathf.Abs(MobileInput.Vertical) > .03f) return;
-            Transform visual = movement.model;
-            visual.rotation = Quaternion.RotateTowards(visual.rotation, want, turnSpeed * Time.deltaTime);
-            return;
-        }
-        Quaternion q = Quaternion.RotateTowards(transform.rotation, want, turnSpeed * Time.deltaTime);
-        if (rb != null && !rb.isKinematic) rb.MoveRotation(q); else transform.rotation = q;
     }
 
-    // Order 900 means this runs AFTER LeoModelPresentation (250) resets/poses bones.
-    // It is intentionally tiny and does not change the animator, physics or camera.
+    void OnRevealStarted(BuildingController owner)
+    {
+        if (owner == null || owner != lastSite || !owner.RevealIsFinal || Time.time - lastEndedAt > .40f ||
+            movement == null || movement.ControlLocked || DialogueSequence.FreezesPlayer || VibeSettings.ReduceEffects) return;
+        nodStartedAt = Time.time;
+    }
+
+    void OnRevealFinished(BuildingController owner)
+    {
+        if (owner == lastSite) nodStartedAt = -100f;
+    }
+
+    // Runs after either pose writer, so the final look at the building survives the pose reset.
     void LateUpdate()
     {
         if (nodStartedAt < 0f || !BuildingController.AnyRevealing || VibeSettings.ReduceEffects ||
-            movement == null || movement.ControlLocked || EndingSequence.Active ||
-            DialogueManager.IsBusy || DialogueSequence.FreezesPlayer ||
-            interaction != null && interaction.IsChopping) return;
-        float elapsed = Time.time - nodStartedAt;
-        if (elapsed > 2.1f) { nodStartedAt = -100f; return; }
-        float k = Mathf.Clamp01((elapsed - .8f) / .95f);
+            rig == null || movement == null || movement.ControlLocked || EndingSequence.Active ||
+            DialogueManager.IsBusy || DialogueSequence.FreezesPlayer) return;
+        float k = (Time.time - nodStartedAt - .60f) / .90f;
         if (k <= 0f || k >= 1f) return;
-        LeoRig leoRig = null;
-        var leo = presentation != null ? presentation : (presentation = GetComponentInChildren<LeoModelPresentation>());
-        if (leo != null && leo.isActiveAndEnabled) leoRig = leo.rig;
-        if (leoRig == null)
-        {
-            if (controller == null) controller = GetComponentInChildren<LeoAnimationController>();
-            if (controller != null && controller.isActiveAndEnabled) leoRig = controller.rig;
-        }
-        if (leoRig == null) return;
         float bow = Mathf.Sin(k * Mathf.PI);
-        leoRig.Rotate(leoRig.head, new Vector3(7f * bow, 0f, 0f));
-        leoRig.Rotate(leoRig.chest, new Vector3(2f * bow, 0f, 0f));
+        rig.Rotate(rig.head, new Vector3(7f * bow, 0f, 0f));
+        rig.Rotate(rig.chest, new Vector3(2f * bow, 0f, 0f));
     }
 
     void OnDisable()
     {
         GameEvents.BuildRevealStarted -= OnRevealStarted;
         GameEvents.BuildRevealFinished -= OnRevealFinished;
+        if (active == this || site != null) End();
         nodStartedAt = -100f;
-        End();
     }
 
     void OnDestroy()
     {
         if (standAnchor != null) Destroy(standAnchor.gameObject);
-        if (hitAnchor != null) Destroy(hitAnchor.gameObject);
-        if (inst == this) inst = null;
+        if (plankMesh != null) Destroy(plankMesh);
+        if (plankMaterial != null) Destroy(plankMaterial);
+        if (active == this) active = null;
     }
 }

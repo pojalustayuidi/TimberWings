@@ -1,162 +1,158 @@
 using UnityEngine;
 
-// Стройка молотком для нового контроллера. Раньше молоток умел только старый LeoModelPresentation:
-// установщик отключает его, и у Лео при стройке не было ни молотка, ни ударов (BuildWorkPose включал
-// молоток только для старого компонента), а топор так и торчал из руки. Логика здесь та же, что в
-// LeoModelPresentation.Life.cs: топор уходит на пояс тем же путём, что в радости, затем молоток
-// достаётся из кармана и бьёт по стене. Каждый удар уходит в BuildWorkPose.NotifyStrike.
 public sealed partial class LeoAnimationController
 {
-    const float WorkContact = .53f;
-    static readonly float[] WorkCycles = { .64f, .70f, .79f };
-    static readonly Vector3 HammerGrip = new Vector3(0f, -.039f, 0f);
-    static readonly Vector3 HammerFace = new Vector3(0f, .14448f, .10622f);
+    readonly LeoBuildMotion work = new LeoBuildMotion();
 
-    [Tooltip("Раз в секунду пишет в консоль, почему Лео бьёт или не бьёт молотком. Выключить, когда всё работает.")]
-    public bool debugWork = false;
+    [Tooltip("Показывать в консоли причины, по которым Лео не начинает удар")]
+    public bool debugWork;
+}
 
-    float workWeight, workStrokeTime, workStowWait, nextWorkLog;
-    int workBeatIndex;
-    bool workHitSent, workRequested, workStrikePending;
+// Both presentation modes use the same draw, contact and recoil. The clock samples
+// the contact pose on the frame that crosses it, including at a low frame rate.
+internal sealed class LeoBuildMotion
+{
+    internal const float ContactPhase = .53f;
+    static readonly float[] Cycles = { .64f, .70f, .79f };
+    static readonly Vector3 Grip = new Vector3(0f, -.039f, 0f);
+    static readonly Vector3 Face = new Vector3(0f, .14448f, .10622f);
+    static readonly Vector3 ReadyGrip = new Vector3(.26f, .98f, .22f);
 
-    float CurrentWorkCycle => WorkCycles[workBeatIndex % WorkCycles.Length];
-    float CurrentWorkPhase => Mathf.Clamp01(workStrokeTime / CurrentWorkCycle);
-    bool WorkHeavy => workBeatIndex % WorkCycles.Length == WorkCycles.Length - 1;
+    float elapsed, nextLogAt;
+    int beat;
+    bool wasWorking, contactFrame;
+    BuildWorkSpot target;
 
-    void ResetWork()
+    internal float Weight { get; private set; }
+    internal float Phase { get; private set; }
+
+    internal static bool HasHammer(LeoRig rig) => rig != null && rig.hammerRoot != null &&
+        rig.HammerHolster != null && rig.handR != null && rig.upperArmR != null && rig.elbowR != null;
+
+    internal void Reset()
     {
-        workWeight = workStrokeTime = workStowWait = 0f;
-        workBeatIndex = 0;
-        workHitSent = workRequested = workStrikePending = false;
+        elapsed = Weight = Phase = 0f;
+        wasWorking = contactFrame = false;
+        beat = 0;
+        target = default;
     }
 
-    // atWork: стройка уже началась (в том числе подход к стене). allowed: ничто не мешает работать.
-    void ReadWork(float speed, float dt, bool atWork, bool allowed, bool chopping)
+    internal void Read(PlayerMovement player, LeoRig rig, float speed, float dt, float holster,
+        bool allowed, bool debug)
     {
-        bool ready = atWork && BuildWorkPose.IsReady && player != null && !player.AutoWalking;
-        // Микродвижение Rigidbody/поворот модели не должны переоткрывать позу удара.
-        bool moving = ready ? speed > 1.4f :
-            speed > .26f || Mathf.Abs(MobileInput.Horizontal) > .04f || Mathf.Abs(MobileInput.Vertical) > .04f;
-        bool free = allowed && !chopping && !MobileInput.ModalOpen && player != null && !player.IsDashing;
-        workRequested = free && ready && !moving && rig.hammerRoot != null && rig.handR != null && rig.HammerHolster != null;
-
-        // Молоток начинает работать, когда топор лёг на пояс. Если уборка по какой-то причине зависла,
-        // через полсекунды кладём топор на пояс принудительно, чтобы стройка не встала.
-        if (workRequested && holster < .99f) workStowWait += dt; else if (!workRequested) workStowWait = 0f;
-        if (workStowWait >= .5f) holster = 1f;
-        bool works = workRequested && holster >= .99f;
-
-        if (debugWork && atWork && Time.time >= nextWorkLog)
+        bool ready = BuildWorkPose.TryGetStrikeTarget(player, out var contact);
+        bool playing = ready && allowed && speed < .58f && holster >= .99f && HasHammer(rig);
+        if (playing) target = contact;
+        Advance(dt, playing);
+        if (debug && BuildWorkPose.HasWork(player) && Time.time >= nextLogAt)
         {
-            nextWorkLog = Time.time + 1f;
-            Debug.Log("[Leo work/controller] allowed=" + allowed + " chopping=" + chopping + " modal=" + MobileInput.ModalOpen +
-                " ready=" + ready + " moving=" + moving + " speed=" + speed.ToString("F2") +
-                " hammer=" + (rig.hammerRoot != null) + " hammerHolster=" + (rig.HammerHolster != null) +
-                " holster=" + holster.ToString("F2") + " requested=" + workRequested + " works=" + works +
-                " weight=" + workWeight.ToString("F2") + " strikes=" + BuildWorkPose.StrikeCount, this);
-        }
-
-        workWeight = chopping ? 0f : Mathf.MoveTowards(workWeight, works ? 1f : 0f, dt * (works ? 7f : 9f));
-        if (works)
-        {
-            workStrokeTime += dt;
-            float cycle = CurrentWorkCycle;
-            if (!workHitSent && workStrokeTime >= cycle * WorkContact && workWeight > .85f)
-            {
-                // Звук и событие уходят в ApplyPose, когда молоток уже стоит в позе удара.
-                workStrikePending = true;
-                workHitSent = true;
-            }
-            if (workStrokeTime >= cycle)
-            {
-                workStrokeTime = Mathf.Repeat(workStrokeTime, cycle);
-                workBeatIndex++;
-                workHitSent = false;
-            }
-        }
-        else if (workWeight <= 0f)
-        {
-            workStrokeTime = 0f;
-            workBeatIndex = 0;
-            workHitSent = false;
-            workStrikePending = false;
+            nextLogAt = Time.time + 1f;
+            Debug.Log($"[Leo work] target={ready} allowed={allowed} speed={speed:F2} holster={holster:F2} swing={playing}", rig);
         }
     }
 
-    static void AddRotation(Transform t, Vector3 euler)
+    internal void Advance(float dt, bool playing)
     {
-        if (t != null) t.localRotation *= Quaternion.Euler(euler);
+        contactFrame = false;
+        Weight = Mathf.MoveTowards(Weight, playing ? 1f : 0f, dt * (playing ? 6.5f : 7.5f));
+        if (!playing)
+        {
+            wasWorking = false;
+            if (Weight <= 0f) Reset();
+            return;
+        }
+
+        if (!wasWorking)
+        {
+            wasWorking = true;
+            elapsed = 0f;
+            beat = 0;
+        }
+        float cycle = Cycles[beat % Cycles.Length];
+        float contact = cycle * ContactPhase;
+        contactFrame = elapsed < contact && elapsed + dt >= contact;
+        elapsed += dt;
+        if (elapsed >= cycle)
+        {
+            elapsed -= cycle;
+            beat++;
+            cycle = Cycles[beat % Cycles.Length];
+        }
+        Phase = contactFrame ? ContactPhase : Mathf.Clamp01(elapsed / cycle);
     }
 
-    // Корпус: слегка наклоняется к стене. Вызывается до постановки стоп, чтобы ноги учли смещение таза.
-    void ApplyWorkBody(PoseFrame f)
+    static float LowTarget(float height) => Mathf.Clamp01((.91f - height) / .28f);
+
+    internal void ApplyBody(LeoRig rig, Transform model)
     {
-        float w = f.work;
-        float accent = f.workHeavy ? 1.22f : 1f;
-        float tap = Mathf.Max(0f, 1f - Mathf.Abs(f.workPhase - WorkContact) / .17f) * w * accent;
+        Vector3 localTarget = model.InverseTransformPoint(target.hit);
+        float low = LowTarget(localTarget.y);
+        float tap = Mathf.Max(0f, 1f - Mathf.Abs(Phase - ContactPhase) / .19f);
+        bool heavy = beat % Cycles.Length == Cycles.Length - 1;
+        float impact = tap * (heavy ? 1.25f : 1f);
+        float reach = Mathf.Clamp01((localTarget.z - .55f) / .25f);
         if (rig.hips != null)
-            rig.hips.localPosition += new Vector3(-.015f * w, -.043f * w - .017f * tap, .044f * w);
-        AddRotation(rig.spine, new Vector3(6f * w + tap * 3f, -3f * w, 0f));
-        AddRotation(rig.chest, new Vector3(3f * tap, 3.5f * w, .6f * tap));
-        AddRotation(rig.head, new Vector3((3f + 5f * tap) * w, 0f, 0f));
-        AddRotation(rig.upperArmL, new Vector3(-18f * w, 0f, 0f));
-        AddRotation(rig.elbowL, new Vector3(-24f * w, 0f, 0f));
+            rig.hips.localPosition += Weight * new Vector3(-.014f, -.035f - .10f * low - .024f * impact,
+                .074f + .05f * reach + .052f * impact);
+
+        AddRotation(rig.spine, Weight * new Vector3(7f + 6f * low + 4f * impact, -3f, 0f));
+        AddRotation(rig.chest, Weight * new Vector3(4f * impact, 4f, 1f * impact));
+        AddRotation(rig.head, Weight * new Vector3(4f + 8f * low + 3f * impact, 4f, 0f));
+        AddRotation(rig.upperArmL, Weight * new Vector3(-17f, 0f, -6f));
+        AddRotation(rig.elbowL, Weight * new Vector3(-23f, 0f, 0f));
     }
 
-    void PlaceWorkHammer(PoseFrame f)
+    static void AddRotation(Transform joint, Vector3 euler)
     {
-        if (rig.hammerRoot == null || rig.handR == null || rig.HammerHolster == null) return;
-        float phase = f.workPhase;
-        bool heavy = f.workHeavy;
-        float raise = LeoMotionProfile.Smooth(phase / .36f);
-        float strike = LeoMotionProfile.Smooth((phase - .36f) / (WorkContact - .36f));
-        float recoil = LeoMotionProfile.Smooth((phase - WorkContact) / (1f - WorkContact));
-        Vector3 ready = new Vector3(.24f, .998f, .24f);
-        Vector3 high = new Vector3(.31f, heavy ? 1.37f : 1.27f, .21f);
-        Vector3 tip = new Vector3(.12f, .895f, .497f);
-        if (BuildWorkPose.TryGetHit(player, out Vector3 hitWorld))
-        {
-            // молоток целится в точку на стене здания, а не в воздух перед героем (в пределах длины руки)
-            Vector3 l = transform.InverseTransformPoint(hitWorld);
-            tip = new Vector3(Mathf.Clamp(l.x, -.12f, .32f), Mathf.Clamp(l.y, .62f, 1.12f), Mathf.Clamp(l.z, .40f, .80f));
-        }
-        Vector3 angles = Vector3.Lerp(new Vector3(30f, -3f, -18f), new Vector3(-28f, 15f, -39f), raise);
-        Vector3 hitAngles = new Vector3(64f, -8f, -9f);
-        Vector3 hit = tip - Quaternion.Euler(hitAngles) * (HammerFace - HammerGrip);
-        angles = Vector3.Lerp(Vector3.Lerp(angles, hitAngles, strike), new Vector3(30f, -3f, -18f), recoil);
-        Vector3 grip = Vector3.Lerp(Vector3.Lerp(Vector3.Lerp(ready, high, raise), hit, strike), ready, recoil);
+        if (joint != null) joint.localRotation *= Quaternion.Euler(euler);
+    }
 
-        Quaternion tool = transform.rotation * Quaternion.Euler(angles);
-        Quaternion wrist = LeoAxePose.RightWrist(tool);
-        Vector3 pole = transform.TransformPoint(new Vector3(.69f, 1.00f, -.06f));
+    internal void PlaceHammer(LeoRig rig, Transform model, PlayerMovement player)
+    {
+        if (!HasHammer(rig)) return;
+        bool heavy = beat % Cycles.Length == Cycles.Length - 1;
+        float raise = LeoMotionProfile.Smooth(Phase / .35f);
+        float swing = LeoMotionProfile.Smooth((Phase - .35f) / (ContactPhase - .35f));
+        float recoil = LeoMotionProfile.Smooth((Phase - ContactPhase) / (1f - ContactPhase));
+        Quaternion ready = model.rotation * Quaternion.Euler(28f, -5f, -19f);
+        Quaternion high = model.rotation * Quaternion.Euler(-31f, 13f, -34f);
+        float low = LowTarget(model.InverseTransformPoint(target.hit).y);
+        Quaternion impact = Quaternion.LookRotation(-target.normal, Vector3.up) *
+            Quaternion.Euler(Mathf.Lerp(5f, 22f, low), 0f, 0f);
+        Quaternion tool = Quaternion.Slerp(Quaternion.Slerp(Quaternion.Slerp(ready, high, raise), impact, swing), ready, recoil);
+
+        Vector3 face = rig.hammerStrike != null && rig.hammerStrike.parent == rig.hammerRoot ? rig.hammerStrike.localPosition : Face;
+        Vector3 gripToFace = Vector3.Scale(face - Grip, rig.hammerRoot.lossyScale);
+        Vector3 readyWorld = model.TransformPoint(ReadyGrip);
+        Vector3 highWorld = model.TransformPoint(new Vector3(.30f, heavy ? 1.38f : 1.26f, .17f));
+        Vector3 impactGrip = target.hit - impact * gripToFace;
+        Vector3 grip = Vector3.Lerp(Vector3.Lerp(Vector3.Lerp(readyWorld, highWorld, raise), impactGrip, swing), readyWorld, recoil);
+        float bounce = Mathf.Sin(Mathf.PI * Mathf.Clamp01((Phase - ContactPhase) / .21f));
+        grip += target.normal * (bounce * .055f * model.lossyScale.y);
+
+        Transform holster = rig.HammerHolster;
+        float draw = LeoMotionProfile.Smooth(Weight);
+        Vector3 drawGrip = Vector3.Lerp(holster.TransformPoint(Grip), grip, draw);
+        Quaternion drawRotation = Quaternion.Slerp(holster.rotation, tool, draw);
+        Quaternion wrist = LeoAxePose.RightWrist(drawRotation);
+        Vector3 pole = model.TransformPoint(new Vector3(.69f, 1.01f, -.07f));
         LeoRig.SolveTwoBone(rig.upperArmR, rig.elbowR, rig.handR,
-            LeoAxePose.WristGoal(rig.handR, transform.TransformPoint(grip), wrist), pole, wrist, f.work);
+            LeoAxePose.WristGoal(rig.handR, drawGrip, wrist), pole, wrist, Weight);
 
-        rig.PlaceAxe(f.holster);
-
-        // Молоток держится так же поперёк ладони. Его карман — начало и конец доставания.
         Quaternion held = LeoAxePose.ToolRotation(rig.handR);
-        Vector3 shaft = Vector3.Scale(HammerGrip, rig.hammerRoot.lossyScale);
-        Vector3 origin = LeoAxePose.Grip(rig.handR) - held * shaft;
-        float draw = LeoMotionProfile.Smooth(f.work);
-        rig.hammerRoot.SetPositionAndRotation(Vector3.Lerp(rig.HammerHolster.position, origin, draw),
-            Quaternion.Slerp(rig.HammerHolster.rotation, held, draw));
+        Vector3 origin = LeoAxePose.Grip(rig.handR) - held * Vector3.Scale(Grip, rig.hammerRoot.lossyScale);
+        rig.hammerRoot.SetPositionAndRotation(Vector3.Lerp(holster.position, origin, draw),
+            Quaternion.Slerp(holster.rotation, held, draw));
 
-        // PlaceAxe раскрыл ладонь у пояса: при доставании закрываем её на молотке.
         if (rig.fingersR != null)
             foreach (Transform finger in rig.fingersR)
-                rig.Rotate(finger, new Vector3(-42f * f.holster * draw, 0f, 0f));
+                rig.Rotate(finger, new Vector3(Mathf.Lerp(42f, -42f, draw), 0f, 0f));
         if (rig.fingerTipsR != null)
             foreach (Transform joint in rig.fingerTipsR)
-                rig.Rotate(joint, new Vector3(-35f * f.holster * draw, 0f, 0f));
+                rig.Rotate(joint, new Vector3(Mathf.Lerp(35f, -35f, draw), 0f, 0f));
 
-        // кадр контакта: молоток уже стоит в позе удара, берём настоящую точку бойка
-        if (workStrikePending)
-        {
-            workStrikePending = false;
-            SfxManager.Play("build", heavy ? .62f : .43f, heavy ? .92f : (workBeatIndex % 2 == 0 ? 1.09f : 1.01f));
-            Vector3 face = rig.hammerStrike != null ? rig.hammerStrike.position : rig.hammerRoot.TransformPoint(HammerFace);
-            BuildWorkPose.NotifyStrike(player, face);
-        }
+        if (!contactFrame) return;
+        contactFrame = false;
+        BuildWorkPose.NotifyStrike(player, rig.hammerRoot.TransformPoint(face));
     }
 }

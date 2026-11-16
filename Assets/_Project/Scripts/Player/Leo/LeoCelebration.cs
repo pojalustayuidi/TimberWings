@@ -101,7 +101,7 @@ sealed class LeoCelebration
 
         bool blocked = player.ControlLocked || WaterSwim.Swimming || StoryInspection.Active || MobileInput.ModalOpen || BuildingController.AnyRevealing ||
             DialogueSequence.FreezesPlayer || DialogueManager.IsBusy || (speaker != null && speaker.IsSpeaking) ||
-            BuildingController.AnyRestorePending || BuildWorkPose.TryGetFocus(player, out _);
+            BuildingController.AnyRestorePending || BuildWorkPose.HasWork(player);
         bool chopping = interaction != null && interaction.IsChopping;
         Vector3 velocity = body != null ? body.linearVelocity : Vector3.zero;
         bool moving = player.AutoWalking || player.IsDashing || Mathf.Abs(velocity.y) > .65f ||

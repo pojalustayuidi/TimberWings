@@ -45,7 +45,7 @@ public class BuildingController : MonoBehaviour
     public int rewardXp = 10;                // GDD: +10 опыта за этап
 
     [Header("Рабочее место героя (BuildWorkPose)")]
-    [Tooltip("true = пока идёт этап, герой подходит к стене здания, встаёт у неё и бьёт молотком по стене. Уйти нельзя, пока этап не закончен. " +
+    [Tooltip("true = пока идёт этап, герой занимает рабочую позицию и бьёт по материалу. Уйти нельзя, пока этап не закончен. " +
              "Если что-то пошло не так, блокировка снимается сама (Lock Safety Seconds)")]
     public bool lockPlayerWhileBuilding = true;
     [Tooltip("Страховка: через столько секунд сверх времени этапа блокировка героя снимается сама")]
@@ -612,7 +612,7 @@ public class BuildingController : MonoBehaviour
         if (insideCount == 0)
         {
             // этап идёт, герой заперт у стены: рабочее место может оказаться за краем зоны, это не «ушёл»
-            if (isBuilding && lockPlayerWhileBuilding && !isFinished) return;
+            if (isBuilding && BuildWorkPose.KeepsPlayerAt(this) && !isFinished) return;
             inside = null;
             if (isBuilding && !isFinished) StopBuilding();   // игрок убежал: прогресс сохраняется
         }
@@ -629,16 +629,16 @@ public class BuildingController : MonoBehaviour
             return;
         }
 
-        // герой вышел из зоны, пока этап был заперт (см. OnTriggerExit): запись «внутри» больше не нужна
-        if (inside != null && insideCount == 0 && !(isBuilding && lockPlayerWhileBuilding)) inside = null;
+        // Losing the work pose (fall, deactivation) releases the actor and keeps stage progress.
+        if (isBuilding && !BuildWorkPose.IsActiveFor(this)) StopBuilding();
+        if (insideCount == 0 && !BuildWorkPose.KeepsPlayerAt(this)) inside = null;
 
-        if (isFinished || inside == null) return;
-
-        if (locked)
+        if (isFinished || inside == null || locked)
         {
             if (isBuilding) StopBuilding();
             return;
         }
+        if (BuildWorkPose.IsPaused) return;
 
         // режим окна: ресурсы сдаёт окно (DepositAll), таймер идёт только после «Играть» (StartStage)
         if (useWindow)
@@ -665,10 +665,9 @@ public class BuildingController : MonoBehaviour
             }
         }
 
-        if (!isBuilding) BeginBuilding();
+        if (!isBuilding && !BeginBuilding()) return;
 
-        // герой ещё идёт к рабочему месту у стены: таймер ждёт, чтобы все удары молотка попадали по зданию
-        if (lockPlayerWhileBuilding && !BuildWorkPose.IsReady) return;
+        if (BuildWorkPose.IsApproaching(this)) return;
 
         currentBuildTimer += Time.deltaTime;
         float progress = GetProgress();
@@ -685,12 +684,12 @@ public class BuildingController : MonoBehaviour
 
         if (currentBuildTimer >= BuildTime)
         {
-            // «последний гвоздь»: этап закрывается ударом молотка. Если героя с молотком нет или удар не пришёл, закрываем сами
-            if (finishOnStrike && lockPlayerWhileBuilding && BuildWorkPose.UsesHammer)
+            // Wait for a contact from this site. The timeout is measured in active work time.
+            if (finishOnStrike && lockPlayerWhileBuilding && BuildWorkPose.HasWorkTarget(this))
             {
-                if (finishWaitFrom < 0f) { finishWaitFrom = Time.time; strikesAtFinish = BuildWorkPose.StrikeCount; }
-                bool struck = BuildWorkPose.StrikeCount > strikesAtFinish;
-                if (!struck && Time.time - finishWaitFrom < FinishStrikeWait) return;
+                int contacts = BuildWorkPose.ContactCount(this);
+                if (finishWaitFrom < 0f) { finishWaitFrom = currentBuildTimer; strikesAtFinish = contacts; }
+                if (contacts <= strikesAtFinish && currentBuildTimer - finishWaitFrom < FinishStrikeWait) return;
             }
             CompleteStep(inside);
         }
@@ -713,16 +712,17 @@ public class BuildingController : MonoBehaviour
         if (changed) { SaveSystem.RequestSave("buildings"); }
     }
 
-    void BeginBuilding()
+    bool BeginBuilding()
     {
+        if (!BuildWorkPose.TryBegin(this, inside)) return false;
         isBuilding = true;
         finishWaitFrom = -1f;
         if (stages != null) { HutBuildSite.SetWorkingFor(stages, true); HutBuildSite.SetProgressFor(stages, GetProgress()); }
-        BuildWorkPose.Hold(inside, stages != null ? stages.transform : transform, true, this);
         if (buildingVFX != null) buildingVFX.Play();
 
         if (ring != null) ring.visible = true;
         else if (progressCanvas != null) progressCanvas.SetActive(true);
+        return true;
     }
 
     void StopBuilding()
@@ -730,7 +730,7 @@ public class BuildingController : MonoBehaviour
         isBuilding = false;
         finishWaitFrom = -1f;
         if (stages != null) HutBuildSite.SetWorkingFor(stages, false);
-        BuildWorkPose.Hold(null, null, false);
+        BuildWorkPose.Release(this);
         if (buildingVFX != null) buildingVFX.Stop();
 
         if (ring != null) ring.visible = false;
@@ -763,7 +763,7 @@ public class BuildingController : MonoBehaviour
         finishWaitFrom = -1f;
         currentBuildTimer = 0f;
         if (stages != null) { HutBuildSite.SetWorkingFor(stages, false); HutBuildSite.SetProgressFor(stages, 0f); }
-        BuildWorkPose.Hold(null, null, false);
+        BuildWorkPose.Release(this);
         if (insideCount <= 0) inside = null;   // этап закрыт, а герой стоял за краем зоны (рабочее место у стены): запись «внутри» не нужна
 
         if (buildingVFX != null) buildingVFX.Stop();

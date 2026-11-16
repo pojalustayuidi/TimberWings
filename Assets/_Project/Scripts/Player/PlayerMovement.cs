@@ -46,10 +46,11 @@ public class PlayerMovement : MonoBehaviour
     Transform autoTarget;
     float autoStop, autoStartedAt, autoCheckAt, autoSteerSign = 1f;
     int autoStuck;
-    bool brakeOnArrival;
+    bool brakeOnArrival, workApproach;
     float autoSpeedLimit;
     Vector3 autoLastPos;
     System.Action autoArrive;
+    const float WorkApproachSpeed = 2.35f;
     static readonly RaycastHit[] castBuf = new RaycastHit[10];
     static readonly float[] steerAngles = { 0f, 35f, -35f, 70f, -70f, 105f, -105f };
 
@@ -58,13 +59,20 @@ public class PlayerMovement : MonoBehaviour
         => WalkTo(target, stopDistance, onArrive, false);
 
     internal void WalkTo(Transform target, float stopDistance, System.Action onArrive, bool softArrival)
+        => BeginWalk(target, stopDistance, onArrive, softArrival, false);
+
+    // The construction system already checked the short straight path and the standing footprint.
+    internal void WalkToBuildSpot(Transform target) => BeginWalk(target, .02f, null, true, true);
+
+    void BeginWalk(Transform target, float stopDistance, System.Action onArrive, bool softArrival, bool toWorkSpot)
     {
         if (target == null) { CancelWalk(); return; }
         autoTarget = target;
-        autoStop = Mathf.Max(0.3f, stopDistance);
+        autoStop = toWorkSpot ? stopDistance : Mathf.Max(0.3f, stopDistance);
         autoArrive = onArrive;
         brakeOnArrival = softArrival;
-        autoSpeedLimit = float.PositiveInfinity;
+        workApproach = toWorkSpot;
+        autoSpeedLimit = toWorkSpot ? WorkApproachSpeed : float.PositiveInfinity;
         autoStartedAt = Time.time;
         autoCheckAt = Time.time + 0.5f;
         autoLastPos = transform.position;
@@ -77,6 +85,16 @@ public class PlayerMovement : MonoBehaviour
         AutoWalking = false;
         autoTarget = null;
         autoArrive = null;
+        workApproach = false;
+    }
+
+    internal bool IsWalkingTo(Transform target) => AutoWalking && autoTarget == target;
+
+    internal void CancelWalkTo(Transform target)
+    {
+        if (!IsWalkingTo(target)) return;
+        CancelWalk();
+        moveDirection = Vector3.zero;
     }
 
     // true = идём, dir = мировое направление. false = дошли / сдались (ход уже сброшен)
@@ -88,7 +106,8 @@ public class PlayerMovement : MonoBehaviour
         float dist = to.magnitude;
 
         float remaining = dist - autoStop;
-        if (remaining <= (brakeOnArrival ? .016f : 0f))
+        float arrivalSlack = workApproach ? .008f : brakeOnArrival ? .016f : 0f;
+        if (remaining <= arrivalSlack)
         {
             var cb = autoArrive;
             CancelWalk();
@@ -105,8 +124,9 @@ public class PlayerMovement : MonoBehaviour
             {
                 if (++autoStuck >= 3)
                 {
+                    bool showTreeHint = !workApproach;
                     CancelWalk();
-                    SaveIndicator.ShowToast("Не пройти к дереву");
+                    if (showTreeHint) SaveIndicator.ShowToast("Не пройти к дереву");
                     return false;
                 }
             }
@@ -115,8 +135,11 @@ public class PlayerMovement : MonoBehaviour
         }
 
         if (brakeOnArrival)
-            autoSpeedLimit = Mathf.Max(.42f, Mathf.Sqrt(2f * 11f * remaining));
-        dir = Steer(to / dist);
+        {
+            autoSpeedLimit = Mathf.Max(workApproach ? .36f : .42f, Mathf.Sqrt(2f * 11f * remaining));
+            if (workApproach) autoSpeedLimit = Mathf.Min(WorkApproachSpeed, autoSpeedLimit);
+        }
+        dir = workApproach ? to / dist : Steer(to / dist);
         return true;
     }
 
@@ -180,6 +203,8 @@ public class PlayerMovement : MonoBehaviour
         SaveSystem.Loaded -= ClearDash;
         SaveSystem.NewGameStarted -= ClearDash;
         CancelWalk(); // a disabled controller must not resume an obsolete automatic walk
+        moveDirection = Vector3.zero;
+        dashUntil = 0f;
     }
 
     // навык сбросили: рывок и перезарядка пропадают сразу (смена уровня их не трогает)
@@ -241,7 +266,7 @@ public class PlayerMovement : MonoBehaviour
     // Один контролируемый разворот для перемещения, рубки и диалогов.
     // Используем экспоненциальное сглаживание с верхним угловым пределом:
     // на 30 и 144 FPS ощущение практически одинаковое.
-    void FaceDirection(Vector3 direction, float maxDegrees)
+    internal void FaceDirection(Vector3 direction, float maxDegrees)
     {
         if (model == null || direction.sqrMagnitude < .0001f) return;
         direction.y = 0f;
@@ -259,11 +284,14 @@ public class PlayerMovement : MonoBehaviour
         float moveX = MobileInput.Horizontal;
         float moveZ = MobileInput.Vertical;
 
-        Vector3 input = new Vector3(moveX, 0, moveZ).normalized;
+        Vector3 input = Vector3.ClampMagnitude(new Vector3(moveX, 0, moveZ), 1f);
 
         // разговор идёт: стоим на месте и смотрим на собеседника
         bool inspecting = StoryInspection.Active;
         bool frozen = DialogueSequence.FreezesPlayer || inspecting;
+        bool modal = MobileInput.ModalOpen;
+        bool swimming = WaterSwim.Swimming;
+        bool celebrating = LeoCelebration.IsPlaying;
         if (frozen)
         {
             input = Vector3.zero;
@@ -279,7 +307,7 @@ public class PlayerMovement : MonoBehaviour
 
         // Stage 4.3: while Leo celebrates, accidental WASD/dash does not skip the pose.
         // ControlLocked is deliberately NOT used here: it belongs to fall/respawn safety.
-        if (LeoCelebration.IsPlaying)
+        if (celebrating)
         {
             input = Vector3.zero;
             if (AutoWalking) CancelWalk();
@@ -309,7 +337,8 @@ public class PlayerMovement : MonoBehaviour
         // автоход к дереву: ручной ввод, разговор и рубка его прерывают
         if (AutoWalking)
         {
-            if (frozen || chopping || input != Vector3.zero || autoTarget == null || !autoTarget.gameObject.activeInHierarchy)
+            if (frozen || modal || swimming || chopping || input != Vector3.zero ||
+                autoTarget == null || !autoTarget.gameObject.activeInHierarchy)
                 CancelWalk();
             else
             {
@@ -319,7 +348,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        if (inspecting && !ControlLocked && !LeoCelebration.IsPlaying)
+        if (inspecting && !ControlLocked && !celebrating)
             input = Quaternion.Euler(0f, -cameraYaw, 0f) * StoryInspection.WalkDirection;
 
         bool isMoving = input != Vector3.zero;
@@ -335,8 +364,9 @@ public class PlayerMovement : MonoBehaviour
             moveDirection = Vector3.zero;
         }
 
-        // рывок: не во время разговора и рубки
-        if (!frozen && !chopping && !ControlLocked && HasDash && !SaveSystem.IsLoading && MobileInput.DashDown)
+        bool dashBlocked = frozen || modal || swimming || celebrating || chopping || ControlLocked || SaveSystem.IsLoading;
+        if (dashBlocked) dashUntil = 0f;
+        else if (HasDash && MobileInput.DashDown)
             TryDash(isMoving);
 
         if (animator != null)
@@ -385,8 +415,9 @@ public class PlayerMovement : MonoBehaviour
             targetSpeed = Mathf.Min(targetSpeed, autoSpeedLimit);
         Vector3 targetVel = dir * targetSpeed;
 
-        // плавный разгон и торможение вместо мгновенного старта (в рывке разгон резкий)
-        horizontal = Vector3.MoveTowards(horizontal, targetVel, acceleration * (dashing ? 4f : 1f) * Time.fixedDeltaTime);
+        // Release input and settle the stance a little faster than the normal take-off.
+        float response = dashing ? 4f : dir == Vector3.zero ? 1.45f : 1f;
+        horizontal = Vector3.MoveTowards(horizontal, targetVel, acceleration * response * Time.fixedDeltaTime);
 
         rb.linearVelocity = new Vector3(horizontal.x, v.y, horizontal.z);
     }

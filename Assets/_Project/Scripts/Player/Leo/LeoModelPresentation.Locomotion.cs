@@ -89,10 +89,10 @@ public sealed partial class LeoModelPresentation
         rig.Rotate(rig.backpack, new Vector3(.9f * swing * moveWeight, 0f, -1.5f * sway * moveWeight));
 
         BraceForChop();
-        ApplyWorkBody();
+        if (work.Weight > .001f) work.ApplyBody(rig, transform);
         cheer.ApplyBody(rig, carry);
         float release = Mathf.Max(Mathf.Abs(turn), Mathf.Abs(turnWeight));
-        float brace = Mathf.Max(chopWeight, workWeight * .66f) * (1f - moveWeight);
+        float brace = Mathf.Max(chopWeight, work.Weight * .66f) * (1f - moveWeight);
         feet.Apply(gait, cycle, moveWeight, jogWeight, release, brace, probeGround, probeGround, ~0, dt, cheer);
     }
 }

@@ -57,7 +57,7 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
         SaveSystem.Loaded -= OnLoaded;
         SaveSystem.NewGameStarted -= OnLoaded;
         ResetChopPose();
-        ResetWorkPose();
+        work.Reset();
         airWater.Reset();
         if (rig == null || !rig.HasRest) return;
         rig.ResetPose();
@@ -71,7 +71,7 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
         if (player != null) previousPosition = player.transform.position;
         ResetLocomotion();
         ResetChopPose();
-        ResetWorkPose();
+        work.Reset();
         airWater.Reset();
         holster = autoSheatheDelay > 0f ? 1f : 0f;
         lastToolUse = -100f;
@@ -92,7 +92,8 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
             travel = delta.magnitude;
         }
         bool inspecting = StoryInspection.UsesLegacyPose(this);
-        bool chopping = interaction != null && interaction.IsChopping && !inspecting;
+        bool building = BuildWorkPose.HasWork(player);
+        bool chopping = interaction != null && interaction.IsChopping && !inspecting && !BuildWorkPose.MovementLocked;
         bool conversation = DialogueSequence.FreezesPlayer;
         bool talking = conversation || (speaker != null && speaker.IsSpeaking);
         bool blocked = SaveSystem.IsLoading || BuildingController.AnyRevealing || BuildingController.AnyRestorePending ||
@@ -100,15 +101,24 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
         float carry = backpack != null && backpack.Capacity > 0 ? Mathf.Clamp01((float)backpack.Carried / backpack.Capacity) : 0f;
 
         LeoAirWaterMotion.Frame motion = airWater.Read(player, dt);
-        ReadChopPose(now, dt, chopping, blocked || conversation || motion.InMotion || WaterSwim.Swimming);
+        ReadChopPose(now, dt, chopping, blocked || conversation || motion.InMotion || WaterSwim.Swimming ||
+            building && BuildWorkPose.MovementLocked);
         bool canPlaceFeet = player != null && !blocked && !motion.InMotion && !WaterSwim.Swimming;
-        if (motion.InMotion || inspecting) ResetWorkPose();
-        else ReadWorkPose(travel / Mathf.Max(.001f, frameTime), dt, canPlaceFeet && !talking, chopping || chopWeight > .02f);
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
+        if (chopping || chopWeight > .02f) lastToolUse = now;
+        bool idleSheathe = autoSheatheDelay > 0f && now - lastToolUse > autoSheatheDelay;
+        bool sheath = blocked || motion.StowTool || inspecting ||
+            (!chopping && (talking || building || work.Weight > .001f || idleSheathe));
+        float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
+        holster = Mathf.MoveTowards(holster, wantedHolster, dt * (chopping || motion.InMotion ? 8f : 5.5f));
+        if (chopHitFrame == Time.frameCount && !sheath) holster = 0f;
+        if (motion.InMotion || inspecting) work.Reset();
+        else work.Read(player, rig, travel / Mathf.Max(.001f, frameTime), dt, holster,
+            canPlaceFeet && !conversation && !chopping && chopWeight < .02f, debugWork);
 
         rig.ResetPose();
         rig.EquipHammer(false);
-        if (basicLocomotion || workWeight > .001f || rig.Celebration.Age >= 0f)
+        if (basicLocomotion || work.Weight > .001f || rig.Celebration.Age >= 0f)
         {
             ApplyLocomotion(travel, frameTime, now, carry,
                 basicLocomotion && canPlaceFeet && !chopping && !conversation, canPlaceFeet, cheer);
@@ -128,23 +138,14 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
             rig.Rotate(rig.head, new Vector3(Mathf.Sin(now * 4f) * voice * 1.5f, 0f, 0f));
             rig.Rotate(rig.jaw, new Vector3(Mathf.Abs(Mathf.Sin(now * 9f)) * voice * 3f, 0f, 0f));
         }
-        // Топор в руке нужен только пока рубим. Раньше он убирался лишь когда Лео уже стоял у стены
-        // (workRequested), а пока шёл к месту стройки топор так и торчал из руки: поэтому «летал».
-        if (chopping || chopWeight > .02f) lastToolUse = now;
-        bool idleSheathe = autoSheatheDelay > 0f && now - lastToolUse > autoSheatheDelay;
-        bool sheath = blocked || motion.StowTool || inspecting ||
-            (!chopping && (talking || workRequested || workStow || workWeight > .001f || idleSheathe));
-        float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
-        holster = Mathf.MoveTowards(holster, wantedHolster, dt * (chopping || motion.InMotion ? 8f : 5.5f));
-        if (chopHitFrame == Time.frameCount && !sheath) holster = 0f;
         motion.Apply(rig, holster);
-        if (workWeight > .001f)
+        PlaceChopTools();
+        if (work.Weight > .001f)
         {
-            PlaceWorkHammer();
+            work.PlaceHammer(rig, transform, player);
         }
         else
         {
-            PlaceChopTools();
             rig.PlaceHammer();
             cheer.ApplyHands(rig, holster);
         }
