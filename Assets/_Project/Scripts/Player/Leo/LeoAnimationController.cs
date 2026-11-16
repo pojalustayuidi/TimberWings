@@ -61,6 +61,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         impact.Clear();legacy.Clear();phase=.25f;move=run=speedSmooth=actionWeight=holster=turn=talk=posePhase=cancelPhase=0;loadPitch=loadRoll=loadPitchVel=loadRollVel=adjustWeight=fullWeight=0;adjustStart=-10;lastCarried=-1;pendingAdjust=false;previousVelocity=smoothAcceleration=Vector3.zero;hitFrame=-1;target=null;contactPoint=null;wasChopping=cancelling=false;
         previousPosition=transform.position;previousRotation=transform.rotation;nextBlink=Time.time+3;blinkAt=-10;feet?.Reset();CurrentState="Idle";
         holster=autoSheatheDelay>0f?1f:0f;lastToolUse=-100f;
+        ResetWork();
         airWater.Reset();
         if(rig!=null&&rig.HasRest)rig.ResetPose();if(axeTrail!=null){axeTrail.emitting=false;axeTrail.Clear();}trailWasOn=false;
     }
@@ -158,13 +159,16 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         turn=Mathf.Lerp(turn,Mathf.Clamp(yaw/Mathf.Max(.001f,dt)/180f,-1,1),k);
         // Стройка (в том числе подход к стене) и простой: топор уходит на пояс, а не торчит из руки.
         bool building=BuildWorkPose.TryGetFocus(player,out _);
+        if(inspecting||motion.InMotion)ResetWork();
+        else ReadWork(speed,dt,building,!blocked&&!conversation&&!StoryInspection.Active,chopping||actionWeight>.02f);
         if(chopping||actionWeight>.02f)lastToolUse=now;
         bool idleSheathe=autoSheatheDelay>0f&&!chopping&&now-lastToolUse>autoSheatheDelay;
-        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active||building||idleSheathe;
+        bool sheath=conversation||blocked||motion.StowTool||StoryInspection.Active||building||workWeight>.001f||idleSheathe;
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
         float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
+        // На стройке топор уходит на пояс с той же скоростью, что в радости.
         float holsterRate = chopping || motion.InMotion ? 8f :
-            rig.Celebration.Age >= 0f ? 5.5f : 1f / Mathf.Max(.1f, book.holsterSeconds);
+            rig.Celebration.Age >= 0f || building || workWeight > .001f ? 5.5f : 1f / Mathf.Max(.1f, book.holsterSeconds);
         if (!sheath || actionWeight < .05f)
             holster = Mathf.MoveTowards(holster, wantedHolster, dt * holsterRate);
         if (!sheath && hitFrame == Time.frameCount) holster = 0f;
@@ -181,6 +185,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         }
         var frame=new PoseFrame{time=now,phase=phase,move=move,run=run,carry=carry,carried=backpack!=null?backpack.Carried:0,capacity=backpack!=null?backpack.Capacity:21,action=actionWeight*(1-LeoMotionProfile.Smooth(holster)),actionPhase=actionPhase,holster=holster,turn=turn,talk=talk,eye=eye,dash=player!=null&&player.IsDashing?1:0,quality=quality,loadPitch=loadPitch+tug*adjustWeight,loadRoll=loadRoll,adjust=adjustWeight,full=fullWeight};
         frame.bark = contactPoint;
+        frame.work = workWeight;frame.workPhase = CurrentWorkPhase;frame.workHeavy = WorkHeavy;
         frame.cheer = cheer;
         frame.motion = motion;
         if (inspecting && !motion.InMotion) frame.inspection = inspectionPose;

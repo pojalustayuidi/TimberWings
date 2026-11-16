@@ -37,6 +37,7 @@ public class BuildWorkPose : MonoBehaviour
     PlayerMovement movement;
     bool on, leoActive;
     LeoModelPresentation presentation;   // кэш: раньше LateUpdate искал компонент каждый кадр
+    LeoAnimationController controller;   // новый риг: установщик отключает старый LeoModelPresentation
 
     BuildingController site;
     BuildWorkSpot spot;
@@ -151,7 +152,10 @@ public class BuildWorkPose : MonoBehaviour
         movement = GetComponent<PlayerMovement>();
         interaction = pi;
         presentation = GetComponentInChildren<LeoModelPresentation>();
-        leoActive = presentation != null && presentation.isActiveAndEnabled;
+        controller = GetComponentInChildren<LeoAnimationController>();
+        // Молотком бьёт тот из двух компонентов, который сейчас ведёт позу Лео.
+        leoActive = (presentation != null && presentation.isActiveAndEnabled) ||
+                    (controller != null && controller.isActiveAndEnabled);
         focus = f;
         site = s;
         lastSite = null;
@@ -323,11 +327,18 @@ public class BuildWorkPose : MonoBehaviour
         if (elapsed > 2.1f) { nodStartedAt = -100f; return; }
         float k = Mathf.Clamp01((elapsed - .8f) / .95f);
         if (k <= 0f || k >= 1f) return;
+        LeoRig leoRig = null;
         var leo = presentation != null ? presentation : (presentation = GetComponentInChildren<LeoModelPresentation>());
-        if (leo == null || !leo.isActiveAndEnabled || leo.rig == null) return;
+        if (leo != null && leo.isActiveAndEnabled) leoRig = leo.rig;
+        if (leoRig == null)
+        {
+            if (controller == null) controller = GetComponentInChildren<LeoAnimationController>();
+            if (controller != null && controller.isActiveAndEnabled) leoRig = controller.rig;
+        }
+        if (leoRig == null) return;
         float bow = Mathf.Sin(k * Mathf.PI);
-        leo.rig.Rotate(leo.rig.head, new Vector3(7f * bow, 0f, 0f));
-        leo.rig.Rotate(leo.rig.chest, new Vector3(2f * bow, 0f, 0f));
+        leoRig.Rotate(leoRig.head, new Vector3(7f * bow, 0f, 0f));
+        leoRig.Rotate(leoRig.chest, new Vector3(2f * bow, 0f, 0f));
     }
 
     void OnDisable()

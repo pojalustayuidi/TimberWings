@@ -36,7 +36,12 @@ public sealed class LeoRig : MonoBehaviour
     [SerializeField,HideInInspector]Transform[] joints;
     [SerializeField,HideInInspector]Vector3[] positions,scales;
     [SerializeField,HideInInspector]Quaternion[] rotations;
+    [Header("Пропорции ног")]
+    [Tooltip("1 = ноги как в исходной модели Лео. Раньше принудительно удлинялись (бедро x1.14, голень x1.075): ноги длинные, торс сжат. Меньше = ноги короче. Применяется в PrepareAnimationRest, в том числе к уже запечённому префабу.")]
+    [Range(.8f, 1.2f)] public float legLength = 1f;
     [SerializeField, HideInInspector] bool legProportionsApplied;
+    [SerializeField, HideInInspector] float legScaleApplied;   // 0 = префаб запечён старым удлинением 1.14/1.075
+    [SerializeField, HideInInspector] bool legSlimApplied;
     float[] cargoReveal;
     Transform hammerHolster;
     bool hammerEquipped;
@@ -159,54 +164,94 @@ public sealed class LeoRig : MonoBehaviour
 
     // Existing instances can keep their prefab and joints. Change the rest
     // pose before the locomotion solver measures the legs and the soles.
+    //
+    // Раньше ноги всегда удлинялись (бедро x1.14, голень x1.075, таз выше, позвоночник «приколот»),
+    // а LeoModelBuilder запекал это в префаб. Из-за этого Лео выглядел долгоногим с сжатым торсом
+    // (таз на 42% роста вместо 38%). Теперь длина задаётся параметром legLength, а перенастройка
+    // относительная: она работает и для запечённого префаба, и для свежего. Точки опоры стоп и высота
+    // хвата сохраняются (их проверяют LeoRigTests).
     public void PrepareAnimationRest()
     {
         if (!HasRest) CaptureRest();
         ResetPose();
-        if (legProportionsApplied || hips == null || spine == null ||
+        if (hips == null || spine == null ||
             hipL == null || kneeL == null || ankleL == null ||
             hipR == null || kneeR == null || ankleR == null) return;
 
+        // Текущее состояние ног: 1/1/без «худых» множителей = исходная модель.
+        float curThigh = 1f, curShin = 1f;
+        bool curSlim = false;
+        if (legProportionsApplied)
+        {
+            if (legScaleApplied > 0f) { curThigh = curShin = legScaleApplied; curSlim = legSlimApplied; }
+            else { curThigh = 1.14f; curShin = 1.075f; curSlim = true; }   // префаб запечён старым удлинением
+        }
+        float wantLeg = Mathf.Clamp(legLength, .8f, 1.2f);
+        const bool wantSlim = false;
+        if (Mathf.Approximately(curThigh, wantLeg) && Mathf.Approximately(curShin, wantLeg) && curSlim == wantSlim)
+        {
+            legProportionsApplied = true;
+            legScaleApplied = wantLeg;
+            legSlimApplied = wantSlim;
+            return;
+        }
+
+        Vector3 hipRatio = Ratio(LegSize(wantLeg, wantSlim, 1.035f, 1.025f), LegSize(curThigh, curSlim, 1.035f, 1.025f));
+        Vector3 kneeRatio = Ratio(LegSize(wantLeg, wantSlim, 1.075f, 1.025f), LegSize(curShin, curSlim, 1.075f, 1.025f));
+        Vector3 bootRatio = Ratio(wantSlim ? new Vector3(.92f, 1f, .94f) : Vector3.one,
+                                  curSlim ? new Vector3(.92f, 1f, .94f) : Vector3.one);
+        float thighRatio = wantLeg / curThigh, shinRatio = wantLeg / curShin;
+
         Vector3 chestAnchor = spine.position;
-        Vector3 leftRise = LengthenLeg(hipL, kneeL, ankleL, toeL);
-        Vector3 rightRise = LengthenLeg(hipR, kneeR, ankleR, toeR);
+        Vector3 leftRise = RetuneLeg(hipL, kneeL, ankleL, toeL, hipRatio, kneeRatio, bootRatio, thighRatio, shinRatio);
+        Vector3 rightRise = RetuneLeg(hipR, kneeR, ankleR, toeR, hipRatio, kneeRatio, bootRatio, thighRatio, shinRatio);
         Vector3 rise = (leftRise + rightRise) * .5f;
         hips.position += rise;
         hipL.position += leftRise - rise;
         hipR.position += rightRise - rise;
         spine.position = chestAnchor;
 
-        ShortenHem(hemFrontL);
-        ShortenHem(hemFrontR);
-        ShortenHem(hemBackL);
-        ShortenHem(hemBackR);
+        if (curSlim != wantSlim)
+        {
+            float hem = wantSlim ? .58f : 1f / .58f;
+            ScaleHem(hemFrontL, hem);
+            ScaleHem(hemFrontR, hem);
+            ScaleHem(hemBackL, hem);
+            ScaleHem(hemBackR, hem);
+        }
         CaptureRest();
         legProportionsApplied = true;
+        legScaleApplied = wantLeg;
+        legSlimApplied = wantSlim;
     }
 
-    static Vector3 LengthenLeg(Transform hip, Transform knee, Transform ankle, Transform toe)
+    static Vector3 LegSize(float length, bool slim, float x, float z) =>
+        slim ? new Vector3(x, length, z) : new Vector3(1f, length, 1f);
+
+    static Vector3 Ratio(Vector3 want, Vector3 current) =>
+        new Vector3(want.x / current.x, want.y / current.y, want.z / current.z);
+
+    static Vector3 RetuneLeg(Transform hip, Transform knee, Transform ankle, Transform toe,
+        Vector3 hipRatio, Vector3 kneeRatio, Vector3 bootRatio, float thighRatio, float shinRatio)
     {
         Vector3 footAnchor = ankle.position;
-        const float thighLength = 1.14f, shinLength = 1.075f;
-        ScaleGeometry(hip, new Vector3(1.035f, thighLength, 1.025f));
-        ScaleGeometry(knee, new Vector3(1.075f, shinLength, 1.025f));
-        knee.localPosition = Vector3.Scale(knee.localPosition, new Vector3(1f, thighLength, 1f));
-        ankle.localPosition = Vector3.Scale(ankle.localPosition, new Vector3(1f, shinLength, 1f));
-
-        var boot = new Vector3(.92f, 1f, .94f);
-        ScaleGeometry(ankle, boot);
+        ScaleGeometry(hip, hipRatio);
+        ScaleGeometry(knee, kneeRatio);
+        knee.localPosition = Vector3.Scale(knee.localPosition, new Vector3(1f, thighRatio, 1f));
+        ankle.localPosition = Vector3.Scale(ankle.localPosition, new Vector3(1f, shinRatio, 1f));
+        ScaleGeometry(ankle, bootRatio);
         if (toe != null)
         {
-            ScaleGeometry(toe, boot);
-            toe.localPosition = Vector3.Scale(toe.localPosition, boot);
+            ScaleGeometry(toe, bootRatio);
+            toe.localPosition = Vector3.Scale(toe.localPosition, bootRatio);
         }
         return footAnchor - ankle.position;
     }
 
-    static void ShortenHem(Transform hem)
+    static void ScaleHem(Transform hem, float factor)
     {
         if (hem != null)
-            hem.localScale = Vector3.Scale(hem.localScale, new Vector3(1f, .58f, 1f));
+            hem.localScale = Vector3.Scale(hem.localScale, new Vector3(1f, factor, 1f));
     }
 
     static void ScaleGeometry(Transform joint, Vector3 size)
