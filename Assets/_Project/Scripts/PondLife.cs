@@ -21,6 +21,7 @@ public class PondLife : MonoBehaviour
     [Header("Рыбки")]
     public Transform[] fish;
     public float fishDepth = 0.17f;                                  // на сколько рыбка ниже глади
+    public bool useAuthoredFishDepth;
     public Vector2 fishSpeed = new Vector2(0.45f, 1.0f);             // м/с, min..max
     public Vector2 jumpInterval = new Vector2(7f, 16f);              // как часто кто-то выпрыгивает
     public float jumpHeight = 0.75f;                                 // высота над водой
@@ -64,7 +65,7 @@ public class PondLife : MonoBehaviour
     {
         public Transform t;
         public Vector2 pos, target;                 // локальные X, Z
-        public float heading, speed, turn, retarget, bobPhase, roll, turnRate, fleeT;
+        public float heading, speed, turn, retarget, bobPhase, roll, turnRate, fleeT, depth;
         public float jumpT = -1f, jumpDur;
         public bool splashIn, splashOut;
         public bool attract;
@@ -90,19 +91,22 @@ public class PondLife : MonoBehaviour
         if (shoreR == null || shoreR.Length < 8) { enabled = false; return; }
 
         // рыбки
-        int n = fish != null ? fish.Length : 0;
-        fs = new FishState[n];
+        var swimmers = new System.Collections.Generic.List<FishState>();
         var mpb = new MaterialPropertyBlock();
-        for (int i = 0; i < n; i++)
+        foreach (Transform swimmer in fish ?? System.Array.Empty<Transform>())
         {
-            var f = new FishState();
-            f.t = fish[i];
-            Vector3 lp = f.t.localPosition;
-            f.pos = new Vector2(lp.x, lp.z);
-            f.heading = f.t.localEulerAngles.y;
-            f.bobPhase = Random.value * 6.2832f;
+            if (swimmer == null || !swimmer.gameObject.activeSelf) continue;
+            Vector3 lp = transform.InverseTransformPoint(swimmer.position);
+            var f = new FishState
+            {
+                t = swimmer,
+                pos = ConstrainFish(new Vector2(lp.x, lp.z)),
+                heading = (Quaternion.Inverse(transform.rotation) * swimmer.rotation).eulerAngles.y,
+                bobPhase = Random.value * 6.2832f,
+                depth = useAuthoredFishDepth ? Mathf.Clamp(waterY - lp.y, 0.12f, 0.42f) : fishDepth
+            };
             PickTarget(f);
-            fs[i] = f;
+            swimmers.Add(f);
 
             var r = f.t.GetComponent<Renderer>();
             if (r != null)
@@ -114,11 +118,14 @@ public class PondLife : MonoBehaviour
             }
         }
 
+        fs = swimmers.ToArray();
+
         // кувшинки
         int pc = pads != null ? pads.Length : 0;
         padBase = new Vector3[pc]; padPhase = new float[pc]; padYaw = new float[pc];
         for (int i = 0; i < pc; i++)
         {
+            if (pads[i] == null) continue;
             padBase[i] = pads[i].localPosition;
             padYaw[i] = pads[i].localEulerAngles.y;
             padPhase[i] = Random.value * 6.2832f;
@@ -182,24 +189,35 @@ public class PondLife : MonoBehaviour
     /// <summary>Ставит тонкий цилиндр (меш по оси Z, длина 1, центр в нуле) между двумя точками. Использует и PondBuilder.</summary>
     public static void PlaceLine(Transform lineTr, Vector3 a, Vector3 b, float thickness)
     {
+        var space = lineTr.parent;
+        if (space != null)
+        {
+            a = space.InverseTransformPoint(a);
+            b = space.InverseTransformPoint(b);
+        }
         Vector3 d = b - a;
         float len = d.magnitude;
         if (len < 0.001f) return;
-        lineTr.position = (a + b) * 0.5f;
-        lineTr.rotation = Quaternion.LookRotation(d / len);
+        lineTr.localPosition = (a + b) * 0.5f;
+        lineTr.localRotation = Quaternion.LookRotation(d / len);
         lineTr.localScale = new Vector3(thickness, thickness, len);
     }
 
     // ------------------------------------------------------------------ контур пруда
-    float ShoreAt(float theta)
+    const float FishLimit = 0.76f;
+
+    float ShoreAt(float theta) => WaterVolume.PondRadius(shoreR, theta);
+
+    Vector2 ConstrainFish(Vector2 position)
     {
-        int n = shoreR.Length;
-        float u = theta / (Mathf.PI * 2f);
-        u -= Mathf.Floor(u);
-        float x = u * n;
-        int a = Mathf.Min((int)x, n - 1);
-        int b = (a + 1) % n;
-        return Mathf.Lerp(shoreR[a], shoreR[b], x - a);
+        float radius = ShoreAt(Mathf.Atan2(position.y, position.x)) * FishLimit;
+        return Vector2.ClampMagnitude(position, radius);
+    }
+
+    Vector2 BobberInPond()
+    {
+        Vector3 local = transform.InverseTransformPoint(bobber.position);
+        return new Vector2(local.x, local.z);
     }
 
     bool Inside(Vector2 p, float margin)
@@ -255,7 +273,7 @@ public class PondLife : MonoBehaviour
         if (fireflies != null)
         {
             var em = fireflies.emission;
-            em.rateOverTime = fireflyRate * Mathf.Lerp(0.25f, 1f, g);
+            em.rateOverTime = fireflyRate * g * g;
         }
     }
 
@@ -305,8 +323,8 @@ public class PondLife : MonoBehaviour
                 if (m < 0.55f && m > 0.0001f)
                 {
                     Vector2 push = d / m * ((0.55f - m) * 0.5f);
-                    fs[i].pos += push;
-                    fs[j].pos -= push;
+                    fs[i].pos = ConstrainFish(fs[i].pos + push);
+                    fs[j].pos = ConstrainFish(fs[j].pos - push);
                 }
             }
 
@@ -315,11 +333,10 @@ public class PondLife : MonoBehaviour
 
     void PickTarget(FishState f)
     {
-        Vector2 p = RandomInPond(0.78f);
-        for (int k = 0; k < 8; k++)
+        Vector2 p = RandomInPond(0.7f);
+        for (int k = 0; k < 6 && (p - f.pos).sqrMagnitude <= 2f; k++)
         {
-            p = RandomInPond(0.78f);
-            if ((p - f.pos).sqrMagnitude > 2.0f) break;
+            p = RandomInPond(0.7f);
         }
         f.target = p;
         f.speed = Random.Range(fishSpeed.x, fishSpeed.y);
@@ -334,10 +351,10 @@ public class PondLife : MonoBehaviour
         {
             f.jumpT += dt / f.jumpDur;
             float h = f.heading * Mathf.Deg2Rad;
-            f.pos += new Vector2(Mathf.Sin(h), Mathf.Cos(h)) * (1.5f * dt);
+            f.pos = ConstrainFish(f.pos + new Vector2(Mathf.Sin(h), Mathf.Cos(h)) * (1.45f * dt));
 
             float u = Mathf.Clamp01(f.jumpT);
-            float y = waterY - fishDepth + (fishDepth + jumpHeight) * Mathf.Sin(Mathf.PI * u);
+            float y = waterY - f.depth + (f.depth + jumpHeight) * Mathf.Sin(Mathf.PI * u);
             if (!f.splashIn && y > waterY) { f.splashIn = true; Splash(f.pos, 0.9f); }
             if (f.splashIn && !f.splashOut && u > 0.5f && y < waterY) { f.splashOut = true; Splash(f.pos, 1f); }
             if (f.jumpT >= 1f) { f.jumpT = -1f; PickTarget(f); }
@@ -352,7 +369,7 @@ public class PondLife : MonoBehaviour
         if (f.attract)
         {
             f.attractT += dt;
-            Vector2 bp = new Vector2(bobberBase.x, bobberBase.z);
+            Vector2 bp = BobberInPond();
             f.target = bp;
             to = bp - f.pos;
             dist = to.magnitude;
@@ -380,7 +397,7 @@ public class PondLife : MonoBehaviour
         float sp = f.speed * (f.fleeT > 0f ? 2.2f : 1f) * Mathf.Clamp01(dist * 0.8f + 0.35f);
         float hr = f.heading * Mathf.Deg2Rad;
         Vector2 np = f.pos + new Vector2(Mathf.Sin(hr), Mathf.Cos(hr)) * (sp * dt);
-        if (f.attract || Inside(np, 0.86f)) f.pos = np;
+        if (Inside(np, FishLimit)) f.pos = np;
         else { f.target = RandomInPond(0.45f); f.retarget = Random.Range(2f, 4f); }
     }
 
@@ -389,16 +406,20 @@ public class PondLife : MonoBehaviour
         if (f.jumpT >= 0f)
         {
             float u = Mathf.Clamp01(f.jumpT);
-            float y = waterY - fishDepth + (fishDepth + jumpHeight) * Mathf.Sin(Mathf.PI * u);
+            float y = waterY - f.depth + (f.depth + jumpHeight) * Mathf.Sin(Mathf.PI * u);
             float pitch = -Mathf.Cos(Mathf.PI * u) * 55f;                // нос вверх при взлёте, вниз при падении
-            f.t.localPosition = new Vector3(f.pos.x, y, f.pos.y);
-            f.t.localRotation = Quaternion.Euler(pitch, f.heading, 0f);
+            PoseFish(f, y, pitch, 0f);
             return;
         }
         float bob = Mathf.Sin(time * 1.3f + f.bobPhase) * 0.03f;
         f.roll = Mathf.Lerp(f.roll, Mathf.Clamp(-f.turnRate * 0.12f, -25f, 25f), 0.15f);
-        f.t.localPosition = new Vector3(f.pos.x, waterY - fishDepth + bob, f.pos.y);
-        f.t.localRotation = Quaternion.Euler(0f, f.heading, f.roll);
+        PoseFish(f, waterY - f.depth + bob, 0f, f.roll);
+    }
+
+    void PoseFish(FishState f, float y, float pitch, float roll)
+    {
+        f.t.SetPositionAndRotation(transform.TransformPoint(new Vector3(f.pos.x, y, f.pos.y)),
+            transform.rotation * Quaternion.Euler(pitch, f.heading, roll));
     }
 
     void StartJump()
@@ -409,7 +430,7 @@ public class PondLife : MonoBehaviour
             if (f.jumpT >= 0f || f.attract) continue;
             float h = f.heading * Mathf.Deg2Rad;
             Vector2 ahead = f.pos + new Vector2(Mathf.Sin(h), Mathf.Cos(h)) * 1.6f;
-            if (!Inside(ahead, 0.8f)) continue;                          // не прыгаем в берег
+            if (!Inside(ahead, FishLimit)) continue;                          // не прыгаем в берег
             f.jumpT = 0f;
             f.jumpDur = Random.Range(0.85f, 1.1f);
             f.splashIn = f.splashOut = false;
@@ -454,14 +475,14 @@ public class PondLife : MonoBehaviour
             {
                 FishState best = null;
                 float bd = float.MaxValue;
-                Vector2 bp = new Vector2(bobberBase.x, bobberBase.z);
+                Vector2 bp = BobberInPond();
                 for (int i = 0; i < fs.Length; i++)
                 {
                     if (fs[i].jumpT >= 0f) continue;
                     float d = (fs[i].pos - bp).sqrMagnitude;
                     if (d < bd) { bd = d; best = fs[i]; }
                 }
-                if (best != null) { best.attract = true; best.attractT = 0f; }
+                if (best != null && Inside(bp, FishLimit)) { best.attract = true; best.attractT = 0f; }
                 biteTimer = Random.Range(biteInterval.x, biteInterval.y) + 2f;
             }
             else biteTimer = 1f;

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Assets/_Project/Scripts/Location/WaterVolume.cs (НЕ в Editor)
-// Объём воды реки для игры. Сам ничего не рисует и не двигает: даёт ответ «игрок в воде или нет и насколько глубоко».
+// Объём воды реки или пруда для игры. Сам ничего не рисует и не двигает: даёт ответ «игрок в воде или нет и насколько глубоко».
 // Данные пишет Location Builder TESTER (ось русла, уровень воды, дальность берега), см. AddWaterVolume.
 //
 // Как пользоваться из PlayerMovement (плавание и прыжок делаются отдельным шагом):
@@ -22,11 +22,18 @@ public class WaterVolume : MonoBehaviour
         public float surfaceY;     // мировая высота поверхности воды
         public float submersion;   // surfaceY - y точки, м (больше 0 = точка под водой)
         public Vector3 flow;       // единичное направление течения (горизонтальное)
+        public bool isPond;
+        public float drownSeconds;
         public float lateral;      // расстояние от оси русла, м
     }
 
     [SerializeField] Vector3[] pts = new Vector3[0];   // точки вдоль русла в локальных координатах, y = уровень воды
     [SerializeField] float[] reach = new float[0];     // метры от оси русла, дальше воды заведомо нет
+
+    [SerializeField] float[] pondShore;
+    [SerializeField] float pondSurface;
+    [SerializeField] float pondDepth;
+    [SerializeField] float pondDrownSeconds;
 
     [Tooltip("Глубже этого (м) считаем, что герой плывёт")]
     public float swimDepth = 1.0f;
@@ -41,9 +48,28 @@ public class WaterVolume : MonoBehaviour
     public void SetData(Vector3[] points, float[] reaches)
     {
         pts = points; reach = reaches;
+        pondShore = null;
     }
 
-    // ближайший объём воды под точкой; false, если точка вне всех рек
+    public void SetPond(float[] shore, float surface, float depth, float seconds)
+    {
+        pondShore = shore;
+        pondSurface = surface;
+        pondDepth = depth;
+        pondDrownSeconds = seconds;
+        pts = System.Array.Empty<Vector3>();
+        reach = System.Array.Empty<float>();
+    }
+
+    internal static float PondRadius(float[] shore, float angle)
+    {
+        float turns = angle / (2f * Mathf.PI);
+        float index = (turns - Mathf.Floor(turns)) * shore.Length;
+        int a = Mathf.Min((int)index, shore.Length - 1);
+        return Mathf.Lerp(shore[a], shore[(a + 1) % shore.Length], index - a);
+    }
+
+    // Первый объём воды под точкой.
     public static bool TrySample(Vector3 world, out Hit hit)
     {
         for (int i = 0; i < All.Count; i++)
@@ -58,6 +84,8 @@ public class WaterVolume : MonoBehaviour
     public bool Sample(Vector3 world, out Hit hit)
     {
         hit = default(Hit);
+        if (pondShore != null && pondShore.Length >= 8)
+            return SamplePond(world, out hit);
         if (pts == null || reach == null || pts.Length < 2 || reach.Length != pts.Length) return false;
 
         Vector3 p = transform.InverseTransformPoint(world);
@@ -88,6 +116,25 @@ public class WaterVolume : MonoBehaviour
         return true;
     }
 
+    bool SamplePond(Vector3 world, out Hit hit)
+    {
+        hit = default;
+        Vector3 p = transform.InverseTransformPoint(world);
+        if (p.y < pondSurface - pondDepth - 0.5f) return false;
+
+        float radius = PondRadius(pondShore, Mathf.Atan2(p.z, p.x));
+        float lateral = new Vector2(p.x, p.z).sqrMagnitude;
+        if (lateral > radius * radius) return false;
+
+        hit.inside = true;
+        hit.surfaceY = transform.TransformPoint(new Vector3(p.x, pondSurface, p.z)).y;
+        hit.submersion = hit.surfaceY - world.y;
+        hit.lateral = Mathf.Sqrt(lateral);
+        hit.isPond = true;
+        hit.drownSeconds = pondDrownSeconds;
+        return true;
+    }
+
     // Поперечник русла в мировых координатах для карты, если меш воды отсутствует.
     internal bool TryGetMapSection(int index, out Vector3 left, out Vector3 right)
     {
@@ -107,8 +154,22 @@ public class WaterVolume : MonoBehaviour
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
-        if (pts == null || pts.Length < 2) return;
         Gizmos.color = new Color(0.2f, 0.7f, 1f, 0.9f);
+        if (pondShore != null && pondShore.Length >= 8)
+        {
+            Vector3 first = new Vector3(pondShore[0], pondSurface, 0f);
+            Vector3 previous = first;
+            for (int i = 1; i <= pondShore.Length; i++)
+            {
+                float a = 2f * Mathf.PI * i / pondShore.Length;
+                float r = pondShore[i % pondShore.Length];
+                Vector3 next = new Vector3(Mathf.Cos(a) * r, pondSurface, Mathf.Sin(a) * r);
+                Gizmos.DrawLine(transform.TransformPoint(previous), transform.TransformPoint(next));
+                previous = next;
+            }
+            return;
+        }
+        if (pts == null || pts.Length < 2) return;
         for (int i = 0; i < pts.Length - 1; i++)
             Gizmos.DrawLine(transform.TransformPoint(pts[i]), transform.TransformPoint(pts[i + 1]));
     }

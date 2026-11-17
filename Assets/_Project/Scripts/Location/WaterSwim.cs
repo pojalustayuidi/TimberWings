@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // Assets/_Project/Scripts/Location/WaterSwim.cs (НЕ в Editor)
-// Плавание и утопление в реке. Висит на игроке, добавляется сам (PlayerMovement.Start). Без объёма воды (WaterVolume) ничего не делает.
+// Плавание и утопление в воде. Висит на игроке, добавляется сам (PlayerMovement.Start). Без объёма воды (WaterVolume) ничего не делает.
 //
 // Как это работает (глубину отдаёт WaterVolume.TrySample: submersion = на сколько метров поверхность выше ног):
 //   мелко   (< wadeDepth)   : идём как обычно
@@ -142,16 +142,17 @@ public class WaterSwim : MonoBehaviour
 
         if (canDrown)
         {
-            if (!warned && swimTime >= drownSeconds * 0.45f)
+            float limit = h.drownSeconds > 0f ? h.drownSeconds : drownSeconds;
+            if (!warned && swimTime >= limit * 0.45f)
             {
                 warned = true;
                 SaveIndicator.ShowToast("Вы тонете! Скорее к берегу");
             }
-            if (swimTime >= drownSeconds) Drown();
+            if (swimTime >= limit) Drown(h.isPond);
         }
     }
 
-    void Drown()
+    void Drown(bool inPond)
     {
         drowning = true;
         drownAt = Time.time;
@@ -160,7 +161,9 @@ public class WaterSwim : MonoBehaviour
         Leave();   // гравитация обратно: пока идёт экран, герой тонет
 
         var g = IslandEdgeGuard.Instance;
-        if (g != null && g.ForceRespawn("УТОПЛЕНИЕ", "Вы утонули!", "Река оказалась глубже, чем казалась", "Мост цел: по нему можно перейти сухим"))
+        string subtitle = inPond ? "На середине пруда глубоко" : "Река оказалась глубже, чем казалась";
+        string tip = inPond ? "К берегу можно выйти по каменным ступеням" : "Мост цел: по нему можно перейти сухим";
+        if (g != null && g.ForceRespawn("УТОПЛЕНИЕ", "Вы утонули!", subtitle, tip))
             return;
 
         // запасной путь: на последнее сухое место

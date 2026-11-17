@@ -1,8 +1,8 @@
 // Tools > BuilderSim > Природа > Pond Builder
 // Процедурный сказочный пруд: бортик с травой и цветами, вода, кувшинки, камыш, камни, мостик для рыбалки с
 // удочкой и фонарями, рыбки, светлячки. Unity 6 (6000.3), URP.
-// Кладётся в Assets/_Project/Editor/Nature/. Рантайм-компонент PondLife.cs кладётся в Assets/_Project/Scripts/ (НЕ в Editor).
-// Шейдеры Project/Pond/Toon, Project/Pond/Water, Project/Pond/Glow лежат в Assets/_Project/Shaders/Pond/.
+// Запекает пруд и локальный рельеф в открытой игровой сцене IslandV2.
+// Материалы используют шейдеры Project/Pond в Assets/_Project/Scripts/.
 // Самодостаточный: не требует HutMesh / EditorAssets.
 using System.Collections.Generic;
 using UnityEditor;
@@ -227,10 +227,9 @@ class PondMB
     }
 }
 
-public class PondBuilder : EditorWindow
+public partial class PondBuilder : EditorWindow
 {
-    const string AssetDir = "Assets/_Game/Pond";
-    const string PrefKey = "BuilderSim.PondBuilder.v1";
+    const string PrefKey = "BuilderSim.PondBuilder.v2";
     const string RootName = "Pond";
     const int N = 96;                                   // сегментов контура берега
     const float TwoPi = Mathf.PI * 2f;
@@ -240,22 +239,23 @@ public class PondBuilder : EditorWindow
     {
         public int seed = 2025;
         public float radiusX = 5.5f, radiusZ = 4.3f, irregular = 0.16f;
-        public float lipHeight = 0.55f, lipWidth = 2.4f;
+        public float lipHeight = 0.55f, lipWidth = 2.8f;
+        public float depth = 2.4f, shoreExitAngle = 135f, drownSeconds = 7f;
 
         public bool dock = true;
         public float dockAngle = 205f, dockLength = 3.8f, dockWidth = 1.5f;
 
-        public int fish = 9, pads = 9, reeds = 11, rocks = 13, bushes = 8, flowers = 45, grass = 55, mushrooms = 4, seaweed = 12;
+        public int fish = 3, pads = 8, reeds = 9, rocks = 10, bushes = 6, flowers = 32, grass = 38, mushrooms = 4, seaweed = 12;
 
-        public bool lights = true, fireflies = true, halos = true;
+        public bool lights = true, fireflies, halos = true;
         public float lightIntensity = 1f;
         public float glow = 0.65f;
 
-        public Color shallow = new Color(0.52f, 0.93f, 0.92f, 0.28f);
-        public Color deep = new Color(0.14f, 0.56f, 0.90f, 0.58f);
+        public Color shallow = new Color(0.46f, 0.83f, 0.74f, 0.22f);
+        public Color deep = new Color(0.11f, 0.40f, 0.43f, 0.69f);
         public Color sand = new Color(0.96f, 0.86f, 0.62f);
-        public Color grassTop = new Color(0.62f, 0.86f, 0.28f);
-        public Color grassDark = new Color(0.34f, 0.66f, 0.26f);
+        public Color grassTop = new Color(0.56f, 0.73f, 0.33f);
+        public Color grassDark = new Color(0.43f, 0.66f, 0.31f);
         public Color woodLight = new Color(0.74f, 0.52f, 0.30f);
         public Color woodDark = new Color(0.46f, 0.30f, 0.17f);
         public Color rock = new Color(0.72f, 0.67f, 0.82f);
@@ -263,13 +263,18 @@ public class PondBuilder : EditorWindow
 
         public Vector3 position;
         public float yaw;
+        public Vector3 scale = Vector3.one;
     }
 
     Settings S = new Settings();
     Vector2 scroll;
 
     // ---- форма и высоты
-    float rx, rz, H, W, F, Ys, lipW, sW;
+    float rx, rz, H, W, F, Ys, lipW;
+    const float Waterline = 0.93f;
+    string buildFolder;
+    PondIslandGround islandGround;
+    Transform pier;
     readonly float[] amp = new float[3];
     readonly float[] phs = new float[3];
     static readonly int[] Harm = { 2, 3, 5 };
@@ -293,7 +298,20 @@ public class PondBuilder : EditorWindow
     {
         var w = GetWindow<PondBuilder>(false, "Пруд");
         w.minSize = new Vector2(390, 640);
+        w.ReadPlacement();
         w.Show();
+    }
+
+    [MenuItem("Tools/BuilderSim/Природа/Обновить пруд на месте", false, 399)]
+    static void UpgradeExisting()
+    {
+        var window = GetWindow<PondBuilder>(false, "Пруд");
+        if (!window.ReadPlacement())
+        {
+            Debug.LogError("В открытой сцене должен быть корневой объект Pond.");
+            return;
+        }
+        window.Build();
     }
 
     // ========================================================================
@@ -320,9 +338,8 @@ public class PondBuilder : EditorWindow
     void OnGUI()
     {
         scroll = EditorGUILayout.BeginScrollView(scroll);
-        EditorGUILayout.LabelField("Пруд с рыбалкой", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("Ручку в окне сцены можно двигать и вращать. Нажмите «Построить»: пруд встанет на землю (коллайдер «Ground»). " +
-                                "Шейдеры Project/Pond/* должны лежать в проекте.", MessageType.Info);
+        EditorGUILayout.LabelField("Тихий пруд", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("Ручка показывает центр и контур воды. Положение и настройки применяются кнопкой запекания.", MessageType.Info);
 
         EditorGUI.BeginChangeCheck();
 
@@ -333,7 +350,10 @@ public class PondBuilder : EditorWindow
         S.radiusZ = EditorGUILayout.Slider("Радиус по Z (м)", S.radiusZ, 3f, 12f);
         S.irregular = EditorGUILayout.Slider("Кривизна берега", S.irregular, 0f, 0.3f);
         S.lipHeight = EditorGUILayout.Slider("Высота бортика (м)", S.lipHeight, 0.35f, 1.2f);
-        S.lipWidth = EditorGUILayout.Slider("Ширина склона (м)", S.lipWidth, 1f, 4f);
+        S.lipWidth = EditorGUILayout.Slider("Ширина склона (м)", S.lipWidth, 2.4f, 4f);
+        S.depth = EditorGUILayout.Slider("Глубина в центре (м)", S.depth, 1.8f, 3.5f);
+        S.shoreExitAngle = EditorGUILayout.Slider("Направление ступеней (°)", S.shoreExitAngle, 0f, 360f);
+        S.drownSeconds = EditorGUILayout.Slider("Время в глубокой воде (с)", S.drownSeconds, 4f, 15f);
 
         EditorGUILayout.Space(4);
         EditorGUILayout.LabelField("Мостик для рыбалки", EditorStyles.boldLabel);
@@ -347,7 +367,7 @@ public class PondBuilder : EditorWindow
 
         EditorGUILayout.Space(4);
         EditorGUILayout.LabelField("Жизнь и декор", EditorStyles.boldLabel);
-        S.fish = EditorGUILayout.IntSlider("Рыбок", S.fish, 0, 24);
+        S.fish = EditorGUILayout.IntSlider("Рыбок", S.fish, 2, 3);
         S.pads = EditorGUILayout.IntSlider("Кувшинок", S.pads, 0, 24);
         S.seaweed = EditorGUILayout.IntSlider("Водорослей на дне", S.seaweed, 0, 30);
         S.reeds = EditorGUILayout.IntSlider("Камышей (кустов)", S.reeds, 0, 30);
@@ -359,7 +379,7 @@ public class PondBuilder : EditorWindow
 
         EditorGUILayout.Space(4);
         EditorGUILayout.LabelField("Свет", EditorStyles.boldLabel);
-        S.lights = EditorGUILayout.Toggle("Фонари и подсветка воды", S.lights);
+        S.lights = EditorGUILayout.Toggle("Фонари у пирса", S.lights);
         S.halos = EditorGUILayout.Toggle("Ореолы вокруг фонарей", S.halos);
         S.fireflies = EditorGUILayout.Toggle("Светлячки", S.fireflies);
         S.lightIntensity = EditorGUILayout.Slider("Сила света", S.lightIntensity, 0f, 3f);
@@ -385,20 +405,19 @@ public class PondBuilder : EditorWindow
         if (EditorGUI.EndChangeCheck())
         {
             Save();
-            MoveExisting();
             SceneView.RepaintAll();
         }
 
         EditorGUILayout.Space(8);
-        if (GUILayout.Button("Построить / перестроить пруд", GUILayout.Height(32))) Build();
+        if (GUILayout.Button("Запечь пруд", GUILayout.Height(32))) Build();
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("В центр вида сцены"))
+        if (GUILayout.Button("Положение из сцены")) ReadPlacement();
+        if (GUILayout.Button("В центр вида"))
         {
             if (SceneView.lastActiveSceneView != null)
             {
                 S.position = SceneView.lastActiveSceneView.pivot;
                 Save();
-                MoveExisting();
             }
         }
         if (GUILayout.Button("Удалить пруд")) Delete();
@@ -419,7 +438,7 @@ public class PondBuilder : EditorWindow
         for (int k = 0; k <= N; k++)
         {
             float phi = (k % N) * TwoPi / N;
-            pts[k] = S.position + rot * (Dir(phi) * shoreR[k % N]) + Vector3.up * 0.05f;
+            pts[k] = S.position + rot * Vector3.Scale(S.scale, Dir(phi) * (shoreR[k % N] * Waterline) + Vector3.up * W);
         }
         Handles.color = new Color(0.45f, 0.95f, 1f, 0.95f);
         Handles.DrawAAPolyLine(4f, pts);
@@ -434,7 +453,6 @@ public class PondBuilder : EditorWindow
             S.position = np;
             S.yaw = nr.eulerAngles.y;
             Save();
-            MoveExisting();
             Repaint();
         }
     }
@@ -446,63 +464,35 @@ public class PondBuilder : EditorWindow
         return null;
     }
 
-    void MoveExisting()
+    bool ReadPlacement()
     {
-        var p = FindPond();
-        if (p == null) return;
-        ShapeInit();
-        float y;
-        if (!AverageGround(out y)) y = p.transform.position.y;
-        Undo.RecordObject(p.transform, "Переместить пруд");
-        p.transform.SetPositionAndRotation(new Vector3(S.position.x, y, S.position.z), Quaternion.Euler(0, S.yaw, 0));
+        var pond = FindPond();
+        if (pond == null) return false;
+        S.position = pond.transform.position;
+        S.yaw = pond.transform.eulerAngles.y;
+        S.scale = pond.transform.localScale;
+        Save();
+        Repaint();
+        SceneView.RepaintAll();
+        return true;
     }
 
     void Delete()
     {
-        var p = FindPond();
-        if (p != null) Undo.DestroyObjectImmediate(p);
-    }
-
-    // ========================================================================
-    //  Земля (понимает и «Ground», и чанки Ground/G_x_z); если не нашли, берёт любой не-триггерный коллайдер
-    // ========================================================================
-    static bool IsGround(Collider c)
-    {
-        var t = c.transform;
-        if (t.name == "Ground") return true;
-        return t.parent != null && t.parent.name == "Ground";
-    }
-
-    static bool GroundY(Vector3 wp, out float y)
-    {
-        y = 0f;
-        var hits = Physics.RaycastAll(new Vector3(wp.x, wp.y + 500f, wp.z), Vector3.down, 1500f, ~0, QueryTriggerInteraction.Ignore);
-        float best = float.MaxValue, bestAny = float.MaxValue, yAny = 0f;
-        bool ok = false, any = false;
-        foreach (var h in hits)
+        var pond = FindPond();
+        if (pond == null) return;
+        var scene = pond.scene;
+        Undo.IncrementCurrentGroup();
+        try
         {
-            var pond = FindPond();
-            if (pond != null && h.collider.transform.IsChildOf(pond.transform)) continue;
-            if (h.distance < bestAny) { bestAny = h.distance; yAny = h.point.y; any = true; }
-            if (!IsGround(h.collider)) continue;
-            if (h.distance < best) { best = h.distance; y = h.point.y; ok = true; }
+            new PondIslandGround(scene).Restore();
+            Undo.DestroyObjectImmediate(pond);
+            EditorSceneManager.MarkSceneDirty(scene);
         }
-        if (!ok && any) { y = yAny; ok = true; }
-        return ok;
-    }
-
-    bool AverageGround(out float y)
-    {
-        var q = Quaternion.Euler(0, S.yaw, 0);
-        float sum = 0f; int cnt = 0;
-        for (int i = -1; i < 8; i++)
+        catch (System.Exception exception)
         {
-            Vector3 o = i < 0 ? Vector3.zero : Dir(i * TwoPi / 8f) * (Mathf.Min(rx, rz) * 0.9f);
-            float gy;
-            if (GroundY(S.position + q * o, out gy)) { sum += gy; cnt++; }
+            Debug.LogException(exception);
         }
-        y = cnt > 0 ? sum / cnt : S.position.y;
-        return cnt > 0;
     }
 
     // ========================================================================
@@ -524,19 +514,29 @@ public class PondBuilder : EditorWindow
         return e * ShapeF(phi);
     }
 
-    // профиль: s = доля радиуса от центра (0..1) внутри, d = метры от берега наружу
+    // A shallow shelf at the shore, a gradual slope, then a broad bottom.
+    static readonly float[] BedRadius = { 0f, 0.16f, 0.32f, 0.50f, 0.66f, 0.78f, 0.87f, Waterline, 1f };
+    static readonly float[] BedFraction = { 1f, 0.97f, 0.81f, 0.59f, 0.37f, 0.19f, 0.075f, 0f, 0f };
+
     float BedY(float s)
     {
-        float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, s));
-        return Mathf.Lerp(F, Ys, k);
+        if (s >= Waterline) return Mathf.Lerp(W, Ys, Mathf.InverseLerp(Waterline, 1f, s));
+        int upper = 1;
+        while (s > BedRadius[upper]) upper++;
+        float depth = Mathf.Lerp(BedFraction[upper - 1], BedFraction[upper],
+            Mathf.InverseLerp(BedRadius[upper - 1], BedRadius[upper], s));
+        return W - (W - F) * depth;
     }
 
-    float OutY(float d)
+    float OutY(float d, float phi)
     {
         const float peakD = 0.45f;
         if (d <= peakD) return Mathf.Lerp(Ys, H, Mathf.SmoothStep(0f, 1f, d / peakD));
         float t = Mathf.Clamp01((d - peakD) / lipW);
-        return Mathf.Lerp(H, -0.30f, Mathf.SmoothStep(0f, 1f, t));
+        Vector3 world = root.TransformPoint(Dir(phi) * (Shore(phi) + d));
+        world.y = islandGround.HeightAt(world);
+        float groundY = root.InverseTransformPoint(world).y;
+        return Mathf.Lerp(H, groundY - 0.06f, Mathf.SmoothStep(0f, 1f, t));
     }
 
     void ShapeInit()
@@ -545,36 +545,38 @@ public class PondBuilder : EditorWindow
         rx = S.radiusX; rz = S.radiusZ;
         amp[0] = S.irregular * 0.9f; amp[1] = S.irregular * 0.55f; amp[2] = S.irregular * 0.3f;
         for (int i = 0; i < 3; i++) phs[i] = (float)r.NextDouble() * TwoPi;
-        H = S.lipHeight; W = H - 0.14f; F = 0.02f; Ys = W + 0.04f; lipW = S.lipWidth;
+        H = S.lipHeight;
+        W = H - 0.14f;
+        F = W - S.depth / Mathf.Max(0.01f, S.scale.y);
+        Ys = W + 0.04f;
+        lipW = S.lipWidth;
         for (int k = 0; k < N; k++) shoreR[k] = Shore(k * TwoPi / N);
-
-        float lo = 0.5f, hi = 1f;                                   // где дно пересекает уровень воды
-        for (int i = 0; i < 30; i++)
-        {
-            float mid = (lo + hi) * 0.5f;
-            if (BedY(mid) < W) lo = mid; else hi = mid;
-        }
-        sW = Mathf.Min(lo, 0.96f);
     }
 
-    // точка на берегу: d = метры от кромки (d < 0 в воду)
     Vector3 PBank(float phi, float d)
     {
-        float R = Shore(phi);
-        float dist = R + d;
-        float y = d >= 0f ? OutY(d) : BedY(Mathf.Clamp01(dist / R));
-        return Dir(phi) * dist + Vector3.up * y;
+        float radius = Shore(phi);
+        float distance = radius + d;
+        float y = d >= 0f ? OutY(d, phi) : BedY(Mathf.Clamp01(distance / radius));
+        return Dir(phi) * distance + Vector3.up * y;
     }
 
     bool NearDock(Vector3 p, float margin)
     {
+        float phi = S.shoreExitAngle * Mathf.Deg2Rad;
+        Vector3 exit = Dir(phi) * Shore(phi);
+        if (PathDistance(p, exit - Dir(phi) * 2.4f, exit + Dir(phi) * 2f) < margin + 0.58f)
+            return true;
         if (!hasDock) return false;
-        Vector3 a3 = dockStart + outDir * 3f;
-        Vector3 b3 = dockStart + dockIn * (dockL + 1.2f);
-        Vector2 a = new Vector2(a3.x, a3.z), b = new Vector2(b3.x, b3.z), q = new Vector2(p.x, p.z);
-        Vector2 ab = b - a;
-        float t = Mathf.Clamp01(Vector2.Dot(q - a, ab) / ab.sqrMagnitude);
-        return (q - (a + ab * t)).magnitude < margin + dockW * 0.5f;
+        return PathDistance(p, dockStart + outDir * 3.6f, dockStart + dockIn * (dockL + 1.2f))
+            < margin + dockW * 0.5f;
+    }
+
+    static float PathDistance(Vector3 point, Vector3 a, Vector3 b)
+    {
+        Vector2 q = new Vector2(point.x - a.x, point.z - a.z);
+        Vector2 segment = new Vector2(b.x - a.x, b.z - a.z);
+        return (q - segment * Mathf.Clamp01(Vector2.Dot(q, segment) / segment.sqrMagnitude)).magnitude;
     }
 
     // ========================================================================
@@ -624,35 +626,18 @@ public class PondBuilder : EditorWindow
         return go.transform;
     }
 
-    Mesh SaveMesh(Mesh m, string name)
+    Mesh SaveMesh(Mesh mesh, string name)
     {
-        string path = AssetDir + "/" + name + ".asset";
-        var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
-        if (existing != null)
-        {
-            existing.Clear();
-            EditorUtility.CopySerialized(m, existing);
-            DestroyImmediate(m);
-            EditorUtility.SetDirty(existing);
-            return existing;
-        }
-        AssetDatabase.CreateAsset(m, path);
-        return m;
+        AssetDatabase.CreateAsset(mesh, buildFolder + "/" + name + ".asset");
+        return mesh;
     }
 
-    Material GetMat(string name, Shader sh, System.Action<Material> setup)
+    Material GetMat(string name, Shader shader, System.Action<Material> setup)
     {
-        string path = AssetDir + "/Pond_" + name + ".mat";
-        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (m == null)
-        {
-            m = new Material(sh) { name = "Pond_" + name };
-            AssetDatabase.CreateAsset(m, path);
-        }
-        m.shader = sh;
-        if (setup != null) setup(m);
-        EditorUtility.SetDirty(m);
-        return m;
+        var material = new Material(shader) { name = "Pond_" + name };
+        setup(material);
+        AssetDatabase.CreateAsset(material, buildFolder + "/" + material.name + ".mat");
+        return material;
     }
 
     GameObject MeshGO(Transform parent, string name, Mesh mesh, Material mat, bool castShadows)
@@ -671,70 +656,114 @@ public class PondBuilder : EditorWindow
     // ========================================================================
     void Build()
     {
-        var shToon = Shader.Find("Project/Pond/Toon");
-        var shWater = Shader.Find("Project/Pond/Water");
-        var shGlow = Shader.Find("Project/Pond/Glow");
-        if (shToon == null || shWater == null || shGlow == null)
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        Scene scene = SceneManager.GetActiveScene();
+        if (string.IsNullOrEmpty(scene.path))
         {
-            EditorUtility.DisplayDialog("Пруд", "Не найдены шейдеры Project/Pond/Toon, Water, Glow.\nПоложите папку Shaders/Pond в проект и дождитесь импорта.", "OK");
+            Debug.LogError("Сохрани игровую сцену, чтобы записать меши пруда.");
             return;
         }
 
-        EnsureFolder(AssetDir);
-        var old = FindPond();
-        if (old != null) { Undo.DestroyObjectImmediate(old); Physics.SyncTransforms(); }
-
-        rng = new System.Random(S.seed);
-        ShapeInit();
-        float gy;
-        if (!AverageGround(out gy))
+        var toon = Shader.Find("Project/Pond/Toon");
+        var water = Shader.Find("Project/Pond/Water");
+        var glow = Shader.Find("Project/Pond/Glow");
+        if (toon == null || water == null || glow == null)
         {
-            gy = S.position.y;
-            Debug.LogWarning("PondBuilder: коллайдер земли под прудом не найден, высота взята из позиции ручки.");
+            Debug.LogError("Не найдены шейдеры Project/Pond в Assets/_Project/Scripts.");
+            return;
         }
 
-        var go = new GameObject(RootName);
-        Undo.RegisterCreatedObjectUndo(go, "Построить пруд");
-        root = go.transform;
-        root.SetPositionAndRotation(new Vector3(S.position.x, gy, S.position.z), Quaternion.Euler(0, S.yaw, 0));
+        var old = FindPond();
+        Undo.IncrementCurrentGroup();
+        Undo.SetCurrentGroupName("Запечь Тихий пруд");
+        int undo = Undo.GetCurrentGroup();
+        root = null;
+        buildFolder = null;
+        bool registered = false;
+        try
+        {
+            islandGround = new PondIslandGround(scene);
+            S.scale = new Vector3(Mathf.Max(0.1f, S.scale.x), Mathf.Max(0.1f, S.scale.y), Mathf.Max(0.1f, S.scale.z));
+            rng = new System.Random(S.seed);
+            ShapeInit();
+            ValidatePlacement();
 
-        MakeMaterials(shToon, shWater, shGlow);
-        fishMeshes = new Mesh[5];
-        for (int k = 0; k < 5; k++) fishMeshes[k] = SaveMesh(MakeFish(k), "Pond_Fish" + k);
+            string sceneFolder = PondIslandGround.BakeFolder + "/" + AssetDatabase.AssetPathToGUID(scene.path);
+            EnsureFolder(sceneFolder);
+            buildFolder = AssetDatabase.GenerateUniqueAssetPath(sceneFolder + "/Pond");
+            EnsureFolder(buildFolder);
 
-        var life = go.AddComponent<PondLife>();
+            var go = new GameObject(RootName);
+            root = go.transform;
+            root.SetPositionAndRotation(S.position, Quaternion.Euler(0f, S.yaw, 0f));
+            root.localScale = S.scale;
+            BuildPond(toon, water, glow);
+            Undo.RegisterCreatedObjectUndo(go, "Запечь Тихий пруд");
+            registered = true;
+
+            float radius = (Mathf.Max(rx, rz) * (1f + S.irregular * 1.75f) + lipW + 0.6f)
+                * Mathf.Max(S.scale.x, S.scale.z) + 2.85f;
+            islandGround.Apply(buildFolder, root.position, radius, CarvedGroundY);
+            if (old != null) Undo.DestroyObjectImmediate(old);
+
+            Physics.SyncTransforms();
+            AssetDatabase.SaveAssets();
+            Undo.CollapseUndoOperations(undo);
+            EditorSceneManager.MarkSceneDirty(scene);
+            Selection.activeGameObject = go;
+            Debug.Log($"Тихий пруд запечён. Глубина {S.depth:0.0} м, рыб {go.GetComponent<PondLife>().fish.Length}. Сохрани сцену.", go);
+        }
+        catch (System.Exception exception)
+        {
+            if (!registered && root != null) DestroyImmediate(root.gameObject);
+            Undo.RevertAllDownToGroup(undo);
+            if (buildFolder != null) AssetDatabase.DeleteAsset(buildFolder);
+            Debug.LogException(exception);
+        }
+    }
+
+    void BuildPond(Shader toon, Shader water, Shader glow)
+    {
+        MakeMaterials(toon, water, glow);
+        fishMeshes = new Mesh[3];
+        fishMeshes[0] = SaveMesh(MakeFish(0), "Pond_Fish0");
+        fishMeshes[1] = SaveMesh(MakeFish(3), "Pond_Fish1");
+        if (S.fish >= 3) fishMeshes[2] = SaveMesh(MakeFish(4), "Pond_Fish2");
+
+        var life = root.gameObject.AddComponent<PondLife>();
         life.waterY = W;
-        life.shoreR = (float[])shoreR.Clone();
+        life.shoreR = System.Array.ConvertAll(shoreR, radius => radius * Waterline);
         life.glow = S.glow;
+        life.jumpInterval = new Vector2(24f, 42f);
+        life.jumpHeight = 0.33f;
+        life.fishDepth = 0.28f;
+        life.useAuthoredFishDepth = true;
+        life.fishSpeed = new Vector2(0.36f, 0.72f);
+        life.biteInterval = new Vector2(14f, 25f);
 
-        decor = new PondMB();
         lanternPos.Clear();
         DockInit();
-
         BuildBank();
+        BuildShoreSteps();
+        if (hasDock) BuildPier();
+
+        decor = new PondMB();
         BuildSeabed();
-        if (hasDock) BuildDock();
         BuildRocks();
         BuildReeds();
         BuildBushes();
         BuildMeadow();
         BuildMushrooms();
-
-        var decorGO = MeshGO(root, "Decor", SaveMesh(decor.ToMesh("Pond_Decor"), "Pond_Decor"), matDecor, true);
-        life.decorRenderer = decorGO.GetComponent<Renderer>();
-
-        MeshGO(root, "Water", SaveMesh(MakeWater(), "Pond_Water"), matWater, false);
+        life.decorRenderer = MeshGO(root, "Plants and pebbles", SaveMesh(decor.ToMesh("Pond_Plants"), "Pond_Plants"), matDecor, true)
+            .GetComponent<MeshRenderer>();
+        var surface = MeshGO(root, "Pond_Water", SaveMesh(MakeWater(), "Pond_Water"), matWater, false);
+        surface.AddComponent<WaterVolume>().SetPond(life.shoreR, W, W - F, S.drownSeconds);
 
         BuildFish(life);
         BuildPads(life);
         if (hasDock) BuildFishing(life);
         BuildLights(life);
         BuildFx(life);
-
-        Physics.SyncTransforms();
-        Selection.activeGameObject = go;
-        AssetDatabase.SaveAssets();
-        EditorSceneManager.MarkSceneDirty(go.scene);
     }
 
     void MakeMaterials(Shader toon, Shader water, Shader glow)
@@ -751,6 +780,10 @@ public class PondBuilder : EditorWindow
         {
             m.SetColor("_ShallowColor", S.shallow);
             m.SetColor("_DeepColor", S.deep);
+            m.SetFloat("_BasinDepth", 1f);
+            m.SetFloat("_SparkleGain", 0.48f);
+            m.SetFloat("_CloudAmount", 0.18f);
+            m.SetFloat("_LightGlow", 0.22f);
         });
         matGlow = GetMat("Glow", glow, m =>
         {
@@ -767,8 +800,8 @@ public class PondBuilder : EditorWindow
         float n = 0.94f + 0.12f * Nz(phi * 14f, (inside ? s : d) * 2.5f);
         if (inside)
         {
-            Color mud = new Color(0.26f, 0.52f, 0.62f), teal = new Color(0.42f, 0.74f, 0.74f);
-            Color c = Color.Lerp(mud, teal, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.6f, s)));
+            Color mud = new Color(0.25f, 0.35f, 0.26f), silt = new Color(0.53f, 0.56f, 0.37f);
+            Color c = Color.Lerp(mud, silt, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.6f, s)));
             c = Color.Lerp(c, S.sand, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.68f, 0.9f, s)));
             return Vc(Mul(c, n));
         }
@@ -780,12 +813,13 @@ public class PondBuilder : EditorWindow
 
     void BuildBank()
     {
-        float[] ringS = { 0f, 0.3f, 0.5f, 0.62f, 0.72f, 0.8f, 0.87f, 0.93f, 0.97f, 1f };
+        var ringS = BedRadius;
         float[] ringD = { 0.12f, 0.25f, 0.45f, 0.45f + lipW * 0.18f, 0.45f + lipW * 0.36f, 0.45f + lipW * 0.55f, 0.45f + lipW * 0.75f, 0.45f + lipW };
         int rings = ringS.Length + ringD.Length;
+        var bank = new PondMB();
         var idx = new int[rings, N];
 
-        int center = decor.V(new Vector3(0, BedY(0f), 0), BankColor(true, 0f, 0f, 0f), 0f);
+        int center = bank.V(new Vector3(0, BedY(0f), 0), BankColor(true, 0f, 0f, 0f), 0f);
         for (int j = 0; j < rings; j++)
             for (int k = 0; k < N; k++)
             {
@@ -803,10 +837,10 @@ public class PondBuilder : EditorWindow
                 else
                 {
                     float d = ringD[j - ringS.Length];
-                    pos = dir * (R + d) + Vector3.up * OutY(d);
+                    pos = dir * (R + d) + Vector3.up * OutY(d, phi);
                     col = BankColor(false, 1f, d, phi);
                 }
-                idx[j, k] = decor.V(pos, col, 0f);
+                idx[j, k] = bank.V(pos, col, 0f);
             }
 
         for (int j = 0; j < rings - 1; j++)
@@ -814,9 +848,13 @@ public class PondBuilder : EditorWindow
             {
                 int k2 = (k + 1) % N;
                 int a = idx[j, k], b = idx[j + 1, k], c = idx[j + 1, k2], d = idx[j, k2];
-                decor.I(a, c, b);
-                if (a != d) decor.I(a, d, c);
+                bank.I(a, c, b);
+                if (a != d) bank.I(a, d, c);
             }
+
+        var mesh = SaveMesh(bank.ToMesh("Pond_Basin"), "Pond_Basin");
+        var basin = MeshGO(root, "Basin", mesh, matDecor, false);
+        basin.AddComponent<MeshCollider>().sharedMesh = mesh;
     }
 
     // водоросли и камушки на дне: видны сквозь воду
@@ -856,14 +894,16 @@ public class PondBuilder : EditorWindow
         float[] ringC = { 0f, 0.3f, 0.55f, 0.75f, 0.88f, 0.96f, 1f, 1.04f };
         var mb = new PondMB();
         var idx = new int[ringC.Length, N];
-        int center = mb.V(new Vector3(0, W, 0), new Color(0, 0, 0, 1), 0f);
+        int center = mb.V(new Vector3(0, W, 0), new Color(0, 1, 0, 1), 0f);
         for (int j = 0; j < ringC.Length; j++)
             for (int k = 0; k < N; k++)
             {
                 if (j == 0) { idx[j, k] = center; continue; }
                 float phi = k * TwoPi / N;
-                float s = ringC[j] * sW;
-                idx[j, k] = mb.V(Dir(phi) * (shoreR[k] * s) + Vector3.up * W, new Color(ringC[j], 0, 0, 1), 0f);
+                float s = ringC[j] * Waterline;
+                float depth = Mathf.Clamp01((W - BedY(s)) / (W - F));
+                idx[j, k] = mb.V(Dir(phi) * (shoreR[k] * s) + Vector3.up * W,
+                    new Color(ringC[j], depth, 0, 1), 0f);
             }
         for (int j = 0; j < ringC.Length - 1; j++)
             for (int k = 0; k < N; k++)
@@ -881,6 +921,7 @@ public class PondBuilder : EditorWindow
     // ========================================================================
     void DockInit()
     {
+        pier = null;
         hasDock = S.dock;
         if (!hasDock) return;
         float phi = S.dockAngle * Mathf.Deg2Rad;
@@ -936,16 +977,6 @@ public class PondBuilder : EditorWindow
         Color wL = S.woodLight, wD = S.woodDark;
         var rotD = Quaternion.LookRotation(dockIn, Vector3.up);
         Color rope = Vc(new Color(0.84f, 0.72f, 0.46f));
-
-        // ступени-плиты со склона на гребень
-        Color st = S.rock;
-        for (int i = 0; i < 3; i++)
-        {
-            float d = 0.75f + i * 0.65f;
-            Vector3 p = dockStart + outDir * (d - 0.3f);
-            float y = OutY(d) + 0.04f;
-            decor.Box(new Vector3(p.x, y, p.z), new Vector3(dockW * 0.85f, 0.14f, 0.62f), rotD * Quaternion.Euler(0f, Rf(-3f, 3f), 0f), Vc(Mul(st, 1.0f - i * 0.05f)), 0f);
-        }
 
         // доски настила
         int n = Mathf.FloorToInt(dockL / 0.25f);
@@ -1004,7 +1035,7 @@ public class PondBuilder : EditorWindow
         // фонарный столб на берегу у входа
         {
             Vector3 b = dockStart + dockSide * (dockW * 0.5f + 1.0f) + outDir * 0.9f;
-            b.y = OutY(Vector3.Distance(new Vector3(b.x, 0, b.z), Vector3.zero) - Shore(Mathf.Atan2(b.z, b.x))) - 0.05f;
+            b.y = BankHeight(b) - 0.05f;
             Vector3 tp = b + Vector3.up * 2.0f;
             decor.Tube(b, tp, 0.09f, 0.07f, 7, postC, postC, 0f, true, true, 0f, 0f);
             Vector3 armEnd = tp - dockSide * 0.45f;
@@ -1051,6 +1082,7 @@ public class PondBuilder : EditorWindow
     void BuildRocks()
     {
         Color[] pal = { S.rock, Mul(S.rock, 0.9f), Mul(S.rock, 1.1f), new Color(0.78f, 0.72f, 0.74f) };
+        var rocks = NewChild(root, "Bank rocks");
         int placed = 0, tries = 0;
         while (placed < S.rocks && tries++ < 400)
         {
@@ -1061,8 +1093,16 @@ public class PondBuilder : EditorWindow
             float size = Rf(0.28f, 0.8f) * (rng.NextDouble() < 0.2 ? 1.5f : 1f);
             Color c = pal[rng.Next(pal.Length)];
             Vector3 cen = p + Vector3.up * (size * 0.18f);
-            decor.Ico(cen, new Vector3(size, size * 0.62f, size * Rf(0.8f, 1.1f)), Quaternion.Euler(Rf(-8f, 8f), Rf(0f, 360f), Rf(-8f, 8f)),
-                      Vc(Mul(c, 1.1f)), Vc(Mul(c, 0.72f)), 1, 0.16f, 0f, rng.Next(9999), false);
+            float zSize = size * Rf(0.8f, 1.1f);
+            var rock = new PondMB();
+            rock.Ico(Vector3.zero, new Vector3(size, size * 0.62f, zSize), Quaternion.Euler(Rf(-8f, 8f), Rf(0f, 360f), Rf(-8f, 8f)),
+                Vc(Mul(c, 1.1f)), Vc(Mul(c, 0.72f)), 1, 0.16f, 0f, rng.Next(9999), false);
+            string name = "Pond_Rock" + placed;
+            var mesh = SaveMesh(rock.ToMesh(name), name);
+            var go = MeshGO(rocks, "Bank rock " + (placed + 1), mesh, matDecor, true);
+            go.transform.localPosition = cen;
+            GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic);
+            if (size >= 0.36f) go.AddComponent<MeshCollider>().sharedMesh = mesh;
             if (rng.NextDouble() < 0.5)
             {
                 float a = Rf(0f, TwoPi), sr = size * Rf(0.25f, 0.4f);
@@ -1212,15 +1252,15 @@ public class PondBuilder : EditorWindow
     {
         var fr = NewChild(root, "Fish");
         var list = new List<Transform>();
-        for (int i = 0; i < S.fish; i++)
+        for (int i = 0; i < Mathf.Clamp(S.fish, 2, 3); i++)
         {
-            float phi = Rf(0f, TwoPi), rr = Mathf.Sqrt((float)rng.NextDouble()) * 0.7f;
+            float phi = Rf(0f, TwoPi), rr = Rf(0.22f, 0.62f);
             Vector3 p = Dir(phi) * (Shore(phi) * rr);
-            var go = MeshGO(fr, "Fish_" + i.ToString("00"), fishMeshes[i % 5], matFish, false);
+            var go = MeshGO(fr, "Fish_" + i.ToString("00"), fishMeshes[i], matFish, false);
             go.GetComponent<MeshRenderer>().receiveShadows = false;
-            go.transform.localPosition = new Vector3(p.x, W - 0.17f, p.z);
+            go.transform.localPosition = new Vector3(p.x, W - life.fishDepth - i * 0.055f, p.z);
             go.transform.localRotation = Quaternion.Euler(0f, Rf(0f, 360f), 0f);
-            go.transform.localScale = Vector3.one * Rf(0.5f, 0.85f);
+            go.transform.localScale = Vector3.one * Rf(0.72f, 0.93f);
             list.Add(go.transform);
         }
         life.fish = list.ToArray();
@@ -1321,6 +1361,7 @@ public class PondBuilder : EditorWindow
         life.bobber = bob.transform;
         life.rodTip = tip;
         life.line = line.transform;
+        fr.SetParent(pier, true);
     }
 
     // ========================================================================
@@ -1371,11 +1412,10 @@ public class PondBuilder : EditorWindow
                     halos.Add(h.transform);
                 }
             }
-            var pool = MakeLight(lr, "PoolGlow", new Vector3(0f, W - 0.05f, 0f), new Color(0.35f, 0.9f, 1f), Mathf.Max(rx, rz) * 1.35f, 1.4f * S.lightIntensity);
-            life.poolLight = pool;
         }
         life.lights = lights.ToArray();
         life.halos = halos.ToArray();
+        if (pier != null) lr.SetParent(pier, true);
     }
 
     void BuildFx(PondLife life)

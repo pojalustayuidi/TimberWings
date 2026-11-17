@@ -2,7 +2,8 @@
 // Мультяшная вода пруда. URP, полупрозрачная (дно, водоросли и рыбки видны сквозь неё).
 //
 // Что читает из меша (его строит PondBuilder):
-//   цвет R   расстояние от центра: 0 центр, 1 линия воды у берега (чуть больше 1 под бортиком)
+//   цвет R   расстояние от центра: 0 центр, 1 линия воды у берега
+//   цвет G   глубина чаши в этой точке, нормализованная по центру
 //
 // Что рисует:
 //   * цвет по «глубине» (мелко бирюзовый -> глубоко синий), прозрачность тоже растёт к центру
@@ -20,6 +21,7 @@ Shader "Project/Pond/Water"
         _SkyColor ("Цвет неба в отражении", Color) = (0.80, 0.93, 1.0, 1)
         _HighlightColor ("Цвет полос волн", Color) = (0.85, 1.0, 1.0, 1)
         _SparkleColor ("Цвет искр", Color) = (1.0, 0.98, 0.85, 1)
+        [HideInInspector] _BasinDepth ("Глубина из меша", Float) = 0
 
         [Header(Waves and sky)]
         _WaveScale ("Частота волн, 1/м", Range(0.1, 3)) = 0.75
@@ -70,6 +72,7 @@ Shader "Project/Pond/Water"
                 float4 _SkyColor;
                 float4 _HighlightColor;
                 float4 _SparkleColor;
+                float _BasinDepth;
                 float _WaveScale;
                 float _CloudCut;
                 float _CloudAmount;
@@ -95,7 +98,7 @@ Shader "Project/Pond/Water"
             {
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
-                float c : TEXCOORD1;
+                float2 shoreDepth : TEXCOORD1;
                 half fog : TEXCOORD2;
             };
 
@@ -105,7 +108,7 @@ Shader "Project/Pond/Water"
                 VertexPositionInputs vp = GetVertexPositionInputs(v.positionOS.xyz);
                 o.positionCS = vp.positionCS;
                 o.positionWS = vp.positionWS;
-                o.c = v.color.r;
+                o.shoreDepth = v.color.rg;
                 o.fog = ComputeFogFactor(vp.positionCS.z);
                 return o;
             }
@@ -146,11 +149,12 @@ Shader "Project/Pond/Water"
             {
                 float2 p = i.positionWS.xz;
                 float t = _Time.y;
-                float c = i.c;
+                float c = i.shoreDepth.x;
                 float3 V = GetWorldSpaceNormalizeViewDir(i.positionWS);
 
                 // цвет и прозрачность по глубине
-                float depthK = 1.0 - smoothstep(0.15, 1.0, c);
+                float depth = saturate(i.shoreDepth.y);
+                float depthK = lerp(1.0 - smoothstep(0.15, 1.0, c), smoothstep(0.0, 0.86, depth), _BasinDepth);
                 float3 col = lerp(_ShallowColor.rgb, _DeepColor.rgb, depthK);
                 float alpha = lerp(_ShallowColor.a, _DeepColor.a, depthK);
 
@@ -159,7 +163,9 @@ Shader "Project/Pond/Water"
                 float w2 = VNoise(p * _WaveScale * 1.9 - float2(t * 0.09, t * 0.14));
                 float wave = w1 * 0.6 + w2 * 0.4;
                 float lines = smoothstep(0.58, 0.63, wave) - smoothstep(0.69, 0.74, wave);
-                col += _HighlightColor.rgb * (lines * 0.30);
+                col += _HighlightColor.rgb * (lines * lerp(0.30, 0.11, _BasinDepth));
+                float shallowGlints = lines * smoothstep(0.0, 0.10, depth) * (1.0 - smoothstep(0.16, 0.45, depth));
+                col += float3(0.29, 0.43, 0.29) * shallowGlints * _BasinDepth;
 
                 // облака в отражении
                 float cl = Fbm(p * 0.16 + float2(t * 0.02, t * 0.012));
@@ -168,7 +174,7 @@ Shader "Project/Pond/Water"
                 alpha = max(alpha, cloud * 0.55);
 
                 // френель: под скользящим углом вода «зеркальнее»
-                float fres = pow(1.0 - saturate(V.y), _FresnelPow);
+                float fres = pow(1.0 - saturate(abs(V.y)), _FresnelPow);
                 col = lerp(col, _SkyColor.rgb, fres * 0.55);
                 alpha = lerp(alpha, 0.95, fres * 0.5);
 
@@ -187,6 +193,8 @@ Shader "Project/Pond/Water"
                 float fn = VNoise(p * 3.2 + float2(t * 0.35, -t * 0.2));
                 float foam = smoothstep(_FoamStart + fn * 0.05, _FoamStart + 0.13 + fn * 0.04, c);
                 float foamLine = 1.0 - smoothstep(0.0, 0.018, abs(c - (_FoamStart - 0.05 + 0.02 * sin(t * 0.9 + fn * 6.0))));
+                foam *= lerp(1.0, 0.26 + 0.22 * fn, _BasinDepth);
+                foamLine *= lerp(1.0, 0.25, _BasinDepth);
                 col = lerp(col, _FoamColor.rgb, saturate(foam * 0.85 + foamLine * 0.35));
                 alpha = max(alpha, saturate(foam * 0.95 + foamLine * 0.4));
 
@@ -196,6 +204,7 @@ Shader "Project/Pond/Water"
                 for (int k = 0; k < 6; k++)
                 {
                     float4 r = _PondRipples[k];
+                    if (r.w <= 0.0) continue;
                     float age = r.z;
                     float d = distance(p, r.xy);
                     float rad = age * 1.5 + 0.04;
@@ -240,7 +249,8 @@ Shader "Project/Pond/Water"
                 alpha = max(alpha, saturate(max(add.r, max(add.g, add.b))) * 0.7);
 
                 col = MixFog(col, i.fog);
-                return half4(col, saturate(alpha));
+                float fade = 1.0 - smoothstep(0.965, 1.015, c);
+                return half4(col, saturate(alpha) * lerp(1.0, fade, _BasinDepth));
             }
             ENDHLSL
         }

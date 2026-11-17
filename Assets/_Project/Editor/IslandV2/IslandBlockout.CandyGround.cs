@@ -194,12 +194,9 @@ namespace IslandV2
                 c = CScale(c, 1f - L.edgeDarken * s.edgeDarkScale * k);
             }
 
-            // 9. вода под водяными мешами (русло без брода и пруд)
-            c = Color.Lerp(c, L.waterColor, inRiver * (1f - fw2));
-            float pv = f.PondValue(x, z);
-            float pondW = 1f - IslandField.Step(0.9f, 1.08f, pv);
-            c = Color.Lerp(c, L.waterColor, pondW);
-            float water = Mathf.Max(inRiver * (1f - fw2), pondW);
+            // 9. Цвет под водой в русле. У пруда свой меш дна.
+            float water = inRiver * (1f - fw2);
+            c = Color.Lerp(c, L.waterColor, water);
 
             // маска: глянец и где можно сыпать посыпку
             o.color = new Color(c.r, c.g, c.b, 1f);

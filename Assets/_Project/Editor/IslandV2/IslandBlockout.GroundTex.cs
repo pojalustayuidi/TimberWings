@@ -114,6 +114,49 @@ namespace IslandV2
             return true;
         }
 
+        internal static Material PondGroundMaterial(Material source, string folder, int index)
+        {
+            if (!source.HasProperty("_GroundTex") || !source.HasProperty("_GroundRect")) return source;
+            string sourcePath = AssetDatabase.GetAssetPath(source.GetTexture("_GroundTex"));
+            if (string.IsNullOrEmpty(sourcePath)) return source;
+
+            var layout = AssetDatabase.LoadAssetAtPath<IslandLayout>(IslandLayout.AssetPath);
+            if (layout == null)
+                throw new System.InvalidOperationException("Не найден IslandLayout для перекраски синего пятна.");
+            var field = new IslandField(layout);
+            PrepareBuildingPadContexts(field);
+            var candy = source.HasProperty("_CandyOn") && source.GetFloat("_CandyOn") > 0.5f
+                ? IslandCandy.GetOrCreate()
+                : null;
+            Vector4 rect = source.GetVector("_GroundRect");
+            var readable = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            string texturePath = folder + "/GroundColor_" + index + ".png";
+            try
+            {
+                if (!ImageConversion.LoadImage(readable, System.IO.File.ReadAllBytes(sourcePath)))
+                    throw new System.InvalidOperationException("Не удалось прочитать цвет земли острова.");
+                int width = readable.width, height = readable.height;
+                float dx = rect.z / width, dz = rect.w / height;
+                var pixels = readable.GetPixels32();
+                for (int z = 0; z < height; z++)
+                for (int x = 0; x < width; x++)
+                {
+                    float wx = rect.x + (x + 0.5f) * dx;
+                    float wz = rect.y + (z + 0.5f) * dz;
+                    if (field.PondValue(wx, wz) >= 1.08f) continue;
+                    pixels[z * width + x] = candy != null
+                        ? (Color32)CandyPixel(field, candy, wx, wz).color
+                        : (Color32)GroundColorSrgb(field, wx, wz);
+                }
+                SaveGroundPng(pixels, width, height, texturePath, true);
+            }
+            finally { Object.DestroyImmediate(readable); }
+            var material = new Material(source) { name = "Island ground at the pond" };
+            material.SetTexture("_GroundTex", AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath));
+            AssetDatabase.CreateAsset(material, folder + "/IslandGround_" + index + ".mat");
+            return material;
+        }
+
         // PNG в проект и настройка импорта. srgb = true для цвета; для маски false: значения читаются как есть (иначе уклон и глянец исказятся гаммой)
         static void SaveGroundPng(Color32[] px, int w, int h, string path, bool srgb)
         {

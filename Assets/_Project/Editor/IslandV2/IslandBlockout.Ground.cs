@@ -300,10 +300,8 @@ namespace IslandV2
                 c = CScale(c, 1f - L.edgeDarken * k);
             }
 
-            // дно под водой: русло без брода и пруд
+            // Дно русла без брода. Дно пруда запекается отдельным мешем.
             c = Color.Lerp(c, L.waterColor, inRiver * (1f - fw));
-            float pondW = 1f - IslandField.Step(0.9f, 1.08f, f.PondValue(x, z));
-            c = Color.Lerp(c, L.waterColor, pondW);
 
             return new Color(c.r, c.g, c.b, 1f);
         }
