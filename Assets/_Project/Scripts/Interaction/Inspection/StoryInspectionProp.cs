@@ -6,6 +6,8 @@ using UnityEngine.Rendering;
 // mesh in place and give just the movable piece its own transform for the scene.
 sealed class StoryInspectionProp
 {
+    const string BoardVisualName = "BenchBoard_Visual";
+
     readonly Transform owner;
     readonly MeshFilter backing;
     readonly Mesh original, scenery, part;
@@ -64,6 +66,11 @@ sealed class StoryInspectionProp
         }
 
         if (kind != StoryInspection.Kind.CopperArrow && kind != StoryInspection.Kind.Board) return null;
+        if (kind == StoryInspection.Kind.Board)
+        {
+            Transform board = owner.Find(BoardVisualName);
+            if (board != null) return new StoryInspectionProp(owner, board);
+        }
 
         var filter = owner.GetComponent<MeshFilter>();
         var renderer = owner.GetComponent<MeshRenderer>();
@@ -115,6 +122,7 @@ sealed class StoryInspectionProp
         if (kind == StoryInspection.Kind.Knife) return owner.Find(StoryInspection.GunnarKnifeModelName) != null;
         if (kind == StoryInspection.Kind.Ribbon)
             return owner.TryGetComponent<TWRibbonStoryModel>(out var cloth) && cloth.HasVisual;
+        if (kind == StoryInspection.Kind.Board && owner.Find(BoardVisualName) != null) return true;
         var filter = owner.GetComponent<MeshFilter>();
         return filter != null && TrySplit(filter.sharedMesh, kind, out _, out _);
     }

@@ -351,7 +351,8 @@ static partial class StoryInspectionEditor
                     Add(prop.GetComponent<DialogueSequence>(), Kind.Ribbon, new Vector3(.035f, .402f, .075f), authored);
                     break;
                 case "Bench_Memory":
-                    Add(prop.GetComponent<DialogueSequence>(), Kind.Board, new Vector3(.035f, .402f, .075f), authored, atmosphere: "Forest_Breath");
+                    Add(prop.GetComponent<DialogueSequence>(), Kind.Board, new Vector3(.035f, .402f, .075f), authored,
+                        detail: prop.transform.Find(TWMysticClearingPolish.BoardVisual), atmosphere: "Forest_Breath");
                     break;
                 case "Bench_4":
                     Add(prop, Kind.BenchMarks, new Vector3(0f, 1.15f, -.27f), authored, prop.transform.Find("Engraving_Bench"));

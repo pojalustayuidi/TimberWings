@@ -111,7 +111,12 @@ public sealed partial class StoryInspection
         else if (engraveBridge)
         {
             back = transform.forward;
-            distance = 1.9f; angle = 11f; size = .62f;
+            if (bridgeEngraving != null)
+            {
+                Vector3 front = Vector3.ProjectOnPlane(bridgeEngraving.forward, Vector3.up);
+                if (front.sqrMagnitude > .01f) back = front.normalized;
+            }
+            distance = 1.43f; angle = 8f; elevation = .56f; size = .46f; fov = 36f;
         }
         else
         {
@@ -149,6 +154,15 @@ public sealed partial class StoryInspection
                     focus = Vector3.Lerp(item, hero, beat == Beat.React ? .60f : .08f);
                     distance = 1.9f; angle = beat == Beat.React ? 56f : 16f; size = .68f;
                     if (beat == Beat.React) back = -back;
+                    if (beat == Beat.Detail && prop != null && prop.Authored)
+                    {
+                        focus = item;
+                        distance = 1.08f;
+                        elevation = 1.36f;
+                        angle = 11f;
+                        size = .37f;
+                        fov = 34f;
+                    }
                     break;
                 case Kind.Finale:
                     back = -transform.forward;
@@ -163,6 +177,14 @@ public sealed partial class StoryInspection
                         if (forward.sqrMagnitude > .01f) back = forward.normalized;
                     }
                     distance = 1.9f; angle = 6f; elevation = .70f; size = .78f;
+                    if (subject == Kind.Witness && detail != null && beat == Beat.Detail)
+                    {
+                        distance = 1.66f;
+                        angle = 4f;
+                        elevation = 1.08f;
+                        size = .62f;
+                        fov = 36f;
+                    }
                     break;
                 case Kind.Arch:
                     back = -transform.forward;

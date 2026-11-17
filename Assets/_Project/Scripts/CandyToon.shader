@@ -51,6 +51,13 @@ Shader "Project/CandyToon"
 
         [HideInInspector] [Toggle(TW_CLOTH_WIND)] _ClothWind ("Cloth wind", Float) = 0
         [HideInInspector] _ClothWindAmount ("Cloth wind amount", Float) = 1
+        [HideInInspector] [Toggle(TW_RIBBON_INK)] _TWRibbonInkEnabled ("Forest ribbon ink", Float) = 0
+        [NoScaleOffset] _TWRibbonInk ("Ribbon tally mask", 2D) = "black" {}
+        _TWRibbonInkColor ("Tally pigment multiplier", Color) = (0.22, 0.15, 0.13, 1)
+        [HideInInspector] _TWRibbonInkU ("Ink projection U", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _TWRibbonInkV ("Ink projection V", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _TWRibbonInkDepth ("Ink projection depth", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _TWRibbonInkFacing ("Ink face normal", Vector) = (0, 0, 1, 0)
 
         [Header(Emission)]
         // свечение ламп и окон: красит FireSource через MaterialPropertyBlock (без него стекла и фонари вечером оставались тёмными)
@@ -93,6 +100,12 @@ Shader "Project/CandyToon"
             float _PeekSupport;
             float4 _EmissionColor;
             float _ClothWindAmount;
+            float _TWRibbonInkEnabled;
+            float4 _TWRibbonInkColor;
+            float4 _TWRibbonInkU;
+            float4 _TWRibbonInkV;
+            float4 _TWRibbonInkDepth;
+            float4 _TWRibbonInkFacing;
         CBUFFER_END
 
         float3 CandyClothPosition(float3 position, float2 uv)
@@ -124,6 +137,7 @@ Shader "Project/CandyToon"
             #pragma fragment frag
             #pragma multi_compile_instancing
             #pragma shader_feature_local_vertex _ TW_CLOTH_WIND
+            #pragma shader_feature_local _ TW_RIBBON_INK
             #pragma multi_compile_fog
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX
@@ -131,6 +145,11 @@ Shader "Project/CandyToon"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Assets/_Project/Shaders/Forest/TreeToonPeek.hlsl"
+
+        #if defined(TW_RIBBON_INK)
+            TEXTURE2D(_TWRibbonInk);
+            SAMPLER(sampler_TWRibbonInk);
+        #endif
 
             struct Attributes
             {
@@ -149,6 +168,10 @@ Shader "Project/CandyToon"
                 half3 albedo : TEXCOORD2;     // цвет * vertex color * вариация
                 half3 lightV : TEXCOORD3;     // SH ambient + доп. огни, считаны в вершине
                 half fog : TEXCOORD4;
+            #if defined(TW_RIBBON_INK)
+                float3 inkBindPosition : TEXCOORD5;
+                half3 inkNormalOS : TEXCOORD6;
+            #endif
             };
 
             float CandyHash12(float2 p)
@@ -168,6 +191,11 @@ Shader "Project/CandyToon"
                 o.positionWS = posWS;
                 o.positionCS = TransformWorldToHClip(posWS);
                 o.normalWS = nWS;
+            #if defined(TW_RIBBON_INK)
+                // Use the bind pose so the paint follows the animated fabric.
+                o.inkBindPosition = v.positionOS.xyz;
+                o.inkNormalOS = v.normalOS;
+            #endif
 
                 // вариация на инстанс из мировой позиции корня (без MaterialPropertyBlock)
                 float3 origin = float3(UNITY_MATRIX_M._m03, UNITY_MATRIX_M._m13, UNITY_MATRIX_M._m23);
@@ -213,7 +241,19 @@ Shader "Project/CandyToon"
                 float lvl = lerp(lerp(_Level0, _Level1, b1), _Level2, b2);
 
                 float3 shadeTint = lerp(_ShadowTint.rgb, float3(1.0, 1.0, 1.0), b1);
-                float3 col = i.albedo * shadeTint * (L.color * lvl + i.lightV);
+                float3 albedo = i.albedo;
+            #if defined(TW_RIBBON_INK)
+                float4 bindPos = float4(i.inkBindPosition, 1);
+                float2 inkUv = float2(dot(bindPos, _TWRibbonInkU), dot(bindPos, _TWRibbonInkV));
+                float edge = min(min(inkUv.x, inkUv.y), min(1.0 - inkUv.x, 1.0 - inkUv.y));
+                float depth = abs(dot(bindPos, _TWRibbonInkDepth));
+                float facing = dot(normalize(i.inkNormalOS), _TWRibbonInkFacing.xyz);
+                float ink = SAMPLE_TEXTURE2D(_TWRibbonInk, sampler_TWRibbonInk, saturate(inkUv)).r;
+                ink *= smoothstep(0.0, 0.035, edge) * (1.0 - smoothstep(0.70, 1.0, depth));
+                ink *= smoothstep(0.08, 0.52, facing) * _TWRibbonInkEnabled;
+                albedo = lerp(albedo, albedo * _TWRibbonInkColor.rgb, ink);
+            #endif
+                float3 col = albedo * shadeTint * (L.color * lvl + i.lightV);
 
                 float3 V = GetWorldSpaceNormalizeViewDir(i.positionWS);
 
