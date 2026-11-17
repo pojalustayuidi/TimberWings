@@ -5,7 +5,7 @@
 //
 // ЕДИНЫЙ ЗНАК «НЕ РУБИТСЯ» (общий для всех видов, строится отдельными мешами):
 //   Mark  каменное кольцо у корней радиусом RingR: 10 низких камней + 5 внешних, на каждом большом камне бирюзовая руна (сабмеш 1 = светится)
-//   Gem   кристалл-знак (вытянутый октаэдр), висит над кроной, вращается (SacredVibe)
+//   Gem   кристалл-знак, посаженный у корней
 //
 // Сабмеши тела дерева (материалы собирает ForestSacred.Mats):
 //   Cloud    0 кора, 1 белое облако, 2 розовые «подсветки», 3 сиреневый низ облаков
@@ -13,7 +13,7 @@
 //   Crystal  0 кора, 1 мятная крона, 2 кристаллы (светятся), 3 тёмный низ кроны
 //   Lantern  0 кора и верёвки, 1 сине-мятная крона, 2 тёплые фонарики (светятся), 3 тёмный низ кроны
 //   Sleeper  0 кора, 1 тёмно-бирюзовая крона, 2 лаймовый мох, 3 тёмное (лицо, низ кроны)
-// LOD0: шары по 80 граней (level 1), 8 граней у стволов. LOD1: шары по 20 граней (level 0), 5 граней у стволов.
+// LOD0 сохраняет дополнительные детали листвы. LOD1 сохраняет все основные ветви и точки крепления.
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -69,17 +69,9 @@ namespace IslandV2
                 default: return 3.8f;
             }
         }
-        // высота парящего кристалла-знака над землёй
-        public static float GemY(SacredKind k)
+        public static Vector3 GemFoot(SacredKind k)
         {
-            switch (k)
-            {
-                case SacredKind.Cloud: return 9.8f;
-                case SacredKind.Blossom: return 8.4f;
-                case SacredKind.Crystal: return 8.8f;
-                case SacredKind.Lantern: return 8.2f;
-                default: return 8.9f;
-            }
+            return new Vector3(TrunkR(k) * 0.77f + 0.23f, 0.08f, TrunkR(k) * 0.88f + 0.15f);
         }
 
         // ============================================================ меш тела дерева
@@ -110,21 +102,25 @@ namespace IslandV2
             b.TubeF(sub, t => TPos(s, t), t => TRad(s, t), segs, sides, true);
         }
 
-        // корни-контрфорсы: расходятся от ствола и уходят в землю
+        // Крупные корни выходят на поверхность с изгибом, а концы уходят в землю.
         static void Roots(TreeMB b, int sub, Tr s, int n, float spread, int sides, int seed)
         {
             for (int i = 0; i < n; i++)
             {
                 float a = (i / (float)n + 0.07f * TreeMB.H(seed, i)) * Mathf.PI * 2f;
                 Vector3 d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                Vector3 side = Vector3.Cross(d, Vector3.up);
+                float bend = (TreeMB.H(seed + 1, i) - 0.5f) * 0.9f;
                 float r = s.r0;
+                float reach = Mathf.Min(2.65f, r * spread * Mathf.Lerp(0.72f, 1.12f, TreeMB.H(seed + 2, i)));
                 var p = new[]
                 {
-                    d * (r * 0.4f) + Vector3.up * (0.9f * r + 0.3f),
-                    d * (r * 1.1f) + Vector3.up * (0.35f * r),
-                    d * (r * spread) + Vector3.up * -0.05f
+                    TPos(s, TOfY(s, r + 0.35f)) + d * (r * 0.38f),
+                    d * (reach * 0.46f) + Vector3.up * (0.38f * r),
+                    d * (reach * 0.78f) + side * (bend * r * 0.45f) + Vector3.up * (0.08f * r),
+                    d * reach + side * (bend * r) - Vector3.up * 0.12f
                 };
-                b.Tube(sub, p, new[] { r * 0.42f, r * 0.30f, r * 0.12f }, sides, false);
+                b.Tube(sub, p, new[] { r * 0.41f, r * 0.31f, r * 0.19f, r * 0.035f }, sides, false);
             }
         }
 
@@ -143,11 +139,58 @@ namespace IslandV2
             return p;
         }
 
-        static void TubeLimb(TreeMB b, int sub, Vector3[] p, float r0, float r1, int sides)
+        static Vector3[] BoughPath(Tr trunk, float height, float azimuth, float length, float rise)
+        {
+            return Limb(TPos(trunk, TOfY(trunk, height)), Az(azimuth), length, rise, 4);
+        }
+
+        static void Bough(TreeMB b, Vector3[] p, float radius, float tipRadius, int sides)
         {
             var r = new float[p.Length];
-            for (int i = 0; i < r.Length; i++) r[i] = Mathf.Lerp(r0, r1, i / (r.Length - 1f));
-            b.Tube(sub, p, r, sides, true);
+            for (int i = 0; i < r.Length; i++) r[i] = Mathf.Lerp(radius, tipRadius, i / (r.Length - 1f));
+            b.Tube(0, p, r, sides, true);
+        }
+
+        static Vector3 Bough(TreeMB b, Tr trunk, float height, float azimuth, float length, float rise, float radius, int sides)
+        {
+            var path = BoughPath(trunk, height, azimuth, length, rise);
+            Bough(b, path, radius, 0.055f, sides);
+            return path[path.Length - 1];
+        }
+
+        static void Leader(TreeMB b, Tr trunk, Vector3 tip, int sides)
+        {
+            Vector3 start = TPos(trunk, 0.82f);
+            Vector3 bend = Vector3.Lerp(TPos(trunk, 1f), tip, 0.45f) + new Vector3(0.11f, 0f, 0.09f);
+            b.Tube(0, new[] { start, bend, tip }, new[] { TRad(trunk, 0.82f) * 0.65f, 0.12f, 0.04f }, sides, true);
+        }
+
+        // Ветвь доходит до центра объёма. Нижний пояс оставляет запас перекрытия на обоих LOD.
+        static void CanopyPad(TreeMB b, int sub, Vector3 center, Vector3 size, int seed, int lod)
+        {
+            int sides = lod == 0 ? 9 : 7;
+            var lower = new Vector3[sides];
+            var upper = new Vector3[sides];
+            for (int j = 0; j < sides; j++)
+            {
+                float angle = (j + TreeMB.H(seed, 0)) * (2f * Mathf.PI / sides);
+                Vector3 across = new Vector3(Mathf.Cos(angle) * size.x, 0f, Mathf.Sin(angle) * size.z);
+                float outline = 0.88f + 0.20f * TreeMB.H(seed, j + 1);
+                lower[j] = center + across * (0.85f * outline)
+                    + Vector3.down * (size.y * (0.26f + 0.14f * TreeMB.H(seed + 1, j)));
+                upper[j] = center + across * outline
+                    + Vector3.up * (size.y * (0.25f + 0.20f * TreeMB.H(seed + 2, j)));
+            }
+            Vector3 top = center + new Vector3(size.x * 0.13f, size.y, -size.z * 0.12f);
+            Vector3 bottom = center + Vector3.down * (size.y * 0.78f);
+            for (int j = 0; j < sides; j++)
+            {
+                int next = (j + 1) % sides;
+                b.Tri(3, bottom, lower[j], lower[next], center);
+                b.Tri(sub, lower[j], upper[j], upper[next], center);
+                b.Tri(sub, lower[j], upper[next], lower[next], center);
+                b.Tri(sub, top, upper[next], upper[j], center);
+            }
         }
 
         // кристалл-шип: призма с острой вершиной. baseC основание, dir куда растёт, len длина, rad радиус
@@ -214,7 +257,7 @@ namespace IslandV2
             return res;
         }
 
-        // ============================================================ ЕДИНЫЙ ЗНАК: кристалл над кроной (пивот в центре)
+        // ============================================================ ЕДИНЫЙ ЗНАК: кристалл у корней (пивот в центре)
         public static Mesh Gem(string name)
         {
             var b = new TreeMB();
@@ -239,45 +282,23 @@ namespace IslandV2
         {
             var b = new TreeMB();
             int lv = lod == 0 ? 1 : 0, sd = lod == 0 ? 8 : 5;
-            var s = new Tr { h = 3.5f, r0 = 0.42f, r1 = 0.26f, lean = 0.35f, twist = 4.2f, ph = 0.4f };
+            var s = new Tr { h = 4.4f, r0 = 0.46f, r1 = 0.19f, lean = 0.63f, twist = 3.8f, ph = 0.45f };
             Trunk(b, 0, s, 6, sd);
-            Roots(b, 0, s, 5, 2.1f, sd, 11);
+            Roots(b, 0, s, 5, 3.35f, sd, 11);
             Vector3 top = TPos(s, 1f);
 
-            // три ветви-«ножки» держат облако
-            for (int k = 0; k < 3; k++)
+            // Приподнятая сердцевина и три облачных уступа, разделённые просветами.
+            Vector3 high = top + new Vector3(-0.2f, 1.65f, 0.1f);
+            Leader(b, s, high, sd);
+            CanopyPad(b, 1, high, new Vector3(1.77f, 1.52f, 1.59f), 101, lod);
+            b.Blob(1, high + new Vector3(-0.30f, 0.92f, -0.16f), new Vector3(1.12f, 0.88f, 1.02f), 102, lv, 0.12f, 3);
+            float[] directions = { 33f, 143f, 266f };
+            for (int i = 0; i < directions.Length; i++)
             {
-                var pts = Limb(top + Vector3.down * 0.5f, Az(k * 120f + 25f), 1.7f, 1.4f, 4);
-                TubeLimb(b, 0, pts, 0.15f, 0.07f, sd);
-            }
-
-            // облако: большая «шапка», кольцо пухлых шаров, верхние шары, макушка
-            float cy = top.y + 1.9f;
-            Vector3 cc = new Vector3(top.x, cy, top.z);
-            b.Blob(1, cc, new Vector3(2.15f, 1.55f, 2.15f), 101, lv, 0.16f, 3);
-            for (int i = 0; i < 6; i++)
-            {
-                float a = i / 6f * Mathf.PI * 2f + 0.3f;
-                float y = cy - 0.55f + (TreeMB.H(110, i) - 0.5f) * 0.5f;
-                Vector3 c = cc + new Vector3(Mathf.Cos(a) * 1.95f, y - cy, Mathf.Sin(a) * 1.95f);
-                float k = 0.9f + 0.25f * TreeMB.H(111, i);
-                b.Blob(i % 3 == 0 ? 2 : 1, c, new Vector3(1.25f * k, 0.95f * k, 1.25f * k), 120 + i, lv, 0.16f, 3);
-            }
-            for (int i = 0; i < 3; i++)
-            {
-                float a = i / 3f * Mathf.PI * 2f + 1.0f;
-                Vector3 c = cc + new Vector3(Mathf.Cos(a) * 0.95f, 1.05f, Mathf.Sin(a) * 0.95f);
-                b.Blob(i == 1 ? 2 : 1, c, new Vector3(1.05f, 0.85f, 1.05f), 130 + i, lv, 0.16f, 3);
-            }
-            b.Blob(1, cc + new Vector3(0.1f, 1.75f, 0f), new Vector3(0.85f, 0.70f, 0.85f), 140, lv, 0.16f, 3);
-
-            // отдельные облачка-спутники вокруг кроны
-            for (int i = 0; i < 3; i++)
-            {
-                float a = i * 2.1f + 0.5f;
-                float r = 3.0f + 0.4f * TreeMB.H(150, i);
-                Vector3 c = cc + new Vector3(Mathf.Cos(a) * r, -1.2f + i * 0.9f, Mathf.Sin(a) * r);
-                b.Blob(1, c, new Vector3(0.45f, 0.32f, 0.45f), 160 + i, 0, 0.16f, 3);
+                Vector3 outwards = Az(directions[i]);
+                Vector3 tip = Bough(b, s, 2.58f + i * 0.52f, directions[i], 2.17f, 1.70f, 0.25f, sd);
+                CanopyPad(b, 1, tip, new Vector3(1.61f, 0.96f, 1.48f), 120 + i, lod);
+                b.Blob(2, tip - outwards * 0.25f + Vector3.up * 0.59f, new Vector3(0.94f, 0.66f, 0.95f), 130 + i, lv, 0.12f, 3);
             }
             return b.Build(name);
         }
@@ -287,35 +308,41 @@ namespace IslandV2
         {
             var b = new TreeMB();
             int lv = lod == 0 ? 1 : 0, sd = lod == 0 ? 8 : 5;
-            var s = new Tr { h = 3.0f, r0 = 0.50f, r1 = 0.30f, lean = 0.7f, twist = 3.2f, ph = 1.1f };
+            var s = new Tr { h = 4.0f, r0 = 0.53f, r1 = 0.19f, lean = 0.88f, twist = 1.9f, ph = 0.15f };
             Trunk(b, 0, s, 6, sd);
-            Roots(b, 0, s, 6, 2.3f, sd, 21);
+            Roots(b, 0, s, 6, 3.3f, sd, 21);
             Vector3 top = TPos(s, 1f);
 
-            // три главные ветви, каждая заканчивается плоской «шапкой» цветов
-            float[] az = { 20f, 140f, 255f };
+            // Низкая горизонтальная ветвь противовесом наклонному главному стволу.
+            float[] az = { 260f, 124f, 8f };
+            float[] lengths = { 2.9f, 2.55f, 1.65f };
+            float[] lifts = { 1.13f, 1.96f, 2.23f };
             for (int k = 0; k < 3; k++)
             {
                 Vector3 dir = Az(az[k]);
-                var pts = Limb(top + Vector3.down * 0.2f, dir, 2.3f, 1.8f, 5);
-                TubeLimb(b, 0, pts, 0.20f, 0.08f, sd);
-                Vector3 e = pts[pts.Length - 1];
-                b.Blob(1, e + Vector3.up * 0.6f, new Vector3(1.9f, 0.95f, 1.9f), 210 + k, lv, 0.20f, 3);
-                b.Blob(2, e + Vector3.up * 1.15f - dir * 0.4f, new Vector3(1.2f, 0.65f, 1.2f), 220 + k, lv, 0.20f, 3);
+                Vector3 e = Bough(b, s, 2.42f + k * 0.41f, az[k], lengths[k], lifts[k], 0.29f, sd);
                 Vector3 side = Vector3.Cross(dir, Vector3.up).normalized;
-                b.Blob(1, e + Vector3.up * 0.3f + side * 1.5f, new Vector3(1.1f, 0.7f, 1.1f), 225 + k, 0, 0.20f, 3);
+                CanopyPad(b, 1, e, new Vector3(1.70f, 0.83f, 1.52f), 210 + k, lod);
+                b.Blob(2, e + Vector3.up * 0.35f + dir * 0.58f, new Vector3(0.92f, 0.48f, 0.88f), 220 + k, lv, 0.17f, 3);
+                if (lod == 0)
+                    b.Blob(1, e + Vector3.up * 0.14f + side * 0.91f, new Vector3(0.80f, 0.51f, 0.81f), 225 + k, 0, 0.20f, 3);
             }
-            // центральная шапка
-            b.Blob(1, top + Vector3.up * 1.9f, new Vector3(2.1f, 1.05f, 2.1f), 230, lv, 0.20f, 3);
-            b.Blob(2, top + new Vector3(0.2f, 2.55f, -0.1f), new Vector3(1.1f, 0.6f, 1.1f), 231, lv, 0.20f, 3);
+            Vector3 high = top + new Vector3(0.2f, 1.65f, -0.38f);
+            Leader(b, s, high, sd);
+            CanopyPad(b, 1, high, new Vector3(1.43f, 0.88f, 1.40f), 230, lod);
+            b.Blob(2, high + new Vector3(-0.29f, 0.52f, -0.35f), new Vector3(0.88f, 0.52f, 0.95f), 231, lv, 0.17f, 3);
 
-            // ковёр опавших лепестков на земле (плоские пятна)
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; i < (lod == 0 ? 26 : 12); i++)
             {
                 float a = TreeMB.H(240, i) * Mathf.PI * 2f;
-                float r = 1.3f + TreeMB.H(241, i) * 2.4f;
-                Vector3 c = new Vector3(Mathf.Cos(a) * r, 0.03f, Mathf.Sin(a) * r);
-                b.Blob(i % 3 == 0 ? 2 : 1, c, new Vector3(0.45f + 0.4f * TreeMB.H(242, i), 0.03f, 0.35f + 0.3f * TreeMB.H(243, i)), 250 + i, 0, 0.15f, -1);
+                float r = 0.87f + TreeMB.H(241, i) * 2.6f;
+                Vector3 axis = Az(71f * i) * (0.06f + TreeMB.H(242, i) * 0.07f);
+                Vector3 side = Vector3.Cross(axis, Vector3.up) * 0.55f;
+                Vector3 c = new Vector3(Mathf.Cos(a) * r, 0.034f, Mathf.Sin(a) * r);
+                Vector3 ridge = c + Vector3.up * 0.024f;
+                int layer = i % 3 == 0 ? 2 : 1;
+                b.Tri(layer, c - axis, c + side, ridge + axis, c + Vector3.down);
+                b.Tri(layer, c - axis, ridge + axis, c - side, c + Vector3.down);
             }
             return b.Build(name);
         }
@@ -323,16 +350,25 @@ namespace IslandV2
         // ============================================================ 3. КРИСТАЛЬНОЕ ДЕРЕВО
         struct Sh { public Vector3 c, d; public float len, rad; }
 
+        static Tr CrystalTrunk => new Tr { h = 5.1f, r0 = 0.49f, r1 = 0.14f, lean = 0.53f, twist = 5.2f, ph = 2.0f };
+
+        static Vector3[] CrystalBough(Tr trunk, int i)
+        {
+            return BoughPath(trunk, 2.38f + 0.38f * i, 45f + 90f * i,
+                1.48f + 0.43f * (i % 2), 2.01f + 0.52f * TreeMB.H(302, i));
+        }
+
         static List<Sh> CrystalShards()
         {
             var l = new List<Sh>();
+            var trunk = CrystalTrunk;
             // кластер у корней
             for (int i = 0; i < 7; i++)
             {
                 float a = i / 7f * Mathf.PI * 2f + 0.35f;
                 float tilt = (16f + 22f * TreeMB.H(310, i)) * Mathf.Deg2Rad;
                 float rr = 0.75f + 0.45f * TreeMB.H(311, i);
-                Vector3 c = new Vector3(Mathf.Cos(a) * rr, -0.05f, Mathf.Sin(a) * rr);
+                Vector3 c = new Vector3(Mathf.Cos(a) * rr, -0.20f, Mathf.Sin(a) * rr);
                 Vector3 d = new Vector3(Mathf.Cos(a) * Mathf.Sin(tilt), Mathf.Cos(tilt), Mathf.Sin(a) * Mathf.Sin(tilt));
                 l.Add(new Sh { c = c, d = d, len = 0.9f + 1.1f * TreeMB.H(312, i), rad = 0.13f + 0.12f * TreeMB.H(313, i) });
             }
@@ -342,14 +378,15 @@ namespace IslandV2
             {
                 float a = i * 2.4f + 0.8f;
                 Vector3 dd = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                l.Add(new Sh { c = dd * 0.40f + Vector3.up * ys[i], d = (dd * 0.8f + Vector3.up * 0.6f).normalized, len = 0.7f + 0.3f * TreeMB.H(320, i), rad = 0.10f });
+                Vector3 basePoint = TPos(trunk, TOfY(trunk, ys[i])) + dd * 0.13f;
+                l.Add(new Sh { c = basePoint, d = (dd * 0.8f + Vector3.up * 0.6f).normalized, len = 0.8f + 0.3f * TreeMB.H(320, i), rad = 0.10f });
             }
             // в кроне
             for (int i = 0; i < 4; i++)
             {
-                float a = i / 4f * Mathf.PI * 2f + 0.9f;
-                Vector3 dd = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                l.Add(new Sh { c = dd * 1.7f + Vector3.up * (4.7f + 0.4f * TreeMB.H(330, i)), d = (dd * 0.5f + Vector3.up).normalized, len = 1.0f, rad = 0.13f });
+                Vector3 dd = Az(45f + 90f * i);
+                Vector3 branchPoint = CrystalBough(trunk, i)[2];
+                l.Add(new Sh { c = branchPoint, d = (dd * 0.76f + Vector3.up).normalized, len = 0.95f, rad = 0.13f });
             }
             return l;
         }
@@ -367,20 +404,25 @@ namespace IslandV2
         {
             var b = new TreeMB();
             int lv = lod == 0 ? 1 : 0, sd = lod == 0 ? 8 : 5, sides = lod == 0 ? 5 : 4;
-            var s = new Tr { h = 3.4f, r0 = 0.46f, r1 = 0.28f, lean = 0.4f, twist = 5.2f, ph = 2.0f };
+            var s = CrystalTrunk;
             Trunk(b, 0, s, 6, sd);
-            Roots(b, 0, s, 5, 2.0f, sd, 31);
+            Roots(b, 0, s, 5, 3.55f, sd, 31);
             Vector3 top = TPos(s, 1f);
 
-            // воздушная крона: шапка и неплотное кольцо мятных шаров
-            b.Blob(1, top + Vector3.up * 1.6f, new Vector3(1.5f, 1.2f, 1.5f), 301, lv, 0.22f, 3);
-            for (int i = 0; i < 6; i++)
+            // Острые, разнесённые по высоте мятные вершины оставляют просвет над кристаллами.
+            Vector3 high = top + Vector3.up * 1.02f;
+            Leader(b, s, high, sd);
+            CanopyPad(b, 1, high, new Vector3(1.06f, 1.21f, 0.96f), 301, lod);
+            for (int i = 0; i < 4; i++)
             {
-                float a = i / 6f * Mathf.PI * 2f + 0.5f;
-                Vector3 c = top + new Vector3(Mathf.Cos(a) * 1.7f, 1.4f + (TreeMB.H(302, i) - 0.5f) * 0.9f, Mathf.Sin(a) * 1.7f);
-                b.Blob(1, c, new Vector3(1.0f, 0.8f, 1.0f), 305 + i, lv, 0.22f, 3);
+                float az = 45f + 90f * i;
+                Vector3[] branch = CrystalBough(s, i);
+                Bough(b, branch, 0.23f, 0.058f, sd);
+                Vector3 tip = branch[branch.Length - 1];
+                CanopyPad(b, 1, tip, new Vector3(1.02f, 1.12f, 0.92f), 305 + i, lod);
+                if (lod == 0)
+                    b.Blob(1, tip - Vector3.up * 0.27f - Az(az) * 0.38f, new Vector3(0.58f, 0.65f, 0.64f), 312 + i, 0, 0.15f, 3);
             }
-            b.Blob(1, top + new Vector3(0.1f, 2.7f, 0f), new Vector3(0.9f, 0.75f, 0.9f), 315, lv, 0.22f, 3);
 
             var sh = CrystalShards();
             for (int i = 0; i < sh.Count; i++) Shard(b, 2, sh[i].c, sh[i].d, sh[i].len, sh[i].rad, sides);
@@ -405,36 +447,80 @@ namespace IslandV2
         {
             var b = new TreeMB();
             int lv = lod == 0 ? 1 : 0, sd = lod == 0 ? 8 : 5;
-            var s = new Tr { h = 2.7f, r0 = 0.58f, r1 = 0.38f, lean = 0.3f, twist = 3.6f, ph = 0.2f };
+            var s = new Tr { h = 3.4f, r0 = 0.59f, r1 = 0.30f, lean = 0.42f, twist = 3.2f, ph = 0.2f };
             Trunk(b, 0, s, 6, sd);
-            Roots(b, 0, s, 6, 2.2f, sd, 41);
+            Roots(b, 0, s, 6, 3.1f, sd, 41);
             Vector3 top = TPos(s, 1f);
 
-            // широкая плоская крона: под ней вешаются фонарики
-            b.Blob(1, top + Vector3.up * 1.7f, new Vector3(2.2f, 1.3f, 2.2f), 401, lv, 0.22f, 3);
-            for (int i = 0; i < 7; i++)
+            Vector3 high = top + new Vector3(-0.45f, 2.26f, 0.31f);
+            Leader(b, s, high, sd);
+            CanopyPad(b, 1, top + Vector3.up * 0.78f, new Vector3(1.92f, 1.12f, 1.75f), 401, lod);
+            CanopyPad(b, 1, high, new Vector3(1.42f, 0.83f, 1.30f), 415, lod);
+            List<Vector3> lanterns = LanternSpots();
+            for (int i = 0; i < 4; i++)
             {
-                float a = i / 7f * Mathf.PI * 2f + 0.2f;
-                Vector3 c = top + new Vector3(Mathf.Cos(a) * 2.0f, 1.3f + (TreeMB.H(402, i) - 0.5f) * 0.5f, Mathf.Sin(a) * 2.0f);
-                b.Blob(1, c, new Vector3(1.45f, 0.95f, 1.45f), 405 + i, lv, 0.22f, 3);
-            }
-            b.Blob(1, top + new Vector3(0f, 2.9f, 0f), new Vector3(1.4f, 0.9f, 1.4f), 415, lv, 0.22f, 3);
+                int first = i * 2;
+                Vector3 middle = (lanterns[first] + lanterns[first + 1]) * 0.5f;
+                float az = Mathf.Atan2(middle.x, middle.z) * Mathf.Rad2Deg;
+                Vector3[] limb = BoughPath(s, 2.65f + (i % 2) * 0.22f, az, 2.55f, 1.70f + 0.12f * i);
+                Bough(b, limb, 0.30f, 0.074f, sd);
+                Vector3 tip = limb[limb.Length - 1];
+                CanopyPad(b, 1, tip, new Vector3(1.73f, 0.83f, 1.56f), 405 + i, lod);
+                if (lod == 0)
+                    b.Blob(1, tip + Az(az) * 0.63f + Vector3.up * 0.42f, new Vector3(0.95f, 0.48f, 0.83f), 410 + i, lv, 0.18f, 3);
 
-            // фонарики на верёвках
-            foreach (var sp in LanternSpots())
-            {
-                Vector3 ropeTop = new Vector3(sp.x, 3.55f, sp.z);
-                b.Tube(0, new[] { ropeTop, sp + Vector3.up * 0.30f }, new[] { 0.025f, 0.025f }, 4, false);
-                b.Blob(2, sp, new Vector3(0.21f, 0.28f, 0.21f), 430 + (int)(sp.x * 10f), 0, 0.15f, -1);
-                b.Blob(0, sp + Vector3.up * 0.30f, new Vector3(0.14f, 0.06f, 0.14f), 450 + (int)(sp.z * 10f), 0, 0.15f, -1);
+                for (int j = 0; j < 2; j++)
+                {
+                    Vector3 lamp = lanterns[first + j];
+                    Vector3 from = Vector3.Lerp(limb[1], limb[2], 0.40f + j * 0.28f);
+                    var socket = new Vector3(lamp.x, Mathf.Max(from.y + 0.19f, lamp.y + 0.76f), lamp.z);
+                    Vector3 bend = Vector3.Lerp(from, socket, 0.58f) + Vector3.up * 0.09f;
+                    Bough(b, new[] { from, bend, socket }, 0.123f, 0.064f, lod == 0 ? 6 : 4);
+                    DrawLantern(b, lamp, socket, lod == 0);
+                }
             }
             return b.Build(name);
         }
 
-        // ============================================================ 5. СОННЫЙ СТРАЖ
-        // дуга на стволе: линия лица. Ствол прямой (lean = 0), лицо на +Z.
-        static void Arc(TreeMB b, int sub, Tr s, float cx, float cy, float w, float dip, float rad, int pts)
+        static void DrawLantern(TreeMB b, Vector3 lamp, Vector3 socket, bool detail)
         {
+            Vector3 upper = lamp + Vector3.up * 0.21f;
+            Vector3 lower = lamp - Vector3.up * 0.22f;
+            b.Tube(0, new[] { socket, upper }, new[] { 0.028f, 0.024f }, 4, false);
+            b.Tube(2, new[] { lower, lamp + Vector3.up * 0.04f, upper }, new[] { 0.132f, 0.177f, 0.135f }, detail ? 6 : 4, false);
+            GroveGeo.Box(b, 0, upper, new Vector3(0.151f, 0.043f, 0.151f), 0f);
+            GroveGeo.Box(b, 0, lower, new Vector3(0.143f, 0.035f, 0.143f), 0f);
+            if (!detail) return;
+
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 rib = Az(30f + 120f * i);
+                b.Tube(0, new[] { lower + rib * 0.124f, lamp + rib * 0.168f, upper + rib * 0.125f },
+                    new[] { 0.014f, 0.018f, 0.014f }, 4, false);
+            }
+        }
+
+        // ============================================================ 5. СОННЫЙ СТРАЖ
+        // Лицо лежит на гранях именно этого LOD.
+        static float FrontZ(Tr s, int sides, float x, float y)
+        {
+            float t = TOfY(s, y) * 6f;
+            int lo = Mathf.Min(5, Mathf.FloorToInt(t));
+            float radius = Mathf.Lerp(TRad(s, lo / 6f), TRad(s, (lo + 1) / 6f), t - lo);
+            float z = 0f;
+            for (int i = 0; i < sides; i++)
+            {
+                float a = 2f * Mathf.PI * i / sides, d = 2f * Mathf.PI * (i + 1) / sides;
+                float xa = Mathf.Cos(a) * radius, xb = Mathf.Cos(d) * radius;
+                if (x < Mathf.Min(xa, xb) || x > Mathf.Max(xa, xb) || Mathf.Abs(xb - xa) < 0.0001f) continue;
+                z = Mathf.Max(z, Mathf.Lerp(Mathf.Sin(a), Mathf.Sin(d), (x - xa) / (xb - xa)) * radius);
+            }
+            return z;
+        }
+
+        static void Arc(TreeMB b, Tr s, int sides, float cx, float cy, float w, float dip, float rad)
+        {
+            const int pts = 5;
             var p = new Vector3[pts];
             var r = new float[pts];
             for (int i = 0; i < pts; i++)
@@ -442,12 +528,11 @@ namespace IslandV2
                 float u = i / (pts - 1f) * 2f - 1f;
                 float x = cx + u * w;
                 float y = cy - dip * (1f - u * u);
-                float rr = TRad(s, TOfY(s, y));
-                float z = Mathf.Sqrt(Mathf.Max(0.05f, rr * rr - x * x)) + 0.03f;
+                float z = FrontZ(s, sides, x, y) + 0.006f;
                 p[i] = new Vector3(x, y, z);
                 r[i] = rad;
             }
-            b.Tube(sub, p, r, 4, false);
+            b.Tube(3, p, r, 4, false);
         }
 
         static Mesh Sleeper(int lod, string name)
@@ -456,33 +541,31 @@ namespace IslandV2
             int lv = lod == 0 ? 1 : 0, sd = lod == 0 ? 8 : 5;
             var s = new Tr { h = 3.4f, r0 = 0.95f, r1 = 0.72f, lean = 0f, twist = 0f, ph = 0f };
             Trunk(b, 0, s, 6, sd);
-            Roots(b, 0, s, 6, 2.0f, sd, 51);
+            Roots(b, 0, s, 6, 2.50f, sd, 51);
 
             // лицо: закрытые глазки, улыбка, носик-сучок
             float eyeY = 2.05f;
-            Arc(b, 3, s, -0.30f, eyeY, 0.17f, 0.05f, 0.032f, 5);
-            Arc(b, 3, s, 0.30f, eyeY, 0.17f, 0.05f, 0.032f, 5);
-            Arc(b, 3, s, 0f, 1.55f, 0.16f, 0.06f, 0.030f, 5);
-            {
-                float rr = TRad(s, TOfY(s, 1.8f));
-                b.Blob(0, new Vector3(0f, 1.8f, rr + 0.02f), new Vector3(0.09f, 0.10f, 0.07f), 520, 0, 0.2f, -1);
-            }
+            Arc(b, s, sd, -0.30f, eyeY, 0.18f, 0.05f, 0.043f);
+            Arc(b, s, sd, 0.30f, eyeY, 0.18f, 0.05f, 0.043f);
+            Arc(b, s, sd, 0f, 1.55f, 0.17f, 0.06f, 0.036f);
+            b.Blob(0, new Vector3(0f, 1.8f, FrontZ(s, sd, 0f, 1.8f)), new Vector3(0.097f, 0.108f, 0.098f), 520, 0, 0.2f, -1);
 
-            // крона-купол: шапка, кольцо шаров, лаймовый мох сверху
-            Vector3 cc = new Vector3(0f, 5.2f, 0f);
-            b.Blob(1, cc, new Vector3(3.0f, 1.8f, 3.0f), 501, lv, 0.22f, 3);
-            for (int i = 0; i < 7; i++)
-            {
-                float a = i / 7f * Mathf.PI * 2f + 0.15f;
-                Vector3 c = new Vector3(Mathf.Cos(a) * 2.4f, 4.4f + (TreeMB.H(502, i) - 0.5f) * 0.5f, Mathf.Sin(a) * 2.4f);
-                b.Blob(1, c, new Vector3(1.5f, 1.1f, 1.5f), 505 + i, lv, 0.22f, 3);
-            }
+            // Крона как тяжёлая мшистая крыша, с двумя вилами позади лица.
+            Vector3 cc = new Vector3(-0.24f, 4.95f, -0.33f);
+            Leader(b, s, cc, sd);
+            b.Blob(1, cc, new Vector3(2.95f, 1.55f, 2.72f), 501, lv, 0.20f, 3);
+            Bough(b, s, 2.81f, 117f, 2.12f, 1.51f, 0.38f, sd);
+            Bough(b, s, 2.54f, 237f, 2.02f, 1.69f, 0.37f, sd);
             for (int i = 0; i < 5; i++)
             {
-                float a = i / 5f * Mathf.PI * 2f + 0.6f;
-                float r = 1.1f + 0.7f * TreeMB.H(512, i);
-                Vector3 c = new Vector3(Mathf.Cos(a) * r, 6.2f + 0.3f * TreeMB.H(513, i), Mathf.Sin(a) * r);
-                b.Blob(2, c, new Vector3(0.9f, 0.6f, 0.9f), 515 + i, lv, 0.22f, 3);
+                Vector3 brim = Az(72f * i + 5f) * (2.06f + 0.38f * TreeMB.H(503, i));
+                Vector3 c = cc + brim + Vector3.down * (0.59f + 0.49f * TreeMB.H(502, i));
+                b.Blob(1, c, new Vector3(1.73f, 0.77f, 1.5f), 505 + i, lv, 0.22f, 3);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 c = cc + new Vector3(0.80f - 0.61f * i, 1.20f - i * 0.06f, -0.33f + 0.24f * i);
+                b.Blob(2, c, new Vector3(0.78f, 0.44f, 0.79f), 515 + i, lv, 0.19f, 3);
             }
             // мох-кочки у корней
             for (int i = 0; i < 4; i++)

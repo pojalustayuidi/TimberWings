@@ -105,11 +105,11 @@ public class SkyDome : MonoBehaviour
         if (mesh != null) Destroy(mesh);
     }
 
-    // внутренняя полусфера (от -25° до зенита): чуть ниже горизонта, чтобы не было щели над землёй
+    // Полный купол даёт непрерывный фон, когда камера смотрит вниз с края острова.
     static Mesh BuildDome()
     {
         const int rings = 28, segs = 40;
-        const float latMin = -25f * Mathf.Deg2Rad, latMax = 90f * Mathf.Deg2Rad;
+        const float latMin = -90f * Mathf.Deg2Rad, latMax = 90f * Mathf.Deg2Rad;
         var verts = new Vector3[(rings + 1) * (segs + 1)];
         for (int r = 0; r <= rings; r++)
         {

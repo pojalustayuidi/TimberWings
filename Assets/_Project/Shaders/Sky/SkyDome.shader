@@ -63,6 +63,8 @@ Shader "Project/SkyDome"
             {
                 Varyings o;
                 o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                // The dome must sit behind every opaque object, including scenery near the far plane.
+                o.positionCS.z = o.positionCS.w * UNITY_RAW_FAR_CLIP_VALUE;
                 o.dir = v.positionOS.xyz;   // купол центрирован на камере: локальная позиция = направление взгляда
                 return o;
             }
@@ -93,16 +95,21 @@ Shader "Project/SkyDome"
                 return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
             }
 
-            // detail 0..1: на слабых устройствах 2 октавы, на сильных 4
-            float fbm(float2 p, float detail)
+            float cloudNoise(float2 p, float detail)
             {
-                float o3 = step(0.3, detail);
-                float o4 = step(0.7, detail);
-                float v = 0.55 * vnoise(p);
-                v += 0.27 * vnoise(p * 2.03 + 17.0);
-                v += 0.13 * o3 * vnoise(p * 4.1 + 31.0);
-                v += 0.06 * o4 * vnoise(p * 8.3 + 5.0);
-                return v / (0.55 + 0.27 + 0.13 * o3 + 0.06 * o4);
+                float density = 0.55 * vnoise(p) + 0.27 * vnoise(p * 2.03 + 17.0);
+                float total = 0.82;
+                if (detail >= 0.3)
+                {
+                    density += 0.13 * vnoise(p * 4.1 + 31.0);
+                    total += 0.13;
+                }
+                if (detail >= 0.7)
+                {
+                    density += 0.06 * vnoise(p * 8.3 + 5.0);
+                    total += 0.06;
+                }
+                return density / total;
             }
 
             half4 frag(Varyings i) : SV_Target
@@ -113,12 +120,16 @@ Shader "Project/SkyDome"
 
                 float day = _Weights.x, night = _Weights.y, tw = _Weights.z, sunVis = _Weights.w;
                 float3 sdir = _SunDir.xyz;
+                if (h < -0.065) return half4(_Fog.rgb, 1.0h);
 
-                // ---------- градиент и дымка у горизонта (= цвет тумана)
-                float3 col = lerp(_Horizon.rgb, _Zenith.rgb, pow(up, 0.55));
-                float haze = 1.0 - smoothstep(0.0, 0.24, up);
-                col = lerp(col, _Fog.rgb, haze * 0.85);
-                col = lerp(col, _Fog.rgb, 1.0 - smoothstep(-0.06, 0.0, h));   // ниже горизонта чистый туман
+                float sd = saturate(dot(d, sdir));
+                float horizonAtmosphere = 1.0 - smoothstep(0.015, 0.28, up);
+                float3 col = lerp(_Horizon.rgb, _Zenith.rgb, pow(up, 0.63));
+                float gold = horizonAtmosphere * tw * (0.12 + pow(sd, 6.0) * 0.82);
+                col = lerp(col, _SunColor.rgb * float3(1.12, 0.93, 0.76), gold * 0.42);
+                float haze = 1.0 - smoothstep(-0.065, 0.20, h);
+                col = lerp(col, _Fog.rgb, haze * lerp(0.78, 0.53, tw));
+                col = lerp(col, _Fog.rgb, 1.0 - smoothstep(-0.065, 0.012, h));
 
                 // ---------- звёзды (ночью, выше горизонта)
                 if (_Stars.x > 0.01 && night > 0.02 && h > 0.0)
@@ -131,15 +142,15 @@ Shader "Project/SkyDome"
                     float dist = length(f - off);
                     float sz = lerp(0.05, 0.14, hash31(id + 21.0));
                     float star = rnd > 0.94 ? (1.0 - smoothstep(0.0, sz, dist)) : 0.0;
-                    float blink = 0.7 + 0.3 * sin(_Time.y * (1.0 + rnd * 4.0) + rnd * 40.0);
-                    float fade = smoothstep(0.04, 0.3, h) * night * _Stars.x;
-                    col += float3(0.90, 0.93, 1.0) * star * blink * fade * 1.4;
+                    float blink = 0.86 + 0.14 * sin(_Time.y * (0.9 + rnd * 2.0) + rnd * 40.0);
+                    float fade = smoothstep(0.07, 0.35, h) * night * _Stars.x;
+                    col += float3(0.77, 0.84, 1.0) * star * blink * fade * 1.18;
                 }
 
                 // ---------- солнце: широкое тёплое свечение, плотное ядро, диск
-                float sd = saturate(dot(d, sdir));
-                float nearHor = lerp(0.45, 1.0, 1.0 - smoothstep(0.0, 0.6, up));
-                col += _SunColor.rgb * (pow(sd, 5.0) * 0.20 * nearHor + pow(sd, 40.0) * 0.30) * sunVis;
+                float glowVisibility = smoothstep(-0.065, 0.028, h);
+                float nearHor = lerp(0.47, 1.0, 1.0 - smoothstep(0.0, 0.58, up));
+                col += _SunColor.rgb * (pow(sd, 5.0) * 0.18 * nearHor + pow(sd, 42.0) * 0.27) * (sunVis * glowVisibility);
                 float disc = smoothstep(0.99905, 0.99935, dot(d, sdir)) * step(-0.03, h);
                 col = lerp(col, float3(1.0, 0.97, 0.86) * 1.15, disc * sunVis);   // чуть выше 1: на Bloom даёт мягкое сияние
 
@@ -149,7 +160,8 @@ Shader "Project/SkyDome"
                 col += float3(0.45, 0.55, 0.90) * pow(saturate(md), 90.0) * 0.35 * _Moon.z;
                 if (md > 0.9 && h > -0.03)
                 {
-                    float3 mr = normalize(cross(float3(0.0, 1.0, 0.0), mdir));
+                    float3 pole = abs(mdir.y) > 0.99 ? float3(0.0, 0.0, 1.0) : float3(0.0, 1.0, 0.0);
+                    float3 mr = normalize(cross(pole, mdir));
                     float3 mu = cross(mdir, mr);
                     float2 q = float2(dot(d, mr), dot(d, mu)) / max(_Moon.y, 0.001);
                     float moonDisc = 1.0 - smoothstep(0.92, 1.0, length(q));
@@ -159,29 +171,37 @@ Shader "Project/SkyDome"
                     col = lerp(col, moonCol, moonDisc * _Moon.z);
                 }
 
-                // ---------- облака: плоский слой с перспективой, двухтонная заливка как в мультфильме
-                if (h > 0.01)
+                if (h > 0.004)
                 {
-                    float2 uv = d.xz / (h + 0.14) * _Cloud.z + _Time.y * _Cloud.y * float2(1.0, 0.35);
-                    float n = fbm(uv, _Cloud.w);
-                    float th = 1.0 - _Cloud.x;
-                    float c = smoothstep(th, th + 0.07, n);
-                    if (c > 0.001)
-                    {
-                        // со стороны солнца край облака светлее: сравниваем плотность в шаге к солнцу
-                        float2 toSun = normalize(sdir.xz + float2(1e-4, 1e-4)) * 0.07;
-                        float n2 = fbm(uv + toSun, _Cloud.w);
-                        float core = smoothstep(th + 0.10, th + 0.45, n);
-                        float litAmt = saturate(0.62 + (n - n2) * 5.0 - core * 0.18);
+                    float2 drift = _Time.y * _Cloud.y * float2(1.0, 0.35);
+                    float2 uv = d.xz / (h + 0.21) * _Cloud.z * 0.86 + drift;
+                    float3 warmCloud = lerp(float3(0.91, 0.97, 1.0), _SunColor.rgb * float3(1.11, 0.91, 0.88), tw * 0.88);
+                    float3 litCloud = lerp(float3(0.060, 0.079, 0.144), warmCloud, saturate(day + tw * 0.9));
 
-                        float3 dayLit = lerp(float3(1.0, 1.0, 1.0), _SunColor.rgb * 1.15, tw * 0.85);
-                        float3 nightLit = float3(0.20, 0.25, 0.42);
-                        float3 litC = lerp(nightLit, dayLit, saturate(day + tw * 0.9));
-                        float3 shadeC = litC * lerp(_CloudShade.rgb, float3(0.50, 0.52, 0.75), saturate(tw * 0.7 + night * 0.5));
-                        float3 cc = lerp(shadeC, litC, litAmt);
-                        cc = lerp(cc, _Fog.rgb, haze * 0.4);                       // у горизонта облака тонут в дымке
-                        float fadeH = smoothstep(0.015, 0.20, h);
-                        col = lerp(col, cc, c * fadeH * 0.96);
+                    // Thin high streaks appear through gaps in the lower cloud deck.
+                    float2 highUV = (d.xz / (h + 0.52)) * _Cloud.z * float2(2.45, 6.0)
+                        - drift * 0.34 + float2(19.4, 27.3);
+                    highUV.y += 0.22 * sin(highUV.x * 1.5);
+                    float wisps = smoothstep(0.57, 0.83, vnoise(highUV));
+                    float highFade = smoothstep(0.025, 0.17, h) * (1.0 - smoothstep(0.62, 0.98, h));
+                    col = lerp(col, litCloud, wisps * highFade * _Cloud.x * lerp(0.64, 0.27, night));
+
+                    float threshold = lerp(0.76, 0.31, _Cloud.x);
+                    float density = cloudNoise(uv, _Cloud.w);
+                    float cloud = smoothstep(threshold, threshold + 0.105, density);
+                    if (cloud > 0.001)
+                    {
+                        float2 lightDir = normalize(sdir.xz + float2(1e-4, 1e-4));
+                        float towardLight = cloudNoise(uv + lightDir * 0.10, _Cloud.w);
+                        float core = smoothstep(threshold + 0.08, threshold + 0.37, density);
+                        float shade = smoothstep(0.21, 0.78, saturate(0.62 + (density - towardLight) * 5.0 - core * 0.23));
+                        float3 darkCloud = litCloud * lerp(_CloudShade.rgb, float3(0.64, 0.62, 0.82), tw * 0.63 + night * 0.38);
+                        float3 cloudColor = lerp(darkCloud, litCloud, shade);
+                        float silver = (1.0 - core) * pow(sd, 9.0) * sunVis * shade * 0.21;
+                        cloudColor += _SunColor.rgb * silver;
+                        cloudColor = lerp(cloudColor, _Fog.rgb, horizonAtmosphere * 0.48);
+                        float fade = smoothstep(0.004, 0.16, h);
+                        col = lerp(col, cloudColor, cloud * fade * 0.97);
                     }
                 }
 

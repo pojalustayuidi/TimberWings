@@ -6,15 +6,15 @@
 // Безопасно жать повторно: корень GuardianLite в IslandV2/_Manual пересоздаётся целиком, префабы и меши перезаписываются. «0. Всё сразу» запускает пункт сама
 // (сразу после «9. Деревья-хранители», до подлеска).
 //
-// 4 вида (формы те же, что у хранителей, меши SacredMeshes.Body с lod=1: шары по 20 граней, стволы по 5 граней; материалы те же Sacred_*):
+// 4 вида (формы те же, что у хранителей, облегчённые меши SacredMeshes.Body с lod=1 и материалы Sacred_*):
 //   Облачное, Цветущее, Кристальное, Фонарное (сонный страж не берём: у него лицо, оно читается только вблизи и стоит дороже).
 // 2 размера (один меш, разный масштаб и знак):
 //   Крупное (префаб Lite_<Вид>, масштаб 0.95-1.05)  тот же ЕДИНЫЙ ЗНАК «не рубится», что у хранителей: каменное кольцо с бирюзовыми рунами у корней
-//                                                    и парящий бирюзовый кристалл над кроной. Вокруг чистая полянка 4.2 м, иначе кольцо не читается.
+//                                                    и бирюзовый кристалл у корней. Вокруг чистая полянка 4.2 м, иначе кольцо не читается.
 //   Мелкое  (префаб LiteS_<Вид>, масштаб 0.55-0.75) без кольца: отличается пастельной кроной (у рубимых только зелень, берёза, осень),
-//                                                    формой кроны и парящим кристаллом поменьше. Полянка 2.6 м.
+//                                                    формой кроны и кристаллом у корней. Полянка 2.6 м.
 //   Рубимые деревья не имеют ни кольца, ни кристалла никогда.
-// Что внутри префаба: меш дерева + (крупные) меш кольца + меш кристалла, LODGroup (LOD0 дерево, LOD1 только кристалл как далёкий маяк, дальше скрыто),
+// Что внутри префаба: меш дерева + (крупные) меш кольца + меш кристалла. LODGroup скрывает всю модель вместе.
 //   CapsuleCollider только на ствол, LiteGuardian (покачивание, один драйвер на сцену). Нет Light, FireSource, частиц, тега Resource и ResourceItem.
 //   Тени отбрасывают только крупные.
 //
@@ -42,7 +42,7 @@ namespace IslandV2
     public static class ForestGuardLite
     {
         public const string RootName = "GuardianLite";
-        const string Dir = "Assets/_Project/Prefabs/Sacred/Lite";
+        internal const string Dir = ForestSacred.Dir + "/Lite";
         const string SlipPath = ForestMats.MatDir + "/TreeTrunk_Slip.asset";
         const int Seed = 6619;
 
@@ -59,7 +59,7 @@ namespace IslandV2
         const float TurnWindow = 6f;             // плечо измерения поворота по тропе
         const float TurnSpacing = 14f;           // между найденными поворотами
         const float SideOffset = 5.5f;           // на сколько отступаем от оси тропы вбок
-        const float LodNear = 0.10f, LodFar = 0.02f;   // доли высоты экрана: LOD0 дерево, LOD1 только кристалл (камера игры FOV 35, ~10 м)
+        const float CullScreenHeight = 0.035f;
 
         static readonly SacredKind[] Kinds = { SacredKind.Cloud, SacredKind.Blossom, SacredKind.Crystal, SacredKind.Lantern };
 
@@ -171,16 +171,10 @@ namespace IslandV2
                 MeshRenderer rMark = null;
                 if (!isSmall) rMark = AddMesh(root.transform, "Mark", markMesh, new[] { stone, rune }, false);   // кольцо с рунами: знак «не рубится»
                 var rGem = AddMesh(root.transform, "Gem", gemMesh, new[] { gemMat }, false);
-                float gemY = SacredMeshes.GemY(kind);
-                rGem.transform.localPosition = new Vector3(0f, gemY, 0f);
-                rGem.transform.localScale = Vector3.one * (isSmall ? 0.8f : 1f);
+                ForestSacred.PlaceRootCrystal(rGem.transform, kind, isSmall);
 
                 var lg = root.AddComponent<LODGroup>();
-                lg.fadeMode = LODFadeMode.None;
-                var lod0 = new List<Renderer> { rBody, rGem };
-                if (rMark != null) lod0.Add(rMark);
-                lg.SetLODs(new[] { new LOD(LodNear, lod0.ToArray()), new LOD(LodFar, new Renderer[] { rGem }) });
-                lg.RecalculateBounds();
+                SetModelLOD(lg, rBody, rMark, rGem);
 
                 // сплошной ствол: капсула, как у хранителей
                 var col = root.AddComponent<CapsuleCollider>();
@@ -197,14 +191,20 @@ namespace IslandV2
                 lite.tier = isSmall ? LiteGuardian.Tier.Small : LiteGuardian.Tier.Large;
                 lite.kind = kind;
                 lite.visual = visual.transform;
-                lite.gem = rGem.transform;
-                lite.gemHeight = gemY;
                 lite.swayDeg = isSmall ? 0.9f : 0.6f;
                 lite.clearRadius = isSmall ? SmallClear : LargeClear;
 
                 return PrefabUtility.SaveAsPrefabAsset(root, Dir + "/" + name + ".prefab");
             }
             finally { Object.DestroyImmediate(root); }
+        }
+
+        internal static void SetModelLOD(LODGroup group, Renderer body, Renderer mark, Renderer gem)
+        {
+            var renderers = mark != null ? new[] { body, mark, gem } : new[] { body, gem };
+            group.fadeMode = LODFadeMode.None;
+            group.SetLODs(new[] { new LOD(CullScreenHeight, renderers) });
+            group.RecalculateBounds();
         }
 
         static MeshRenderer AddMesh(Transform parent, string name, Mesh mesh, Material[] mats, bool shadows)

@@ -11,7 +11,7 @@
 //   Фонарное   сине-мятная крона с гирляндой тёплых фонариков, настоящий свет ночью; у тропы к поляне рубки и у входа в лес
 //   Сонный страж  толстый ствол с закрытыми глазками и улыбкой, крона-купол с лаймовым мхом, «дышит»; в чаще
 //
-// ЕДИНЫЙ ЗНАК «НЕ РУБИТСЯ» (у каждого вида одинаково): каменное кольцо с бирюзовыми светящимися рунами вокруг корней + парящий бирюзовый кристалл над кроной.
+// ЕДИНЫЙ ЗНАК «НЕ РУБИТСЯ»: каменное кольцо с бирюзовыми светящимися рунами и кристалл у корней.
 // Рубимые деревья этого не имеют никогда. На префабе нет тега Resource и нет ResourceItem (срубить нельзя технически), зато есть LandmarkTree:
 // подойти и нажать E = «погладить», тост с репликой (у каждого вида свои). Ствол сплошной (CapsuleCollider), по кольцу ходить можно.
 //
@@ -32,7 +32,7 @@ namespace IslandV2
 {
     public static class ForestSacred
     {
-        const string Dir = "Assets/_Project/Prefabs/Sacred";
+        internal const string Dir = "Assets/_Project/Prefabs/Sacred";
         const string RootName = "SacredTrees";
         const string SlipPath = ForestMats.MatDir + "/TreeTrunk_Slip.asset";
         const int Seed = 7717;
@@ -95,8 +95,36 @@ namespace IslandV2
         // ============================================================ материалы
         static Color C(float r, float g, float b) { return new Color(r, g, b); }
 
-        // имя, цвет сверху, цвет снизу, высота градиента от (м), до (м), дрожь листвы, рим, сила градиента
+        static readonly string[] WindFloats = { "_WindStrength", "_WindSpeed", "_WindStart", "_WindHeight", "_Rand" };
+
         internal static Material[] Mats(SacredKind k)
+        {
+            var materials = BodyMaterials(k);
+            AlignBodyWind(materials);
+            return materials;
+        }
+
+        internal static void AlignBodyWind(Material[] materials)
+        {
+            if (materials.Length == 0) return;
+            Material bark = materials[0];
+            if (bark == null || !bark.name.StartsWith("Sacred_", System.StringComparison.Ordinal)
+                || !bark.HasProperty("_WindDir")) return;
+            // Подмеши на одном стыке должны сдвигать одинаковые вершины на одни и те же расстояния.
+            foreach (var material in materials)
+            {
+                if (material == null || !material.name.StartsWith("Sacred_", System.StringComparison.Ordinal)
+                    || material.shader != bark.shader) continue;
+                material.SetVector("_WindDir", bark.GetVector("_WindDir"));
+                foreach (string property in WindFloats)
+                    material.SetFloat(property, bark.GetFloat(property));
+                material.SetFloat("_Flutter", 0f);
+                EditorUtility.SetDirty(material);
+            }
+        }
+
+        // имя, цвета градиента, высоты, дрожь листвы, рим, сила градиента
+        static Material[] BodyMaterials(SacredKind k)
         {
             switch (k)
             {
@@ -296,16 +324,13 @@ namespace IslandV2
                 var r0 = AddMesh(visual.transform, "Body_LOD0", m0, mats, true);
                 var r1 = AddMesh(visual.transform, "Body_LOD1", m1, mats, true);
 
-                // единый знак: кольцо и кристалл вне LODGroup (маленькие, видны всегда)
+                // Кольцо и кристалл у корней переходят между LOD вместе с деревом.
                 var rMark = AddMesh(root.transform, "Mark", markMesh, new[] { stone, rune }, false);
                 var rGem = AddMesh(root.transform, "Gem", gemMesh, new[] { gemMat }, false);
-                float gemY = SacredMeshes.GemY(sp.kind);
-                rGem.transform.localPosition = new Vector3(0f, gemY, 0f);
+                PlaceRootCrystal(rGem.transform, sp.kind, false);
 
                 var lg = root.AddComponent<LODGroup>();
-                lg.fadeMode = LODFadeMode.None;
-                lg.SetLODs(new[] { new LOD(0.07f, new Renderer[] { r0 }), new LOD(0.01f, new Renderer[] { r1 }) });
-                lg.RecalculateBounds();
+                SetModelLODs(lg, r0, r1, rMark, rGem);
 
                 // свет: руны у всех, остальное по виду
                 AddFire(root.transform, "Light_Runes", Vector3.zero, FlickerPreset.Garland, new Color(0.45f, 1f, 0.85f), 1f, 4f, true, 0.7f, SacredMeshes.RuneSpots());
@@ -344,8 +369,6 @@ namespace IslandV2
                 var vibe = root.AddComponent<SacredVibe>();
                 vibe.kind = sp.kind;
                 vibe.visual = visual.transform;
-                vibe.gem = rGem.transform;
-                vibe.gemHeight = gemY;
                 vibe.runes = rMark;
                 vibe.runeMaterialIndex = 1;
                 vibe.gemRenderer = rGem;
@@ -361,6 +384,26 @@ namespace IslandV2
                 return PrefabUtility.SaveAsPrefabAsset(root, Dir + "/Sacred_" + sp.id + ".prefab");
             }
             finally { Object.DestroyImmediate(root); }
+        }
+
+        internal static void PlaceRootCrystal(Transform crystal, SacredKind kind, bool small)
+        {
+            crystal.localPosition = SacredMeshes.GemFoot(kind);
+            crystal.localRotation = Quaternion.Euler(4f, 24f, 16f);
+            crystal.localScale = Vector3.one * (small ? 0.70f : 0.88f);
+        }
+
+        internal static void SetModelLODs(LODGroup group, Renderer near, Renderer far, Renderer mark, Renderer gem)
+        {
+            var previous = group.GetLODs();
+            float nearSize = previous.Length == 2 ? previous[0].screenRelativeTransitionHeight : 0.07f;
+            float farSize = previous.Length == 2 ? previous[1].screenRelativeTransitionHeight : 0.01f;
+            group.fadeMode = LODFadeMode.None;
+            group.SetLODs(new[] {
+                new LOD(nearSize, new[] { near, mark, gem }),
+                new LOD(farSize, new[] { far, mark, gem })
+            });
+            group.RecalculateBounds();
         }
 
         static MeshRenderer AddMesh(Transform parent, string name, Mesh mesh, Material[] mats, bool shadows)
