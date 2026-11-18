@@ -25,7 +25,8 @@ public partial class HudMinimap : MonoBehaviour
         public string label;
         public RectTransform mini, big;
         public CanvasGroup miniGroup;
-        public bool pinned, completed, nearby;
+        public BuildingController site;
+        public bool pinned, completed, nearby, inspection, quest;
         public float hintRadius;
     }
 
@@ -127,7 +128,11 @@ public partial class HudMinimap : MonoBehaviour
     public static bool BigMapOpen { get; private set; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    static void RegisterModal() { UiModal.Register(typeof(HudMinimap), () => BigMapOpen); }
+    static void RegisterModal()
+    {
+        BigMapOpen = false;
+        UiModal.Register(typeof(HudMinimap), () => BigMapOpen);
+    }
     float openT;
     float zoneTimer;
     string zoneNow;
@@ -164,6 +169,7 @@ public partial class HudMinimap : MonoBehaviour
         CreateDayLabel();
         InitMiniZoom();
         InitBigMapUi();      // до Rescan: слой зон создаётся внутри контейнера большой карты
+        if (solidBacking) AddBacking(bigMap);
         InitFog();
         progressReady = true;
         rescanPending = false;
@@ -229,11 +235,7 @@ public partial class HudMinimap : MonoBehaviour
     // сквозь них просвечивал тёмный диск HUD. Подкладываем сплошной цвет под карту.
     void Stylize()
     {
-        if (solidBacking)
-        {
-            AddBacking(miniMap);
-            AddBacking(bigMap);
-        }
+        if (solidBacking) AddBacking(miniMap);
         if (miniMask != null)
         {
             var v = miniMask.Find("Vignette");
@@ -408,6 +410,8 @@ public partial class HudMinimap : MonoBehaviour
         }
         pois.Clear();
         nearbyDiscoveries.Clear();
+        questPin = null;
+        nearbyDiscovery = null;
         var used = new HashSet<Transform>();
         var story = StoryFlow.Instance;
         var sites = FindObjectsByType<BuildingController>(FindObjectsSortMode.None);
@@ -419,7 +423,8 @@ public partial class HudMinimap : MonoBehaviour
                 && (story == null || !story.MapChapterCompleted(marker.afterChapter.Trim()))) continue;
             var kind = FindKind(marker.kind);
             if (AddAuthoredDiscovery(marker, kind, story)) continue;
-            if (kind != null && !IsLegacyBuildingPin(marker.transform, kind, sites))
+            if (kind != null && !IsLegacyBuildingPin(marker.transform, kind, sites)
+                && (!UseCloudyV3 || !string.IsNullOrWhiteSpace(marker.afterChapter) || !IsLegacyPad(kind)))
                 Add(marker.transform, kind, string.IsNullOrEmpty(marker.label) ? kind.label : marker.label,
                     completed: !string.IsNullOrWhiteSpace(marker.afterChapter));
         }
@@ -432,7 +437,7 @@ public partial class HudMinimap : MonoBehaviour
                 || tr.name == "TW_MYSTIC_FOREST" || tr.name == "Pond" || tr.name == "Pond_Water"
                 || tr.name == "River_Water" || tr.name == "Water_Source_To_Clouds")
                 anchors[tr.name == "Water_Source_To_Clouds" ? "River_Water" : tr.name] = tr;
-            if (!autoFindByName || used.Contains(tr)) continue;
+            if (!autoFindByName || UseCloudyV3 || used.Contains(tr)) continue;
             var kind = KindByName(tr.name);
             if (kind == null || IsIn(autoIgnoreKinds, kind.key) || tr.GetComponentInParent<Canvas>() != null
                 || IsLegacyBuildingPin(tr, kind, sites)) continue;
@@ -450,16 +455,19 @@ public partial class HudMinimap : MonoBehaviour
         SyncFogZones();
         BuildZoneLayer();
         HookBuildings();
+        UpdateQuestPin();
         if (open) RefreshBigMarkers();
         CloudyAfterRescan();
     }
 
-    Poi Add(Transform target, MapKind kind, string label, bool completed = false)
+    Poi Add(Transform target, MapKind kind, string label, bool completed = false,
+        BuildingController site = null, bool inspection = false, bool quest = false)
     {
-        var poi = new Poi { t = target, kind = kind, label = label, pinned = IsIn(pinnedKinds, kind.key), completed = completed };
+        var poi = new Poi { t = target, kind = kind, label = label, pinned = quest || IsIn(pinnedKinds, kind.key),
+            completed = completed, site = site, inspection = inspection, quest = quest };
         if (markerTemplate != null)
         {
-            if (miniMarkers != null && (completed || !IsIn(bigOnlyKinds, kind.key)))
+            if (miniMarkers != null && (!UseCloudyV3 || !inspection) && (completed || !IsIn(bigOnlyKinds, kind.key)))
             {
                 poi.mini = MakeMarker(miniMarkers, poi, false);
                 poi.miniGroup = poi.mini.GetComponent<CanvasGroup>() ?? poi.mini.gameObject.AddComponent<CanvasGroup>();
@@ -470,6 +478,7 @@ public partial class HudMinimap : MonoBehaviour
             {
                 poi.big = MakeMarker(bigMarkers, poi, true);
                 poi.big.gameObject.SetActive(false);
+                bigScaleDirty = true;
             }
         }
         pois.Add(poi);
@@ -503,6 +512,7 @@ public partial class HudMinimap : MonoBehaviour
         if (zoneLayer != null) { zoneLayer.gameObject.SetActive(false); Destroy(zoneLayer.gameObject); }
         zoneLayer = null;
         zoneNameBase.Clear();
+        cloudyZonePlates.Clear();
         if (!showZonesOnBigMap || bigMarkers == null || MapZone.All.Count == 0) return;
         if (circleArea == null) circleArea = MakeArea(true);
         if (rectArea == null) rectArea = MakeArea(false);
@@ -528,6 +538,7 @@ public partial class HudMinimap : MonoBehaviour
             var lo = new GameObject("Name_" + z.zoneName, typeof(RectTransform)); lo.layer = go.layer;
             var r = (RectTransform)lo.transform; r.SetParent(zoneLayer, false); r.anchorMin = r.anchorMax = c; r.pivot = c; r.sizeDelta = new Vector2(320f, 44f);
             r.anchoredPosition = ToMap(z.transform.position) / side * size;
+            zoneNameBase[r] = r.anchoredPosition;
             var tx = lo.AddComponent<TextMeshProUGUI>(); SetLabelFont(tx);
             tx.text = z.zoneName; tx.fontSize = 30f; tx.fontStyle = FontStyles.Bold; tx.alignment = TextAlignmentOptions.Center; tx.color = ZoneNameColor(z, false); tx.raycastTarget = false; tx.enableWordWrapping = false; tx.outlineWidth = candyStyle ? 0.3f : 0.22f; tx.outlineColor = ZoneNameOutline(false);
         }
@@ -537,7 +548,29 @@ public partial class HudMinimap : MonoBehaviour
     float ArrowAngle(Transform t) { if (t == null) return 0f; Vector3 f = t.forward; return Mathf.Atan2(Vector3.Dot(f, axUp), Vector3.Dot(f, axRight)) * Mathf.Rad2Deg - 90f; }
     public void Toggle() { SetOpen(!open); }
     public void Close() { SetOpen(false); }
-    void SetOpen(bool v) { open = v; BigMapOpen = v; if (bigGroup != null) { bigGroup.blocksRaycasts = v; bigGroup.interactable = v; } if (v) { RefreshBigMarkers(); OnBigOpened(); } if (pauseWhileOpen) { if (v && !pausedByUs) { savedTimeScale = Time.timeScale; Time.timeScale = 0f; pausedByUs = true; } else if (!v) RestoreTime(); } }
+    void SetOpen(bool value)
+    {
+        if (open == value || (value && (bigGroup == null || UiModal.AnyOpen() || SaveSystem.IsLoading))) return;
+        open = BigMapOpen = value;
+        if (bigGroup != null) bigGroup.blocksRaycasts = bigGroup.interactable = value;
+        if (value)
+        {
+            OnBigOpened();
+            UpdateCloudyV3Window();
+            RefreshBigMarkers();
+            if (pauseWhileOpen && !pausedByUs)
+            {
+                savedTimeScale = Time.timeScale;
+                Time.timeScale = 0f;
+                pausedByUs = true;
+            }
+        }
+        else
+        {
+            HideCloudyMapTooltip();
+            RestoreTime();
+        }
+    }
     void RestoreTime() { if (!pausedByUs) return; Time.timeScale = savedTimeScale; pausedByUs = false; }
     void Update()
     {
@@ -548,6 +581,7 @@ public partial class HudMinimap : MonoBehaviour
         UpdateMiniZoom(dt);
         UpdateBake();
         UpdateProgress();
+        if (open) UpdateCloudyV3Window();
         openT = Mathf.MoveTowards(openT, open ? 1f : 0f, dt / 0.22f);
         if (bigGroup != null) bigGroup.alpha = Mathf.SmoothStep(0f, 1f, openT);
         if (bigWindow != null) bigWindow.localScale = Vector3.one * Mathf.LerpUnclamped(0.92f, 1f, UiDraw.EaseOutBack(openT));
@@ -576,7 +610,7 @@ public partial class HudMinimap : MonoBehaviour
         foreach (var p in pois)
         {
             if (p.mini == null) continue;
-            if (p.t == null || FogHides(p))
+            if (p.t == null || FogHides(p) || IsAtQuestPin(p))
             {
                 if (p.mini.gameObject.activeSelf) p.mini.gameObject.SetActive(false);
                 continue;
@@ -590,7 +624,7 @@ public partial class HudMinimap : MonoBehaviour
                 scale = Mathf.Lerp(0.7f, 1f, f); alpha = Mathf.Lerp(0.6f, 1f, f);
             }
             else if (p.pinned) { edge = true; pos = pos / mag * maxR; scale = 0.82f + 0.08f * Mathf.Sin(time * 5f); alpha = 1f; }
-            else if (edgePips && p.hintRadius <= 0f) { edge = true; pos = pos / mag * maxR; scale = 0.5f; alpha = 0.7f; }
+            else if (!UseCloudyV3 && edgePips && p.hintRadius <= 0f) { edge = true; pos = pos / mag * maxR; scale = 0.5f; alpha = 0.7f; }
             else
             {
                 if (p.mini.gameObject.activeSelf) p.mini.gameObject.SetActive(false);
@@ -600,7 +634,8 @@ public partial class HudMinimap : MonoBehaviour
             if (!p.mini.gameObject.activeSelf) p.mini.gameObject.SetActive(true);
             p.mini.localScale = Vector3.one * (scale * markerScale);
             if (p.miniGroup != null) p.miniGroup.alpha = alpha;
-            layPois.Add(p); layPos.Add(pos); layRad.Add(markerPx * 0.5f * scale * markerScale * 0.95f); layEdge.Add(edge);
+            if (p.quest) p.mini.anchoredPosition = pos;
+            else { layPois.Add(p); layPos.Add(pos); layRad.Add(markerPx * 0.5f * scale * markerScale * 0.95f); layEdge.Add(edge); }
         }
         if (spreadMarkers) Relax(layPos, layRad, layEdge, maxR);
         for (int i = 0; i < layPois.Count; i++) layPois[i].mini.anchoredPosition = layPos[i];
@@ -615,6 +650,11 @@ public partial class HudMinimap : MonoBehaviour
     }
     void RefreshBigMarkers()
     {
+        if (UseCloudyV3)
+        {
+            CloudyRefreshMarkers();
+            return;
+        }
         float size = bigMap != null ? bigMap.rectTransform.rect.width : 800f;
         layPois.Clear(); layPos.Clear(); layRad.Clear(); layEdge.Clear();
         foreach (var p in pois)
@@ -642,7 +682,7 @@ public partial class HudMinimap : MonoBehaviour
                 float best = 1f;
                 foreach (var pin in pois)
                 {
-                    if (pin.t == null || pin.hintRadius > 0f || FogHides(pin)) continue;
+                    if (pin.t == null || pin.quest || pin.hintRadius > 0f || FogHides(pin)) continue;
                     Vector3 delta = pin.t.position - player.position;
                     delta.y = 0f;
                     float distance = delta.magnitude / Mathf.Max(0.5f, pin.kind.zoneRadius);

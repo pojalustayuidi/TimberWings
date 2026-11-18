@@ -81,26 +81,28 @@ Shader "Project/CloudSea"
                 float v = 0.5 * vnoise(p);
                 v += 0.25 * vnoise(p * 2.03 + 11.7);
                 v += 0.125 * vnoise(p * 4.01 + 23.1);
-                v += 0.0625 * detail * vnoise(p * 8.05 + 37.9);
+                [branch] if (detail > 0.0)
+                    v += 0.0625 * detail * vnoise(p * 8.05 + 37.9);
                 return v / (0.875 + 0.0625 * detail);
             }
 
             half4 frag(Varyings i) : SV_Target
             {
+                float d = distance(i.positionWS.xz, _Fade.xy);
+                float fade = 1.0 - smoothstep(_Fade.z * 0.5, _Fade.z, d);
+                clip(fade - 0.00001);
                 float2 p = i.positionWS.xz * _Scale + _Wind.xy;
                 float detail = _Fade.w;
 
                 float n = fbm(p, detail);
-                float n2 = fbm(p + _Wind.zw * 0.07, detail);   // тот же шум, сдвинутый к солнцу: разность даёт освещённый край
-
                 float density = smoothstep(_Cover, _Cover + _Soft, n);
+                clip(density - 0.00001);
+                float n2 = fbm(p + _Wind.zw * 0.07, detail);   // тот же шум, сдвинутый к солнцу: разность даёт освещённый край
                 float lit = smoothstep(0.42, 0.62, saturate((n - n2) * 7.0 + 0.55));
                 float tops = smoothstep(_Cover + _Soft, 1.0, n);
 
                 half3 col = lerp(_Shade.rgb, _Top.rgb, saturate(lit * 0.75 + tops * 0.6));
 
-                float d = distance(i.positionWS.xz, _Fade.xy);
-                float fade = 1.0 - smoothstep(_Fade.z * 0.5, _Fade.z, d);
                 half alpha = density * fade * _Top.a;
 
                 half fogF = ComputeFogFactor(i.positionCS.z);

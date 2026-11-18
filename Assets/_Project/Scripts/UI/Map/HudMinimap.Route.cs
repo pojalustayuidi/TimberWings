@@ -39,6 +39,7 @@ public partial class HudMinimap
     void EnsureLayers()
     {
         EnsureFogLayers();
+        if (UseCloudyV3) return;
         if (miniRoute == null)
         {
             var parent = miniMarkers != null ? miniMarkers : miniMask;
@@ -113,6 +114,7 @@ public partial class HudMinimap
         if (!mapReady) return;
         if (openT > 0.001f) UpdateBigUi(dt, time);
         UpdateFog(dt);
+        if (UseCloudyV3) return;
         UpdateTrail(pm);
         UpdateRoute(dt, time, pm);
     }

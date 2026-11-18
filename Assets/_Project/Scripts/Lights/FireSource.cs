@@ -214,6 +214,10 @@ public class FireSource : MonoBehaviour
         bool vis = a > 0.01f;
         Color col = new Color(color.r, color.g, color.b, a);
         float pulse = 0.94f + 0.06f * flick;
+        float baseScale = vis
+            ? (glowSize / Mathf.Max(0.01f, VibeGfx.Soft.bounds.size.x)) / MaxLossyScale()
+            : 0f;
+        float scale = baseScale * pulse;
         for (int i = 0; i < glows.Count; i++)
         {
             var g = glows[i];
@@ -224,8 +228,7 @@ public class FireSource : MonoBehaviour
             g.transform.rotation = camRot;
             // пульс размера без аллокаций: масштаб считаем от базового
             Vector3 s = g.transform.localScale;
-            float baseScale = (glowSize / Mathf.Max(0.01f, VibeGfx.Soft.bounds.size.x)) / MaxLossyScale();
-            g.transform.localScale = new Vector3(baseScale * pulse, baseScale * pulse, s.z);
+            g.transform.localScale = new Vector3(scale, scale, s.z);
         }
     }
 }

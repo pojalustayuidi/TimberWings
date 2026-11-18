@@ -71,6 +71,7 @@ public class UIManager : MonoBehaviour
     int lastWood = int.MinValue, lastCoins = int.MinValue, lastLevel = int.MinValue, lastPlanks;
     float targetFill;
     string lastObjective;
+    internal string CurrentObjectiveTitle { get; private set; }
 
     readonly List<Gain> gains = new List<Gain>();
     readonly Stack<Gain> gainPool = new Stack<Gain>();
@@ -227,6 +228,7 @@ public class UIManager : MonoBehaviour
     // Запасной путь для простых целей («Поговори с Мирой»): одна строка TMP. Если до этого показывался виджет, он прячется.
     public void UpdateObjective(string text)
     {
+        CurrentObjectiveTitle = text;
         // Candy HUD: простую цель рисует CandyTaskView (он же пишет простой текст в objectiveText для QuestGuide)
         var candy = CandyTaskView.Instance;
         if (candy != null)
@@ -250,6 +252,7 @@ public class UIManager : MonoBehaviour
     // Без требований (или без панели задания) уходит в запасной путь UpdateObjective(title).
     public void SetObjective(ObjectiveData data)
     {
+        CurrentObjectiveTitle = data?.title;
         // Candy HUD: цель с требованиями рисует CandyTaskView, старый ObjectiveView не создаём
         var candy = CandyTaskView.Instance;
         if (candy != null)

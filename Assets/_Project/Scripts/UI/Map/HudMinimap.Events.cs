@@ -44,6 +44,7 @@ public partial class HudMinimap
             if (b == null) continue;
             b.StageBuilt -= OnBuildingChanged;
             b.Finished -= OnBuildingChanged;
+            b.LockChanged -= OnBuildingLockChanged;
         }
         hooked.Clear();
     }
@@ -59,6 +60,7 @@ public partial class HudMinimap
             if (b == null || !hooked.Add(b)) continue;
             b.StageBuilt += OnBuildingChanged;
             b.Finished += OnBuildingChanged;
+            b.LockChanged += OnBuildingLockChanged;
         }
     }
 
@@ -70,15 +72,17 @@ public partial class HudMinimap
     {
         if (!progressReady) return;
         var story = StoryFlow.Instance;
-        if (story != null && story.MapFinaleInspected != finaleWasInspected) rescanPending = true;
+        if (story != null && (story.MapFinaleInspected != finaleWasInspected || story.PetsOpen != petsWereOpen)) rescanPending = true;
         if (rescanPending)
         {
             rescanPending = false;
             Rescan();
         }
+        UpdateQuestPin();
         UpdateDiscoveryHints();
     }
 
+    void OnBuildingLockChanged() { rescanPending = true; }
     void OnBuildingChanged() { rescanPending = true; RequestRebake(rebakeDelay); }
     void OnRevealFinished(BuildingController b) { rescanPending = true; RequestRebake(rebakeDelay); }
     void OnRestored(string id, int stage) { rescanPending = true; RequestRebake(0.6f); }

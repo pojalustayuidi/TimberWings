@@ -6,12 +6,14 @@ public partial class HudMinimap
 {
     readonly HashSet<string> inspected = new HashSet<string>(StringComparer.Ordinal);
     readonly List<Poi> nearbyDiscoveries = new List<Poi>();
-    bool progressReady, finaleWasInspected;
+    Poi questPin, nearbyDiscovery;
+    bool progressReady, finaleWasInspected, petsWereOpen;
     MapZone generatedFinaleZone;
     Transform generatedZoneRoot;
 
     static readonly MapKind MysteryKind = new MapKind { key = "Mystery", label = "Можно осмотреть" };
     static readonly MapKind DiscoveryKind = new MapKind { key = "Discovery" };
+    static readonly MapKind QuestKind = new MapKind { key = "QuestObjective", label = "Текущая цель" };
 
     static MapIcons.Id SiteIcon(BuildSiteKind kind)
     {
@@ -50,16 +52,55 @@ public partial class HudMinimap
         return false;
     }
 
+    static bool IsLegacyPad(MapKind kind)
+    {
+        return MapIcons.Guess(kind.key) is MapIcons.Id.Campfire or MapIcons.Id.Hut or MapIcons.Id.Market
+            or MapIcons.Id.Tent or MapIcons.Id.Bridge or MapIcons.Id.Building or MapIcons.Id.Board;
+    }
+
     void AddBuildingPins(BuildingController[] sites)
     {
         foreach (var site in sites)
         {
-            if (site == null || !site.IsFinished) continue;
-            Transform anchor = site.finishedBuilding != null && site.finishedBuilding.activeInHierarchy
-                ? site.finishedBuilding.transform : site.transform;
-            if (site.SiteKind == BuildSiteKind.Bridge) anchor = site.transform;
-            Add(anchor, BuildingKind(site), site.BuildingTitle, completed: true);
+            if (site == null || !site.isActiveAndEnabled) continue;
+            if (!site.IsFinished && (!UseCloudyV3 || site.IsLocked || site.SiteKind == BuildSiteKind.Other)) continue;
+            Transform anchor = site.IsFinished && site.SiteKind != BuildSiteKind.Bridge
+                && site.finishedBuilding != null && site.finishedBuilding.activeInHierarchy
+                    ? site.finishedBuilding.transform : site.transform;
+            Add(anchor, BuildingKind(site), site.BuildingTitle, completed: site.IsFinished, site: site);
         }
+    }
+
+    Transform ActiveMapQuestTarget()
+    {
+        var target = QuestEdgeArrow.Target;
+        return target != null && target.gameObject.activeInHierarchy ? target : null;
+    }
+
+    void UpdateQuestPin()
+    {
+        if (!UseCloudyV3) return;
+        Transform target = ActiveMapQuestTarget();
+        if (questPin == null)
+        {
+            if (target == null) return;
+            questPin = Add(target, QuestKind, QuestKind.label, quest: true);
+        }
+        else
+        {
+            if (ReferenceEquals(questPin.t, target)) return;
+            questPin.t = target;
+        }
+        cloudyNeedsLayout = true;
+        HideCloudyMapTooltip();
+    }
+
+    bool IsAtQuestPin(Poi pin)
+    {
+        if (pin.quest || pin.t == null || questPin?.t == null) return false;
+        if (pin.t == questPin.t) return true;
+        if (pin.site != null && pin.site.transform == questPin.t) return true;
+        return (pin.t.position - questPin.t.position).sqrMagnitude < 1.5f * 1.5f;
     }
 
     bool AddAuthoredDiscovery(MapPoi marker, MapKind kind, StoryFlow story)
@@ -68,7 +109,7 @@ public partial class HudMinimap
         if (story != null && target == story.MapFinaleTarget && story.MapFinaleAvailable)
         {
             string title = string.IsNullOrEmpty(marker.label) ? "След Гуннара" : marker.label;
-            if (story.MapFinaleInspected) Add(target, kind ?? DiscoveryKind, title, completed: true);
+            if (story.MapFinaleInspected) Add(target, kind ?? DiscoveryKind, title, completed: true, inspection: true);
             else AddDiscovery(target, kind ?? DiscoveryKind, title, marker.inspectionId, marker.hintRadius);
             return true;
         }
@@ -77,11 +118,9 @@ public partial class HudMinimap
         if (marker.TryGetComponent<LandmarkTree>(out var tree)) label = tree.title;
         else if (marker.TryGetComponent<StoryInspection>(out var inspection) && inspection.isActiveAndEnabled)
         {
+            if (inspection.superseded) return true;
             if (inspection.ShowBridgeOnMap && inspection.bridgeEngraving.GetComponent<MapPoi>() == null)
-            {
                 AddDiscovery(inspection.bridgeEngraving, kind ?? DiscoveryKind, "Знак Гуннара", null, marker.hintRadius);
-                return true;
-            }
             label = inspection.MapTitle;
         }
         else if (marker.TryGetComponent<MysticProp>(out var prop)) label = prop.InspectionTitle;
@@ -100,14 +139,14 @@ public partial class HudMinimap
 
         foreach (var inspection in FindObjectsByType<StoryInspection>(FindObjectsSortMode.None))
         {
-            if (!inspection.isActiveAndEnabled || inspection.source == null) continue;
+            if (!inspection.isActiveAndEnabled || inspection.superseded || inspection.source == null) continue;
             if (authored.Contains(inspection.transform)) continue;
             if (inspection.ShowBridgeOnMap)
             {
                 if (!authored.Contains(inspection.bridgeEngraving))
                     AddDiscovery(inspection.bridgeEngraving, DiscoveryKind, "Знак Гуннара", null, 7f);
             }
-            else AddDiscovery(inspection.transform, DiscoveryKind, inspection.MapTitle, null, 9f);
+            AddDiscovery(inspection.transform, DiscoveryKind, inspection.MapTitle, null, 9f);
         }
 
         foreach (var prop in FindObjectsByType<MysticProp>(FindObjectsSortMode.None))
@@ -121,14 +160,15 @@ public partial class HudMinimap
 
         var story = StoryFlow.Instance;
         finaleWasInspected = story != null && story.MapFinaleInspected;
-        if (story != null && story.PetsOpen && story.MapChapterCompleted("pets")
+        petsWereOpen = story != null && story.PetsOpen;
+        if (petsWereOpen && (UseCloudyV3 || story.MapChapterCompleted("pets"))
             && story.petCrateSpot != null && !authored.Contains(story.petCrateSpot))
             Add(story.petCrateSpot, new MapKind { key = "Pets" }, "Питомцы", completed: true);
         if (story == null || !story.MapFinaleAvailable) return;
         var target = story.MapFinaleTarget;
-        if (target == null || authored.Contains(target)) return;
+        if (target == null || authored.Contains(target) || target.GetComponentInParent<FinalIslandPortal>() != null) return;
         if (story.MapFinaleInspected)
-            Add(target, DiscoveryKind, "След Гуннара", completed: true);
+            Add(target, DiscoveryKind, "След Гуннара", completed: true, inspection: true);
         else
             AddDiscovery(target, DiscoveryKind, "След Гуннара", null, 13f);
     }
@@ -137,26 +177,53 @@ public partial class HudMinimap
     {
         string key = MapPoi.GetInspectionId(target, id);
         bool done = inspected.Contains(key) || StoryInspection.WasDiscovered(target, key);
-        var pin = Add(target, done ? kind : MysteryKind, done ? label : MysteryKind.label, completed: done);
+        if (!done && UseCloudyV3 && (target.GetComponent<FinalIslandEasterEgg>() != null
+            || (target.TryGetComponent<StoryInspection>(out var story) && story.kind == StoryInspection.Kind.Finale))) return;
+        var pin = Add(target, done ? kind : MysteryKind, done ? label : MysteryKind.label, completed: done, inspection: true);
         if (done) return;
-        pin.hintRadius = Mathf.Max(1f, radius);
-        pin.nearby = IsNearDiscovery(pin);
+        pin.hintRadius = Mathf.Clamp(radius, 1f, UseCloudyV3 ? 8f : float.PositiveInfinity);
+        pin.nearby = !UseCloudyV3 && DiscoveryDistance(pin) < float.PositiveInfinity;
         nearbyDiscoveries.Add(pin);
     }
 
-    bool IsNearDiscovery(Poi pin)
+    float DiscoveryDistance(Poi pin)
     {
-        if (player == null || pin.t == null || !pin.t.gameObject.activeInHierarchy) return false;
+        if (player == null || pin.t == null || !pin.t.gameObject.activeInHierarchy) return float.PositiveInfinity;
         Vector3 delta = player.position - pin.t.position;
-        return Mathf.Abs(delta.y) < 6f && delta.x * delta.x + delta.z * delta.z <= pin.hintRadius * pin.hintRadius;
+        float distance = delta.x * delta.x + delta.z * delta.z;
+        if (Mathf.Abs(delta.y) >= (UseCloudyV3 ? 3f : 6f) || distance > pin.hintRadius * pin.hintRadius)
+            return float.PositiveInfinity;
+        if (UseCloudyV3 && (IsAtQuestPin(pin) || !IsDiscovered(MapZone.At(pin.t.position)))) return float.PositiveInfinity;
+        return distance;
     }
 
     void UpdateDiscoveryHints()
     {
+        if (UseCloudyV3)
+        {
+            if (!open) return;
+            Poi closest = nearbyDiscovery;
+            float best = closest == null ? float.PositiveInfinity : DiscoveryDistance(closest);
+            if (float.IsPositiveInfinity(best)) closest = null;
+            foreach (var pin in nearbyDiscoveries)
+            {
+                float distance = DiscoveryDistance(pin);
+                if (distance >= best) continue;
+                best = distance;
+                closest = pin;
+            }
+            if (closest == nearbyDiscovery) return;
+            if (nearbyDiscovery != null) nearbyDiscovery.nearby = false;
+            nearbyDiscovery = closest;
+            if (closest != null) closest.nearby = true;
+            RefreshBigMarkers();
+            return;
+        }
+
         bool changed = false;
         foreach (var pin in nearbyDiscoveries)
         {
-            bool nearby = IsNearDiscovery(pin);
+            bool nearby = DiscoveryDistance(pin) < float.PositiveInfinity;
             if (pin.nearby == nearby) continue;
             pin.nearby = nearby;
             changed = true;

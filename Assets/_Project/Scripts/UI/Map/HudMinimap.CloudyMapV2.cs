@@ -25,11 +25,13 @@ public partial class HudMinimap
     readonly List<Rect> cloudyOccupied = new List<Rect>();
     readonly List<RectTransform> cloudyNames = new List<RectTransform>();
     readonly List<RectTransform> cloudyDead = new List<RectTransform>();
+    readonly List<RectTransform> cloudyAnimated = new List<RectTransform>();
     bool cloudyInitialScanComplete;
     bool cloudyNeedsLayout = true;
     RectTransform cloudyTooltip;
     CanvasGroup cloudyTooltipGroup;
     TMP_Text cloudyTooltipTitle, cloudyTooltipStatus;
+    MapCloudyHover tooltipSource;
     Sprite cloudyPill, cloudyClusterSprite;
 
     static Sprite CloudySprite(string name) { return Resources.Load<Sprite>("CloudyMapV2/" + name); }
@@ -72,7 +74,7 @@ public partial class HudMinimap
 
             // Decorations belong to the window, not to the zoomed map: no UI drift when panning.
             var cloud = CloudySprite("CornerCloud");
-            if (cloud != null)
+            if (cloud != null && !UseCloudyV3)
             {
                 var left = CloudyImage(bigWindow, "CloudyCornerLeft", cloud);
                 var right = CloudyImage(bigWindow, "CloudyCornerRight", cloud);
@@ -198,24 +200,30 @@ public partial class HudMinimap
 
     // These methods are called by MapCloudyHover, which implements POINTER handlers only.
     // Drag/scroll events still bubble to MapDragSurface, keeping existing controls intact.
-    public void ShowCloudyMapTooltip(string title, string status, Vector2 screenPosition, Camera eventCamera)
+    public void ShowCloudyMapTooltip(string title, string status, Vector2 screenPosition, Camera eventCamera,
+        MapCloudyHover source = null)
     {
         if (!open || cloudyTooltip == null || cloudyTooltipGroup == null) return;
-        cloudyTooltipTitle.text = title;
-        cloudyTooltipStatus.text = status;
         RectTransform parent = cloudyTooltip.parent as RectTransform;
         if (parent == null) return;
-        Vector2 point;
-        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenPosition, eventCamera, out point)) return;
-        float w = parent.rect.width, h = parent.rect.height;
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenPosition, eventCamera, out var point)) return;
+        cloudyTooltipTitle.text = title;
+        cloudyTooltipStatus.text = status;
+        tooltipSource = source;
+        Rect bounds = parent.rect;
+        Vector2 size = cloudyTooltip.sizeDelta;
+        float pad = 6f * cloudyUiUnit;
+        float x = Mathf.Clamp(point.x + 14f * cloudyUiUnit, bounds.xMin + pad, Mathf.Max(bounds.xMin + pad, bounds.xMax - size.x - pad));
+        float y = Mathf.Clamp(point.y + size.y + pad, bounds.yMin + size.y + pad, Mathf.Max(bounds.yMin + size.y + pad, bounds.yMax - pad));
         cloudyTooltip.pivot = new Vector2(0f, 1f);
-        cloudyTooltip.anchoredPosition = new Vector2(Mathf.Clamp(point.x + 20f, -w * 0.5f + 5f, w * 0.5f - 235f),
-            Mathf.Clamp(point.y + 72f, -h * 0.5f + 70f, h * 0.5f - 5f));
+        cloudyTooltip.anchoredPosition = new Vector2(x, y) - bounds.center;
         cloudyTooltipGroup.alpha = 1f;
     }
 
-    public void HideCloudyMapTooltip()
+    public void HideCloudyMapTooltip(MapCloudyHover source = null)
     {
+        if (source != null && source != tooltipSource) return;
+        tooltipSource = null;
         if (cloudyTooltipGroup != null) cloudyTooltipGroup.alpha = 0f;
     }
 
@@ -249,7 +257,11 @@ public partial class HudMinimap
             else if (done) pinImage.color = new Color32(255, 219, 154, 255);
             else pinImage.color = new Color32(209, 230, 255, 255);
         }
-        if (!big) return;
+        if (!big)
+        {
+            if (UseCloudyV3) CloudyV3StyleMarker(marker, p, false);
+            return;
+        }
 
         var label = marker.Find("Label") as RectTransform;
         if (label != null)
@@ -286,11 +298,11 @@ public partial class HudMinimap
         string id = (p.t != null ? p.t.GetInstanceID().ToString() : p.label) + "|" + state;
         if (!cloudySeen.Contains(id))
         {
-            if (cloudyInitialScanComplete && cloudyAnimateUnlocks && done)
+            if (cloudyInitialScanComplete && cloudyAnimateUnlocks && (done || p.site != null))
                 cloudyNewPins[marker] = -1f; // start animation when map is next visible
             cloudySeen.Add(id);
         }
-        if (cloudyMapV3) CloudyV3StyleMarker(marker, p, big);
+        if (UseCloudyV3) CloudyV3StyleMarker(marker, p, true);
     }
 
     void CloudySetupHover(RectTransform marker, Poi p, bool big)
@@ -304,9 +316,9 @@ public partial class HudMinimap
         handler.owner = this;
         bool mystery = p.kind.key == "Mystery";
         bool wasInspected = p.completed && CloudyIsInspection(p);
-        handler.title = mystery ? "Таинственное место" : (cloudyMapV3 ? CloudyV3DisplayLabel(p) : p.label);
+        handler.title = UseCloudyV3 ? CloudyV3DisplayLabel(p) : (mystery ? "Таинственное место" : p.label);
         if (string.IsNullOrEmpty(handler.title)) handler.title = "Место на острове";
-        handler.state = mystery ? (p.nearby ? "Обнаружено • можно осмотреть" : "Неизвестно")
+        handler.state = UseCloudyV3 ? CloudyV3Status(p) : mystery ? (p.nearby ? "Обнаружено • можно осмотреть" : "Неизвестно")
             : p.completed ? (wasInspected ? "Изучено" : "Построено / открыто") : "Место на острове";
     }
 
@@ -314,7 +326,7 @@ public partial class HudMinimap
     {
         if (p == null || p.t == null || p.kind == null) return false;
         var authored = p.t.GetComponent<MapPoi>();
-        return (authored != null && authored.requiresInspection)
+        return p.inspection || (authored != null && authored.requiresInspection)
             || CloudyContainsAny(p.kind.key, "Discovery")
             || p.t.GetComponent<LandmarkTree>() != null
             || p.t.GetComponent<MysticProp>() != null
@@ -373,7 +385,6 @@ public partial class HudMinimap
     {
         cloudyInitialScanComplete = true;
         cloudyNeedsLayout = true;
-        cloudyZonePlates.Clear();
         cloudyDead.Clear();
         foreach (var p in cloudyNewPins)
             if (p.Key == null) cloudyDead.Add(p.Key);
@@ -384,6 +395,7 @@ public partial class HudMinimap
     {
         cloudyNeedsLayout = true;
         HideCloudyMapTooltip();
+        if (UseCloudyV3) return;
         foreach (var p in pois)
         {
             if (p.big == null) continue;
@@ -391,25 +403,25 @@ public partial class HudMinimap
             if (hover != null && p.kind.key == "Mystery")
                 hover.state = p.nearby ? "Обнаружено • можно осмотреть" : "Неизвестно";
         }
-        if (cloudyMapV3) CloudyV3RefreshPinStates();
     }
 
     void UpdateCloudyMapV2(float time)
     {
         if (!cloudyMapV2 || !candyStyle) return;
         if (!open) { HideCloudyMapTooltip(); return; }
-        if (cloudyMapV3) CloudyV3ObserveView();
+        if (UseCloudyV3) CloudyV3ObserveView();
         if (cloudyNeedsLayout)
         {
             cloudyNeedsLayout = false;
-            LayoutCloudyMapLabels(1f / Mathf.Pow(Mathf.Max(1f, zoom), 0.85f));
+            LayoutCloudyMapLabels(BigMapCounterScale(zoom));
         }
         if (cloudyNewPins.Count == 0) return;
         cloudyDead.Clear();
-        float scale = 1.25f * markerScale / Mathf.Pow(Mathf.Max(1f, zoom), 0.85f);
+        float scale = 1.25f * markerScale * BigMapCounterScale(zoom);
         // Iterate over a snapshot: changing a Dictionary value during foreach is unsafe on Unity/Mono.
-        var animated = new List<RectTransform>(cloudyNewPins.Keys);
-        foreach (var rt in animated)
+        cloudyAnimated.Clear();
+        cloudyAnimated.AddRange(cloudyNewPins.Keys);
+        foreach (var rt in cloudyAnimated)
         {
             if (rt == null) { cloudyDead.Add(rt); continue; }
             if (!rt.gameObject.activeInHierarchy) continue;
@@ -426,6 +438,8 @@ public partial class HudMinimap
     static int CloudyPriority(Poi p)
     {
         if (p == null || p.kind == null) return 0;
+        if (p.quest) return 200;
+        if (p.inspection) return p.completed ? 76 : 132;
         string key = p.kind.key ?? "";
         string label = p.label ?? "";
         if (CloudyContainsAny(key, "Portal", "Bridge") || CloudyContainsAny(label, "портал", "мост")) return 160;
@@ -448,13 +462,14 @@ public partial class HudMinimap
         return new Rect(center.x - size.x * 0.5f, center.y - size.y * 0.5f, size.x, size.y);
     }
 
-    bool CloudyCollides(Rect candidate)
+    bool CloudyCollides(Rect candidate, float gap = -1f)
     {
+        if (gap < 0f) gap = cloudyLabelGap;
         for (int i = 0; i < cloudyOccupied.Count; i++)
         {
             Rect other = cloudyOccupied[i];
-            if (candidate.xMin < other.xMax + cloudyLabelGap && candidate.xMax > other.xMin - cloudyLabelGap
-                && candidate.yMin < other.yMax + cloudyLabelGap && candidate.yMax > other.yMin - cloudyLabelGap) return true;
+            if (candidate.xMin < other.xMax + gap && candidate.xMax > other.xMin - gap
+                && candidate.yMin < other.yMax + gap && candidate.yMax > other.yMin - gap) return true;
         }
         return false;
     }
@@ -509,7 +524,7 @@ public partial class HudMinimap
     // The first zoom level remains intentionally sparse; zooming in reveals detail.
     void LayoutCloudyMapLabels(float inv)
     {
-        if (cloudyMapV3) { CloudyV3Layout(inv); return; }
+        if (UseCloudyV3) { CloudyV3Layout(inv); return; }
         if (bigViewport == null || bigMap == null) return;
         cloudyNeedsLayout = false;
         cloudyOccupied.Clear();

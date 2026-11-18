@@ -238,6 +238,7 @@ public class FireLightPool : MonoBehaviour
             if (s.simOnly || s.target < 0.5f) continue;
             float d = (s.WorldPos - pp).magnitude;
             s.sortKey = d - (s.poolLight != null ? hysteresis : 0f);
+            if (s.sortKey > maxRealDistance) continue;
             candidates.Add(s);
         }
         candidates.Sort(ByKey);

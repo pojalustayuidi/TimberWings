@@ -27,27 +27,39 @@ namespace IslandV2
         }
         public float Height(Vector2 p)
         {
-            foreach(var f in faces)
+            if (TryHeight(faces, p, out float height)) return height;
+            throw new InvalidOperationException("Нет поверхности земли у палатки: "+p);
+        }
+        public static bool TryHeight(IReadOnlyList<Face> surface, Vector2 p, out float height)
+        {
+            foreach(var f in surface)
             {
                 float d=(f.b.z-f.c.z)*(f.a.x-f.c.x)+(f.c.x-f.b.x)*(f.a.z-f.c.z);
                 if(Mathf.Abs(d)<0.000001f)continue;
                 float u=((f.b.z-f.c.z)*(p.x-f.c.x)+(f.c.x-f.b.x)*(p.y-f.c.z))/d;
                 float v=((f.c.z-f.a.z)*(p.x-f.c.x)+(f.a.x-f.c.x)*(p.y-f.c.z))/d;
-                if(u>=-0.0001f && v>=-0.0001f && u+v<=1.0001f)return u*f.a.y+v*f.b.y+(1-u-v)*f.c.y;
+                if(u>=-0.0001f && v>=-0.0001f && u+v<=1.0001f)
+                {
+                    height = u*f.a.y+v*f.b.y+(1-u-v)*f.c.y;
+                    return true;
+                }
             }
-            throw new InvalidOperationException("Нет поверхности земли у палатки: "+p);
+            height = 0f;
+            return false;
         }
         public void ReadGround()
         {
-            foreach(var filter in groundRoot.GetComponentsInChildren<MeshFilter>(true))
+            float reach = TWWorkyardGround.SupportRadius + 0.5f;
+            foreach(var filter in groundRoot.GetComponentsInChildren<MeshFilter>())
             {
-                if(!filter.name.StartsWith(IslandBlockout.ChunkPrefix,StringComparison.Ordinal)||filter.sharedMesh==null)continue;
+                if(!filter.name.StartsWith(IslandBlockout.ChunkPrefix,StringComparison.Ordinal)||filter.sharedMesh==null ||
+                    !filter.TryGetComponent<MeshRenderer>(out var renderer) || !renderer.enabled)continue;
                 var v=filter.sharedMesh.vertices;var t=filter.sharedMesh.triangles;var m=filter.transform.localToWorldMatrix;
                 for(int i=0;i<t.Length;i+=3)
                 {
                     Vector3 a=m.MultiplyPoint3x4(v[t[i]]),b=m.MultiplyPoint3x4(v[t[i+1]]),c=m.MultiplyPoint3x4(v[t[i+2]]);
-                    if(Mathf.Min(a.x,Mathf.Min(b.x,c.x))>origin.x+9 || Mathf.Max(a.x,Mathf.Max(b.x,c.x))<origin.x-9 ||
-                        Mathf.Min(a.z,Mathf.Min(b.z,c.z))>origin.z+9 || Mathf.Max(a.z,Mathf.Max(b.z,c.z))<origin.z-9)continue;
+                    if(Mathf.Min(a.x,Mathf.Min(b.x,c.x))>origin.x+reach || Mathf.Max(a.x,Mathf.Max(b.x,c.x))<origin.x-reach ||
+                        Mathf.Min(a.z,Mathf.Min(b.z,c.z))>origin.z+reach || Mathf.Max(a.z,Mathf.Max(b.z,c.z))<origin.z-reach)continue;
                     faces.Add(new Face{a=a,b=b,c=c});
                 }
             }

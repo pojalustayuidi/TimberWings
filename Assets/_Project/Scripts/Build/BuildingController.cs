@@ -103,6 +103,7 @@ public class BuildingController : MonoBehaviour
 
     public event Action StageBuilt;   // сдан очередной этап (после каждого)
     public event Action Finished;     // достроено полностью
+    public event Action LockChanged;
     public event Action<int> NotEnoughWood;   // игрок пришёл, но брёвен не хватает (аргумент: сколько ещё нужно)
 
     // ---------------------------------------------------------------- состояние для UI (только чтение)
@@ -353,7 +354,12 @@ public class BuildingController : MonoBehaviour
     // сколько всего стадий
     public int StageTotal { get { EnsureData(); return staged ? firstStage + costs.Length : 1; } }
 
-    public void SetLocked(bool value) { locked = value; }
+    public void SetLocked(bool value)
+    {
+        if (locked == value) return;
+        locked = value;
+        LockChanged?.Invoke();
+    }
 
     // ---------------------------------------------------------------- внутреннее
     // рабочие значения: собираются один раз из Data или из запасных полей

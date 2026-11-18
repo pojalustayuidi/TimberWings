@@ -71,6 +71,10 @@ public class CloudSea : MonoBehaviour
     float detail;
 
     Camera cam;
+    readonly Plane[] viewPlanes = new Plane[6];
+    Matrix4x4[][] puffMatrices;
+    int[] puffCounts;
+    Bounds[] puffBounds;
     float camAt, qualityAt;
     System.Random rnd;
 
@@ -174,17 +178,26 @@ public class CloudSea : MonoBehaviour
 
         if (rockShader != null && puffMat == null)
         {
-            puffMat = new Material(rockShader) { name = "CloudPuff (runtime)", hideFlags = HideFlags.DontSave };
+            var template = Resources.Load<Material>("TWCloudPuff");
+            puffMat = template != null && template.shader == rockShader ? new Material(template) : new Material(rockShader);
+            puffMat.name = "CloudPuff (runtime)";
+            puffMat.hideFlags = HideFlags.DontSave;
             puffMat.SetColor("_Tint", Color.white);
             puffMat.SetColor("_Shade", new Color(0.62f, 0.68f, 0.88f));
             puffMat.SetFloat("_Wrap", 0.6f);
             puffMat.SetFloat("_Rim", 0.35f);
             puffMat.SetFloat("_GlowIntensity", 0f);
+            puffMat.enableInstancing = SystemInfo.supportsInstancing && rockShader.name == "Project/IslandRock";
         }
 
         if (scaleWithIsland) puffN = Mathf.RoundToInt(puffN * Mathf.Clamp(effField / Mathf.Max(1f, puffFieldRadius), 1f, 1.3f));
         puffs = new Puff[rockShader != null ? puffN : 0];
         for (int i = 0; i < puffs.Length; i++) puffs[i] = NewPuff(true);
+        puffMatrices = new Matrix4x4[puffMeshes.Length][];
+        puffCounts = new int[puffMeshes.Length];
+        puffBounds = new Bounds[puffMeshes.Length];
+        for (int i = 0; i < puffMeshes.Length; i++)
+            puffMatrices[i] = new Matrix4x4[puffs.Length];
     }
 
     Puff NewPuff(bool initial)
@@ -252,9 +265,10 @@ public class CloudSea : MonoBehaviour
         if (style != null) style.ApplyTo(this);
 
         float dt = Time.deltaTime;
+        GeometryUtility.CalculateFrustumPlanes(cam, viewPlanes);
         DrawLayers();
         DrawPuffs(dt);
-        horizon?.Draw(cam, groundY - islandDepth * topDepthFactor, dt);
+        horizon?.Draw(cam, groundY - islandDepth * topDepthFactor, dt, viewPlanes);
     }
 
     void DayColors(out Color top, out Color shade)
@@ -330,6 +344,9 @@ public class CloudSea : MonoBehaviour
 
         float R = effField;
         Vector3 w3 = new Vector3(wind.x, 0f, wind.y);
+        bool batched = puffMat.enableInstancing && SystemInfo.supportsInstancing;
+        if (batched)
+            System.Array.Clear(puffCounts, 0, puffCounts.Length);
         for (int i = 0; i < puffs.Length; i++)
         {
             var p = puffs[i];
@@ -344,7 +361,33 @@ public class CloudSea : MonoBehaviour
             Vector3 dp = p.pos;
             if (p.bank) dp.y += Mathf.Sin(Time.time * 0.35f + p.rot) * 0.6f;
             var m = Matrix4x4.TRS(dp, Quaternion.Euler(0f, p.rot, 0f), new Vector3(s, s, s));
-            Graphics.DrawMesh(puffMeshes[p.mesh], m, puffMat, 0, cam, 0, null, ShadowCastingMode.Off, false);
+            Bounds bounds = HorizonScenery.TransformBounds(puffMeshes[p.mesh].bounds, m);
+            if (!GeometryUtility.TestPlanesAABB(viewPlanes, bounds)) continue;
+            if (batched)
+            {
+                int count = puffCounts[p.mesh]++;
+                puffMatrices[p.mesh][count] = m;
+                if (count == 0) puffBounds[p.mesh] = bounds;
+                else puffBounds[p.mesh].Encapsulate(bounds);
+            }
+            else
+                Graphics.DrawMesh(puffMeshes[p.mesh], m, puffMat, 0, cam, 0, null, ShadowCastingMode.Off, false);
+        }
+        if (!batched) return;
+        for (int i = 0; i < puffMeshes.Length; i++)
+        {
+            if (puffCounts[i] == 0) continue;
+            var parameters = new RenderParams(puffMat)
+            {
+                camera = cam,
+                layer = 0,
+                worldBounds = puffBounds[i],
+                shadowCastingMode = ShadowCastingMode.Off,
+                receiveShadows = false,
+                lightProbeUsage = LightProbeUsage.BlendProbes,
+                reflectionProbeUsage = ReflectionProbeUsage.BlendProbes
+            };
+            Graphics.RenderMeshInstanced(parameters, puffMeshes[i], 0, puffMatrices[i], puffCounts[i]);
         }
     }
 

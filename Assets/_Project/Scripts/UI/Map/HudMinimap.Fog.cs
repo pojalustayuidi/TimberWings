@@ -153,8 +153,9 @@ public partial class HudMinimap
     // метка внутри закрытой зоны не показывается
     bool FogHides(Poi p)
     {
+        if (!p.t.gameObject.activeInHierarchy) return true;
         if (p.hintRadius > 0f) return !p.nearby;
-        if (!fogOfWar || p.pinned || p.completed) return false;
+        if (!fogOfWar || p.pinned || p.completed || (UseCloudyV3 && p.site != null)) return false;
         var z = MapZone.At(p.t.position);
         return z != null && z.showOnMap && !discovered.Contains(z);
     }

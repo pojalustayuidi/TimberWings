@@ -30,6 +30,16 @@ public partial class PlayerHeadHud : MonoBehaviour
     [Tooltip("Камера «Свободная» (OrbitCamera): табличка вешается прямо над макушкой персонажа, зазор в единицах канваса")]
     public float orbitGap = 6f;
 
+    [Header("Масштаб UI от зума камеры")]
+    public bool scaleWithCameraZoom = true;
+    [Tooltip("Дистанция свободной камеры, при которой плашка имеет обычный размер.")]
+    [Min(0.1f)] public float referenceCameraDistance = 6.5f;
+    [Tooltip("Минимальный масштаб при отдалении камеры.")]
+    [Range(0.35f, 1f)] public float farHudScale = 0.55f;
+    [Tooltip("Максимальный масштаб при приближении камеры.")]
+    [Range(1f, 1.5f)] public float nearHudScale = 1.1f;
+    [Range(0.04f, 0.5f)] public float hudZoomSmoothTime = 0.12f;
+
     [Header("Таймер рубки")]
     public float completeHold = 0.35f;        // сколько держится «Готово!» после последнего удара, с
 
@@ -72,6 +82,10 @@ public partial class PlayerHeadHud : MonoBehaviour
     TMP_Text packText, packStatus, timeText, gainText, doneText;
     GameObject timeGo, gainGo, gainIconGo, doneGo;
     Camera cam;
+    Camera zoomCamera;
+    CameraFollow zoomFollow;
+    float hudZoomScale = 1f;
+    bool zoomScaleReady;
 
     // ---------------------------------------------------------------- состояние рюкзака
     int wood, cap = 4;
@@ -297,7 +311,11 @@ public partial class PlayerHeadHud : MonoBehaviour
         RefreshPack();
     }
 
-    void OnEnable() { if (root != null) root.gameObject.SetActive(true); }
+    void OnEnable()
+    {
+        zoomScaleReady = false;
+        if (root != null) root.gameObject.SetActive(true);
+    }
     void OnDisable() { if (root != null) root.gameObject.SetActive(false); }
     void OnDestroy() { if (root != null) Destroy(root.gameObject); }
 
@@ -421,7 +439,7 @@ public partial class PlayerHeadHud : MonoBehaviour
         chopCg.alpha = Mathf.Clamp01(chopShown * 1.6f);
 
         // --- положение на экране
-        if (cam == null) cam = Camera.main;
+        if (cam == null || !cam.isActiveAndEnabled) cam = Camera.main;
         if (cam == null) { rootCg.alpha = 0f; return; }
 
         // свободная камера: точка прямо над макушкой (высота модели), а не фиксированные 2.7 м, которые на экране «улетают» вверх
@@ -434,16 +452,77 @@ public partial class PlayerHeadHud : MonoBehaviour
         revealHide = Mathf.MoveTowards(revealHide, BuildingController.AnyRevealing ? 1f : 0f, dt / 0.25f);
         rootCg.alpha = StoryInspection.Active ? 0f : 1f - revealHide;
 
-        float scale = canvasCmp != null ? Mathf.Max(0.01f, canvasCmp.scaleFactor) : 1f;
+        UpdateCameraZoomScale(sp.z, dt);
+        float canvasScale = canvasCmp != null ? Mathf.Max(0.01f, canvasCmp.scaleFactor) : 1f;
+        float w = packRt.rect.width * Mathf.Abs(packRt.localScale.x);
+        float h = packRt.anchoredPosition.y + packRt.rect.height * Mathf.Abs(packRt.localScale.y);
+        if (chopShown > 0.01f)
+        {
+            w = Mathf.Max(w, chopRt.rect.width * Mathf.Abs(chopRt.localScale.x));
+            h = Mathf.Max(h, chopRt.anchoredPosition.y + chopRt.rect.height * Mathf.Abs(chopRt.localScale.y));
+        }
+        if (rhythmShown > 0.01f)
+        {
+            w = Mathf.Max(w, rhythmRt.rect.width * Mathf.Abs(rhythmRt.localScale.x));
+            h = Mathf.Max(h, rhythmRt.anchoredPosition.y + rhythmRt.rect.height * Mathf.Abs(rhythmRt.localScale.y));
+        }
+        Rect safe = Screen.safeArea;
+        if (safe.width <= 0f || safe.height <= 0f) safe = new Rect(0f, 0f, Screen.width, Screen.height);
+        float m = Mathf.Min(Mathf.Max(0f, screenMargin) * canvasScale, Mathf.Min(safe.width, safe.height) * 0.1f);
+        float fit = Mathf.Min(hudZoomScale,
+            (safe.width - 2f * m) / Mathf.Max(1f, w * canvasScale),
+            (safe.height - 2f * m) / Mathf.Max(1f, h * canvasScale));
+        root.localScale = Vector3.one * fit;
+        float scale = canvasScale * fit;
         if (OrbitCamera.Active) sp.y += orbitGap * scale;
-        float w = Mathf.Max(ChopW, PackW) * scale;
-        float rhythmExtra = rhythmShown > 0.01f ? Gap + RhythmH : 0f;
-        float h = (Tail + (chopShown > 0.01f ? PackH + Gap + ChopH + rhythmExtra : PackH)) * scale;
-        float m = screenMargin * scale;
-
-        float x = Mathf.Clamp(sp.x, w * 0.5f + m, Mathf.Max(w * 0.5f + m, Screen.width - w * 0.5f - m));
-        float y = Mathf.Clamp(sp.y, m, Mathf.Max(m, Screen.height - h - m));
+        w *= scale;
+        h *= scale;
+        float x = Mathf.Clamp(sp.x, safe.xMin + w * 0.5f + m, Mathf.Max(safe.xMin + w * 0.5f + m, safe.xMax - w * 0.5f - m));
+        float y = Mathf.Clamp(sp.y, safe.yMin + m, Mathf.Max(safe.yMin + m, safe.yMax - h - m));
         root.position = new Vector3(x, y, 0f);
+    }
+
+    void UpdateCameraZoomScale(float depth, float dt)
+    {
+        if (zoomCamera != cam)
+        {
+            zoomCamera = cam;
+            zoomFollow = cam.GetComponent<CameraFollow>();
+            zoomScaleReady = false;
+        }
+
+        float target = 1f;
+        if (scaleWithCameraZoom)
+        {
+            float viewHeight;
+            float referenceHeight;
+            if (cam.orthographic)
+            {
+                viewHeight = cam.orthographicSize * 2f;
+                referenceHeight = (zoomFollow != null ? zoomFollow.orthoSize : 7f) * 2f;
+            }
+            else
+            {
+                bool followMode = !OrbitCamera.Active && zoomFollow != null;
+                float referenceDepth = followMode ? zoomFollow.distance : referenceCameraDistance;
+                float referenceFov = followMode ? zoomFollow.fieldOfView : 50f;
+                viewHeight = 2f * depth * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                referenceHeight = 2f * referenceDepth * Mathf.Tan(referenceFov * 0.5f * Mathf.Deg2Rad);
+            }
+            target = CameraZoomHudScale(viewHeight, referenceHeight, farHudScale, nearHudScale);
+        }
+
+        float blend = 1f - Mathf.Exp(-Mathf.Clamp(dt, 0f, 0.1f) / Mathf.Max(0.01f, hudZoomSmoothTime));
+        hudZoomScale = zoomScaleReady ? Mathf.Lerp(hudZoomScale, target, blend) : target;
+        zoomScaleReady = true;
+    }
+
+    static float CameraZoomHudScale(float viewHeight, float referenceHeight, float minimum, float maximum)
+    {
+        float lower = Mathf.Clamp(minimum, 0.1f, 1f);
+        float upper = Mathf.Max(lower, maximum);
+        float ratio = Mathf.Max(0.01f, referenceHeight) / Mathf.Max(0.01f, viewHeight);
+        return Mathf.Clamp(Mathf.Pow(ratio, 0.65f), lower, upper);
     }
 
     // высота макушки над ногами по рендерерам персонажа (считаем один раз; рюкзак, меч и т. п. входят)

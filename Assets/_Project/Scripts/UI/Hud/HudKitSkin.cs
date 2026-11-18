@@ -191,6 +191,7 @@ public class HudKitSkin : MonoBehaviour
         }
 
         // большая карта: лавандовая лента-заголовок и персиковая кнопка закрытия
+        if (hm.cloudyMapV2 && hm.cloudyMapV3 && hm.candyStyle) return;
         var win = hm.bigWindow;
         if (win != null)
         {

@@ -81,7 +81,7 @@ internal sealed class HorizonScenery : IDisposable
         };
     }
 
-    internal void Draw(Camera camera, float cloudLevel, float deltaTime)
+    internal void Draw(Camera camera, float cloudLevel, float deltaTime, Plane[] viewPlanes)
     {
         flightTime = Mathf.Repeat(flightTime + deltaTime, FlightSeconds);
         float night = DayNightCycle.Night01;
@@ -102,23 +102,37 @@ internal sealed class HorizonScenery : IDisposable
             float bob = Mathf.Sin(clock * 0.14f + i * 1.6f) * (0.28f + 0.14f * i);
             var pose = Matrix4x4.TRS(island.position + Vector3.up * bob,
                 Quaternion.Euler(0f, island.heading, 0f), island.scale);
-            DrawMesh(island.mesh, pose, camera);
+            DrawMesh(island.mesh, pose, camera, viewPlanes);
         }
 
         SampleFlight(flightTime, cloudLevel, out Vector3 position, out Quaternion rotation);
         Matrix4x4 hull = Matrix4x4.TRS(position, rotation, Vector3.one);
-        DrawMesh(ship, hull, camera);
+        DrawMesh(ship, hull, camera, viewPlanes);
 
         float spin = Mathf.Repeat(flightTime * 630f, 360f);
         Matrix4x4 rotor = Matrix4x4.TRS(HorizonMeshes.PropellerPivot,
             Quaternion.AngleAxis(spin, Vector3.forward), Vector3.one);
-        DrawMesh(propeller, hull * rotor, camera);
+        DrawMesh(propeller, hull * rotor, camera, viewPlanes);
     }
 
-    void DrawMesh(Mesh mesh, Matrix4x4 pose, Camera camera)
+    void DrawMesh(Mesh mesh, Matrix4x4 pose, Camera camera, Plane[] viewPlanes)
     {
+        if (!GeometryUtility.TestPlanesAABB(viewPlanes, TransformBounds(mesh.bounds, pose))) return;
         Graphics.DrawMesh(mesh, pose, material, 0, camera, 0, null,
             ShadowCastingMode.Off, false, null, LightProbeUsage.Off);
+    }
+
+    internal static Bounds TransformBounds(Bounds bounds, Matrix4x4 pose)
+    {
+        Vector3 e = bounds.extents;
+        Vector3 x = pose.MultiplyVector(Vector3.right * e.x);
+        Vector3 y = pose.MultiplyVector(Vector3.up * e.y);
+        Vector3 z = pose.MultiplyVector(Vector3.forward * e.z);
+        Vector3 size = new Vector3(
+            Mathf.Abs(x.x) + Mathf.Abs(y.x) + Mathf.Abs(z.x),
+            Mathf.Abs(x.y) + Mathf.Abs(y.y) + Mathf.Abs(z.y),
+            Mathf.Abs(x.z) + Mathf.Abs(y.z) + Mathf.Abs(z.z)) * 2f;
+        return new Bounds(pose.MultiplyPoint3x4(bounds.center), size);
     }
 
     void SampleFlight(float time, float cloudLevel, out Vector3 position, out Quaternion orientation)

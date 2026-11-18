@@ -444,8 +444,11 @@ public class LightingRig : MonoBehaviour
 
     static bool IsLantern(Light l)
     {
-        string n = l.name.ToLowerInvariant();
-        return n.Contains("lantern") || n.Contains("lamp") || n.Contains("torch") || n.Contains("фонар");
+        string n = l.name;
+        return n.IndexOf("lantern", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            n.IndexOf("lamp", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            n.IndexOf("torch", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            n.IndexOf("фонар", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     // ---------------------------------------------------------------- тест вечера (ПКМ по заголовку компонента, в Play Mode)

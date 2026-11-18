@@ -189,7 +189,7 @@ namespace IslandV2
             int group=-1;string folder=null;
             try
             {
-                var x=Inspect();var state=x.previous;
+                var x=Inspect(requireArtMaterial:false);var state=x.previous;
                 if(state==null || state.siteArt==null || state.builtArt==null || state.view==null)throw new InvalidOperationException("Сначала установи рабочий двор пунктом 2.");
                 var scene=x.tent.gameObject.scene;
                 if(scene.isDirty && !EditorSceneManager.SaveScene(scene))throw new InvalidOperationException("Не удалось сохранить сцену.");
@@ -200,13 +200,13 @@ namespace IslandV2
                 folder="Assets/_Project/IslandV2/WorkyardArt/Scenes/"+AssetDatabase.AssetPathToGUID(scene.path)+"/Physics_"+Guid.NewGuid().ToString("N").Substring(0,12);
                 IslandLayout.EnsureFolder(folder);
                 state.physicsRoot=TWWorkyardPhysics.Build(x,folder);
-                Physics.SyncTransforms();TWWorkyardValidation.Art(x,state.siteArt,state.builtArt,state.view,state.physicsRoot);
+                Physics.SyncTransforms();TWWorkyardValidation.Support(x,state.physicsRoot);
                 if(TWWorkyardValidation.Logic(x)!=before || TWWorkyardValidation.WorkerSettings(scene)!=workersBefore)
                     throw new InvalidOperationException("Изменились игровые настройки или один из менеджеров рабочих. Исправление отменено.");
                 if(old!=null)Undo.DestroyObjectImmediate(old);
                 EditorUtility.SetDirty(state);AssetDatabase.SaveAssets();EditorSceneManager.MarkSceneDirty(scene);Undo.CollapseUndoOperations(group);
                 Selection.activeGameObject=x.tent.gameObject;
-                Debug.Log("WORKYARD FIX: постоянный пол, вход на настил и коллайдеры обновлены. Расстановка и баланс сохранены. Ctrl+S, затем пункты 4 и 8. Копия сцены: "+backup);
+                Debug.Log("WORKYARD FIX: пол и плавный подход к палатке запечены. Сохрани сцену Ctrl+S. Копия сцены: "+backup);
             }
             catch(Exception e)
             {
@@ -239,7 +239,7 @@ namespace IslandV2
             if(count>1)return -1;
             return saved?savedIndex:active.Length==1?0:-1;
         }
-        static TWWorkyardContext Inspect(bool requireWorkerManager=false)
+        static TWWorkyardContext Inspect(bool requireWorkerManager=false,bool requireArtMaterial=true)
         {
             if(EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling)throw new InvalidOperationException("Останови Play Mode и дождись компиляции.");
             Scene scene=SceneManager.GetActiveScene();if(!scene.IsValid() || string.IsNullOrEmpty(scene.path))throw new InvalidOperationException("Открой сохранённую игровую сцену острова.");
@@ -263,8 +263,11 @@ namespace IslandV2
             var x=new TWWorkyardContext{tent=tent,build=unique[0],camp=camps.FirstOrDefault(),manager=manager,previous=previous,
                 groundRoot=island.transform.Find(IslandBlockout.GeneratedName),origin=tent.transform.position,rotation=tent.transform.rotation};
             if(x.groundRoot==null)throw new InvalidOperationException("Нет _Generated с поверхностью земли.");
-            var material=AssetDatabase.LoadAssetAtPath<Material>(IslandBlockout.MaterialPath);
-            if(material==null || !material.HasProperty("_GroundTex") || material.GetTexture("_GroundTex")==null || Shader.Find("Project/CandyToon")==null)throw new InvalidOperationException("Нет исходных материалов земли / CandyToon.");
+            if(requireArtMaterial)
+            {
+                var material=AssetDatabase.LoadAssetAtPath<Material>(IslandBlockout.MaterialPath);
+                if(material==null || !material.HasProperty("_GroundTex") || material.GetTexture("_GroundTex")==null || Shader.Find("Project/CandyToon")==null)throw new InvalidOperationException("Нет исходных материалов земли / CandyToon.");
+            }
             foreach(var ri in roots.SelectMany(g=>g.GetComponentsInChildren<ResourceItem>(true)))
             {
                 Vector3 p=Quaternion.Inverse(x.rotation)*(ri.transform.position-x.origin);

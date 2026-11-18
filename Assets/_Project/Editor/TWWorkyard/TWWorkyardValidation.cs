@@ -140,15 +140,17 @@ namespace IslandV2
             Vector3 scale=collider.transform.lossyScale;
             return distance*Mathf.Max(0.0001f,Mathf.Min(Mathf.Abs(scale.x),Mathf.Abs(scale.z)));
         }
-        static void Support(TWWorkyardContext x,GameObject root)
+        internal static void Support(TWWorkyardContext x,GameObject root)
         {
             if(root==null || root.transform.parent!=x.tent.transform || !root.activeSelf)
                 throw new InvalidOperationException("Нет постоянного пола вне стадий стройки. Выполни пункт 9.");
             var floor=root.GetComponent<MeshCollider>();
             if(floor==null || !floor.enabled || floor.isTrigger || floor.convex || floor.sharedMesh==null)
                 throw new InvalidOperationException("Некорректная физическая поверхность рабочего двора.");
-            if(root.GetComponentsInChildren<Renderer>(true).Length!=0 || root.GetComponentsInChildren<Rigidbody>(true).Length!=0)
-                throw new InvalidOperationException("Служебная опора должна быть статичной и невидимой.");
+            var visible = root.GetComponent<MeshFilter>();
+            if (visible == null || visible.sharedMesh != floor.sharedMesh || !root.TryGetComponent<MeshRenderer>(out var renderer) ||
+                !renderer.enabled || root.GetComponentsInChildren<Rigidbody>(true).Length != 0)
+                throw new InvalidOperationException("Подход и коллайдер площадки должны использовать один статичный меш.");
             Mesh(floor.sharedMesh);
             // Cast against this collider alone, so the original TerrainCollider cannot hide a missing floor.
             if(root.activeInHierarchy)
@@ -161,6 +163,22 @@ namespace IslandV2
                     if(!floor.Raycast(new Ray(p+Vector3.up,Vector3.down),out RaycastHit hit,2f) || Mathf.Abs(hit.point.y-p.y)>0.03f)
                         throw new InvalidOperationException("Опора не ловит игрока в точке "+p+". Повтори пункт 9.");
                 }
+
+                var site = x.previous != null && x.site == null ? x.previous.siteArt.transform : x.site;
+                var pad = site.GetComponentsInChildren<MeshFilter>(true).Single(f => f.name == "Site_Ground");
+                var surface = TWWorkyardGround.ReadFloor(pad);
+                foreach (float radius in new[] { 0f, 2.75f, 5.25f })
+                    for (int i = 0; i < 8; i++)
+                    {
+                        float angle = i * Mathf.PI * 0.25f;
+                        Vector3 p = x.World(new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
+                        if (!TWWorkyardContext.TryHeight(surface, new Vector2(p.x, p.z), out float height))
+                            continue;
+                        p.y = height;
+                        if (!floor.Raycast(new Ray(p + Vector3.up, Vector3.down), out var hit, 2f) ||
+                            Mathf.Abs(hit.point.y - p.y) > 0.06f)
+                            throw new InvalidOperationException("Разрыв опоры на подходе к палатке: " + p);
+                    }
             }
         }
     }

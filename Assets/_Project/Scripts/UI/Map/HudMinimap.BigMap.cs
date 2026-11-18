@@ -76,8 +76,14 @@ public partial class HudMinimap
 
         BuildFrame(parent);
         InitCloudyMapV2(parent);
-        if (codeCompass) StyleCompass();
+        if (codeCompass)
+        {
+            if (UseCloudyV3 && bigCompass == null)
+                bigCompass = NewImage("Compass", parent, MapIcons.Compass, 56f).rectTransform;
+            StyleCompass();
+        }
         if (zoomButtons) BuildZoomButtons();
+        ConfigureCloudyV3Controls();
         LiftBigMapOverHud();
         RegisterClickFallbacks();
     }
@@ -90,6 +96,8 @@ public partial class HudMinimap
         UiClickFallback.Register(closeButton, whenOpen, true);
         UiClickFallback.Register(zoomInBtn, whenOpen, true);
         UiClickFallback.Register(zoomOutBtn, whenOpen, true);
+        UiClickFallback.Register(cloudyFocusPlayer, whenOpen, true);
+        UiClickFallback.Register(cloudyFocusQuest, whenOpen, true);
         UiClickFallback.Register(openButton, whenClosed, false);
         UiClickFallback.Register(miniZoomIn, whenClosed, false);
         UiClickFallback.Register(miniZoomOut, whenClosed, false);
@@ -232,6 +240,7 @@ public partial class HudMinimap
     {
         Vector2 a, b;
         if (!ToLocal(screenPos - screenDelta, cam, out a) || !ToLocal(screenPos, cam, out b)) return;
+        HideCloudyMapTooltip();
         panTarget = ClampPan(panTarget + (b - a), zoomTarget);
         pan = panTarget;
     }
@@ -258,14 +267,18 @@ public partial class HudMinimap
         if (Input.GetKeyDown(KeyCode.KeypadMinus) || Input.GetKeyDown(KeyCode.Minus)) ZoomOut();
         if (Input.GetKeyDown(KeyCode.Home)) { zoomTarget = 1f; panTarget = Vector2.zero; }
 
-        if (Input.touchCount == 2)
+        if (Input.touchCount == 2 && bigViewport != null)
         {
             Touch t0 = Input.GetTouch(0), t1 = Input.GetTouch(1);
+            Vector2 midpoint = (t0.position + t1.position) * .5f;
+            if (!ToLocal(midpoint, UiCam(bigViewport), out var mid) || !CloudyRect(Vector2.zero, bigViewport.rect.size).Contains(mid))
+            {
+                pinchPrev = 0f;
+                return;
+            }
             float d = Vector2.Distance(t0.position, t1.position);
             if (pinchPrev > 1f && d > 1f)
             {
-                Vector2 mid;
-                if (!ToLocal((t0.position + t1.position) * 0.5f, null, out mid)) mid = Vector2.zero;
                 ZoomAtLocal(d / pinchPrev, mid);
                 zoom = zoomTarget; pan = panTarget;                                // щипок без сглаживания: палец не отстаёт
             }
@@ -299,18 +312,18 @@ public partial class HudMinimap
         UpdateCloudyMapV2(time);
     }
 
-    // метки растут медленнее карты (степень 0.85), чтобы при сильном зуме не закрывать её
+    // Подписи и маркеры должны оставаться читаемыми при изменении масштаба снимка.
     void ApplyBigScale()
     {
         bigScaleDirty = false;
         appliedZoom = zoom;
-        float inv = 1f / Mathf.Pow(Mathf.Max(1f, zoom), 0.85f);
+        float inv = BigMapCounterScale(zoom);
         foreach (var p in pois)
             if (p.big != null)
             {
-                p.big.localScale = Vector3.one * (1.25f * markerScale * inv);
+                p.big.localScale = Vector3.one * BigPinScale(p, inv);
                 var lb = p.big.Find("Label");
-                if (lb != null) lb.gameObject.SetActive(labelsFromZoom <= 0f || zoomTarget >= labelsFromZoom);
+                if (!UseCloudyV3 && lb != null) lb.gameObject.SetActive(labelsFromZoom <= 0f || zoomTarget >= labelsFromZoom);
             }
         if (bigPlayer != null) bigPlayer.localScale = Vector3.one * (bigPlayerBase * inv);
         if (zoneLayer != null)
@@ -319,7 +332,8 @@ public partial class HudMinimap
                 var c = zoneLayer.GetChild(i);
                 if (c.name.StartsWith("Name_")) c.localScale = Vector3.one * inv;
             }
-        if (cloudyMapV2 && candyStyle) LayoutCloudyMapLabels(inv);
+        if (UseCloudyV3) cloudyNeedsLayout = true;
+        else if (cloudyMapV2 && candyStyle) LayoutCloudyMapLabels(inv);
         else LayoutZoneNames(inv);
     }
 
@@ -377,10 +391,11 @@ public partial class HudMinimap
 }
 
 // Ловит перетаскивание и колесо мыши на окне большой карты. Метки и кнопки внутри окна передают события выше по иерархии
-public class MapDragSurface : MonoBehaviour, IDragHandler, IScrollHandler, IBeginDragHandler
+public class MapDragSurface : MonoBehaviour, IDragHandler, IScrollHandler, IBeginDragHandler, IPointerClickHandler
 {
     public HudMinimap owner;
     public void OnBeginDrag(PointerEventData e) { }
+    public void OnPointerClick(PointerEventData e) { if (owner != null) owner.HideCloudyMapTooltip(); }
     public void OnDrag(PointerEventData e)
     {
         if (owner == null || Input.touchCount > 1) return;                        // двумя пальцами работает щипок

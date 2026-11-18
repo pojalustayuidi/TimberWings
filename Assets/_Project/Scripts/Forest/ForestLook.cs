@@ -116,6 +116,7 @@ public class ForestLook : MonoBehaviour
     float nextPlayerLook;
     CameraFollow cam;
     float nextCamLook;
+    float nextVolumeLook;
 
     Light sun;
     UniversalAdditionalLightData sunData;
@@ -282,8 +283,9 @@ public class ForestLook : MonoBehaviour
             var go = GameObject.Find("Vibe Forest");
             if (go != null) forestVolume = go.GetComponent<Volume>();
         }
-        if (lookVolume == null)
+        if (lookVolume == null && now >= nextVolumeLook)
         {
+            nextVolumeLook = now + 1f;
             var go = GameObject.Find("Forest Look");
             if (go != null) lookVolume = go.GetComponent<Volume>();
         }

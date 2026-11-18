@@ -31,16 +31,29 @@ namespace IslandV2
             Vector3 scale=x.tent.transform.lossyScale;
             if(Mathf.Min(scale.x,Mathf.Min(scale.y,scale.z))<0.001f)throw new InvalidOperationException("Недопустимый масштаб палатки.");
             root.transform.localScale=new Vector3(1/scale.x,1/scale.y,1/scale.z);
-            var ground=x.built.GetComponentsInChildren<MeshFilter>(true).SingleOrDefault(f=>f.name=="Built_Ground");
-            if(ground==null || ground.sharedMesh==null)throw new InvalidOperationException("Нет поверхности Built_Ground для опоры двора.");
-            root.layer=ground.gameObject.layer;
-            Mesh mesh=UnityEngine.Object.Instantiate(ground.sharedMesh);mesh.name="Workyard_Support";
-            var vertices=mesh.vertices;
-            for(int i=0;i<vertices.Length;i++)
-                vertices[i]=root.transform.InverseTransformPoint(ground.transform.TransformPoint(vertices[i])-Vector3.up*0.014f);
-            mesh.vertices=vertices;mesh.RecalculateNormals();mesh.RecalculateBounds();
+            var ground = x.groundRoot.Find(IslandBlockout.TerrainName);
+            var terrain = ground != null ? ground.GetComponent<TerrainCollider>() : null;
+            if (terrain == null || !terrain.enabled || !terrain.gameObject.activeInHierarchy || terrain.terrainData == null)
+                throw new InvalidOperationException("Для стыка у палатки нужен активный TerrainCollider на Ground_Terrain.");
+            root.layer = terrain.gameObject.layer;
+            Physics.SyncTransforms();
+            var siteFloor = x.site.GetComponentsInChildren<MeshFilter>(true).SingleOrDefault(f => f.name == "Site_Ground");
+            var siteRenderer = siteFloor != null ? siteFloor.GetComponent<MeshRenderer>() : null;
+            if (siteRenderer == null || siteRenderer.sharedMaterial == null || siteFloor.sharedMesh == null)
+                throw new InvalidOperationException("Не найдено покрытие Site_Ground у палатки.");
+            var mesh = TWWorkyardGround.BuildSupport(x, root.transform, terrain, TWWorkyardGround.ReadFloor(siteFloor));
             TWWorkyardValidation.Mesh(mesh);AssetDatabase.CreateAsset(mesh,folder+"/Workyard_Support.asset");
-            var support=root.AddComponent<MeshCollider>();support.sharedMaterial=material;
+            root.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var approach = root.AddComponent<MeshRenderer>();
+            approach.sharedMaterial = siteRenderer.sharedMaterial;
+            approach.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var support = root.AddComponent<MeshCollider>();
+            support.sharedMaterial = terrain.sharedMaterial;
+#if UNITY_6000_0_OR_NEWER
+            support.includeLayers = terrain.includeLayers;
+            support.excludeLayers = terrain.excludeLayers;
+            support.layerOverridePriority = terrain.layerOverridePriority;
+#endif
             support.cookingOptions=MeshColliderCookingOptions.CookForFasterSimulation|MeshColliderCookingOptions.EnableMeshCleaning|
                 MeshColliderCookingOptions.WeldColocatedVertices|MeshColliderCookingOptions.UseFastMidphase;
             support.sharedMesh=mesh;
