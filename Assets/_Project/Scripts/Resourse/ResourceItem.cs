@@ -76,7 +76,15 @@ public class ResourceItem : MonoBehaviour
     [System.NonSerialized] public TreeGrowthVisual Growth;
     GameObject dirt;   // пятно земли (TreeGround): живёт и пока дерево срублено, пень стоит на земле
 
-    void OnDestroy() { TreeGround.Destroy(dirt); dirt = null; }
+    TreeRespawn regrowth;
+    internal string ChopSaveId { get; private set; }
+
+    void OnDestroy()
+    {
+        ChopPrototypeSave.Detach(this);
+        TreeGround.Destroy(dirt);
+        dirt = null;
+    }
 
     // радиус сплошного ствола в метрах: PlayerInteraction по нему решает, где встать у дерева
     public float TrunkRadius { get; private set; }
@@ -89,6 +97,7 @@ public class ResourceItem : MonoBehaviour
 
     void Awake()
     {
+        if (respawn) ChopSaveId = ChopPrototypeSave.TreeId(this);
         Size = overrideSize ? forcedSize : TreeSizing.Roll(transform.position);
         if (autoSize) transform.localScale *= GameBalance.TreeScaleMul[(int)Size];
         bool jittered = false;
@@ -123,6 +132,7 @@ public class ResourceItem : MonoBehaviour
         started = true;
         if (dirt == null) dirt = TreeGround.Create(originalPosition, (int)Size, gameObject.layer, SpeciesKey());   // земля под деревом (своя у каждого вида): видно, что его можно рубить
         BeginWave(false);   // старт сцены: деревья вырастают волной от игрока
+        if (respawn) ChopPrototypeSave.Attach(this);
     }
 
     // ------------------------------------------------------------ лёгкий наклон и сдвиг (только рантайм, позиции в сцене не трогаем)
@@ -365,8 +375,38 @@ public class ResourceItem : MonoBehaviour
         }
     }
 
-    public void ChopDown()
+    public void ChopDown() => ChopDown(null, false);
+
+    internal void FellPrototype(ChopPrototypeSave.Tree state)
     {
+        state.respawnSeconds = RespawnDelay();
+        ChopPrototypeSave.Record(state);
+        ChopDown(state, false);
+    }
+
+    internal void RestoreChopState(ChopPrototypeSave.Tree state)
+    {
+        bool wasFelled = regrowth != null;
+        if (wasFelled)
+        {
+            regrowth.DiscardForLoad();
+            regrowth = null;
+        }
+
+        if (state == null)
+        {
+            if (wasFelled) gameObject.SetActive(true);
+            return;
+        }
+        if (!gameObject.activeSelf) gameObject.SetActive(true);
+        ChopDown(state, true);
+    }
+
+    float RespawnDelay() => useBalanceRespawn ? RespawnBase : Random.Range(respawnSeconds.x, respawnSeconds.y);
+
+    void ChopDown(ChopPrototypeSave.Tree state, bool restoring)
+    {
+        if (state != null) RestoreTransform();
         GameObject stump = null;
 
         if (stumpPrefab != null)
@@ -382,7 +422,7 @@ public class ResourceItem : MonoBehaviour
             stump = TreeMeshFactory.CreateStump(transform.position, rot, transform.lossyScale.x, gameObject.layer);
         }
 
-        if (particlePrefab != null)
+        if (particlePrefab != null && state == null)
         {
             Vector3 particlePos = transform.position + new Vector3(0, 1.5f, 0);
             GameObject fx = Instantiate(particlePrefab, particlePos, Quaternion.identity);
@@ -393,17 +433,17 @@ public class ResourceItem : MonoBehaviour
         {
             // дерево не удаляем, а прячем: над пнём идёт таймер, потом оно возвращается.
             // Передаём время роста БЕЗ навыков: множитель «Лесоруба» TreeRespawn применяет сам и каждый кадр (сброс навыка действует сразу)
-            float seconds = useBalanceRespawn ? RespawnBase : Random.Range(respawnSeconds.x, respawnSeconds.y);
+            float seconds = state != null ? state.respawnSeconds : RespawnDelay();
+            bool falling = state != null && !restoring;
+            ChopPrototypeLog trunk = state != null && state.HasWood
+                ? ChopPrototypeLog.Create(this, state, falling)
+                : null;
 
-            // двойник должен стартовать, пока настоящее дерево ещё включено (копия поз и мешей), и только потом дерево прячется
-            TreeGrowthVisual growth = null;
-            if (growVisual)
-            {
-                growth = TreeGrowthVisual.GetOrCreate(this);
-                growth.BeginFall();
-            }
+            // Copy the visible tree before hiding the standing object.
+            TreeGrowthVisual growth = growVisual || falling ? TreeGrowthVisual.GetOrCreate(this) : null;
+            if (!restoring && growth != null) growth.BeginFall(trunk);
 
-            TreeRespawn.Begin(gameObject, stump, transform.position, seconds, growth);
+            regrowth = TreeRespawn.Begin(this, stump, transform.position, seconds, growth, state, trunk);
             gameObject.SetActive(false);   // OnDisable уберёт золотой статус
         }
         else

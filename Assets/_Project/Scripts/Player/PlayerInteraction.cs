@@ -69,7 +69,12 @@ public partial class PlayerInteraction : MonoBehaviour
     public static bool ChoppingEnabled = true;
 
     // true = ритм-рубка, false = старая: зажми E (режим для доступности). Хранится в PlayerPrefs, переключать через SetRhythmChop
-    public static bool RhythmChop = GameBalance.RhythmChopDefault;
+    static bool rhythmChopSetting = GameBalance.RhythmChopDefault;
+    public static bool RhythmChop
+    {
+        get => rhythmChopSetting && !ChopPrototypeLog.Enabled;
+        set => rhythmChopSetting = value;
+    }
     const string RhythmPref = "chop_rhythm";
     static PlayerInteraction inst;
 
@@ -209,8 +214,8 @@ public partial class PlayerInteraction : MonoBehaviour
     }
 
     // «нажал» и «держу»: E (или кнопка на телефоне) либо ЛКМ по дереву
-    bool PressDown { get { return (!OrbitCamera.FirstPersonActive && MobileInput.ActionDown) || (clickArmed && clickDownFrame == Time.frameCount); } }
-    bool PressHeld { get { return (!OrbitCamera.FirstPersonActive && MobileInput.ActionHeld) || (clickArmed && Input.GetMouseButton(0)); } }
+    bool PressDown { get { return (!OrbitCamera.FirstPersonActive && !capturedLogKey && MobileInput.ActionDown) || (clickArmed && clickDownFrame == Time.frameCount); } }
+    bool PressHeld { get { return (!OrbitCamera.FirstPersonActive && !capturedLogKey && MobileInput.ActionHeld) || (clickArmed && Input.GetMouseButton(0)); } }
 
     static bool DialogueBusy()
     {
@@ -334,7 +339,7 @@ public partial class PlayerInteraction : MonoBehaviour
     // клик ЛКМ: если курсор на дереве рядом, «взводим» рубку; если на далёком, просим подойти
     void UpdateClick()
     {
-        if (!MouseActive()) { clickArmed = false; HoverItem = null; return; }
+        if (mouseOnFallenTrunk || !MouseActive()) { clickArmed = false; HoverItem = null; return; }
 
         // подсветка под курсором: считаем 20 раз в секунду, лишнего на кадр не тратим
         if (Time.unscaledTime >= hoverAt)
@@ -378,6 +383,7 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void Awake()
     {
+        logActorCapsule = GetComponent<CapsuleCollider>();
         inventory = GetComponent<PlayerInventory>();
         movement = GetComponent<PlayerMovement>();
         backpack = GetComponent<BackpackTag>();
@@ -400,8 +406,8 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void OnDisable()
     {
-        armedLog = null;
-        StopPrototypeWork();
+        capturedLogKey = false;
+        ResetPrototypeInput();
         clickArmed = false;
         leoWalkArrival = leoApproachAttempt = null;
         leoEnterRhythmOnArrival = false;
@@ -480,7 +486,7 @@ public partial class PlayerInteraction : MonoBehaviour
             return;
         }
 
-        if (isFull)
+        if (isFull && !PrototypeStanding(TargetItem))
         {
             // места нет (хотя бы один слот свободен: рубить можно, лишнее честно покажется заранее) - дергаем табличку
             if (PressDown) backpack.Flash();
@@ -587,6 +593,7 @@ public partial class PlayerInteraction : MonoBehaviour
     // Один удар топора: тряска дерева, щепки, событие для звука. Зовётся таймером или Animation Event из клипа.
     public void NotifyHit()
     {
+        if (PrototypeHitDrivenFelling(TargetItem)) return; // CHOP-02 owns the impact clock for mature and old trees.
         if (RhythmChop) return;   // в ритм-режиме удары идут от нажатий E (ResolveHit), Animation Event не нужен
         if (!IsChopping || waitingForChopAxe || !LeoAxeReady || TargetItem == null) return;
         var th = TargetItem.GetComponent<TreeHits>();
@@ -687,7 +694,7 @@ public partial class PlayerInteraction : MonoBehaviour
             TargetItem.SetChopping(true);
         }
 
-        if (PrototypeStanding(TargetItem)) { TickPrototypeFelling(); return; }
+        if (PrototypeHitDrivenFelling(TargetItem)) { TickPrototypeFelling(); return; }
 
         holdTime += Time.deltaTime;
         Progress = Mathf.Clamp01(holdTime / Mathf.Max(0.1f, GatherTime));
@@ -761,17 +768,31 @@ public partial class PlayerInteraction : MonoBehaviour
     {
         if (TargetItem == null) return;
 
-        // страховка: пока рубили, места не осталось (вместимость упала, питомец ушёл). Дерево не валим, ничего не теряется
-        if (backpack != null && backpack.NoRoom)
+        var item = TargetItem;
+        bool prototype = PrototypeStanding(item);
+        // Обычная рубка по-прежнему требует свободного слота. В CHOP-02 древесина ждёт на земле.
+        if (!prototype && backpack != null && backpack.NoRoom)
         {
             backpack.Flash();
             StopChop();
             return;
         }
 
-        var item = TargetItem;
         var treePos = item.transform.position;
         item.SetChopping(false);
+        ChopPrototypeSave.Layout layout = default;
+        if (prototype)
+        {
+            item.RestoreTransform();
+            if (!ChopPrototypeLog.TryPlan(item, transform, out layout))
+            {
+                SaveIndicator.ShowToast(ChopPrototypeLog.Text("Нет места для падения · попробуй с другой стороны",
+                    "No clear landing · try from another side"));
+                StopChop();
+                clickArmed = false;
+                return;
+            }
+        }
 
         if (progressUI != null) progressUI.Complete();
         if (rhythmActive && hud != null) hud.CompleteChop();
@@ -790,7 +811,11 @@ public partial class PlayerInteraction : MonoBehaviour
 
         bool wasGolden = item.IsGolden;
         LumberSkills.RegisterFelled(chainLock);        // «Серия рубки»: это дерево продлило серию
-        if (TryPrototypeFall(item, wood, xp, wasGolden)) return;
+        if (prototype)
+        {
+            FellPrototype(item, layout, wood, xp, wasGolden);
+            return;
+        }
 
         // Бревна летят в HUD, начисляем по прилёту. Влезло столько, сколько свободно (ReserveLogs резервирует место сразу,
         // поэтому второе дерево подряд не обойдёт проверку, пока бревна ещё в полёте)

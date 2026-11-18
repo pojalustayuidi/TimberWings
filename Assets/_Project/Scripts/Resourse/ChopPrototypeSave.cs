@@ -1,0 +1,188 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using UnityEngine;
+
+// The tree, its outstanding wood, and the inventory are saved in the same save file.
+internal sealed class ChopPrototypeSave : ISaveable
+{
+    internal const string Key = "felledTrees";
+
+    [Serializable]
+    internal struct Layout
+    {
+        public Vector3 center;
+        public Quaternion rotation;
+        public float length, radius;
+        public Vector3 fallPivot;
+        public float fallHeight, crownRadius;
+    }
+
+    [Serializable]
+    internal sealed class Tree
+    {
+        public string id;
+        public Layout layout;
+        public float[] cuts;
+        public int[] wood;
+        public int xp;
+        public float respawnSeconds, grown, regrowthAge;
+
+        public bool HasWood
+        {
+            get
+            {
+                foreach (int count in wood)
+                    if (count > 0) return true;
+                return false;
+            }
+        }
+
+        public bool AllCutsOpen
+        {
+            get
+            {
+                foreach (float cut in cuts)
+                    if (cut < 1f) return false;
+                return true;
+            }
+        }
+
+        internal static Tree Create(string id, Layout layout, int cutCount, int wood, int xp)
+        {
+            var tree = new Tree
+            {
+                id = id, layout = layout, cuts = new float[cutCount], wood = new int[cutCount + 1], xp = xp
+            };
+            int perSection = wood / tree.wood.Length;
+            int remainder = wood % tree.wood.Length;
+            for (int i = 0; i < tree.wood.Length; i++)
+                tree.wood[i] = perSection + (i < remainder ? 1 : 0);
+            return tree;
+        }
+
+        internal bool AdvanceCut(int cut, float strength)
+        {
+            if (cut < 0 || cut >= cuts.Length || cuts[cut] >= 1f || !(strength > 0f)) return false;
+            cuts[cut] = Math.Min(1f, cuts[cut] + strength / 2f);
+            return true;
+        }
+
+        internal int TakeWood(int section, int received)
+        {
+            if (!AllCutsOpen || section < 0 || section >= wood.Length || received <= 0 || received > wood[section])
+                return 0;
+            wood[section] -= received;
+            int award = xp;
+            xp = 0;
+            return award;
+        }
+
+        internal bool Valid()
+        {
+            if (string.IsNullOrEmpty(id) || cuts == null || cuts.Length > 2 || wood == null ||
+                wood.Length != cuts.Length + 1 || xp < 0 || !(respawnSeconds > 0f) ||
+                !(layout.radius > 0f) || !(layout.length > 0f) || !(grown >= 0f && grown < 1f) ||
+                !(regrowthAge >= 0f)) return false;
+            foreach (float cut in cuts)
+                if (!(cut >= 0f && cut <= 1f)) return false;
+            foreach (int count in wood)
+                if (count < 0) return false;
+            return true;
+        }
+    }
+
+    [Serializable]
+    sealed class Data { public List<Tree> trees = new List<Tree>(); }
+
+    static ChopPrototypeSave instance;
+    readonly Dictionary<string, Tree> trees = new Dictionary<string, Tree>();
+    readonly HashSet<ResourceItem> sources = new HashSet<ResourceItem>();
+
+    public string SaveKey => Key;
+    public int LoadOrder => 110;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatic() { instance = null; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    static void Boot()
+    {
+        if (instance != null) return;
+        instance = new ChopPrototypeSave();
+        SaveSystem.Register(instance);
+    }
+
+    internal static string TreeId(ResourceItem item)
+    {
+        var scene = item.gameObject.scene;
+        var at = item.transform.position;
+        // Take the authored identity before TreeSizing applies its deterministic jitter.
+        string hierarchy = string.Empty;
+        for (Transform part = item.transform; part != null; part = part.parent)
+        {
+            int ordinal = 0;
+            Transform parent = part.parent;
+            if (parent != null)
+                for (int i = 0; i < part.GetSiblingIndex(); i++)
+                    if (parent.GetChild(i).name == part.name) ordinal++;
+            hierarchy = "/" + part.name + "[" + ordinal.ToString(CultureInfo.InvariantCulture) + "]" + hierarchy;
+        }
+        return string.Format(CultureInfo.InvariantCulture, "{0}|{1}|{2},{3},{4}",
+            string.IsNullOrEmpty(scene.path) ? scene.name : scene.path, hierarchy,
+            Mathf.RoundToInt(at.x * 1000f), Mathf.RoundToInt(at.y * 1000f), Mathf.RoundToInt(at.z * 1000f));
+    }
+
+    internal static void Attach(ResourceItem item)
+    {
+        Boot();
+        if (!instance.sources.Add(item)) return;
+        if (instance.trees.TryGetValue(item.ChopSaveId, out var tree))
+            item.RestoreChopState(tree);
+    }
+
+    internal static void Detach(ResourceItem item) { instance?.sources.Remove(item); }
+
+    internal static void Record(Tree tree)
+    {
+        Boot();
+        instance.trees.Add(tree.id, tree);
+        SaveSystem.RequestSave(Key);
+    }
+
+    internal static void Finish(Tree tree)
+    {
+        if (instance == null || tree == null ||
+            !instance.trees.TryGetValue(tree.id, out var current) || current != tree) return;
+        instance.trees.Remove(tree.id);
+        SaveSystem.RequestSave(Key);
+    }
+
+    public string Save() => JsonUtility.ToJson(new Data { trees = new List<Tree>(trees.Values) });
+
+    public void Load(string json, int formatVersion)
+    {
+        var data = string.IsNullOrEmpty(json) ? null : JsonUtility.FromJson<Data>(json);
+        trees.Clear();
+        if (data?.trees != null)
+            foreach (var tree in data.trees)
+                if (tree != null && tree.Valid()) trees[tree.id] = tree;
+        RestoreSources();
+    }
+
+    public void ResetToDefault()
+    {
+        trees.Clear();
+        RestoreSources();
+    }
+
+    void RestoreSources()
+    {
+        foreach (var source in new List<ResourceItem>(sources))
+        {
+            if (source == null) continue;
+            trees.TryGetValue(source.ChopSaveId, out var tree);
+            source.RestoreChopState(tree);
+        }
+    }
+}

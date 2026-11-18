@@ -14,7 +14,7 @@ using UnityEngine;
 
 public class TreeGrowthVisual : MonoBehaviour
 {
-    enum Phase { Idle, Fall, Grow }
+    enum Phase { Idle, Fall, Settle, Grow }
 
     ResourceItem item;
     Phase phase;
@@ -29,6 +29,10 @@ public class TreeGrowthVisual : MonoBehaviour
     float fallT, growT;
     Quaternion fallStartRot;
     Vector3 fallAxis;
+    ChopPrototypeLog trunk;
+    Quaternion prototypeStart;
+    Vector3 prototypeOrigin;
+    float prototypeTilt;
 
     WindAgent wind;
     readonly List<Renderer> rends = new List<Renderer>(4);
@@ -46,6 +50,7 @@ public class TreeGrowthVisual : MonoBehaviour
 
         g = go.AddComponent<TreeGrowthVisual>();
         g.item = item;
+        item.GetRestPose(out g.restPos, out g.restRot, out g.restScale);
         g.BuildCopy();
         item.Growth = g;
         return g;
@@ -87,13 +92,17 @@ public class TreeGrowthVisual : MonoBehaviour
 
     // ------------------------------------------------------------ управление (зовёт ResourceItem / TreeRespawn)
     // падение: дерево заваливается от камеры, последняя треть времени: проседает в пень
-    public void BeginFall()
+    public void BeginFall(ChopPrototypeLog fallenTrunk = null)
     {
         item.GetRestPose(out restPos, out restRot, out restScale);
         Transform tree = item.transform;
         fallStartRot = tree.localRotation;     // продолжаем с текущей позы (с учётом ветра): без скачка
         progress = 0f;
         fallT = 0f;
+        trunk = fallenTrunk;
+        prototypeStart = tree.rotation;
+        prototypeOrigin = tree.position;
+        prototypeTilt = 0f;
 
         Vector3 dir = Vector3.forward;
         var cam = Camera.main;
@@ -130,6 +139,7 @@ public class TreeGrowthVisual : MonoBehaviour
     public void Finish()
     {
         phase = Phase.Idle;
+        trunk = null;
         stumpBlend = 1f;
         UnregisterWind();
         if (this != null && gameObject.activeSelf) gameObject.SetActive(false);
@@ -140,7 +150,12 @@ public class TreeGrowthVisual : MonoBehaviour
     // ------------------------------------------------------------ кадры
     void Update()
     {
-        if (phase == Phase.Fall) TickFall();
+        if (phase == Phase.Fall)
+        {
+            if (trunk != null) TickPrototypeFall();
+            else TickFall();
+        }
+        else if (phase == Phase.Settle) SettleCanopy();
         else if (phase == Phase.Grow) ApplyGrow(progress);
     }
 
@@ -159,6 +174,67 @@ public class TreeGrowthVisual : MonoBehaviour
         transform.localScale = restScale * Mathf.Max(0.001f, 1f - sink);
 
         if (u >= 1f) EnterGrow();
+    }
+
+    void TickPrototypeFall()
+    {
+        float duration = Mathf.Max(1.12f, GameBalance.GrowFallSeconds + .30f);
+        float next = Mathf.Min(duration, fallT + Time.deltaTime);
+        float u = next / duration;
+        float tilt = u * u * (1.22f - .22f * u);
+        // Pause the descent if Leo runs into the swept envelope after the cut.
+        float middle = (prototypeTilt + tilt) * .5f;
+        if (!trunk.ClearOfPlayer(prototypeOrigin, middle) || !trunk.ClearOfPlayer(prototypeOrigin, tilt))
+            return;
+
+        fallT = next;
+        prototypeTilt = tilt;
+        var layout = trunk.Layout;
+        Vector3 axis = ChopPrototypeLog.FallAxis(layout, tilt);
+        Vector3 worldUp = Vector3.Slerp(prototypeStart * Vector3.up, axis, Mathf.Min(1f, tilt * 8f));
+        Quaternion rotation = Quaternion.FromToRotation(prototypeStart * Vector3.up, worldUp) * prototypeStart;
+        Vector3 pivot = ChopPrototypeLog.FallBase(layout, prototypeOrigin, tilt);
+        transform.SetPositionAndRotation(pivot, rotation);
+
+        // Branches taper into the salvaged trunk near ground contact. Leave the full crown
+        // visible during the wind-up and the main part of the fall.
+        float settle = ChopPrototypeLog.CanopySettle(tilt);
+        float trunkFraction = Mathf.Clamp01((layout.length + .12f) / layout.fallHeight);
+        transform.localScale = Vector3.Scale(restScale, new Vector3(
+            Mathf.Lerp(1f, .57f, settle), Mathf.Lerp(1f, trunkFraction, settle), Mathf.Lerp(1f, .57f, settle)));
+
+        if (next < duration) return;
+        trunk.Land(true);
+        phase = Phase.Settle;
+        fallT = 0f;
+        fallStartRot = transform.localRotation;
+        settleScale = transform.localScale;
+    }
+
+    Vector3 settleScale;
+
+    void SettleCanopy()
+    {
+        fallT += Time.deltaTime;
+        float ratio = Mathf.SmoothStep(0f, 1f, fallT / .17f);
+        transform.localRotation = fallStartRot;
+        transform.localScale = settleScale * Mathf.Max(.001f, 1f - ratio);
+        if (ratio >= 1f) Finish();
+    }
+
+    internal void ResumeGrowth(float p, bool hasStump)
+    {
+        progress = p;
+        stumpBlend = hasStump ? 1f : 0f;
+        transform.localPosition = restPos;
+        transform.localScale = restScale;
+        EnterGrow();
+        if (p > 0f)
+        {
+            growT = GameBalance.GrowPopSeconds;
+            ApplyGrow(progress);
+        }
+        gameObject.SetActive(true);
     }
 
     void EnterGrow()

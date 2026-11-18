@@ -467,7 +467,7 @@ public partial class OrbitCamera : MonoBehaviour
         if (!show) return;
 
         // на дереве, которое можно рубить, прицел светится золотом и чуть растёт
-        bool hover = interaction != null && interaction.HoverItem != null;
+        bool hover = interaction != null && (interaction.HoverItem != null || interaction.PrototypeReticleActive);
         chT = Mathf.MoveTowards(chT, hover ? 1f : 0f, dt / 0.12f);
         chImg.color = Color.Lerp(Color.white, HudPolishRoot.Skin != null ? new Color32(164, 255, 213, 255) : new Color32(0xF5, 0xC5, 0x42, 255), chT);
         chRt.localScale = Vector3.one * Mathf.Lerp(1f, VibeSettings.ReduceEffects ? 1f : 1.18f, Mathf.SmoothStep(0f, 1f, chT));

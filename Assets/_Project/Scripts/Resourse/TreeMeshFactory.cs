@@ -122,9 +122,9 @@ public static class TreeMeshFactory
         return m;
     }
 
-    static Material Bark() { if (bark == null) bark = MakeMat("GenTreeBark", new Color(0.42f, 0.28f, 0.16f), 0.05f); return bark; }
+    internal static Material Bark() { if (bark == null) bark = MakeMat("GenTreeBark", new Color(0.42f, 0.28f, 0.16f), 0.05f); return bark; }
     static Material Leaf() { if (leaf == null) leaf = MakeMat("GenTreeLeaf", new Color(0.30f, 0.68f, 0.24f), 0.05f); return leaf; }
-    static Material Cut() { if (cut == null) cut = MakeMat("GenTreeCut", new Color(0.78f, 0.58f, 0.34f), 0.05f); return cut; }
+    internal static Material Cut() { if (cut == null) cut = MakeMat("GenTreeCut", new Color(0.78f, 0.58f, 0.34f), 0.05f); return cut; }
 
     // ------------------------------------------------------------ меши
     public static Mesh TreeMesh(TreeSize s)

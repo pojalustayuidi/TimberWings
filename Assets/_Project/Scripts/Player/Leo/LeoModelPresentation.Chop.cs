@@ -8,6 +8,8 @@ public sealed partial class LeoModelPresentation
     LeoMotionProfile.ChopPose chopPose;
     ResourceItem chopTarget;
     Vector3? chopBark;
+    Vector3 groundCutAxis;
+    bool groundCut;
     int chopHitFrame = -1;
     float chopWeight, chopPhase;
     TrailRenderer chopTrail;
@@ -19,6 +21,7 @@ public sealed partial class LeoModelPresentation
         legacyTiming.Clear();
         chopTarget = null;
         chopBark = null;
+        groundCut = false;
         chopHitFrame = -1;
         chopWeight = chopPhase = 0f;
         if (chopTrail != null)
@@ -34,6 +37,7 @@ public sealed partial class LeoModelPresentation
         chopHitFrame = Time.frameCount;
         chopClock.Hit(Time.time);
         chopTarget = interaction.TargetItem;
+        groundCut = interaction.TryReadPrototypeContact(out _, out groundCutAxis);
         chopBark = interaction.TryReadLeoImpact(out Vector3 point) ? point : (Vector3?)null;
     }
 
@@ -70,7 +74,10 @@ public sealed partial class LeoModelPresentation
             chopPhase = chopClock.Phase(now, chopBook.contact, chopBook.recovery, impactFrame);
             chopWeight = impactFrame ? 1f : Mathf.MoveTowards(chopWeight, 1f, dt * 12f);
             if (!impactFrame && !recovering)
-                chopBark = LeoChopContact.TryPoint(chopTarget, transform, out Vector3 point) ? point : (Vector3?)null;
+            {
+                groundCut = interaction.TryReadPrototypeContact(out Vector3 point, out groundCutAxis);
+                chopBark = groundCut || LeoChopContact.TryPoint(chopTarget, transform, out point) ? point : (Vector3?)null;
+            }
         }
         else
         {
@@ -84,6 +91,11 @@ public sealed partial class LeoModelPresentation
     void BraceForChop()
     {
         if (chopWeight <= 0f) return;
+        if (groundCut)
+        {
+            LeoAxePose.GroundBrace(rig, chopPhase, chopBook.contact, chopWeight);
+            return;
+        }
         float aim = LeoAxePose.ContactAim(chopPhase, chopBook.contact);
         if (rig.hips != null)
             rig.hips.localPosition += LeoAxePose.BodyShift(chopPose, aim, transform, chopBark) * chopWeight;
@@ -98,11 +110,19 @@ public sealed partial class LeoModelPresentation
         // Спокойный хват как основа: рубка и убирание на пояс плавно уходят от него.
         LeoAxePose.Carry(rig, transform, LeoAxePose.CarryWeight(holster),
             Mathf.Cos(cycle * Mathf.PI * 2f - .24f) * moveWeight);
-        float roll = action > 0f
-            ? LeoAxePose.RightArm(rig, transform, chopBook, chopPose, chopPhase, action, chopBark)
-            : 0f;
-        LeoAxePose.Place(rig, transform, holster, roll);
-        LeoAxePose.LeftArm(rig, transform, chopPhase, action * chopPose.left);
+        if (groundCut && chopBark.HasValue)
+        {
+            LeoAxePose.GroundArms(rig, transform, chopPhase, chopBook.contact, action, holster,
+                chopBark.Value, groundCutAxis);
+        }
+        else
+        {
+            float roll = action > 0f
+                ? LeoAxePose.RightArm(rig, transform, chopBook, chopPose, chopPhase, action, chopBark)
+                : 0f;
+            LeoAxePose.Place(rig, transform, holster, roll);
+            LeoAxePose.LeftArm(rig, transform, chopPhase, action * chopPose.left);
+        }
         UpdateChopTrail(action);
     }
 

@@ -4,43 +4,23 @@ public partial class PlayerInteraction
 {
     public const int LeoReadbackVersion = 1;
     public bool AnimationHasScheduledImpact =>
-        IsChopping && !waitingForChopAxe && (RhythmChop ? rhythmActive && pendingHit : !useAnimationEvents);
+        IsChopping && !waitingForChopAxe &&
+        (IsProcessingPrototypeLog || PrototypeHitDrivenFelling(TargetItem) ||
+            (RhythmChop ? rhythmActive && pendingHit : !useAnimationEvents));
 
     public float AnimationScheduledImpact
     {
         get
         {
             if (!AnimationHasScheduledImpact) return -1f;
+            if (IsProcessingPrototypeLog || PrototypeHitDrivenFelling(TargetItem)) return nextHitAt;
             if (RhythmChop) return pendingDue;
             float fallAt = Time.time + Mathf.Max(0f, GatherTime - holdTime);
             return Mathf.Min(nextHitAt, fallAt);
         }
     }
 
-    // View animation reads the prototype timer without changing the original rig's clock.
-    internal float FirstPersonImpactDue
-    {
-        get
-        {
-            if (!IsChopping || waitingForChopAxe) return -1f;
-            if (IsProcessingPrototypeLog || (!useAnimationEvents && PrototypeStanding(TargetItem)))
-                return nextHitAt;
-            return AnimationScheduledImpact;
-        }
-    }
-
-    internal bool TryReadPrototypeContact(out Vector3 point)
-    {
-        point = default;
-        if (processingLog == null) return false;
-        point = processingLog.Closest(transform.position);
-        if (OrbitCamera.FirstPersonActive && processingLog.Solid != null)
-        {
-            Collider surface = processingLog.Solid;
-            point = surface.ClosestPoint(new Vector3(point.x, surface.bounds.max.y + .1f, point.z));
-        }
-        return true;
-    }
+    internal float FirstPersonImpactDue => AnimationScheduledImpact;
 
     LeoModelPresentation leoPresentation;
     LeoAnimationController leoAnimation;

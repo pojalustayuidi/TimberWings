@@ -145,7 +145,7 @@ public class CameraVibe : MonoBehaviour
 
     void OnChop()
     {
-        if (!chopFeel) return;
+        if (!chopFeel || PlayerInteraction.PrototypeFellingEvent) return;
         CameraFollow.Shake(chopShake, 0.14f);                                      // OrbitCamera уже ослабляет тряску в режиме эффектов и с прицелом
         if (!VibeSettings.ReduceEffects) punch = Mathf.Max(punch, chopPunch);      // зум-«щелчок» вдоль взгляда не уводит цель из-под прицела
     }

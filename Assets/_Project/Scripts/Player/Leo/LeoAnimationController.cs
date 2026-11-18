@@ -34,6 +34,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     int hitFrame=-1,quality=1;
     Transform target;
     Vector3? contactPoint;
+    Vector3 groundCutAxis;
+    bool groundCut;
     bool initialized,trailWasOn,wasChopping,cancelling;
     public bool Initialize()
     {
@@ -66,6 +68,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     void ResetState()
     {
         impact.Clear();legacy.Clear();phase=.25f;move=run=speedSmooth=actionWeight=holster=turn=talk=posePhase=cancelPhase=0;loadPitch=loadRoll=loadPitchVel=loadRollVel=adjustWeight=fullWeight=0;adjustStart=-10;lastCarried=-1;pendingAdjust=false;previousVelocity=smoothAcceleration=Vector3.zero;hitFrame=-1;target=null;contactPoint=null;wasChopping=cancelling=false;
+        groundCut = false;
+        groundCutAxis = Vector3.zero;
         previousPosition=transform.position;previousRotation=transform.rotation;nextBlink=Time.time+3;blinkAt=-10;feet?.Reset();CurrentState="Idle";
         holster = 1f;
         lastToolUse = -100f;
@@ -86,6 +90,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         impact.Hit(Time.time);
         hitFrame = Time.frameCount;
         quality = 1;
+        groundCut = interaction.TryReadPrototypeContact(out _, out groundCutAxis);
         contactPoint = interaction.TryReadLeoImpact(out Vector3 point) ? point : (Vector3?)null;
     }
     void Quality(int value){if(Time.time-impact.LastImpact<.1f)quality=Mathf.Clamp(value,0,2);}
@@ -128,7 +133,11 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         else impact.ForgetForecast();
         bool recovering=impact.Recovering(now,book.recovery);
         if (chopReady && !recovering)
-            contactPoint = LeoChopContact.TryPoint(interaction.TargetItem, transform, out Vector3 point) ? point : (Vector3?)null;
+        {
+            groundCut = interaction.TryReadPrototypeContact(out Vector3 point, out groundCutAxis);
+            contactPoint = groundCut || LeoChopContact.TryPoint(interaction.TargetItem, transform, out point)
+                ? point : (Vector3?)null;
+        }
         bool wantAction = !blocked && !conversation && !StoryInspection.Active && !handsBusy &&
             rig.IsAxeInHand && (chopReady || recovering);
         actionWeight=motion.InMotion ? 0f : Mathf.MoveTowards(actionWeight,wantAction?1:0,dt*(wantAction?12:8));
@@ -202,6 +211,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         }
         var frame=new PoseFrame{time=now,phase=phase,move=move,run=run,carry=carry,carried=backpack!=null?backpack.Carried:0,capacity=backpack!=null?backpack.Capacity:21,action=actionWeight*(1-LeoMotionProfile.Smooth(holster)),actionPhase=actionPhase,holster=holster,turn=turn,talk=talk,eye=eye,dash=player!=null&&player.IsDashing?1:0,quality=quality,loadPitch=loadPitch+tug*adjustWeight,loadRoll=loadRoll,adjust=adjustWeight,full=fullWeight};
         frame.bark = contactPoint;
+        frame.groundCut = groundCut && contactPoint.HasValue;
+        frame.groundAxis = groundCutAxis;
         frame.work = work.Weight;
         frame.cheer = cheer;
         frame.motion = motion;

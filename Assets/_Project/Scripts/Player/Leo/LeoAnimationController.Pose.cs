@@ -7,6 +7,8 @@ public sealed partial class LeoAnimationController
         public float time,phase,move,run,carry,action,actionPhase,holster,turn,talk,eye,dash,loadPitch,loadRoll,adjust,full,work;
         public int quality,carried,capacity;
         public Vector3? bark;
+        public bool groundCut;
+        public Vector3 groundAxis;
         public LeoCelebration.Pose cheer;
         public LeoAirWaterMotion.Frame motion;
         public StoryInspection.ActorPose inspection;
@@ -23,16 +25,17 @@ public sealed partial class LeoAnimationController
         var chop=LeoMotionProfile.Chop(book,f.actionPhase);
         // Shift the hips over the stance foot and counter-rotate the shoulders.
         float shift = .024f * wave;
+        float standing = f.groundCut ? 0f : f.action;
         float aim = LeoAxePose.ContactAim(f.actionPhase, book.contact);
         rig.hips.localPosition = rig.RestPosition(rig.hips) +
             new Vector3(-shift * f.move, LeoMotionProfile.PelvisHeight(gait, f.phase, f.run) * f.move - .018f * f.full, 0f) +
-            LeoAxePose.BodyShift(chop, aim, transform, f.bark) * f.action;
+            LeoAxePose.BodyShift(chop, aim, transform, f.bark) * standing;
         float yawA=4.5f+1.2f*f.run;                              // pelvis leads with the forward leg, shoulders counter-rotate
         rig.Rotate(rig.hips,new Vector3(0,yawA*sway*f.move,-(2+(1-f.run))*wave*f.move+2*f.turn*f.move));
         float lean=(2+4*f.run+5*loaded)*f.move+6*f.dash+3.5f*f.full; // full load: leans into the weight even when standing
         rig.Rotate(rig.spine,new Vector3(lean+.45f*breath,-yawA*.4f*sway*f.move,1.2f*wave*f.move-2.5f*f.turn));
-        rig.Rotate(rig.chest,chop.chest*f.action+new Vector3(0,-(4+4*f.run)*sway*f.move+4*f.turn-8*f.adjust,0));
-        rig.Rotate(rig.head,chop.head*f.action+new Vector3(-lean*.65f+Mathf.Sin(f.time*2.4f)*f.talk*2,breath*(1-f.move)*2+4*f.turn,Mathf.Sin(f.time*1.8f)*f.talk+1.3f*wave*f.move));
+        rig.Rotate(rig.chest,chop.chest*standing+new Vector3(0,-(4+4*f.run)*sway*f.move+4*f.turn-8*f.adjust,0));
+        rig.Rotate(rig.head,chop.head*standing+new Vector3(-lean*.65f+Mathf.Sin(f.time*2.4f)*f.talk*2,breath*(1-f.move)*2+4*f.turn,Mathf.Sin(f.time*1.8f)*f.talk+1.3f*wave*f.move));
         rig.Rotate(rig.jaw,new Vector3(Mathf.Max(0,Mathf.Sin(f.time*20))*5*f.talk,0,0));
         float effort=f.action*Mathf.Max(0,1-Mathf.Abs(f.actionPhase-book.contact)/.16f)*(f.quality==2?4:2);
         rig.Rotate(rig.browL,new Vector3(0,0,-3*f.talk-effort));rig.Rotate(rig.browR,new Vector3(0,0,2*f.talk+effort));
@@ -42,6 +45,7 @@ public sealed partial class LeoAnimationController
         rig.Rotate(rig.elbowL, new Vector3(-(5f + (1f - arm) * (6f + 7f * f.run)) * f.move - 8f * loaded * f.move, 0f, 0f));
         rig.Rotate(rig.upperArmR, new Vector3(-sway * (4f + 3f * f.run) * f.move, 0f, 3.5f * f.move));
         rig.Rotate(rig.elbowR, new Vector3(-5f - (2f + 5f * f.run) * f.move, 0f, 0f));
+        if (f.groundCut) LeoAxePose.GroundBrace(rig, f.actionPhase, book.contact, f.action);
         if (f.work > .001f) work.ApplyBody(rig, transform);
         f.cheer.ApplyBody(rig, f.carry);
         float brace = Mathf.Max(f.action, .66f * f.work) * (1f - f.move);
@@ -51,9 +55,17 @@ public sealed partial class LeoAnimationController
         f.motion.Apply(rig, f.holster);
         // Спокойный хват как основа: рубка и убирание на пояс плавно уходят от него.
         LeoAxePose.Carry(rig, transform, LeoAxePose.CarryWeight(f.holster), arm * f.move);
-        float palmRoll = LeoAxePose.RightArm(rig, transform, book, chop, f.actionPhase, f.action, f.bark);
-        LeoAxePose.Place(rig, transform, f.holster, palmRoll);
-        LeoAxePose.LeftArm(rig, transform, f.actionPhase, f.action * chop.left);
+        if (f.groundCut)
+        {
+            LeoAxePose.GroundArms(rig, transform, f.actionPhase, book.contact, f.action, f.holster,
+                f.bark.Value, f.groundAxis);
+        }
+        else
+        {
+            float palmRoll = LeoAxePose.RightArm(rig, transform, book, chop, f.actionPhase, f.action, f.bark);
+            LeoAxePose.Place(rig, transform, f.holster, palmRoll);
+            LeoAxePose.LeftArm(rig, transform, f.actionPhase, f.action * chop.left);
+        }
         f.cheer.ApplyHands(rig, f.holster);
         if (f.work > .001f) work.PlaceHammer(rig, transform, player);
         if(f.adjust>.001f&&f.action<.05f&&f.work<.05f&&!f.motion.StowTool&&rig.cargoRoot!=null)

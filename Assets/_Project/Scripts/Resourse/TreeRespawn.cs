@@ -1,6 +1,7 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
-// Native regrowth, with a CHOP-01 gate: the timer begins after the trunk is cleared.
+// The native regrowth clock starts after the experimental trunk has been collected.
 public class TreeRespawn : MonoBehaviour
 {
     public Vector3 offset = new Vector3(0f, 1.8f, 0f);
@@ -13,30 +14,42 @@ public class TreeRespawn : MonoBehaviour
     float age;
     bool sinkStarted;
     float stumpStartY, stumpDepth;
+    ChopPrototypeLog trunk;
+    ChopPrototypeSave.Tree saved;
+    bool growthStarted;
 
-    public static TreeRespawn Begin(GameObject tree, GameObject stump, Vector3 position, float seconds, TreeGrowthVisual growth = null)
+    internal static TreeRespawn Begin(ResourceItem item, GameObject stump, Vector3 position, float seconds,
+        TreeGrowthVisual growth, ChopPrototypeSave.Tree saved, ChopPrototypeLog trunk)
     {
         var go = new GameObject("TreeRespawn");
+        SceneManager.MoveGameObjectToScene(go, item.gameObject.scene);
+        if (stump != null && stump.scene != item.gameObject.scene)
+            SceneManager.MoveGameObjectToScene(stump, item.gameObject.scene);
         go.transform.position = position;
         var r = go.AddComponent<TreeRespawn>();
-        r.tree = tree;
+        r.tree = item.gameObject;
         r.stump = stump;
-        r.item = tree != null ? tree.GetComponent<ResourceItem>() : null;
+        r.item = item;
         r.growth = growth;
+        r.saved = saved;
+        r.trunk = trunk;
+        r.grown = saved != null ? saved.grown : 0f;
+        r.age = saved != null ? saved.regrowthAge : 0f;
         r.baseSeconds = Mathf.Max(0.1f, seconds);
         if (growth != null) growth.SetStumpBlend(stump != null ? 1f : 0f);
         return r;
     }
 
-    void OnEnable() { SaveSystem.Loaded += OnSaveLoaded; }
-    void OnDisable() { SaveSystem.Loaded -= OnSaveLoaded; }
-
-    void OnSaveLoaded()
+    internal void DiscardForLoad()
     {
+        if (trunk != null) trunk.Discard();
         if (growth != null) growth.Finish();
-        if (tree != null) tree.SetActive(true);
-        if (item != null) item.BeginWave(false);
-        if (stump != null) Destroy(stump);
+        if (stump != null)
+        {
+            stump.SetActive(false);
+            Destroy(stump);
+        }
+        gameObject.SetActive(false);
         Destroy(gameObject);
     }
 
@@ -45,26 +58,39 @@ public class TreeRespawn : MonoBehaviour
         worldTag = WorldTag.Add(gameObject, true);
         worldTag.offset = offset;
         worldTag.SetFontSize(34f);
-        Refresh(TotalSeconds());
+        bool waiting = trunk != null && trunk.HasWood;
+        worldTag.visible = !waiting;
+        Refresh((1f - grown) * TotalSeconds());
     }
 
     float TotalSeconds() { return Mathf.Max(0.1f, baseSeconds * LumberSkills.GrowthMul); }
 
     void Update()
     {
-        if (ChopPrototypeLog.Pending(item))
+        if (trunk != null && trunk.HasWood)
         {
             if (worldTag != null) worldTag.visible = false;
             return;
         }
         if (worldTag != null) worldTag.visible = true;
+        if (saved != null && !growthStarted)
+        {
+            growthStarted = true;
+            if (growth != null) growth.ResumeGrowth(grown, stump != null);
+        }
         float total = TotalSeconds();
         grown += Time.deltaTime / total;
         age += Time.deltaTime;
+        if (saved != null)
+        {
+            saved.grown = grown;
+            saved.regrowthAge = age;
+        }
         if (stump != null && growth != null && GameBalance.StumpSinks) TickStump();
 
         if (grown >= 1f)
         {
+            ChopPrototypeSave.Finish(saved);
             if (item != null) item.RestoreTransform();
             if (tree != null) tree.SetActive(true);
             if (item != null) item.PlaySpring();

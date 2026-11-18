@@ -157,8 +157,12 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         return AddRaw(Mathf.Min(amount, room), false);
     }
 
+    // Ground sections only debit the reward after the inventory accepts the wood.
+    internal int AddProcessedWood(int amount, System.Action<int> commit)
+        => AddRaw(Mathf.Min(amount, FreeSlots), false, commit);
+
     // общий конец: жёсткий зажим по самой вместимости (даже для зарезервированных: вместимость могла упасть, пока бревно летело)
-    int AddRaw(int amount, bool reserved)
+    int AddRaw(int amount, bool reserved, System.Action<int> commit = null)
     {
         int room = Mathf.Max(0, Capacity - woodCount);
         int n = Mathf.Min(amount, room);
@@ -167,6 +171,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         if (n <= 0) return 0;
 
         woodCount += n;
+        commit?.Invoke(n);
         for (int i = 0; i < n; i++) SpawnLog();
         UpdateUI();
         SaveSystem.RequestSave("inventory");

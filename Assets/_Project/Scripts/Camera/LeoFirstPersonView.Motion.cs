@@ -36,6 +36,7 @@ internal sealed partial class LeoFirstPersonView
     int impactFrame = -1;
     bool suspended, wasSwinging, groundStrike;
     Vector3? contactWorld;
+    Vector3 groundCutAxis;
     Transform forecastTarget;
     float forecastDue;
     float equipped, stowPath, carryUntil, cancelAmount;
@@ -47,7 +48,7 @@ internal sealed partial class LeoFirstPersonView
         if (suspended || interaction == null || !interaction.IsChopping || impactFrame == Time.frameCount) return;
         if ((fell && interaction.TargetItem == null) || (!fell && interaction.CurrentTarget == null)) return;
         impactFrame = Time.frameCount;
-        groundStrike = interaction.IsProcessingPrototypeLog;
+        groundStrike = interaction.TryReadPrototypeContact(out _, out groundCutAxis);
         contactWorld = interaction.TryReadLeoImpact(out var point) ? point : (Vector3?)null;
     }
 
@@ -123,7 +124,7 @@ internal sealed partial class LeoFirstPersonView
                 forecastDue = due;
                 groundStrike = interaction.IsProcessingPrototypeLog;
                 bool read = groundStrike
-                    ? interaction.TryReadPrototypeContact(out var point)
+                    ? interaction.TryReadPrototypeContact(out var point, out groundCutAxis)
                     : OrbitCamera.TryReadFirstPersonBark(interaction.TargetItem, out point);
                 contactWorld = read ? point : (Vector3?)null;
             }
@@ -145,7 +146,7 @@ internal sealed partial class LeoFirstPersonView
             }
         }
         wasSwinging = swing;
-        Apply(pose, ready, gait, lift, frame);
+        Apply(pose, ready, gait, lift, frame, groundStrike && (swing || cancelAmount > 0f));
         UpdateLighting(now);
         UpdateCompass(dt);
         if (stroke != null)
@@ -234,6 +235,12 @@ internal sealed partial class LeoFirstPersonView
 
         Vector3 shaft = ground ? new Vector3(.61f, -.14f, .78f) : new Vector3(.75f, -.13f, .65f);
         Quaternion impactTool = Quaternion.LookRotation(Vector3.ProjectOnPlane(blade, shaft), shaft);
+        if (ground && contactWorld.HasValue && groundCutAxis.sqrMagnitude > .001f)
+        {
+            Vector3 toward = Vector3.ProjectOnPlane(contactWorld.Value - camera.transform.position, Vector3.up);
+            impactTool = Quaternion.Inverse(root.rotation) *
+                LeoAxePose.GroundTool(toward, groundCutAxis, camera.transform.right);
+        }
         var strike = new Pose(edge - impactTool * (CuttingEdge - LeoAxePose.MainGrip), impactTool, 1f);
         if (phase <= Contact)
         {
@@ -260,12 +267,12 @@ internal sealed partial class LeoFirstPersonView
             rest.tool, 1f - LeoMotionProfile.Smooth((returnT - .22f) / .78f));
     }
 
-    void Apply(Pose pose, float ready, float gait, float lift, float frame)
+    void Apply(Pose pose, float ready, float gait, float lift, float frame, bool lowerSwing)
     {
         Vector3 main = pose.grip;
         float brace = pose.support;
         // At the wider tree stance, reach with the shoulders before extending the wrists.
-        float lean = Mathf.Clamp((main.z - .34f) * .96f, 0f, .46f) * brace;
+        float lean = Mathf.Clamp((main.z - .34f) * (lowerSwing ? 1.15f : .96f), 0f, lowerSwing ? .61f : .46f) * brace;
         float shift = Mathf.Clamp((main.x - .15f) * .27f, -.065f, .067f) * brace;
         float dip = Mathf.Clamp((-.24f - main.y) * .32f, 0f, .10f) * brace;
         float rise = Mathf.Clamp((main.y + .12f) * .35f, 0f, .070f) * brace;
@@ -298,6 +305,18 @@ internal sealed partial class LeoFirstPersonView
         {
             for (int i = 0; i < 8; i++)
                 fittedBoth = Limit(Limit(fittedBoth, centerL, left.reach), centerR, right.reach);
+        }
+        if (lowerSwing && brace > .001f)
+        {
+            // As the player bends towards the low log, translate both view
+            // shoulders together within a small range. Arm lengths stay fixed.
+            Vector3 bend = Vector3.ClampMagnitude(main - fittedBoth, .21f) * brace;
+            right.upper.localPosition += bend;
+            left.upper.localPosition += bend;
+            rightPole += bend;
+            leftPole += bend;
+            fitted += bend;
+            fittedBoth += bend;
         }
         main = Vector3.Lerp(fitted, fittedBoth, LeoMotionProfile.Smooth(brace));
         axe.localRotation = pose.tool;

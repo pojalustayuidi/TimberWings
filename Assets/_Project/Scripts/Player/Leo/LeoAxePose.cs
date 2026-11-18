@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public static class LeoAxePose
+public static partial class LeoAxePose
 {
     // Mesh coordinates on Leo v3.3: the wrapped handle runs along tool Y.
     // Hand X runs across the curled fingers, with the thumb on the head side.

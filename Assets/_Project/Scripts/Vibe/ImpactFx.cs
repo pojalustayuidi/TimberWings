@@ -159,10 +159,24 @@ public class ImpactFx : MonoBehaviour
         }
     }
 
+    internal static void PlayLogDebris(Vector3 point, bool split)
+    {
+        var fx = Instance;
+        if (fx == null || !fx.chopImpact) return;
+        int count = VibeSettings.ReduceEffects ? 2 : split ? 6 : 4;
+        fx.EmitDir(fx.chips, point, count, Vector3.up, 1f, split ? 2.5f : 2f, .66f);
+        if (split) fx.Emit(fx.dust, point, VibeSettings.ReduceEffects ? 1 : 3);
+    }
+
     // ------------------------------------------------------------ удар и падение дерева
     void OnChopHit()
     {
         if (!chopImpact || player == null) return;
+        if (pi != null && pi.IsProcessingPrototypeLog && pi.TryReadLeoImpact(out Vector3 cut))
+        {
+            PlayLogDebris(cut, false);
+            return;
+        }
         Vector3 p = ImpactPoint();
         Vector3 dustPoint = GroundPoint(p);
         if (pi != null && pi.TryReadLeoImpact(out Vector3 bark))
@@ -217,7 +231,7 @@ public class ImpactFx : MonoBehaviour
 
     void OnTreeChopped()
     {
-        if (!chopImpact || player == null) return;
+        if (PlayerInteraction.PrototypeFellingEvent || !chopImpact || player == null) return;
         // событие приходит до ChopDown, поэтому TargetItem ещё указывает на срубленное дерево
         Vector3 ground = GroundPoint(ImpactPoint());
         var lib = reduced ? null : FxLibrary.Get();

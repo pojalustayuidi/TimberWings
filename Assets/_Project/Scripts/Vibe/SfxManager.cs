@@ -160,7 +160,13 @@ public class SfxManager : MonoBehaviour
 
     // удар топора приходит из PlayerInteraction (по таймеру или по событию из анимации), поэтому звук всегда в такт кадру удара
     void OnChopHit() { PlayInternal("thock", 0.95f, UnityEngine.Random.Range(0.92f, 1.08f)); }
-    void OnTreeChopped() { PlayInternal("fall", 1f, UnityEngine.Random.Range(0.94f, 1.06f)); }
+    void OnTreeChopped()
+    {
+        if (PlayerInteraction.PrototypeFellingEvent)
+            PlayInternal("woodCrack", .76f, UnityEngine.Random.Range(.89f, 1.02f));
+        else
+            PlayInternal("fall", 1f, UnityEngine.Random.Range(.94f, 1.06f));
+    }
     void OnLevelUp(int level) { PlayInternal("level", 1f, 1f); }
     void OnQuestDone(string id) { PlayInternal("quest", 1f, 1f); }
     void OnStageBuilt() { PlayInternal("build", 1f, 1f); }
@@ -355,6 +361,30 @@ public class SfxManager : MonoBehaviour
                     float click = VibeSynth.Noise() * VibeSynth.Env(t, 0.0005f, 0.003f) * 0.5f;
                     return tone + body + click;
                 });
+            }
+            case "woodCrack":
+            {
+                float smooth = 0f;
+                return VibeSynth.Make("woodCrack", .28f, t =>
+                {
+                    float noise = VibeSynth.Noise();
+                    smooth += .19f * (noise - smooth);
+                    float clicks = VibeSynth.Env(t, .0008f, .018f) +
+                        .68f * VibeSynth.Env(t - .047f, .0012f, .023f) +
+                        .37f * VibeSynth.Env(t - .102f, .001f, .024f);
+                    float note = VibeSynth.Sin(143f - t * 150f, t) * VibeSynth.Env(t, .002f, .046f);
+                    return (noise * .29f + smooth * 1.35f) * clicks + note * .20f;
+                });
+            }
+            case "trunkLand":
+            {
+                float smooth = 0f;
+                return VibeSynth.Make("trunkLand", .40f, t =>
+                {
+                    smooth += .07f * (VibeSynth.Noise() - smooth);
+                    return (VibeSynth.Sin(57f, t) * .58f + VibeSynth.Sin(89f, t) * .21f + smooth) *
+                        VibeSynth.Env(t, .004f, .083f);
+                }, .72f);
             }
             case "fall":    // дерево падает: шорох кроны и глухой удар о землю
             {
