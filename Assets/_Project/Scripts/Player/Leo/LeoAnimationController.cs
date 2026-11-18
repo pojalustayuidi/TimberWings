@@ -215,7 +215,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
             frame.action > .05f ? (hitFrame == Time.frameCount ? "Contact" : recovering ? "Recover" : "Chop / ready") :
             move > .1f ? (carry > .65f ? "Heavy move" : run > .5f ? "Run" : "Walk") :
             conversation ? "Listen" : "Idle";
-        bool trail=axeTrail!=null&&!VibeSettings.ReduceEffects&&frame.action>.8f&&holster<.01f&&actionPhase>.40f&&actionPhase<.74f;
+        bool trail=axeTrail!=null&&!OrbitCamera.FirstPersonActive&&!VibeSettings.ReduceEffects&&frame.action>.8f&&holster<.01f&&actionPhase>.40f&&actionPhase<.74f;
         if(axeTrail!=null){if(trail&&!trailWasOn)axeTrail.Clear();axeTrail.emitting=trail;if(blocked)axeTrail.Clear();}trailWasOn=trail;
     }
     public static float ClipDuration(string name,LeoMotionProfile.Book book)

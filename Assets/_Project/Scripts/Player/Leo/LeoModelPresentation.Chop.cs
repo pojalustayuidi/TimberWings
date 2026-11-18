@@ -108,7 +108,7 @@ public sealed partial class LeoModelPresentation
 
     void UpdateChopTrail(float action)
     {
-        bool emit = action > .8f && chopPhase > .43f && chopPhase < .66f && !VibeSettings.ReduceEffects;
+        bool emit = !OrbitCamera.FirstPersonActive && action > .8f && chopPhase > .43f && chopPhase < .66f && !VibeSettings.ReduceEffects;
         if (emit && !trailAttempted)
         {
             trailAttempted = true;

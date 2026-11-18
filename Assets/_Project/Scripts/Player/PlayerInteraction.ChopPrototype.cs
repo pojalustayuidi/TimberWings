@@ -162,7 +162,7 @@ public partial class PlayerInteraction
         {
             nextHitAt=Time.time+Mathf.Max(.15f,hitInterval);
             float strength=upgrades!=null ? Mathf.Max(1f,GameBalance.ChopTime/Mathf.Max(.1f,upgrades.ChopTime)) : 1f;
-            leoImpactFrame=Time.frameCount;leoHasImpact=true;leoImpact=wanted.Closest(transform.position);
+            leoImpactFrame=Time.frameCount;leoHasImpact=TryReadPrototypeContact(out leoImpact);
             GameEvents.RaiseChopHit();
             bool finished=wanted.Hit(strength);
             Progress=wanted.Progress;

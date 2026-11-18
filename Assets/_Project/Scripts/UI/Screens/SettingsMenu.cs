@@ -396,8 +396,11 @@ public class SettingsMenu : MonoBehaviour
         Info(c, 3, "WASD — движение   ·   Esc — пауза");
         Info(c, 4, "E / ЛКМ — взаимодействие и рубка");
         Info(c, 5, "Колесо — зум   ·   Alt — свободный курсор");
+        if (!Application.isMobilePlatform)
+            ToggleRow(c, 6, "Покачивание камеры от первого лица", () => OrbitCamera.FirstPersonHeadBob,
+                v => OrbitCamera.FirstPersonHeadBob = v, true);
         if (MobileInput.Enabled)
-            ToggleRow(c, 6, "Экранные кнопки (после перезапуска)",
+            ToggleRow(c, Application.isMobilePlatform ? 6 : 7, "Экранные кнопки (после перезапуска)",
                 () => MobileInput.OnScreenControls,
                 v => MobileInput.OnScreenControls = v, Application.isMobilePlatform);
 
@@ -509,10 +512,10 @@ public class SettingsMenu : MonoBehaviour
             "• Use Preview to test the current voice.", "• Camera mode changes without restart.",
             "• Reduce effects to lessen camera shake.", "• Save your game before quitting." };
         string[] tip2Ru = { "• Переключение языка не переводит сюжет.", "• Лимит FPS влияет на нагрузку.",
-            "• Музыка и звуки регулируются отдельно.", "• WASD — движение, E — действие.",
+            "• Музыка и звуки регулируются отдельно.", "• F5 — первое лицо, R — достать топор.",
             "• Размер меняет только это окно.", "• Удаление прогресса требует подтверждения." };
         string[] tip2En = { "• Story dialogue is not translated yet.", "• Frame limit helps manage performance.",
-            "• Music and ambience have separate controls.", "• WASD moves, E interacts.",
+            "• Music and ambience have separate controls.", "• F5 — first person, R — ready axe.",
             "• Size setting affects this window only.", "• Resetting progress requires confirmation." };
         int i = Mathf.Clamp(index, 0, 5);
         bool en = GameLanguage.English;

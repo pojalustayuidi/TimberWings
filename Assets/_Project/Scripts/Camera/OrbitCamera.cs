@@ -253,7 +253,7 @@ public partial class OrbitCamera : MonoBehaviour
     static readonly RaycastHit[] hits = new RaycastHit[16];
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { Active = false; instance = null; cached = -1; cachedLook = -1; reticle = null; snapPending = false; }
+    static void ResetStatics() { Active = false; instance = null; cached = -1; cachedLook = -1; fpBobSetting = -1; reticle = null; snapPending = false; }
 
     // После телепорта игрока: фокус камеры сразу встаёт на него (зовёт CameraFollow.SnapToTarget)
     static bool snapPending;
@@ -273,6 +273,7 @@ public partial class OrbitCamera : MonoBehaviour
     void OnDestroy()
     {
         FpLeave(true);
+        FpReleaseView();
         if (applied) ClearTreePeek();
         if (instance == this) instance = null;
     }
@@ -280,6 +281,7 @@ public partial class OrbitCamera : MonoBehaviour
     void OnDisable()
     {
         FpLeave(true);
+        FpReleaseView();
         ReleaseCursor();
         if (applied) ClearTreePeek();
     }
@@ -308,6 +310,7 @@ public partial class OrbitCamera : MonoBehaviour
         if (cam == null || !cam.isActiveAndEnabled)
         {
             FpLeave(true);
+            FpReleaseView();
             if (applied) ClearTreePeek();
             treePeekBlend = 0f;
             cam = Camera.main;
@@ -323,6 +326,7 @@ public partial class OrbitCamera : MonoBehaviour
         if (player == null)
         {
             FpLeave(true);
+            FpReleaseView();
             if (Time.unscaledTime < nextFind) return;
             nextFind = Time.unscaledTime + 1f;
             player = PlayerMovement.Instance;
@@ -335,7 +339,11 @@ public partial class OrbitCamera : MonoBehaviour
         if (want && !applied) Enter();
         else if (!want && applied) Exit();
 
-        if (applied && !FpStep()) Step();
+        if (applied && !FpStep())
+        {
+            Step();
+            FpBlendToOrbit();
+        }
     }
 
     void Enter()

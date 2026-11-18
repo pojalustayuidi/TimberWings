@@ -17,6 +17,31 @@ public partial class PlayerInteraction
         }
     }
 
+    // View animation reads the prototype timer without changing the original rig's clock.
+    internal float FirstPersonImpactDue
+    {
+        get
+        {
+            if (!IsChopping || waitingForChopAxe) return -1f;
+            if (IsProcessingPrototypeLog || (!useAnimationEvents && PrototypeStanding(TargetItem)))
+                return nextHitAt;
+            return AnimationScheduledImpact;
+        }
+    }
+
+    internal bool TryReadPrototypeContact(out Vector3 point)
+    {
+        point = default;
+        if (processingLog == null) return false;
+        point = processingLog.Closest(transform.position);
+        if (OrbitCamera.FirstPersonActive && processingLog.Solid != null)
+        {
+            Collider surface = processingLog.Solid;
+            point = surface.ClosestPoint(new Vector3(point.x, surface.bounds.max.y + .1f, point.z));
+        }
+        return true;
+    }
+
     LeoModelPresentation leoPresentation;
     LeoAnimationController leoAnimation;
     ResourceItem leoWalkArrival, leoApproachAttempt;
@@ -59,13 +84,16 @@ public partial class PlayerInteraction
         }
     }
 
+    const float FirstPersonTreeClearance = .18f;
+
     float LeoStopDistance(ResourceItem item)
     {
         var capsule = GetComponent<CapsuleCollider>();
         float playerRadius = capsule != null
             ? capsule.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.z))
             : .25f;
-        return item.TrunkRadius + playerRadius + .028f;
+        float clearance = OrbitCamera.FirstPersonActive ? FirstPersonTreeClearance : 0f;
+        return item.TrunkRadius + playerRadius + .028f + clearance;
     }
 
     bool TryApproachLeoTree()
@@ -78,16 +106,27 @@ public partial class PlayerInteraction
 
         Vector3 toTree = TargetItem.transform.position - transform.position;
         toTree.y = 0f;
-        float stop = LeoStopDistance(TargetItem) + .041f;
-        if (toTree.sqrMagnitude <= stop * stop) return false;
+        float distance = toTree.magnitude;
+        float stop = LeoStopDistance(TargetItem);
+        bool tooFar = distance > stop + .041f;
+        bool tooClose = OrbitCamera.FirstPersonActive && distance < stop - .045f;
+        if (!tooFar && !tooClose) return false;
 
-        // A held action can wait for the approach; explicit movement still wins.
-        if (leoApproachAttempt != TargetItem && Mathf.Abs(MobileInput.Horizontal) < .01f &&
-            Mathf.Abs(MobileInput.Vertical) < .01f)
+        if (leoApproachAttempt == TargetItem || Mathf.Abs(MobileInput.Horizontal) >= .01f ||
+            Mathf.Abs(MobileInput.Vertical) >= .01f)
+            return tooFar;
+
+        var item = TargetItem;
+        leoApproachAttempt = item;
+        if (tooClose)
         {
-            leoApproachAttempt = TargetItem;
-            StartWalk(TargetItem, Mathf.Max(radius + TargetItem.TrunkRadius, Mathf.Max(walkRangeClick, walkRangeE)), RhythmChop);
+            bool enterRhythm = RhythmChop;
+            if (!movement.TryStepBackForChop(item.transform, stop, () => OnWalkArrived(item, enterRhythm)))
+                return false;
+            WalkTarget = item;
         }
+        else
+            StartWalk(item, Mathf.Max(radius + item.TrunkRadius, Mathf.Max(walkRangeClick, walkRangeE)), RhythmChop);
         return true;
     }
 
@@ -100,7 +139,8 @@ public partial class PlayerInteraction
     void ReadLeoImpact(ResourceItem item)
     {
         leoImpactFrame = Time.frameCount;
-        leoHasImpact = LeoChopContact.TryPoint(item, LeoVisual, out leoImpact);
+        leoHasImpact = OrbitCamera.TryReadFirstPersonBark(item, out leoImpact) ||
+            LeoChopContact.TryPoint(item, LeoVisual, out leoImpact);
     }
 
     void RaiseChopContact(TreeHits tree, float strength)

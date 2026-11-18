@@ -88,6 +88,7 @@ public static class GameLanguage
         { "Изометрия", "Isometric" },
         { "Поворот мышью без ПКМ", "Mouse look without RMB" },
         { "Чувствительность мыши", "Mouse sensitivity" },
+        { "Покачивание камеры от первого лица", "First-person head bob" },
         { "WASD — движение   ·   Esc — пауза", "WASD — move   ·   Esc — pause" },
         { "E / ЛКМ — взаимодействие и рубка", "E / LMB — interact and chop" },
         { "Колесо — зум   ·   Alt — свободный курсор", "Wheel — zoom   ·   Alt — free cursor" },

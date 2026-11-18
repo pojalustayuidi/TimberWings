@@ -23,7 +23,7 @@ internal static class LeoChopContact
     static ResourceItem memoItem;
     static Vector3 memoLeoPosition, memoItemPosition, memoItemScale;
     static Quaternion memoItemRotation;
-    static float memoLeoScale, memoRadius;
+    static float memoLeoScale, memoRadius, memoHeight;
     static bool memoValid, memoHit;
     static Vector3 memoPoint;
 
@@ -63,11 +63,12 @@ internal static class LeoChopContact
             memoValid = false;
     }
 
-    static bool SameInputs(ResourceItem item, Transform leo)
+    static bool SameInputs(ResourceItem item, Transform leo, float height)
     {
         if (!memoValid || memoItem != item) return false;
         Transform t = item.transform;
-        return (leo.position - memoLeoPosition).sqrMagnitude < 2.5e-7f &&
+        return Mathf.Abs(height - memoHeight) < .0005f &&
+               (leo.position - memoLeoPosition).sqrMagnitude < 2.5e-7f &&
                Mathf.Abs(Mathf.Abs(leo.lossyScale.y) - memoLeoScale) < 1e-5f &&
                Mathf.Abs(item.TrunkRadius - memoRadius) < 1e-5f &&
                (t.position - memoItemPosition).sqrMagnitude < 2.5e-7f &&
@@ -77,16 +78,23 @@ internal static class LeoChopContact
 
     public static bool TryPoint(ResourceItem item, Transform leo, out Vector3 point)
     {
+        float height = leo != null ? leo.position.y + 1.02f * Mathf.Abs(leo.lossyScale.y) : 0f;
+        return TryPointAtHeight(item, leo, height, out point);
+    }
+
+    internal static bool TryPointAtHeight(ResourceItem item, Transform leo, float height, out Vector3 point)
+    {
         point = default;
         if (item == null || leo == null || !item.gameObject.activeInHierarchy) return false;
         Bind(item);
-        if (SameInputs(item, leo))
+        if (SameInputs(item, leo, height))
         {
             point = memoPoint;
             return memoHit;
         }
 
-        memoHit = Compute(item, leo, out memoPoint);
+        memoHit = Compute(item, leo, height, out memoPoint);
+        memoHeight = height;
         memoItem = item;
         memoLeoPosition = leo.position;
         memoLeoScale = Mathf.Abs(leo.lossyScale.y);
@@ -99,7 +107,7 @@ internal static class LeoChopContact
         return memoHit;
     }
 
-    static bool Compute(ResourceItem item, Transform leo, out Vector3 point)
+    static bool Compute(ResourceItem item, Transform leo, float height, out Vector3 point)
     {
         point = default;
         Vector3 toward = Vector3.ProjectOnPlane(item.transform.position - leo.position, Vector3.up);
@@ -108,7 +116,7 @@ internal static class LeoChopContact
         Vector3 right = Vector3.Cross(Vector3.up, direction);
         float scale = Mathf.Abs(leo.lossyScale.y);
         Vector3 axis = item.transform.position;
-        axis.y = leo.position.y + 1.02f * scale;
+        axis.y = height;
         float side = Mathf.Min(item.TrunkRadius * .18f, .13f * scale);
         float length = Mathf.Max(1f, item.TrunkRadius + .40f);
         var ray = new Ray(axis + right * side - direction * length, direction);

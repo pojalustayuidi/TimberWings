@@ -48,11 +48,12 @@ public class PlayerMovement : MonoBehaviour
     Transform autoTarget;
     float autoStop, autoStartedAt, autoCheckAt, autoSteerSign = 1f;
     int autoStuck;
-    bool brakeOnArrival, workApproach;
+    bool brakeOnArrival, workApproach, backingOffTree;
     float autoSpeedLimit;
     Vector3 autoLastPos;
     System.Action autoArrive;
     const float WorkApproachSpeed = 2.35f;
+    const float TreeBackstepSpeed = 1.4f;
     static readonly RaycastHit[] castBuf = new RaycastHit[10];
     static readonly float[] steerAngles = { 0f, 35f, -35f, 70f, -70f, 105f, -105f };
 
@@ -66,6 +67,36 @@ public class PlayerMovement : MonoBehaviour
     // The construction system already checked the short straight path and the standing footprint.
     internal void WalkToBuildSpot(Transform target) => BeginWalk(target, .02f, null, true, true);
 
+    internal bool TryStepBackForChop(Transform target, float stop, System.Action onArrive)
+    {
+        if (target == null || IsDashing || !TryGetComponent<CapsuleCollider>(out var capsule) || !capsule.enabled)
+            return false;
+        Vector3 away = Vector3.ProjectOnPlane(transform.position - target.position, Vector3.up);
+        float distance = away.magnitude;
+        float travel = stop - distance;
+        if (distance < .01f || travel <= 0f || travel > .40f) return false;
+        Vector3 direction = away / distance;
+        Bounds body = capsule.bounds;
+        if (PathBlocked(body.center, direction, travel + .045f)) return false;
+
+        // Look for walkable ground at the landing position before taking a step backwards.
+        Vector3 foot = body.center + direction * travel;
+        foot.y = body.min.y + .32f;
+        int n = Physics.RaycastNonAlloc(foot, Vector3.down, castBuf, .60f, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < n; i++)
+        {
+            var hit = castBuf[i];
+            if (hit.collider == null || hit.collider.transform.IsChildOf(transform) ||
+                hit.collider.transform.IsChildOf(target) || hit.normal.y < .62f)
+                continue;
+            BeginWalk(target, stop, onArrive, true, false);
+            backingOffTree = true;
+            autoSpeedLimit = TreeBackstepSpeed;
+            return true;
+        }
+        return false;
+    }
+
     void BeginWalk(Transform target, float stopDistance, System.Action onArrive, bool softArrival, bool toWorkSpot)
     {
         if (target == null) { CancelWalk(); return; }
@@ -74,6 +105,7 @@ public class PlayerMovement : MonoBehaviour
         autoArrive = onArrive;
         brakeOnArrival = softArrival;
         workApproach = toWorkSpot;
+        backingOffTree = false;
         autoSpeedLimit = toWorkSpot ? WorkApproachSpeed : float.PositiveInfinity;
         autoStartedAt = Time.time;
         autoCheckAt = Time.time + 0.5f;
@@ -87,7 +119,7 @@ public class PlayerMovement : MonoBehaviour
         AutoWalking = false;
         autoTarget = null;
         autoArrive = null;
-        workApproach = false;
+        workApproach = backingOffTree = false;
     }
 
     internal bool IsWalkingTo(Transform target) => AutoWalking && autoTarget == target;
@@ -107,7 +139,7 @@ public class PlayerMovement : MonoBehaviour
         to.y = 0f;
         float dist = to.magnitude;
 
-        float remaining = dist - autoStop;
+        float remaining = backingOffTree ? autoStop - dist : dist - autoStop;
         float arrivalSlack = workApproach ? .008f : brakeOnArrival ? .016f : 0f;
         if (remaining <= arrivalSlack)
         {
@@ -116,7 +148,12 @@ public class PlayerMovement : MonoBehaviour
             if (cb != null) cb();
             return false;
         }
-        if (Time.time - autoStartedAt > autoGiveUpSeconds) { CancelWalk(); return false; }
+        float elapsed = Time.time - autoStartedAt;
+        if (elapsed > (backingOffTree ? .65f : autoGiveUpSeconds) || backingOffTree && dist < .01f)
+        {
+            CancelWalk();
+            return false;
+        }
 
         // застрял: за 0.5 с сдвинулись меньше чем на 0.2 м, три раза подряд
         if (Time.time >= autoCheckAt)
@@ -140,8 +177,9 @@ public class PlayerMovement : MonoBehaviour
         {
             autoSpeedLimit = Mathf.Max(workApproach ? .36f : .42f, Mathf.Sqrt(2f * 11f * remaining));
             if (workApproach) autoSpeedLimit = Mathf.Min(WorkApproachSpeed, autoSpeedLimit);
+            if (backingOffTree) autoSpeedLimit = Mathf.Min(TreeBackstepSpeed, autoSpeedLimit);
         }
-        dir = workApproach ? to / dist : Steer(to / dist);
+        dir = backingOffTree ? -to / dist : workApproach ? to / dist : Steer(to / dist);
         return true;
     }
 
@@ -162,9 +200,9 @@ public class PlayerMovement : MonoBehaviour
         return want;   // всё закрыто: идём прямо, «застрял» сдастся сам
     }
 
-    bool PathBlocked(Vector3 origin, Vector3 dir)
+    bool PathBlocked(Vector3 origin, Vector3 dir, float distance = 1.1f)
     {
-        int n = Physics.SphereCastNonAlloc(origin, 0.35f, dir, castBuf, 1.1f, ~0, QueryTriggerInteraction.Ignore);
+        int n = Physics.SphereCastNonAlloc(origin, 0.35f, dir, castBuf, distance, ~0, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < n; i++)
         {
             var h = castBuf[i];
@@ -313,6 +351,8 @@ public class PlayerMovement : MonoBehaviour
             FaceDirection(surface, speed);
         else if (chopping && lockMovementWhileChopping && interaction.CurrentTarget != null)
             FaceDirection(interaction.CurrentTarget.position - transform.position, actionTurnDegreesPerSecond);
+        else if (backingOffTree && autoTarget != null)
+            FaceDirection(autoTarget.position - transform.position, actionTurnDegreesPerSecond);
         else if (moveDirection.sqrMagnitude > .0001f)
             FaceDirection(moveDirection, maxTurnDegreesPerSecond);
         else if (!IsDashing && !AutoWalking && !chopping)

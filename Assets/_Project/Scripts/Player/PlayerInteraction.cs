@@ -462,6 +462,12 @@ public partial class PlayerInteraction : MonoBehaviour
 
         ResourceItem preferred = (RhythmChop ? enterRhythm : PressHeld) ? arrived : null;
         FindTarget(preferred != null, preferred);
+        if (OrbitCamera.FirstPersonActive && WalkTarget != null &&
+            (WalkTarget != TargetItem || !RhythmChop && !PressHeld))
+        {
+            movement?.CancelWalkTo(WalkTarget.transform);
+            WalkTarget = null;
+        }
 
         bool hasTarget = CurrentTarget != null && TargetItem != null && TargetItem.gameObject.activeInHierarchy;
         bool isFull = backpack != null && backpack.NoRoom;   // места нет вообще (с учётом брёвен, что ещё летят в HUD)
