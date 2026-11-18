@@ -68,7 +68,7 @@ public partial class PlayerInteraction
 
     float LeoStopDistance(ResourceItem item)
     {
-        var capsule = GetComponent<CapsuleCollider>();
+        var capsule = logActorCapsule;
         float playerRadius = capsule != null
             ? capsule.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.z))
             : .25f;

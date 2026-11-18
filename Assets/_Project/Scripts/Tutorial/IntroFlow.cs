@@ -431,25 +431,30 @@ public class IntroFlow : MonoBehaviour, ISaveable
 
         // первый заход: под целью короткая инструкция про бонус (Пробел в зелёной зоне), пока игрок его не освоил
         bool teach = chopTrips == 0 && PlayerInteraction.BonusTeaching;
-        int key = Mathf.Min(carried, chopTarget) * 100 + chopTarget + (teach ? 100000 : 0);
+        bool stagedChop = ChopPrototypeLog.Enabled;
+        int key = Mathf.Min(carried, chopTarget) * 100 + chopTarget + (teach ? 100000 : 0) +
+            (stagedChop ? 200000 : 0);
         if (key != lastChopKey)
         {
             lastChopKey = key;
-            const string TeachHint = "Зажми <color=#6BCB5A>E</color>, а когда маркер в зелёной зоне, жми <color=#F2A93B>ПРОБЕЛ</color>: дерево упадёт быстрее";
+            string hint = stagedChop ? ChopPrototypeLog.Text(
+                "ЛКМ — рубить и разделывать. E — забрать древесину",
+                "LMB — chop and cut. E — pick up wood") :
+                "Зажми <color=#6BCB5A>E</color>, а когда маркер в зелёной зоне, жми <color=#F2A93B>ПРОБЕЛ</color>: дерево упадёт быстрее";
             if (useObjectiveWidget && UIManager.Instance != null)
             {
                 // живой счётчик: число берётся из PlayerInventory каждый кадр, цель пересобирается только при смене формы
                 int target = chopTarget;
                 var d = new ObjectiveData(chopTrips > 0 ? chopMoreTitle : chopTitle);
                 d.Req(UiIcon.Log, logsName, target, () => inv != null ? inv.woodCount : 0);
-                if (teach) d.footer = TeachHint;   // размер задаёт виджет (20, не меньше 18)
+                if (teach || stagedChop) d.footer = hint;
                 UIManager.Instance.SetObjective(d);
             }
             else
             {
                 string fmt = chopTrips > 0 ? chopMoreText : chopLogsText;
                 string msg = string.Format(fmt, Mathf.Min(carried, chopTarget), chopTarget);
-                if (teach) msg += "\n<size=70%>" + TeachHint + "</size>";
+                if (teach || stagedChop) msg += "\n<size=70%>" + hint + "</size>";
                 Objective(msg);
             }
         }

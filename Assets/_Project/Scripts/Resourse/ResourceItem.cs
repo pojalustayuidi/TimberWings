@@ -18,7 +18,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ResourceItem : MonoBehaviour
+public partial class ResourceItem : MonoBehaviour
 {
     [Header("Настройки ресурса")]
     public float gatherTime = GameBalance.ChopTime;   // секунд удержания E на дерево (GDD v0.2: 3). Реальное время считает PlayerInteraction.GatherTime × ChopMul
@@ -81,6 +81,7 @@ public class ResourceItem : MonoBehaviour
 
     void OnDestroy()
     {
+        ReleaseStandingVisual();
         ChopPrototypeSave.Detach(this);
         TreeGround.Destroy(dirt);
         dirt = null;
@@ -312,7 +313,7 @@ public class ResourceItem : MonoBehaviour
 
     void Update()
     {
-        if (isBeingChopped)
+        if (isBeingChopped && standingNotch == null)
         {
             // 1. Мягкая микро-вибрация
             transform.position = originalPosition + new Vector3(Random.Range(-0.01f, 0.01f), 0, Random.Range(-0.01f, 0.01f));
@@ -351,12 +352,19 @@ public class ResourceItem : MonoBehaviour
     {
         isBeingChopped = state;
         if (state) { dirty = true; if (introMode != 0) { introMode = 0; transform.localScale = originalScale; } }   // рубят: появление обрывается
+        bool impactOnly = state && ChopPrototypeLog.Supports(this);
+        if (impactOnly) RestoreTransform();
+        if (!state && standingNotch != null && standingNotch.damage <= 0f)
+        {
+            standingNotch = null;
+            ReleaseStandingVisual();
+        }
 
         if (woodChipsParticles != null)
         {
-            if (state && !woodChipsParticles.isPlaying)
+            if (state && !impactOnly && !woodChipsParticles.isPlaying)
                 woodChipsParticles.Play();
-            else if (!state && woodChipsParticles.isPlaying)
+            else if ((!state || impactOnly) && woodChipsParticles.isPlaying)
                 woodChipsParticles.Stop();
         }
     }
@@ -406,6 +414,8 @@ public class ResourceItem : MonoBehaviour
 
     void ChopDown(ChopPrototypeSave.Tree state, bool restoring)
     {
+        if (!restoring) ClearStandingDamage();
+        else RestoreStandingNotch(null);
         if (state != null) RestoreTransform();
         GameObject stump = null;
 
@@ -442,6 +452,7 @@ public class ResourceItem : MonoBehaviour
             // Copy the visible tree before hiding the standing object.
             TreeGrowthVisual growth = growVisual || falling ? TreeGrowthVisual.GetOrCreate(this) : null;
             if (!restoring && growth != null) growth.BeginFall(trunk);
+            else ReleaseFallenNotch();
 
             regrowth = TreeRespawn.Begin(this, stump, transform.position, seconds, growth, state, trunk);
             gameObject.SetActive(false);   // OnDisable уберёт золотой статус

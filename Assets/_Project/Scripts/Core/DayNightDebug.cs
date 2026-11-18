@@ -1,7 +1,7 @@
 // Assets/_Project/Scripts/Core/DayNightDebug.cs (НЕ в Editor)
 // Отладка смены суток прямо в игре. Существует только в редакторе и Development Build, в релиз не попадает.
 // Создаётся из DayNightCycle сам. Клавиши:
-//   F6  прыгнуть к следующей фазе (рассвет -> день -> закат -> ночь), плавно за 1.5 с
+//   F6  прыгнуть к следующей фазе (рассвет -> день -> закат -> ночь), пока открыта панель F9
 //   F7  зажать: сутки идут в 60 раз быстрее
 //   F8  пропустить ночь как сон (домотать до рассвета)
 //   F9  показать/скрыть панель: время, фаза, ночь/сумерки 0..1, скорость, счётчик ночей, серебряное дерево
@@ -16,8 +16,14 @@ public sealed class DayNightDebug : MonoBehaviour
     public static KeyCode skipNightKey = KeyCode.F8;
     public static KeyCode panelKey = KeyCode.F9;
 
+    static DayNightDebug instance;
     bool panel;
     GUIStyle style;
+
+    internal static bool OwnsPhaseKey(KeyCode key) =>
+        nextPhaseKey == key && instance != null && instance.isActiveAndEnabled && instance.panel;
+
+    void Awake() => instance = this;
 
     void Update()
     {
@@ -28,7 +34,8 @@ public sealed class DayNightDebug : MonoBehaviour
 
         if (Input.GetKeyDown(panelKey)) panel = !panel;
 
-        if (Input.GetKeyDown(nextPhaseKey))
+        if (Input.GetKeyDown(nextPhaseKey) &&
+            (nextPhaseKey != KeyCode.F6 || panel || PlayerMovement.Instance == null))
         {
             float t = DayNightCycle.Time01;
             float[] starts = { GameBalance.TimeDawnStart, GameBalance.TimeDayStart, GameBalance.TimeDuskStart, GameBalance.TimeNightStart };
@@ -44,7 +51,11 @@ public sealed class DayNightDebug : MonoBehaviour
         if (Input.GetKeyDown(skipNightKey)) c.WarpTo(GameBalance.SleepWakeTime, GameBalance.SleepFadeSeconds);
     }
 
-    void OnDestroy() { DayNightCycle.DebugBoost = 1f; }
+    void OnDestroy()
+    {
+        if (instance == this) instance = null;
+        DayNightCycle.DebugBoost = 1f;
+    }
 
     void OnGUI()
     {

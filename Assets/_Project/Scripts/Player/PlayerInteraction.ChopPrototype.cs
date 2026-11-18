@@ -1,7 +1,5 @@
 using UnityEngine;
 
-// CHOP-02: replaces only the CHOP-01 interaction partial. The tree, reward,
-// inventory, save and geometry implementations remain owned by CHOP-01.
 public partial class PlayerInteraction
 {
     readonly struct LogTarget
@@ -17,23 +15,28 @@ public partial class PlayerInteraction
             this.cut = cut;
         }
 
-        internal bool Valid => log != null && log.isActiveAndEnabled && log.Ready &&
-            (cut ? log.CanCut(index) : log.Harvestable && log.WoodIn(index) > 0);
+        internal bool Valid => log != null && log.isActiveAndEnabled &&
+            (cut ? log.CanCut(index) : log.CanCollect(index));
         internal bool Same(LogTarget other) => log == other.log && index == other.index && cut == other.cut;
-        internal Vector3 Point(Vector3 actor) => cut ? log.CutAnchor(index).position : log.SectionPoint(index, actor);
+        internal Vector3 Point(Vector3 actor) =>
+            cut ? log.CutAnchor(index).position : log.SectionPoint(index, actor);
     }
 
-    const float GroundSwingWindup = .42f;
-    const float CollectDistance = .94f;
+    const float CollectDistance = 1.15f;
+    const float CutApproachRange = 6f;
+    const float PickInterval = .05f;
     readonly RaycastHit[] prototypeHits = new RaycastHit[48];
-    LogTarget processing, mouseCut, keyboardCut, presented;
-    WorldTag logTag;
-    string logTagText;
-    bool mouseOnFallenTrunk, capturedLogKey;
     CapsuleCollider logActorCapsule;
-    bool emittingPrototypeFall;
-    Vector3 chop02RayPoint;
-    bool chop02RayPointValid;
+
+    LogTarget processing, aimedLog, chop03Log, focusedCut;
+    ResourceItem aimedTree, chop03Tree;
+    float nextPrototypePick, nextPickupScan;
+    LogTarget nearestPickup;
+    bool mouseOnFallenTrunk, emittingPrototypeFall, chop03PointerBlocked;
+    bool chop03Hold;
+    int pickupLabelWood = -1;
+    bool pickupLabelEnglish;
+    string pickupLabel;
 
     public bool IsProcessingPrototypeLog => IsChopping && processing.log != null;
     internal bool PrototypeReticleActive { get; private set; }
@@ -41,41 +44,27 @@ public partial class PlayerInteraction
 
     bool PrototypeInputAllowed => !MobileInput.ModalOpen && !DialogueBusy() && !StoryInspection.Active &&
         !ArrivalIntroSequence.Active && !SaveSystem.IsLoading && !EndingSequence.Active &&
-        !LeoCelebration.IsPlaying && !BuildWorkPose.MovementLocked && !WaterSwim.Swimming &&
+        !LeoCelebration.IsPlaying && !BuildWorkPose.MovementLocked && !BuildWorkPose.HasWork(movement) &&
+        !BuildingController.AnyRestorePending && !CameraVibe.RevealActive && CameraVibe.RevealShown <= .01f &&
+        !WaterSwim.Swimming && !CampSleep.Sleeping &&
         (movement == null || !movement.ControlLocked && !movement.IsDashing) &&
         Application.isFocused && Time.timeScale > 0f;
 
     bool PrototypeStanding(ResourceItem item) => ChopPrototypeLog.Supports(item);
-    bool PrototypeHitDrivenFelling(ResourceItem item) => PrototypeStanding(item) && item.Size != TreeSize.Young;
+    bool PrototypeHitDrivenFelling(ResourceItem item) => chop03Standing && PrototypeStanding(item);
 
     void PrototypeToggle()
     {
         if (!Input.GetKeyDown(KeyCode.F6) || !PrototypeInputAllowed || IsChopping) return;
-        ChopPrototypeLog.Toggle();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (DayNightDebug.OwnsPhaseKey(KeyCode.F6)) return;
+#endif
+        if (WalkTarget != null) movement?.CancelWalkTo(WalkTarget.transform);
+        ResetPrototypeInput();
+        ClearChopTargets();
         savedItem = null;
         clickArmed = false;
-        Chop02ResetWork();
-    }
-
-    // Longer standing-tree setup: identical across all four log-processing modes.
-    // Skills still use the existing CHOP-01 GatherTime/PowerMul flow.
-    int PrototypeFellingHits(ResourceItem item) => item.Size == TreeSize.Old ? 10 : 7;
-
-    void TickPrototypeFelling()
-    {
-        if (TargetItem == null) return;
-        int need = PrototypeFellingHits(TargetItem);
-        if (Time.time >= nextHitAt)
-        {
-            nextHitAt = Time.time + Mathf.Max(.15f, hitInterval);
-            holdTime += GameBalance.ChopTime * TargetItem.ChopMul / need;
-            RaiseChopContact(GetTreeHits(TargetItem), 1f);
-        }
-        Progress = Mathf.Clamp01(holdTime / Mathf.Max(.1f, GatherTime));
-        hitsDone = Mathf.FloorToInt(Progress * need + .0001f);
-        if (progressUI != null) progressUI.Show(Progress, hitsDone, need);
-        if (Progress >= .9999f) { CompleteChop(); return; }
-        TickChopBonus();
+        ChopPrototypeLog.Toggle();
     }
 
     void FellPrototype(ResourceItem item, ChopPrototypeSave.Layout layout, int wood, int xp, bool wasGolden)
@@ -85,6 +74,7 @@ public partial class PlayerInteraction
         if (leoImpactFrame != Time.frameCount) ReadLeoImpact(item);
         var state = ChopPrototypeSave.Tree.Create(item.ChopSaveId, layout, ChopPrototypeLog.CutsFor(item.Size), wood, xp);
         item.FellPrototype(state);
+        LumberSkills.TrackProcessing(state);
         emittingPrototypeFall = true;
         try { GameEvents.RaiseTreeChopped(); }
         finally { emittingPrototypeFall = false; }
@@ -95,18 +85,21 @@ public partial class PlayerInteraction
                 GameBalance.SkillEchoBonusWood, 0));
             SfxManager.Play("woodCrack", .32f, .84f);
         }
-        savedItem = null;
         StopChop();
-        clickArmed = false;
-        FindTarget(true);
+        ClearChopTargets();
+        nextPrototypePick = 0f;
     }
 
-    Collider ClosestPrototypeHit(Ray ray, float distance, out Vector3 point)
+    Collider ClosestPrototypeHit(Ray ray, float distance, out Vector3 point) =>
+        ClosestPrototypeHit(ray, distance, out point, out _);
+
+    Collider ClosestPrototypeHit(Ray ray, float distance, out Vector3 point, out Vector3 normal)
     {
-        point = default;
+        point = normal = default;
         float closest = float.PositiveInfinity;
         Collider first = null;
         int count = Physics.RaycastNonAlloc(ray, prototypeHits, distance, ~0, QueryTriggerInteraction.Ignore);
+        if (count >= prototypeHits.Length) return null;
         for (int i = 0; i < count; i++)
         {
             var hit = prototypeHits[i];
@@ -114,42 +107,87 @@ public partial class PlayerInteraction
             if (c == null || c.transform.IsChildOf(transform) || hit.distance >= closest) continue;
             closest = hit.distance;
             point = hit.point;
+            normal = hit.normal;
             first = c;
         }
         return first;
     }
 
-    LogTarget PickPrototypeLog()
+    float TreeApproachRange => Mathf.Min(walkRangeClick, OrbitCamera.FirstPersonActive ? 11f : 18f);
+
+    void PickChop03Targets(bool overUi)
     {
+        aimedTree = null;
+        aimedLog = default;
         mouseOnFallenTrunk = false;
-        chop02RayPointValid = false;
         var cam = Camera.main;
-        if (cam == null || !MouseActive() || OverUiButton(OrbitCamera.PointerPos)) return default;
+        if (cam == null || !MouseActive() || overUi) return;
+
         bool firstPerson = OrbitCamera.FirstPersonActive;
-        Ray ray = firstPerson ? cam.ViewportPointToRay(new Vector3(.5f, .5f)) :
-            cam.ScreenPointToRay(OrbitCamera.PointerPos);
-        var hit = ClosestPrototypeHit(ray, firstPerson ? 6f : 40f, out Vector3 point);
-        if (hit == null) return default;
-        var log = hit.GetComponentInParent<ChopPrototypeLog>();
-        if (log == null || !log.Ready) return default;
-        mouseOnFallenTrunk = true;
-        if (Vector3.Distance(transform.position, point) > 2.45f) return default;
-        int index = log.FindCut(point);
-        if (index >= 0)
+        Vector2 pointer = OrbitCamera.PointerPos;
+        if (!firstPerson && (pointer.x < 0f || pointer.y < 0f || pointer.x > Screen.width || pointer.y > Screen.height))
+            return;
+        Ray ray = firstPerson ? cam.ViewportPointToRay(new Vector3(.5f, .5f)) : cam.ScreenPointToRay(pointer);
+        Collider hit = ClosestPrototypeHit(ray, firstPerson ? 12f : 44f, out var point);
+        if (hit != null && hit.GetComponentInParent<ChopPrototypeLog>() is ChopPrototypeLog log)
         {
-            chop02RayPoint = point;
-            chop02RayPointValid = true;
-            return new LogTarget(log, index, true);
+            mouseOnFallenTrunk = true;
+            if (!log.Ready || PlanarDistance(point, transform.position) > CutApproachRange) return;
+            int cut = log.FindCut(point);
+            if (cut >= 0) aimedLog = new LogTarget(log, cut, true);
+            else
+            {
+                int section = log.FindSection(hit);
+                if (log.CanCollect(section)) aimedLog = new LogTarget(log, section, false);
+            }
+            return;
         }
-        index = log.FindSection(hit);
-        return index >= 0 && log.Harvestable && log.WoodIn(index) > 0
-            ? new LogTarget(log, index, false) : default;
+
+        if (!ChopPrototypeLog.Enabled) return;
+        ResourceItem item = hit != null ? hit.GetComponentInParent<ResourceItem>() : null;
+        // The solid ray has priority. The top-down camera can also select through the existing crown trigger.
+        if (item == null && !firstPerson)
+        {
+            item = PickThroughCrown(ray, hit != null ? Vector3.Distance(ray.origin, point) : 44f);
+        }
+        if (PrototypeStanding(item) && PlanarDistance(item.transform.position, transform.position) <= TreeApproachRange)
+            aimedTree = item;
     }
+
+    ResourceItem PickThroughCrown(Ray ray, float distance)
+    {
+        ResourceItem best = null;
+        int count = Physics.RaycastNonAlloc(ray, rayBuf, distance + .01f, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < count; i++)
+        {
+            var hit = rayBuf[i];
+            if (hit.collider == null || !hit.collider.isTrigger || hit.distance > distance) continue;
+            var tree = hit.collider.GetComponentInParent<ResourceItem>();
+            if (!PrototypeStanding(tree)) continue;
+            distance = hit.distance;
+            best = tree;
+        }
+        return best;
+    }
+
+    Vector3 TreePromptPoint(ResourceItem tree)
+    {
+        if (tree.TryGetStandingContact(out var point)) return point;
+        Vector3 towardActor = Vector3.ProjectOnPlane(transform.position - tree.transform.position, Vector3.up).normalized;
+        return tree.transform.position + towardActor * tree.TrunkRadius + Vector3.up * (tree.Size == TreeSize.Young ? .75f : 1.03f);
+    }
+
+    float LogFeetHeight => logActorCapsule != null ? logActorCapsule.bounds.min.y : transform.position.y;
+    float ActorRadius => logActorCapsule != null
+        ? Mathf.Max(logActorCapsule.bounds.extents.x, logActorCapsule.bounds.extents.z) : .25f;
+
+    static float PlanarDistance(Vector3 a, Vector3 b) =>
+        Vector3.ProjectOnPlane(a - b, Vector3.up).magnitude;
 
     bool CanSeeLog(LogTarget target)
     {
         Vector3 eye = transform.position;
-        eye.y = LogFeetHeight + 1.05f;
+        eye.y = LogFeetHeight + 1.02f;
         Vector3 delta = target.Point(transform.position) - eye;
         float distance = delta.magnitude;
         var hit = ClosestPrototypeHit(new Ray(eye, delta / Mathf.Max(.001f, distance)),
@@ -157,47 +195,39 @@ public partial class PlayerInteraction
         return hit == null || hit.GetComponentInParent<ChopPrototypeLog>() == target.log;
     }
 
-    float LogDistance(LogTarget target) =>
-        Vector3.ProjectOnPlane(target.Point(transform.position) - transform.position, Vector3.up).magnitude;
-
-    float LogFeetHeight => logActorCapsule != null ? logActorCapsule.bounds.min.y : transform.position.y;
-
     bool InCutStance(LogTarget target)
     {
         Vector3 point = target.Point(transform.position);
-        Vector3 toCut = point - transform.position;
-        float height = point.y - LogFeetHeight;
-        Vector3 toward = Vector3.ProjectOnPlane(toCut, Vector3.up);
+        Vector3 toward = Vector3.ProjectOnPlane(point - transform.position, Vector3.up);
         float distance = toward.magnitude;
-        float bodyRadius = logActorCapsule != null ? logActorCapsule.bounds.extents.x : .25f;
-        float radius = target.log.Layout.radius;
+        float height = point.y - LogFeetHeight;
+        float logRadius = target.log.Layout.radius;
         Vector3 axis = Vector3.ProjectOnPlane(target.log.transform.forward, Vector3.up).normalized;
-        Transform log = target.log.transform;
-        float joint = target.log.CutAnchor(target.index).localPosition.z;
-        float boxTop = log.TransformPoint(new Vector3(0f, radius * .795f, joint)).y;
-        float above = logActorCapsule != null
-            ? Mathf.Max(0f, logActorCapsule.bounds.min.y + bodyRadius - boxTop) : 0f;
-        float bodyWidthAtLog = Mathf.Sqrt(Mathf.Max(0f, bodyRadius * bodyRadius - above * above));
-        float reach = Mathf.Clamp(bodyWidthAtLog + radius * .86f + .12f, .52f, 1.02f);
-        return distance >= Mathf.Max(.32f, radius + .10f) && distance <= reach &&
-            height >= .07f && height <= .92f &&
-            Mathf.Abs(Vector3.Dot(toward.normalized, axis)) < .69f && CanSeeLog(target);
+        float reach = Mathf.Clamp(logRadius * .92f + ActorRadius + .32f, .64f, 1.13f);
+        return distance >= Mathf.Max(.28f, logRadius + .055f) && distance <= reach &&
+            height >= -.02f && height <= 1.06f &&
+            Mathf.Abs(Vector3.Dot(toward.normalized, axis)) < .70f && CanSeeLog(target);
     }
 
-    LogTarget NearestPrototypeTarget(bool cut, float reach)
+    bool AtPickup(LogTarget target) => target.Valid && !target.cut &&
+        PlanarDistance(target.Point(transform.position), transform.position) <= CollectDistance &&
+        Mathf.Abs(target.Point(transform.position).y - LogFeetHeight) <= 1.1f && CanSeeLog(target);
+
+    LogTarget NearestPrototypePickup()
     {
         LogTarget best = default;
+        float reach = CollectDistance;
         foreach (var log in ChopPrototypeLog.Active)
         {
-            if (log == null || !log.Ready || (!cut && !log.Harvestable)) continue;
-            int count = cut ? log.CutCount : log.SectionCount;
-            for (int i = 0; i < count; i++)
+            if (log == null || !log.Ready ||
+                PlanarDistance(log.transform.position, transform.position) > reach + log.Layout.length * .65f) continue;
+            for (int i = 0; i < log.SectionCount; i++)
             {
-                if (cut ? !log.CanCut(i) : log.WoodIn(i) == 0) continue;
-                var target = new LogTarget(log, i, cut);
-                float distance = LogDistance(target);
-                if (distance >= reach || Mathf.Abs(target.Point(transform.position).y - LogFeetHeight) > 1f ||
-                    (cut && !InCutStance(target)) || (!cut && !CanSeeLog(target))) continue;
+                if (!log.CanCollect(i)) continue;
+                var target = new LogTarget(log, i, false);
+                Vector3 point = target.Point(transform.position);
+                float distance = PlanarDistance(point, transform.position);
+                if (distance > reach || Mathf.Abs(point.y - LogFeetHeight) > 1.1f || !CanSeeLog(target)) continue;
                 reach = distance;
                 best = target;
             }
@@ -205,52 +235,47 @@ public partial class PlayerInteraction
         return best;
     }
 
-    void ShowPrototypeTarget(LogTarget target)
+    void SetFocusedCut(LogTarget cut)
     {
-        if (!target.Same(presented))
+        if (focusedCut.Same(cut)) return;
+        if (focusedCut.log != null) focusedCut.log.FocusCut(-1);
+        focusedCut = cut;
+        if (cut.Valid) cut.log.FocusCut(cut.index);
+    }
+
+    void ShowPickup(LogTarget target)
+    {
+        int amount = target.log.WoodIn(target.index);
+        if (amount != pickupLabelWood || pickupLabelEnglish != GameLanguage.English)
         {
-            if (presented.log != null) presented.log.FocusCut(-1);
-            presented = target;
-            logTagText = null;
+            pickupLabelWood = amount;
+            pickupLabelEnglish = GameLanguage.English;
+            pickupLabel = ChopPrototypeLog.Text("E — Забрать древесину", "E — Pick up wood") + " · " + amount;
         }
-        if (!target.Valid)
+        string label = inventory != null && inventory.FreeSlots == 0
+            ? ChopPrototypeLog.Text("Рюкзак полон", "Backpack full") : pickupLabel;
+        Chop02Feedback.Show(target.Point(transform.position), label);
+    }
+
+    void ShowChop03Target(LogTarget pickup)
+    {
+        var cut = aimedLog.Valid && aimedLog.cut ? aimedLog : default;
+        SetFocusedCut(cut);
+        if (cut.Valid)
         {
-            if (logTag != null) logTag.visible = false;
-            return;
+            string label = InCutStance(cut) ? ChopPrototypeLog.Text("ЛКМ — Разделать", "LMB — Cut")
+                : ChopPrototypeLog.Text("ЛКМ — Подойти к разрезу", "LMB — Approach the cut");
+            Chop02Feedback.Show(cut.Point(transform.position), label, cut.log.CutProgress(cut.index));
         }
-        if (target.cut) target.log.FocusCut(target.index);
-        if (logTag == null)
+        else if (pickup.Valid) ShowPickup(pickup);
+        else if (aimedTree != null)
         {
-            var holder = new GameObject("Log interaction hint");
-            holder.transform.SetParent(transform, false);
-            logTag = WorldTag.Add(holder, false);
-            logTag.SetFontSize(22f);
-            logTag.offset = Vector3.up * .14f;
+            string label = InTreeStance(aimedTree) ? ChopPrototypeLog.Text("ЛКМ — Рубить", "LMB — Chop")
+                : ChopPrototypeLog.Text("ЛКМ — Подойти к дереву", "LMB — Approach the tree");
+            float damage = aimedTree.StandingDamage;
+            Chop02Feedback.Show(TreePromptPoint(aimedTree), label, damage > 0f ? damage : -1f);
         }
-        string label;
-        if (target.cut)
-        {
-            bool firstPerson = OrbitCamera.FirstPersonActive;
-            label = !InCutStance(target)
-                ? ChopPrototypeLog.Text("Встань сбоку у зарубки", "Stand beside the notch")
-                : Chop02CutPrompt(firstPerson);
-            float progress = target.log.CutProgress(target.index);
-            if (progress > 0f) label += " · " + Mathf.RoundToInt(progress * 100f) + "%";
-        }
-        else
-        {
-            label = inventory != null && inventory.FreeSlots == 0
-                ? ChopPrototypeLog.Text("Рюкзак полон", "Backpack full")
-                : ChopPrototypeLog.Text("Подойди за брёвнами", "Step closer to collect");
-            label += " · " + target.log.WoodIn(target.index);
-        }
-        if (label != logTagText)
-        {
-            logTag.SetText(label);
-            logTagText = label;
-        }
-        logTag.transform.position = target.Point(transform.position);
-        logTag.visible = true;
+        else Chop02Feedback.Hide();
     }
 
     internal bool TryReadPrototypeContact(out Vector3 point, out Vector3 sectionAxis)
@@ -264,136 +289,153 @@ public partial class PlayerInteraction
 
     void StopPrototypeWork()
     {
-        Chop02ResetWork();
-        if (ReferenceEquals(processing.log, null)) return;
-        if (processing.log != null) processing.log.FocusCut(-1);
-        processing = default;
+        if (!IsChop03Working && !chop03Standing && ReferenceEquals(processing.log, null)) return;
         StopChop();
+        processing = default;
+        chop03Standing = false;
+        ClearChopTargets();
+    }
+
+    void ClearChopTargets()
+    {
         CurrentTarget = null;
-        TargetItem = null;
-        findTimer = 0f;
+        TargetItem = lastItem = null;
         lastTarget = null;
-        lastItem = null;
+        findTimer = 0f;
+    }
+
+    bool Chop03ContactInView(Vector3 contact)
+    {
+        if (!OrbitCamera.FirstPersonActive) return true;
+        var cam = Camera.main;
+        if (cam == null) return false;
+        Vector3 view = cam.WorldToViewportPoint(contact);
+        return view.z > .12f && view.x > -.08f && view.x < 1.08f && view.y > -.25f && view.y < 1.18f;
     }
 
     void ResetPrototypeInput()
     {
-        mouseCut = keyboardCut = default;
-        PrototypeReticleActive = mouseOnFallenTrunk = false;
+        CancelChop03Approach();
+        chop03Hold = false;
+        chop03Tree = aimedTree = HoverItem = null;
+        chop03Log = aimedLog = nearestPickup = default;
+        nextPrototypePick = nextPickupScan = 0f;
+        PrototypeReticleActive = mouseOnFallenTrunk = chop03PointerBlocked = false;
         StopPrototypeWork();
-        ShowPrototypeTarget(default);
-        Chop02Feedback.Hide();
+        SetFocusedCut(default);
+        Chop02Feedback.Hide(true);
     }
 
-    bool TickPrototypeLog()
+    bool TickChop03()
     {
-        if (!MobileInput.ActionHeld) capturedLogKey = false;
-        if (PrototypeInputAllowed && Input.GetKeyDown(KeyCode.F7) && (!IsChopping || IsProcessingPrototypeLog))
+        bool enabled = ChopPrototypeLog.Enabled;
+        if (!enabled && ChopPrototypeLog.Active.Count == 0 && !IsChop03Working && !chop03Walking)
         {
-            StopPrototypeWork();
-            mouseCut = keyboardCut = default;
-            Chop02NextMode();
-        }
-        if (!PrototypeInputAllowed || !ChoppingEnabled || ChopPrototypeLog.Active.Count == 0)
-        {
-            ResetPrototypeInput();
+            if (PrototypeReticleActive || mouseOnFallenTrunk || !ReferenceEquals(nearestPickup.log, null))
+                ResetPrototypeInput();
+            else Chop02Feedback.Hide();
             return false;
         }
 
-        LogTarget aim = PickPrototypeLog();
-        PrototypeReticleActive = aim.Valid && (!aim.cut || InCutStance(aim));
-        bool releasedMouse = Input.GetMouseButtonUp(0);
-        bool releasedKey = !MobileInput.ActionHeld && keyboardCut.Valid;
-        bool moving = Mathf.Abs(MobileInput.Horizontal) > .14f || Mathf.Abs(MobileInput.Vertical) > .14f;
-        // In B a short click still commits exactly one scheduled downward strike.
-        // Sample its accuracy before clearing the held mouse target.
-        if (chop02Mode == Chop02Mode.PreciseNotch && releasedMouse &&
-            mouseCut.Valid && processing.Same(mouseCut) && mouseCut.Same(aim) &&
-            !moving && InCutStance(mouseCut) && !chop02HitDuringHold)
+        if (!PrototypeInputAllowed || !ChoppingEnabled)
         {
-            chop02TapPrecision = Chop02Precision(mouseCut);
-            chop02TapTarget = mouseCut;
-            chop02TapQueued = true;
+            ResetPrototypeInput();
+            if (enabled)
+            {
+                StopChop();
+                ClearChopTargets();
+            }
+            return enabled;
         }
-        // D is resolved on release *before* CHOP-01 clears its held target.
-        if (Chop02UsesCharge && (releasedMouse || releasedKey))
-        {
-            bool mouseStillAimed = mouseCut.Valid && mouseCut.Same(processing) && mouseCut.Same(aim);
-            bool keyStillValid = keyboardCut.Valid && keyboardCut.Same(processing);
-            bool same = processing.Valid && (mouseStillAimed || keyStillValid);
-            if (same && !moving && InCutStance(processing)) Chop02ReleaseCharge(processing);
-            else Chop02ResetWork();
-        }
-        if (Input.GetMouseButtonDown(0))
-        {
-            Chop02ClearTap();
-            mouseCut = aim.Valid && aim.cut && InCutStance(aim) ? aim : default;
-        }
-        if (!Input.GetMouseButton(0) || !mouseCut.Same(aim)) mouseCut = default;
 
-        // Precision mode B specifically requires the cursor/crosshair to hit the notch.
-        // The nearest-target E shortcut must not bypass this condition.
-        bool keyboardAvailable = !OrbitCamera.FirstPersonActive && !InteractionHub.OwnsInput &&
-            !Chop02PrecisionRequiresAim;
-        if (keyboardAvailable && MobileInput.ActionDown && (!IsChopping || IsProcessingPrototypeLog))
+        bool click = Input.GetMouseButtonDown(0);
+        bool held = Input.GetMouseButton(0);
+        if (!held) chop03Hold = false;
+        bool moving = Mathf.Abs(MobileInput.Horizontal) > .01f || Mathf.Abs(MobileInput.Vertical) > .01f;
+        bool action = Input.GetKeyDown(KeyCode.E);
+        if (click || Time.unscaledTime >= nextPrototypePick)
         {
-            keyboardCut = NearestPrototypeTarget(true, 1.06f);
-            capturedLogKey = keyboardCut.Valid;
+            chop03PointerBlocked = OverUiButton(OrbitCamera.PointerPos);
+            nextPrototypePick = Time.unscaledTime + PickInterval;
+            PickChop03Targets(chop03PointerBlocked);
         }
-        if (!keyboardAvailable || !MobileInput.ActionHeld) keyboardCut = default;
-        LogTarget wanted = mouseCut.Valid ? mouseCut :
-            keyboardCut.Valid ? keyboardCut : chop02TapQueued ? chop02TapTarget :
-            chop02ChargePending ? chop02PendingChargeTarget : default;
-        if (wanted.Valid && !moving && InCutStance(wanted))
+        if (enabled) HoverItem = aimedTree;
+        PrototypeReticleActive = aimedLog.Valid || aimedTree != null;
+        if (moving || InteractionHub.ActionConsumedThisFrame)
         {
-            TickGroundSwing(wanted);
-            ShowPrototypeTarget(wanted.Valid ? wanted : default);
-            Chop02Present(wanted);
+            CancelChop03Approach();
+            chop03Hold = false;
+            chop03Tree = null;
+            chop03Log = default;
+            StopPrototypeWork();
+        }
+        else if (click && !chop03PointerBlocked && (enabled || aimedLog.Valid && aimedLog.cut))
+        {
+            CancelChop03Approach();
+            StopPrototypeWork();
+            StopChop();
+            ClearChopTargets();
+            chop03Tree = aimedTree;
+            chop03Log = aimedLog.Valid && aimedLog.cut ? aimedLog : default;
+            chop03Hold = chop03Tree != null || chop03Log.Valid;
+            if (chop03Hold) TryStartChop03Approach();
+        }
+
+        if (TickChop03Approach())
+        {
+            SetFocusedCut(chop03Log);
+            Chop02Feedback.Hide();
             return true;
         }
-        if (moving || !IsChopping && processing.log != null) mouseCut = keyboardCut = default;
-        StopPrototypeWork();
-        LogTarget pickup = NearestPrototypeTarget(false, CollectDistance);
-        if (!IsChopping && pickup.Valid && inventory != null && inventory.FreeSlots > 0)
-        {
-            if (pickup.log.Collect(pickup.index, inventory, stats, pickup.Point(transform.position)) > 0)
-                pickup = NearestPrototypeTarget(false, CollectDistance);
-        }
-        ShowPrototypeTarget(aim.Valid ? aim : pickup);
-        Chop02Present(aim.Valid && aim.cut ? aim : default);
-        if (mouseOnFallenTrunk && Input.GetMouseButtonDown(0))
-        {
-            clickArmed = false;
-            HoverItem = null;
-        }
-        return false;
-    }
 
-    void TickGroundSwing(LogTarget wanted)
-    {
-        if (!IsChopping || !processing.Same(wanted))
+        if (chop03Hold && !chop03PointerBlocked && MouseActive())
+        {
+            if (chop03Tree != null && chop03Tree.isActiveAndEnabled && InTreeStance(chop03Tree) &&
+                Chop03ContactInView(TreePromptPoint(chop03Tree)))
+            {
+                SetFocusedCut(default);
+                TickChop03Standing(chop03Tree);
+                return true;
+            }
+            if (chop03Log.Valid && InCutStance(chop03Log) &&
+                Chop03ContactInView(chop03Log.Point(transform.position)))
+            {
+                SetFocusedCut(chop03Log);
+                TickGroundSwing(chop03Log);
+                return true;
+            }
+        }
+        StopPrototypeWork();
+
+        LogTarget pickup = default;
+        if (!InteractionHub.OwnsInput && !IsChopping && ChopPrototypeLog.Active.Count > 0)
+        {
+            if (action || Time.unscaledTime >= nextPickupScan)
+            {
+                nextPickupScan = Time.unscaledTime + PickInterval;
+                nearestPickup = NearestPrototypePickup();
+            }
+            pickup = aimedLog.Valid && !aimedLog.cut && AtPickup(aimedLog) ? aimedLog : nearestPickup;
+            if (pickup.Valid && !AtPickup(pickup)) pickup = default;
+            if (action && pickup.Valid)
+            {
+                if (inventory != null && inventory.FreeSlots > 0)
+                {
+                    pickup.log.Collect(pickup.index, inventory, stats, pickup.Point(transform.position));
+                    nextPickupScan = 0f;
+                }
+                else backpack?.Flash();
+                ShowChop03Target(pickup.Valid ? pickup : default);
+                return true;
+            }
+        }
+
+        if (enabled)
         {
             StopChop();
-            movement?.CancelWalk();
-            WalkTarget = leoWalkArrival = leoApproachAttempt = null;
-            leoEnterRhythmOnArrival = false;
-            clickArmed = false;
-            HoverItem = TargetItem = lastItem = null;
-            CurrentTarget = wanted.log.CutAnchor(wanted.index);
-            lastTarget = null;
-            processing = wanted;
-            IsChopping = true;
-            waitingForChopAxe = true;
-            Progress = wanted.log.CutProgress(wanted.index);
-            Chop02BeginCut(wanted);
+            ClearChopTargets();
         }
-        if (!LeoAxeReady) return;
-        if (waitingForChopAxe)
-        {
-            waitingForChopAxe = false;
-            nextHitAt = Time.time + GroundSwingWindup;
-            Chop02Ready();
-        }
-        Chop02TickSwing(wanted);
+        ShowChop03Target(pickup);
+        return enabled;
     }
 }

@@ -84,6 +84,12 @@ public class InteractionHint : MonoBehaviour
     void Update()
     {
         if (worldTag == null) return;
+        if (ChopPrototypeLog.Enabled)
+        {
+            worldTag.visible = false;
+            placed = false;
+            return;
+        }
 
         // E занята хабом (разговор или NPC ближе, чем дерево): подсказку про дерево не показываем
         bool owned = InteractionHub.OwnsInput;

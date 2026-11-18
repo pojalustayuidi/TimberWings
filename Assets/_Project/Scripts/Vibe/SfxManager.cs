@@ -159,7 +159,13 @@ public class SfxManager : MonoBehaviour
     }
 
     // удар топора приходит из PlayerInteraction (по таймеру или по событию из анимации), поэтому звук всегда в такт кадру удара
-    void OnChopHit() { PlayInternal("thock", 0.95f, UnityEngine.Random.Range(0.92f, 1.08f)); }
+    void OnChopHit()
+    {
+        if (PlayerInteraction.PreciseChop03Impact)
+            PlayInternal("thock", 1.02f, UnityEngine.Random.Range(.80f, .89f));
+        else
+            PlayInternal("thock", .95f, UnityEngine.Random.Range(.92f, 1.08f));
+    }
     void OnTreeChopped()
     {
         if (PlayerInteraction.PrototypeFellingEvent)

@@ -214,8 +214,8 @@ public partial class PlayerInteraction : MonoBehaviour
     }
 
     // «нажал» и «держу»: E (или кнопка на телефоне) либо ЛКМ по дереву
-    bool PressDown { get { return (!OrbitCamera.FirstPersonActive && !capturedLogKey && MobileInput.ActionDown) || (clickArmed && clickDownFrame == Time.frameCount); } }
-    bool PressHeld { get { return (!OrbitCamera.FirstPersonActive && !capturedLogKey && MobileInput.ActionHeld) || (clickArmed && Input.GetMouseButton(0)); } }
+    bool PressDown { get { return (!OrbitCamera.FirstPersonActive && MobileInput.ActionDown) || (clickArmed && clickDownFrame == Time.frameCount); } }
+    bool PressHeld { get { return (!OrbitCamera.FirstPersonActive && MobileInput.ActionHeld) || (clickArmed && Input.GetMouseButton(0)); } }
 
     static bool DialogueBusy()
     {
@@ -402,11 +402,19 @@ public partial class PlayerInteraction : MonoBehaviour
     void OnDestroy()
     {
         if (inst == this) inst = null;
+        if (chop03WalkSpot != null) Destroy(chop03WalkSpot.gameObject);
+    }
+
+    void OnEnable()
+    {
+        SaveSystem.Loaded += ResetPrototypeInput;
+        SaveSystem.NewGameStarted += ResetPrototypeInput;
     }
 
     void OnDisable()
     {
-        capturedLogKey = false;
+        SaveSystem.Loaded -= ResetPrototypeInput;
+        SaveSystem.NewGameStarted -= ResetPrototypeInput;
         ResetPrototypeInput();
         clickArmed = false;
         leoWalkArrival = leoApproachAttempt = null;
@@ -417,7 +425,7 @@ public partial class PlayerInteraction : MonoBehaviour
     void Update()
     {
         PrototypeToggle();
-        if (TickPrototypeLog()) return;
+        if (TickChop03()) return;
         // A tree click or held E must never replace the construction approach or move Leo during a fall.
         if (BuildWorkPose.MovementLocked || LeoCelebration.IsPlaying || WaterSwim.Swimming ||
             movement != null && movement.ControlLocked)
@@ -593,7 +601,7 @@ public partial class PlayerInteraction : MonoBehaviour
     // Один удар топора: тряска дерева, щепки, событие для звука. Зовётся таймером или Animation Event из клипа.
     public void NotifyHit()
     {
-        if (PrototypeHitDrivenFelling(TargetItem)) return; // CHOP-02 owns the impact clock for mature and old trees.
+        if (IsChop03Working) return; // The green-zone clock owns every CHOP-03 contact.
         if (RhythmChop) return;   // в ритм-режиме удары идут от нажатий E (ResolveHit), Animation Event не нужен
         if (!IsChopping || waitingForChopAxe || !LeoAxeReady || TargetItem == null) return;
         var th = TargetItem.GetComponent<TreeHits>();
@@ -694,8 +702,6 @@ public partial class PlayerInteraction : MonoBehaviour
             TargetItem.SetChopping(true);
         }
 
-        if (PrototypeHitDrivenFelling(TargetItem)) { TickPrototypeFelling(); return; }
-
         holdTime += Time.deltaTime;
         Progress = Mathf.Clamp01(holdTime / Mathf.Max(0.1f, GatherTime));
 
@@ -786,8 +792,8 @@ public partial class PlayerInteraction : MonoBehaviour
             item.RestoreTransform();
             if (!ChopPrototypeLog.TryPlan(item, transform, out layout))
             {
-                SaveIndicator.ShowToast(ChopPrototypeLog.Text("Нет места для падения · попробуй с другой стороны",
-                    "No clear landing · try from another side"));
+                SaveIndicator.ShowToast(ChopPrototypeLog.Text("Нет места для падения · подойди к зарубке под другим углом",
+                    "No clear landing · approach the notch from another angle"));
                 StopChop();
                 clickArmed = false;
                 return;
@@ -906,6 +912,8 @@ public partial class PlayerInteraction : MonoBehaviour
         }
         IsChopping = false;
         waitingForChopAxe = false;
+        chop03Swing = default;
+        chop03Standing = false;
         if (rhythmActive)
         {
             rhythmActive = false;

@@ -86,6 +86,7 @@ internal static class LeoChopContact
     {
         point = default;
         if (item == null || leo == null || !item.gameObject.activeInHierarchy) return false;
+        if (ChopPrototypeLog.Enabled && item.TryGetStandingContact(out point)) return true;
         Bind(item);
         if (SameInputs(item, leo, height))
         {
@@ -123,11 +124,13 @@ internal static class LeoChopContact
 
         if (generatedFilter != null)
         {
+            // Keep the shared mesh in the bark cache. Individual CHOP-03 meshes are disposable.
+            Mesh bark = item.useGeneratedModel ? TreeMeshFactory.TreeMesh(item.Size) : generatedFilter.sharedMesh;
             float reach = length + item.TrunkRadius;
-            if (IntersectBark(generatedFilter, ray, reach, out point)) return true;
+            if (IntersectBark(generatedFilter, bark, ray, reach, out point)) return true;
             // Narrow trunks can move off the side ray during the squash.
             ray = new Ray(axis - direction * length, direction);
-            if (IntersectBark(generatedFilter, ray, reach, out point)) return true;
+            if (IntersectBark(generatedFilter, bark, ray, reach, out point)) return true;
         }
 
         if (trunkCollider == null || !trunkCollider.Raycast(ray, out var hit, length + item.TrunkRadius))
@@ -138,10 +141,9 @@ internal static class LeoChopContact
 
     // Only the first submesh of each shared generated tree contains bark.
     // A local-space ray also follows the tree's squash and tilt.
-    static bool IntersectBark(MeshFilter filter, Ray ray, float maxDistance, out Vector3 point)
+    static bool IntersectBark(MeshFilter filter, Mesh mesh, Ray ray, float maxDistance, out Vector3 point)
     {
         point = default;
-        Mesh mesh = filter.sharedMesh;
         if (mesh == null || !mesh.isReadable || mesh.subMeshCount == 0) return false;
         if (!meshes.TryGetValue(mesh, out Bark bark))
         {

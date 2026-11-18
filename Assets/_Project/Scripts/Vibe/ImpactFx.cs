@@ -172,6 +172,17 @@ public class ImpactFx : MonoBehaviour
     void OnChopHit()
     {
         if (!chopImpact || player == null) return;
+        if (pi != null && pi.Chop03ImpactThisFrame && pi.TryReadLeoImpact(out Vector3 contact))
+        {
+            bool precise = PlayerInteraction.PreciseChop03Impact;
+            Vector3 scatter = player.position - contact;
+            scatter.y = Mathf.Max(.24f, scatter.y);
+            int count = reduced ? (precise ? 4 : 2) : (precise ? 11 : 6);
+            EmitDir(chips, contact, count, scatter.normalized, 1.35f, precise ? 4.3f : 3.1f, .58f);
+            if (precise && !reduced)
+                Emit(flash, contact, 1, new Color(1f, .90f, .62f, .60f), .41f);
+            return;
+        }
         if (pi != null && pi.IsProcessingPrototypeLog && pi.TryReadLeoImpact(out Vector3 cut))
         {
             PlayLogDebris(cut, false);

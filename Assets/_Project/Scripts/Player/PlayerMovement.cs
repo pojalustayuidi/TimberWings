@@ -67,6 +67,10 @@ public class PlayerMovement : MonoBehaviour
     // The construction system already checked the short straight path and the standing footprint.
     internal void WalkToBuildSpot(Transform target) => BeginWalk(target, .02f, null, true, true);
 
+    // The tree interaction has checked the straight route and its landing footprint.
+    internal void WalkToChopSpot(Transform target, System.Action onArrive) =>
+        BeginWalk(target, .045f, onArrive, true, true);
+
     internal bool TryStepBackForChop(Transform target, float stop, System.Action onArrive)
     {
         if (target == null || IsDashing || !TryGetComponent<CapsuleCollider>(out var capsule) || !capsule.enabled)
@@ -442,7 +446,7 @@ public class PlayerMovement : MonoBehaviour
                     if (baseSpeed > 0.01f) s *= Mathf.Clamp(CurrentSpeed / baseSpeed, 0.6f, 1.6f);
                 }
             }
-            else if (chopping) s = interaction.chopAnimSpeed;   // animator.speed общий для всех клипов, пишем его только здесь
+            else if (chopping) s = interaction.EffectiveChopAnimSpeed;   // animator.speed общий для всех клипов, пишем его только здесь
             animator.speed = s;
         }
     }

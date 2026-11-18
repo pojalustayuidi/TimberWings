@@ -85,7 +85,8 @@ public static class SkillTree
         // ---------- Лесоруб (деревья) ----------
         Add(SkillIds.LumberChain, SkillBranch.Lumberjack, 1, null, "Серия рубки",
             "Каждое дерево подряд (пауза не больше " + Sec(GameBalance.SkillChainPause) + " с) даёт +" + Pct(GameBalance.SkillChainBonus)
-            + " к скорости рубки, максимум +" + Pct(GameBalance.SkillChainMax) + ".");
+            + " к скорости рубки, максимум +" + Pct(GameBalance.SkillChainMax) +
+            ". Разделка последнего дерева поддерживает серию.");
         Add(SkillIds.LumberSturdy, SkillBranch.Lumberjack, 2, "lumber_t2", "Крепкая древесина",
             "Дерево даёт " + GameBalance.SkillSturdyWood + " бревна, но растёт на " + Pct(GameBalance.SkillSturdyGrowth - 1f) + " дольше.");
         Add(SkillIds.LumberFastGrow, SkillBranch.Lumberjack, 2, "lumber_t2", "Быстрый рост",

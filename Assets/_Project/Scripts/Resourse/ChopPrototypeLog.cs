@@ -9,7 +9,6 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     internal static bool Enabled { get; private set; }
     internal bool Ready { get; private set; }
     internal bool HasWood => state.HasWood;
-    internal bool Harvestable => Ready && state.AllCutsOpen && Time.time >= collectAt;
     internal int CutCount => state.cuts.Length;
     internal int SectionCount => state.wood.Length;
     internal ChopPrototypeSave.Layout Layout => state.layout;
@@ -20,13 +19,19 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     int focusCut = -1;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { Active.Clear(); Enabled = false; }
+    static void ResetStatics()
+    {
+        Active.Clear();
+        Enabled = false;
+        if (cutMarkMesh != null) Destroy(cutMarkMesh);
+        cutMarkMesh = null;
+    }
 
     internal static void Toggle()
     {
         Enabled = !Enabled;
         SaveIndicator.ShowToast(Enabled
-            ? Text("CHOP-02 · разделка включена", "CHOP-02 · log processing on")
+            ? Text("CHOP-03 · зелёная зона", "CHOP-03 · green zone")
             : Text("Обычная рубка · лежащие стволы доступны", "Regular chopping · felled logs remain"));
     }
 
@@ -86,6 +91,9 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     }
 
     internal bool CanCut(int cut) => Ready && cut >= 0 && cut < CutCount && state.cuts[cut] < 1f;
+    internal bool CanCollect(int section) => Ready && Time.time >= collectAt && state.SectionFree(section) &&
+        state.wood[section] > 0 && (section == 0 || separation[section - 1] >= 1f) &&
+        (section == CutCount || separation[section] >= 1f);
     internal float CutProgress(int cut) => state.cuts[cut];
     internal int WoodIn(int section) => state.wood[section];
     internal Transform CutAnchor(int cut) => cutAnchors[cut];
@@ -93,23 +101,25 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     internal void FocusCut(int cut)
     {
         if (focusCut == cut) return;
-        if (focusCut >= 0) cutMarks[focusCut].SetActive(false);
+        int old = focusCut;
         focusCut = CanCut(cut) ? cut : -1;
-        if (focusCut >= 0) cutMarks[focusCut].SetActive(true);
+        if (old >= 0) StyleCut(old);
+        if (focusCut >= 0) StyleCut(focusCut);
     }
 
-    internal bool Hit(int cut, float strength)
+    internal bool Hit(int cut, float damage)
     {
-        if (!Ready || !state.AdvanceCut(cut, strength)) return false;
+        if (!Ready || !state.AdvanceCut(cut, damage)) return false;
         RebuildSection(cut);
         RebuildSection(cut + 1);
         UpdateCutAnchor(cut);
+        LumberSkills.TouchProcessing(state);
         SaveSystem.RequestSave(ChopPrototypeSave.Key);
         if (CanCut(cut)) return false;
 
         Vector3 point = CutAnchor(cut).position;
         if (focusCut == cut) FocusCut(-1);
-        collectAt = Time.time + .47f;
+        StyleCut(cut);
         ImpactFx.PlayLogDebris(point, true);
         SfxManager.Play("woodCrack", .64f, 1.12f);
         return true;
@@ -142,7 +152,7 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     internal int FindCut(Vector3 point)
     {
         int best = -1;
-        float distance = Mathf.Clamp(state.layout.length * .135f, .16f, .29f);
+        float distance = Mathf.Clamp(.18f + state.layout.radius * .44f, .20f, .39f);
         float z = transform.InverseTransformPoint(point).z;
         for (int i = 0; i < CutCount; i++)
         {
@@ -157,13 +167,13 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
 
     internal int Collect(int section, PlayerInventory inventory, PlayerStats stats, Vector3 point)
     {
-        if (!Harvestable || inventory == null || (state.xp > 0 && stats == null) ||
-            section < 0 || section >= SectionCount || state.wood[section] == 0) return 0;
+        if (!CanCollect(section) || inventory == null || state.xp > 0 && stats == null) return 0;
 
         int taken = inventory.AddProcessedWood(state.wood[section], count =>
         {
             // Store the remainder before notifying inventory or level subscribers.
             int xp = state.TakeWood(section, count);
+            LumberSkills.TouchProcessing(state);
             if (xp > 0) stats.AddXP(xp);
             SaveSystem.RequestSave(ChopPrototypeSave.Key);
         });

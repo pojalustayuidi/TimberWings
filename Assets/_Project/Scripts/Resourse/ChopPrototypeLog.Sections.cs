@@ -17,19 +17,23 @@ public sealed partial class ChopPrototypeLog
 
     Section[] sections;
     Transform[] cutAnchors;
-    GameObject[] cutMarks;
-    Material ringMaterial, markerMaterial;
+    MeshRenderer[] cutMarks;
+    Material ringMaterial;
+    MaterialPropertyBlock markerProperties;
+    readonly List<Vector3> sectionVertices = new List<Vector3>(BarkRings * Sides + Sides * 12 + 2);
+    readonly List<int> barkTriangles = new List<int>(BarkRings * Sides * 6);
+    readonly List<int> woodTriangles = new List<int>(Sides * 50);
+    readonly List<int> ringTriangles = new List<int>(Sides * 36);
 
     void BuildSections()
     {
         var layout = state.layout;
         sections = new Section[SectionCount];
         cutAnchors = new Transform[CutCount];
-        cutMarks = new GameObject[CutCount];
+        cutMarks = new MeshRenderer[CutCount];
         Material bark = TreeMeshFactory.Bark();
         Material endgrain = TreeMeshFactory.Cut();
         ringMaterial = new Material(endgrain) { color = new Color(.56f, .34f, .17f) };
-        markerMaterial = new Material(endgrain) { color = new Color(.92f, .68f, .35f) };
         Material[] materials = { bark, endgrain, ringMaterial };
         for (int i = 0; i < SectionCount; i++)
         {
@@ -56,18 +60,7 @@ public sealed partial class ChopPrototypeLog
             var anchor = new GameObject("Cut " + (i + 1)).transform;
             anchor.SetParent(transform, false);
             cutAnchors[i] = anchor;
-            var mark = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            mark.name = "Focused cut";
-            mark.SetActive(false);
-            mark.transform.SetParent(anchor, false);
-            mark.transform.localPosition = Vector3.up * .024f;
-            mark.transform.localScale = new Vector3(layout.radius * .72f, .013f, .033f);
-            mark.GetComponent<Collider>().enabled = false;
-            Destroy(mark.GetComponent<Collider>());
-            var renderer = mark.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = markerMaterial;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            cutMarks[i] = mark;
+            cutMarks[i] = CreateCutMark(anchor, endgrain);
         }
     }
 
@@ -98,26 +91,28 @@ public sealed partial class ChopPrototypeLog
             }
             part.shift = shift;
             part.root.transform.localPosition = new Vector3(0f, bounce, (part.start + part.end) * .5f + shift);
-            bool visible = Ready && state.wood[i] > 0;
+            bool visible = Ready && (state.wood[i] > 0 || !state.SectionFree(i));
             if (part.root.activeSelf != visible) part.root.SetActive(visible);
         }
-        for (int i = 0; i < CutCount; i++) UpdateCutAnchor(i);
+        for (int i = 0; i < CutCount; i++)
+        {
+            UpdateCutAnchor(i);
+            bool visible = CanCut(i);
+            if (cutMarks[i].enabled != visible) StyleCut(i);
+        }
     }
 
     void UpdateCutAnchor(int cut)
     {
         float z = Joint(cut + 1) + (sections[cut].shift + sections[cut + 1].shift) * .5f;
-        float depth = Mathf.Lerp(.025f, .36f, state.cuts[cut]);
-        cutAnchors[cut].localPosition = new Vector3(0f, state.layout.radius * (1f - depth), z);
-        // The focus mark follows the outside rim as the kerf deepens.
-        cutMarks[cut].transform.localPosition = Vector3.up * (state.layout.radius * depth + .02f);
+        cutAnchors[cut].localPosition = new Vector3(0f, state.layout.radius * .86f, z);
     }
 
     internal Vector3 CutContact(int cut, Vector3 actor)
     {
         bool positive = transform.InverseTransformPoint(actor).x >= 0f;
         float joint = Joint(cut + 1);
-        float depth = Mathf.Lerp(.025f, .36f, state.cuts[cut]);
+        float depth = KerfDepth(state.cuts[cut]);
         // Use the near sloping face of the kerf. The axe stays above the wood
         // and reaches it without forcing either of Leo's wrists past its limit.
         Vector3 edge = Vector3.Lerp(Rim(joint, joint, positive ? 1 : Sides - 1, depth),
@@ -129,16 +124,20 @@ public sealed partial class ChopPrototypeLog
     void RebuildSection(int index)
     {
         Section part = sections[index];
-        var vertices = new List<Vector3>(BarkRings * Sides + Sides * 8 + 2);
-        var bark = new List<int>(BarkRings * Sides * 6);
-        var wood = new List<int>(Sides * 24);
-        var rings = new List<int>(Sides * 18);
+        var vertices = sectionVertices;
+        var bark = barkTriangles;
+        var wood = woodTriangles;
+        var rings = ringTriangles;
+        vertices.Clear();
+        bark.Clear();
+        wood.Clear();
+        rings.Clear();
         float middle = (part.start + part.end) * .5f;
         for (int ring = 0; ring < BarkRings; ring++)
         {
             float z = Mathf.Lerp(part.start, part.end, RingPositions[ring]);
-            if (ring == 1 && index > 0) z = part.start + Mathf.Min(.072f, part.length * .12f);
-            if (ring == 3 && index < CutCount) z = part.end - Mathf.Min(.072f, part.length * .12f);
+            if (ring == 1 && index > 0) z = part.start + KerfShoulder(index - 1, part.length);
+            if (ring == 3 && index < CutCount) z = part.end - KerfShoulder(index, part.length);
             for (int i = 0; i < Sides; i++)
                 vertices.Add(Rim(z, middle, i, Kerf(index, ring)));
         }
@@ -156,8 +155,11 @@ public sealed partial class ChopPrototypeLog
             }
         }
 
-        Cap(part.start, middle, -1f, Kerf(index, 0), vertices, wood, rings);
-        Cap(part.end, middle, 1f, Kerf(index, BarkRings - 1), vertices, wood, rings);
+        // Internal faces are hidden until the seam is opened, avoiding coplanar end grain.
+        if (index == 0 || state.cuts[index - 1] >= 1f)
+            Cap(part.start, middle, -1f, Kerf(index, 0), vertices, wood, rings);
+        if (index == CutCount || state.cuts[index] >= 1f)
+            Cap(part.end, middle, 1f, Kerf(index, BarkRings - 1), vertices, wood, rings);
 
         part.mesh.Clear();
         part.mesh.SetVertices(vertices);
@@ -171,10 +173,15 @@ public sealed partial class ChopPrototypeLog
 
     float Kerf(int section, int ring)
     {
-        if (ring == 0 && section > 0) return Mathf.Lerp(.025f, .36f, state.cuts[section - 1]);
-        if (ring == BarkRings - 1 && section < CutCount) return Mathf.Lerp(.025f, .36f, state.cuts[section]);
+        if (ring == 0 && section > 0) return KerfDepth(state.cuts[section - 1]);
+        if (ring == BarkRings - 1 && section < CutCount) return KerfDepth(state.cuts[section]);
         return 0f;
     }
+
+    static float KerfDepth(float damage) => Mathf.Lerp(.018f, .81f, Mathf.Pow(damage, .84f));
+
+    float KerfShoulder(int cut, float length) => Mathf.Min(length * .22f,
+        (.055f + state.layout.radius * .18f) * Mathf.Lerp(.64f, 1.5f, state.cuts[cut]));
 
     Vector3 Rim(float z, float middle, int side, float kerf)
     {
@@ -241,6 +248,5 @@ public sealed partial class ChopPrototypeLog
             foreach (var section in sections)
                 if (section?.mesh != null) Destroy(section.mesh);
         if (ringMaterial != null) Destroy(ringMaterial);
-        if (markerMaterial != null) Destroy(markerMaterial);
     }
 }

@@ -115,7 +115,7 @@ public sealed partial class ChopPrototypeLog
         return !WaterVolume.TrySample(best.point, out var water) || water.submersion < -.035f;
     }
 
-    static bool IsGround(Collider c) =>
+    internal static bool IsGround(Collider c) =>
         c is TerrainCollider || c.tag == "Ground" || c.name == "Ground" ||
         c.name.StartsWith("Ground_", System.StringComparison.Ordinal);
 

@@ -26,6 +26,8 @@ public static class LumberSkills
 {
     static int chainCount;               // сколько деревьев подряд срублено (с потолком, см. ChainMaxCount)
     static float lastFellAt = -999f;     // Time.time, когда упало последнее дерево серии
+    static float lastWorkAt = -999f;
+    static ChopPrototypeSave.Tree trackedTrunk;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { ResetChain(); }
@@ -50,7 +52,7 @@ public static class LumberSkills
     public static int ChainCountAt(float now)
     {
         if (!ChainOn || chainCount <= 0) return 0;
-        return now - lastFellAt <= GameBalance.SkillChainPause ? chainCount : 0;
+        return now - lastWorkAt <= GameBalance.SkillChainPause ? chainCount : 0;
     }
 
     public static int ChainNow { get { return ChainCountAt(Time.time); } }
@@ -68,14 +70,30 @@ public static class LumberSkills
     {
         if (!ChainOn) { ResetChain(); return 0; }
         chainCount = Mathf.Min(Mathf.Max(0, countAtStart) + 1, Mathf.Max(1, ChainMaxCount));
-        lastFellAt = Time.time;
+        lastFellAt = lastWorkAt = Time.time;
+        trackedTrunk = null;
         return chainCount;
     }
 
     public static void ResetChain()
     {
         chainCount = 0;
-        lastFellAt = -999f;
+        lastFellAt = lastWorkAt = -999f;
+        trackedTrunk = null;
+    }
+
+    internal static void TrackProcessing(ChopPrototypeSave.Tree trunk)
+    {
+        if (ChainOn && chainCount > 0) trackedTrunk = trunk;
+    }
+
+    // Actual work on the latest tree can keep its series alive. A stored pile or
+    // a pause longer than the usual gap cannot start a new series.
+    internal static void TouchProcessing(ChopPrototypeSave.Tree trunk)
+    {
+        float now = Time.time;
+        if (trunk == trackedTrunk && now - lastFellAt <= Chop03Balance.ProcessingChainLimit &&
+            ChainCountAt(now) > 0) lastWorkAt = now;
     }
 
     // ------------------------------------------------------------ рост и бревна

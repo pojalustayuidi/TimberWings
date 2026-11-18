@@ -40,7 +40,7 @@ internal sealed partial class LeoFirstPersonView
     Transform forecastTarget;
     float forecastDue;
     float equipped, stowPath, carryUntil, cancelAmount;
-    float recoveryStart, recoveryEnd;
+    float recoveryStart, recoveryEnd, contactRecoil = 1f;
     float needleAngle;
 
     internal void Hit(PlayerInteraction interaction, bool fell)
@@ -48,6 +48,7 @@ internal sealed partial class LeoFirstPersonView
         if (suspended || interaction == null || !interaction.IsChopping || impactFrame == Time.frameCount) return;
         if ((fell && interaction.TargetItem == null) || (!fell && interaction.CurrentTarget == null)) return;
         impactFrame = Time.frameCount;
+        contactRecoil = PlayerInteraction.PreciseChop03Impact && !VibeSettings.ReduceEffects ? 1.18f : 1f;
         groundStrike = interaction.TryReadPrototypeContact(out _, out groundCutAxis);
         contactWorld = interaction.TryReadLeoImpact(out var point) ? point : (Vector3?)null;
     }
@@ -252,8 +253,8 @@ internal sealed partial class LeoFirstPersonView
         }
 
         float recover = (phase - Contact) / (1f - Contact);
-        var rebound = new Pose(strike.grip + new Vector3(.028f, .026f, -.080f),
-            strike.tool * Quaternion.Euler(-20f, -7f, 13f), 1f);
+        var rebound = new Pose(strike.grip + new Vector3(.028f, .026f, -.080f) * contactRecoil,
+            strike.tool * Quaternion.Euler(-20f * contactRecoil, -7f, 13f), 1f);
         const float recoilEnd = .27f;
         if (recover < recoilEnd)
         {

@@ -1,155 +1,202 @@
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
-// Lightweight runtime-only experimental overlay. No scene/prefab changes, no
-// dependencies on the final HUD art, and no persistent PlayerPrefs keys.
 internal sealed class Chop02Feedback : MonoBehaviour
 {
     static Chop02Feedback instance;
-    Transform anchor;
-    string modeName, hint, toast, pulse;
-    bool visible, showMeter, greenZone, powerWindow;
-    float cutProgress, marker, zoneHalf, toastUntil, pulseUntil;
-    GUIStyle titleStyle, hintStyle, toastStyle, pulseStyle;
-    Texture2D pixel;
+    static readonly Color Wood = new Color32(0x3E, 0x2C, 0x1F, 247);
+    static readonly Color Track = new Color32(0x72, 0x58, 0x40, 255);
+    static readonly Color Gold = new Color32(0xE4, 0xB2, 0x66, 255);
+    static readonly Color Green = new Color32(0x9E, 0xB9, 0x65, 255);
+
+    Canvas canvas;
+    CanvasGroup group;
+    RectTransform card, progressTrack, timingTrack, pointer;
+    Image progressFill, zone, pointerImage;
+    TextMeshProUGUI prompt;
+    Vector3 point;
+    string label;
+    bool wanted, meter, attempted, precise;
+    float progress, marker, pulseUntil;
+    float cardWidth, cardHeight;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetInstance() { instance = null; }
+    static void ResetInstance() => instance = null;
 
-    static Chop02Feedback Get()
+    internal static void Show(Vector3 at, string text, float progress = -1f, bool meter = false,
+        float marker = 0f, bool attempted = false, bool precise = false)
     {
-        if (instance != null) return instance;
-        var go = new GameObject("CHOP-02 experimental feedback");
-        DontDestroyOnLoad(go);
-        instance = go.AddComponent<Chop02Feedback>();
-        return instance;
-    }
-
-    internal static void DrawNear(Transform at, string name, float progress, bool meter,
-        float value, float half, bool isGreen, bool power, string message)
-    {
-        if (at == null) return;
-        var f = Get();
-        f.anchor = at;
-        f.modeName = name;
-        f.visible = true;
-        f.cutProgress = Mathf.Clamp01(progress);
-        f.showMeter = meter;
-        f.marker = Mathf.Clamp01(value);
-        f.zoneHalf = Mathf.Clamp01(half);
-        f.greenZone = isGreen;
-        f.powerWindow = power;
-        f.hint = message;
-    }
-
-    internal static void Hide()
-    {
-        if (instance != null) instance.visible = false;
-    }
-
-    internal static void ModeChanged(string name)
-    {
-        var f = Get();
-        f.toast = "CHOP-02  /  " + name;
-        f.toastUntil = Time.unscaledTime + 2.0f;
-        f.visible = false;
-    }
-
-    internal static void Pulse(string message)
-    {
-        var f = Get();
-        f.pulse = message;
-        f.pulseUntil = Time.unscaledTime + .70f;
-    }
-
-    void EnsureSkin()
-    {
-        if (titleStyle != null) return;
-        pixel = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+        if (instance == null)
         {
-            name = "CHOP-02 HUD pixel", filterMode = FilterMode.Point, hideFlags = HideFlags.HideAndDontSave
-        };
-        pixel.SetPixel(0, 0, Color.white);
-        pixel.Apply();
-        titleStyle = new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter, fontSize = 12, fontStyle = FontStyle.Bold,
-            normal = { textColor = new Color(.99f, .91f, .73f) }
-        };
-        hintStyle = new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter, fontSize = 10,
-            normal = { textColor = new Color(.92f, .88f, .76f) }
-        };
-        toastStyle = new GUIStyle(titleStyle) { fontSize = 13 };
-        pulseStyle = new GUIStyle(titleStyle) { fontSize = 12 };
-    }
-
-    void RectColor(Rect rect, Color color)
-    {
-        Color old = GUI.color;
-        GUI.color = color;
-        GUI.DrawTexture(rect, pixel);
-        GUI.color = old;
-    }
-
-    void OnGUI()
-    {
-        if ((!visible || anchor == null) && Time.unscaledTime >= toastUntil &&
-            Time.unscaledTime >= pulseUntil) return;
-        EnsureSkin();
-        int oldDepth = GUI.depth;
-        GUI.depth = -3;
-        if (Time.unscaledTime < toastUntil && !string.IsNullOrEmpty(toast))
-        {
-            float width = Mathf.Min(290f, Screen.width - 24f);
-            Rect toastRect = new Rect((Screen.width - width) * .5f, 22f, width, 30f);
-            RectColor(toastRect, new Color(.21f, .20f, .15f, .88f));
-            GUI.Label(toastRect, toast, toastStyle);
+            var go = new GameObject("Chop feedback", typeof(RectTransform), typeof(Canvas));
+            instance = go.AddComponent<Chop02Feedback>();
         }
-        if (visible && anchor != null && Camera.main != null)
+        var display = instance;
+        display.point = at;
+        display.wanted = true;
+        display.progress = progress;
+        display.meter = meter;
+        display.marker = marker;
+        display.attempted = attempted;
+        display.precise = precise;
+        display.ApplyLabel(text);
+    }
+
+    internal static void Hide(bool immediate = false)
+    {
+        if (instance == null) return;
+        instance.wanted = false;
+        if (immediate)
         {
-            Vector3 screen = Camera.main.WorldToScreenPoint(anchor.position + Vector3.up * .22f);
-            if (screen.z > .08f)
-            {
-                const float width = 192f;
-                float x = Mathf.Clamp(screen.x - width * .5f, 8f, Mathf.Max(8f, Screen.width - width - 8f));
-                float y = Mathf.Clamp(Screen.height - screen.y - 90f, 56f, Mathf.Max(56f, Screen.height - 84f));
-                Rect bg = new Rect(x, y, width, showMeter ? 72f : 49f);
-                RectColor(bg, new Color(.20f, .18f, .14f, .84f));
-                RectColor(new Rect(x + 9f, y + 29f, width - 18f, 5f), new Color(.43f, .37f, .26f));
-                RectColor(new Rect(x + 9f, y + 29f, (width - 18f) * cutProgress, 5f),
-                    new Color(.82f, .64f, .33f));
-                GUI.Label(new Rect(x + 5f, y + 4f, width - 10f, 21f), modeName ?? "CHOP-02", titleStyle);
-                if (showMeter)
-                {
-                    float barX = x + 17f, barY = y + 40f, barW = width - 34f;
-                    RectColor(new Rect(barX, barY, barW, 7f), new Color(.53f, .48f, .35f));
-                    if (greenZone)
-                        RectColor(new Rect(barX + barW * (.5f - zoneHalf), barY,
-                            barW * zoneHalf * 2f, 7f), new Color(.52f, .83f, .42f));
-                    else if (powerWindow)
-                        RectColor(new Rect(barX, barY, barW, 7f), new Color(.42f, .76f, .45f));
-                    float px = barX + marker * barW;
-                    RectColor(new Rect(px - 2f, barY - 3f, 4f, 13f), new Color(1f, .89f, .59f));
-                    GUI.Label(new Rect(x + 5f, y + 51f, width - 10f, 18f), hint ?? "", hintStyle);
-                }
-                else
-                    GUI.Label(new Rect(x + 5f, y + 34f, width - 10f, 14f), hint ?? "", hintStyle);
-            }
+            instance.pulseUntil = 0f;
+            instance.group.alpha = 0f;
+            instance.canvas.enabled = false;
         }
-        if (Time.unscaledTime < pulseUntil && !string.IsNullOrEmpty(pulse))
+    }
+
+    internal static void Pulse()
+    {
+        if (instance != null && !VibeSettings.ReduceEffects)
+            instance.pulseUntil = Time.unscaledTime + .19f;
+    }
+
+    void Awake()
+    {
+        canvas = GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = UiLayers.WorldTag + 1;
+        canvas.enabled = false;
+        var panel = ImageAt(transform, "Timber panel", Wood);
+        panel.sprite = UiKit.PanelWood;
+        panel.type = Image.Type.Sliced;
+        panel.pixelsPerUnitMultiplier = 2.8f;
+        card = panel.rectTransform;
+        card.anchorMin = card.anchorMax = Vector2.zero;
+        group = panel.gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = group.interactable = false;
+        group.alpha = 0f;
+
+        var hud = UIManager.Instance;
+        var font = hud != null && hud.objectiveText != null ? hud.objectiveText.font : null;
+        prompt = CandyTag.Text(card, "Action", 15f, new Color32(0xF8, 0xE4, 0xBE, 255),
+            TextAlignmentOptions.Center, true, font);
+        prompt.textWrappingMode = TextWrappingModes.NoWrap;
+
+        progressTrack = ImageAt(card, "Notch track", Track).rectTransform;
+        progressFill = ImageAt(progressTrack, "Notch progress", Gold);
+        progressFill.rectTransform.anchorMin = Vector2.zero;
+        progressFill.rectTransform.anchorMax = Vector2.one;
+        progressFill.rectTransform.offsetMin = progressFill.rectTransform.offsetMax = Vector2.zero;
+
+        timingTrack = ImageAt(card, "Timing track", Track).rectTransform;
+        zone = ImageAt(timingTrack, "Green zone", Green);
+        pointerImage = ImageAt(timingTrack, "Timing marker", Gold);
+        pointer = pointerImage.rectTransform;
+        pointer.anchorMin = pointer.anchorMax = new Vector2(0f, .5f);
+        pointer.sizeDelta = new Vector2(6f, 6f);
+        pointer.localRotation = Quaternion.Euler(0f, 0f, 45f);
+    }
+
+    void ApplyLabel(string text)
+    {
+        if (label == text && prompt.gameObject.activeSelf == !string.IsNullOrEmpty(text)) return;
+        label = text;
+        prompt.text = text ?? string.Empty;
+        prompt.gameObject.SetActive(!string.IsNullOrEmpty(label));
+    }
+
+    void LateUpdate()
+    {
+        if (!wanted && !canvas.enabled) return;
+        Camera cam = Camera.main;
+        Vector3 screen = cam != null ? cam.WorldToScreenPoint(point) : Vector3.zero;
+        Rect safe = Screen.safeArea;
+        bool inView = screen.z > .08f && screen.x >= safe.xMin && screen.x <= safe.xMax &&
+            screen.y >= safe.yMin && screen.y <= safe.yMax;
+        bool show = wanted && inView;
+        float alpha = VibeSettings.ReduceEffects
+            ? (show ? 1f : 0f)
+            : Mathf.MoveTowards(group.alpha, show ? 1f : 0f, Time.unscaledDeltaTime * (show ? 10f : 8f));
+        group.alpha = alpha;
+        canvas.enabled = alpha > .005f;
+        if (!canvas.enabled || !inView) return;
+
+        ApplyLayout();
+        float scale = Mathf.Clamp(Mathf.Min(safe.width / 1280f, safe.height / 720f), .78f, 1.48f);
+        float halfWidth = cardWidth * scale * .5f;
+        float halfHeight = cardHeight * scale * .5f;
+        float side = screen.x > safe.center.x + safe.width * .19f ? -1f : 1f;
+        card.localScale = Vector3.one * scale;
+        card.anchoredPosition = new Vector2(
+            Mathf.Clamp(screen.x + side * 34f * scale, safe.xMin + halfWidth + 8f, safe.xMax - halfWidth - 8f),
+            Mathf.Clamp(screen.y + (31f + cardHeight * .5f) * scale, safe.yMin + halfHeight + 8f, safe.yMax - halfHeight - 8f));
+
+        if (progress >= 0f)
         {
-            float pulseY = Mathf.Max(64f, Screen.height * .26f);
-            Rect b = new Rect(Screen.width * .5f - 106f, pulseY, 212f, 28f);
-            RectColor(b, new Color(.18f, .30f, .18f, .70f));
-            GUI.Label(b, pulse, pulseStyle);
+            progressFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(progress), 1f);
+            float pulse = !VibeSettings.ReduceEffects ? Mathf.Clamp01((pulseUntil - Time.unscaledTime) / .19f) : 0f;
+            progressFill.color = Color.Lerp(Gold, Green, pulse);
         }
-        GUI.depth = oldDepth;
+        if (meter)
+        {
+            pointer.anchoredPosition = new Vector2(marker * timingTrack.rect.width, 0f);
+            Color muted = Color.Lerp(Green, Track, .56f);
+            zone.color = attempted && !precise ? muted : Green;
+            pointerImage.color = precise ? Green : Gold;
+        }
+    }
+
+    void ApplyLayout()
+    {
+        bool withText = !string.IsNullOrEmpty(label);
+        bool withProgress = progress >= 0f;
+        float width = withText ? Mathf.Clamp(prompt.preferredWidth + 28f, 126f, 345f) : 136f;
+        float height = 14f + (withText ? 22f : 0f) + (withProgress ? 8f : 0f) + (meter ? 13f : 0f);
+        if (Mathf.Approximately(width, cardWidth) && Mathf.Approximately(height, cardHeight)) return;
+        cardWidth = width;
+        cardHeight = height;
+        card.sizeDelta = new Vector2(width, height);
+        float y = height * .5f - 7f;
+        if (withText)
+        {
+            Place(prompt.rectTransform, width - 20f, 22f, y - 11f);
+            y -= 22f;
+        }
+        progressTrack.gameObject.SetActive(withProgress);
+        if (withProgress)
+        {
+            Place(progressTrack, width - 24f, 3f, y - 3f);
+            y -= 8f;
+        }
+        timingTrack.gameObject.SetActive(meter);
+        if (meter)
+        {
+            float span = width - 24f;
+            Place(timingTrack, span, 5f, y - 7f);
+            Place(zone.rectTransform, span * 2f * Chop03Balance.GreenHalfWidth, 5f, 0f);
+        }
+    }
+
+    static Image ImageAt(Transform parent, string name, Color tint)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+        go.layer = 5;
+        go.transform.SetParent(parent, false);
+        var image = go.GetComponent<Image>();
+        image.color = tint;
+        image.raycastTarget = false;
+        return image;
+    }
+
+    static void Place(RectTransform rect, float width, float height, float y)
+    {
+        rect.sizeDelta = new Vector2(width, height);
+        rect.anchoredPosition = new Vector2(0f, y);
     }
 
     void OnDestroy()
     {
-        if (pixel != null) Destroy(pixel);
         if (instance == this) instance = null;
     }
 }

@@ -55,7 +55,9 @@ public class UpgradeWindow : MonoBehaviour
     {
         switch (type)
         {
-            case 0: return v.ToString("0.0") + " с";
+            case 0: return ChopPrototypeLog.Enabled
+                ? "×" + Chop03Balance.Power(GameBalance.ChopTime, v, 0f).ToString("0.00")
+                : v.ToString("0.0") + " с";
             case 1: return (GameBalance.PlayerSpeed * v).ToString("0.0") + " м/с";
             case 2: { int n = Mathf.RoundToInt(v); return n + " " + UiDraw.Plural(n, "бревно", "бревна", "бревен"); }
             case 3: return Mathf.RoundToInt(v * 100f) + "%";

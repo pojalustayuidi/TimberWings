@@ -13,6 +13,8 @@ public class InteractionHub : MonoBehaviour
     // true, пока E занята хабом (идёт диалог или рядом доступный объект)
     public static bool OwnsInput { get; private set; }
     public static IInteractable Current { get; private set; }
+    static int consumedFrame = -1;
+    internal static bool ActionConsumedThisFrame => consumedFrame == Time.frameCount;
 
     [Header("Ввод")]
     public KeyCode key = KeyCode.E;
@@ -81,6 +83,7 @@ public class InteractionHub : MonoBehaviour
         // E, которой только что закончили диалог (пропуск последней реплики), второй раз не считаем
         bool lockInput = busy || wasBusy;
         wasBusy = busy;
+        bool action = MobileInput.ActionDown;
 
         // While the actor is at work, E belongs to that site even beside trees or NPCs.
         var workSite = BuildWorkPose.LockedSite;
@@ -93,22 +96,25 @@ public class InteractionHub : MonoBehaviour
         else
         {
             timer -= Time.deltaTime;
-            if (timer <= 0f)
+            if (timer <= 0f || action)
             {
                 timer = pickInterval;
                 Pick();
             }
         }
 
-        if (!lockInput && !StoryInspection.SuppressPlayerAction && Current != null && Current.CanInteract && MobileInput.ActionDown)
+        if (action && lockInput) consumedFrame = Time.frameCount;
+        if (action && !lockInput && !StoryInspection.SuppressPlayerAction && Current != null && Current.CanInteract)
         {
+            consumedFrame = Time.frameCount;
             if (worldTag != null) worldTag.Punch(0.2f);
             Current.Interact();
         }
 
         if (!IsAlive(Current)) Current = null;
         busy |= StoryInspection.Active;
-        OwnsInput = busy || Current != null || DialogueManager.BlocksUntilRelease || StoryInspection.SuppressPlayerAction;
+        OwnsInput = busy || Current != null || ActionConsumedThisFrame ||
+            DialogueManager.BlocksUntilRelease || StoryInspection.SuppressPlayerAction;
         UpdatePrompt(busy);
     }
 
@@ -142,7 +148,8 @@ public class InteractionHub : MonoBehaviour
         // дерево ближе, чем объект: уступаем E рубке. Исключение: NPC и прилавок (Priority), их E не отдаём
         var prio = best as IPriorityInteractable;
         bool keep = prio != null && prio.Priority;
-        if (!OrbitCamera.FirstPersonActive && best != null && !keep && trees != null && trees.CurrentTarget != null)
+        if (!ChopPrototypeLog.Enabled && !OrbitCamera.FirstPersonActive && best != null && !keep &&
+            trees != null && !trees.IsProcessingPrototypeLog && trees.CurrentTarget != null)
         {
             Vector3 td = trees.CurrentTarget.transform.position - me;
             td.y = 0f;

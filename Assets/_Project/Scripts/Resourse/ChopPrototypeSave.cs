@@ -48,6 +48,10 @@ internal sealed class ChopPrototypeSave : ISaveable
             }
         }
 
+        internal bool SectionFree(int section) => section >= 0 && section < wood.Length &&
+            (section == 0 || cuts[section - 1] >= 1f) &&
+            (section == cuts.Length || cuts[section] >= 1f);
+
         internal static Tree Create(string id, Layout layout, int cutCount, int wood, int xp)
         {
             var tree = new Tree
@@ -61,16 +65,16 @@ internal sealed class ChopPrototypeSave : ISaveable
             return tree;
         }
 
-        internal bool AdvanceCut(int cut, float strength)
+        internal bool AdvanceCut(int cut, float damage)
         {
-            if (cut < 0 || cut >= cuts.Length || cuts[cut] >= 1f || !(strength > 0f)) return false;
-            cuts[cut] = Math.Min(1f, cuts[cut] + strength / 2f);
+            if (cut < 0 || cut >= cuts.Length || cuts[cut] >= 1f || !(damage > 0f)) return false;
+            cuts[cut] = Chop03Balance.Advance(cuts[cut], damage);
             return true;
         }
 
         internal int TakeWood(int section, int received)
         {
-            if (!AllCutsOpen || section < 0 || section >= wood.Length || received <= 0 || received > wood[section])
+            if (!SectionFree(section) || received <= 0 || received > wood[section])
                 return 0;
             wood[section] -= received;
             int award = xp;
@@ -93,10 +97,28 @@ internal sealed class ChopPrototypeSave : ISaveable
     }
 
     [Serializable]
-    sealed class Data { public List<Tree> trees = new List<Tree>(); }
+    internal sealed class Standing
+    {
+        public string id;
+        public Vector3 localPoint, localOutward;
+        public float radius, damage;
+
+        internal bool Valid() => !string.IsNullOrEmpty(id) && damage > 0f && damage < 1f &&
+            radius > .02f && radius <= 3f && localPoint.sqrMagnitude < 400f &&
+            localOutward.sqrMagnitude > .90f && localOutward.sqrMagnitude < 1.10f &&
+            Mathf.Abs(localOutward.y) < .01f;
+    }
+
+    [Serializable]
+    sealed class Data
+    {
+        public List<Tree> trees = new List<Tree>();
+        public List<Standing> standing = new List<Standing>();
+    }
 
     static ChopPrototypeSave instance;
     readonly Dictionary<string, Tree> trees = new Dictionary<string, Tree>();
+    readonly Dictionary<string, Standing> standing = new Dictionary<string, Standing>();
     readonly HashSet<ResourceItem> sources = new HashSet<ResourceItem>();
 
     public string SaveKey => Key;
@@ -137,8 +159,7 @@ internal sealed class ChopPrototypeSave : ISaveable
     {
         Boot();
         if (!instance.sources.Add(item)) return;
-        if (instance.trees.TryGetValue(item.ChopSaveId, out var tree))
-            item.RestoreChopState(tree);
+        instance.RestoreSource(item);
     }
 
     internal static void Detach(ResourceItem item) { instance?.sources.Remove(item); }
@@ -147,7 +168,21 @@ internal sealed class ChopPrototypeSave : ISaveable
     {
         Boot();
         instance.trees.Add(tree.id, tree);
+        instance.standing.Remove(tree.id);
         SaveSystem.RequestSave(Key);
+    }
+
+    internal static void RecordStanding(Standing damage)
+    {
+        Boot();
+        instance.standing[damage.id] = damage;
+        SaveSystem.RequestSave(Key);
+    }
+
+    internal static void RemoveStanding(string id)
+    {
+        if (instance != null && !string.IsNullOrEmpty(id) && instance.standing.Remove(id))
+            SaveSystem.RequestSave(Key);
     }
 
     internal static void Finish(Tree tree)
@@ -158,21 +193,30 @@ internal sealed class ChopPrototypeSave : ISaveable
         SaveSystem.RequestSave(Key);
     }
 
-    public string Save() => JsonUtility.ToJson(new Data { trees = new List<Tree>(trees.Values) });
+    public string Save() => JsonUtility.ToJson(new Data
+    {
+        trees = new List<Tree>(trees.Values),
+        standing = new List<Standing>(standing.Values)
+    });
 
     public void Load(string json, int formatVersion)
     {
         var data = string.IsNullOrEmpty(json) ? null : JsonUtility.FromJson<Data>(json);
         trees.Clear();
+        standing.Clear();
         if (data?.trees != null)
             foreach (var tree in data.trees)
                 if (tree != null && tree.Valid()) trees[tree.id] = tree;
+        if (data?.standing != null)
+            foreach (var notch in data.standing)
+                if (notch != null && notch.Valid() && !trees.ContainsKey(notch.id)) standing[notch.id] = notch;
         RestoreSources();
     }
 
     public void ResetToDefault()
     {
         trees.Clear();
+        standing.Clear();
         RestoreSources();
     }
 
@@ -180,9 +224,15 @@ internal sealed class ChopPrototypeSave : ISaveable
     {
         foreach (var source in new List<ResourceItem>(sources))
         {
-            if (source == null) continue;
-            trees.TryGetValue(source.ChopSaveId, out var tree);
-            source.RestoreChopState(tree);
+            if (source != null) RestoreSource(source);
         }
+    }
+
+    void RestoreSource(ResourceItem source)
+    {
+        trees.TryGetValue(source.ChopSaveId, out var tree);
+        source.RestoreChopState(tree);
+        standing.TryGetValue(source.ChopSaveId, out var notch);
+        source.RestoreStandingNotch(notch);
     }
 }

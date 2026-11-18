@@ -35,7 +35,8 @@ public class TreeGrowthVisual : MonoBehaviour
     float prototypeTilt;
 
     WindAgent wind;
-    readonly List<Renderer> rends = new List<Renderer>(4);
+    readonly List<(MeshFilter source, MeshFilter copy, MeshRenderer from, MeshRenderer to)> copies =
+        new List<(MeshFilter, MeshFilter, MeshRenderer, MeshRenderer)>(4);
 
     // ------------------------------------------------------------ создание
     public static TreeGrowthVisual GetOrCreate(ResourceItem item)
@@ -57,7 +58,8 @@ public class TreeGrowthVisual : MonoBehaviour
     }
 
     // LOD1 и LOD2 (деревья-виды с LODGroup) не копируем: у двойника нет LODGroup, иначе он рисовал бы все три уровня сразу
-    static bool Skip(string n) { return n == "Outline" || n == "Hull" || n == "HighlightRing" || n == "ResHint_Tag" || n == "LOD1" || n == "LOD2"; }
+    static bool Skip(string n) { return n == "Outline" || n == "Hull" || n == "HighlightRing" || n == "ResHint_Tag" ||
+        n == "LOD1" || n == "LOD2" || n == "Chop notch inset"; }
 
     // копия видимых мешей дерева: трансформ относительно корня дерева, те же mesh и sharedMaterials (листва уже подкрашена)
     void BuildCopy()
@@ -81,19 +83,37 @@ public class TreeGrowthVisual : MonoBehaviour
             ct.localRotation = rel.rotation;
             ct.localScale = rel.lossyScale;
 
-            c.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+            var copy = c.AddComponent<MeshFilter>();
+            copy.sharedMesh = mf.sharedMesh;
             var cr = c.AddComponent<MeshRenderer>();
             cr.sharedMaterials = r.sharedMaterials;
             cr.shadowCastingMode = r.shadowCastingMode;
             cr.receiveShadows = r.receiveShadows;
-            rends.Add(cr);
+            copies.Add((mf, copy, r, cr));
         }
+    }
+
+    void RefreshCopy()
+    {
+        foreach (var pair in copies)
+        {
+            if (pair.source == null || pair.copy.sharedMesh == pair.source.sharedMesh) continue;
+            pair.copy.sharedMesh = pair.source.sharedMesh;
+            pair.to.sharedMaterials = pair.from.sharedMaterials;
+        }
+    }
+
+    void RestoreBarkAfterFall()
+    {
+        if (item != null) item.ReleaseFallenNotch();
+        RefreshCopy();
     }
 
     // ------------------------------------------------------------ управление (зовёт ResourceItem / TreeRespawn)
     // падение: дерево заваливается от камеры, последняя треть времени: проседает в пень
     public void BeginFall(ChopPrototypeLog fallenTrunk = null)
     {
+        RefreshCopy();
         item.GetRestPose(out restPos, out restRot, out restScale);
         Transform tree = item.transform;
         fallStartRot = tree.localRotation;     // продолжаем с текущей позы (с учётом ветра): без скачка
@@ -138,6 +158,7 @@ public class TreeGrowthVisual : MonoBehaviour
     // дерево выросло или загрузили сохранение: двойник больше не нужен
     public void Finish()
     {
+        RestoreBarkAfterFall();
         phase = Phase.Idle;
         trunk = null;
         stumpBlend = 1f;
@@ -239,6 +260,7 @@ public class TreeGrowthVisual : MonoBehaviour
 
     void EnterGrow()
     {
+        RestoreBarkAfterFall();
         phase = Phase.Grow;
         growT = 0f;
         transform.localRotation = restRot;
@@ -297,7 +319,7 @@ public class TreeGrowthVisual : MonoBehaviour
             phase = a.phase,
             angle = a.angle,
             speed = a.speed,
-            rend = rends.Count > 0 ? rends[0] : null
+            rend = copies.Count > 0 ? copies[0].to : null
         };
         WindManager.Add(wind);
     }
