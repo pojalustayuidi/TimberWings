@@ -1,56 +1,4 @@
-// Assets/_Project/Scripts/UI/Pets/PetCollectionWindow.cs (НЕ в Editor)
-// Окно «Питомцы»: вся коллекция игрока, слоты экипировки и суммарные бонусы. Стиль UiKit, как у PetCrateWindow и WorkersWindow.
-// Всё строится из кода, в сцене ничего настраивать не нужно: окно и кнопка в HUD создаются сами после загрузки сцены.
-//   PetCollectionWindow.Open() / Close() / Toggle() / IsOpen   управление из кода
-//   Открыть игроку:  кнопка с лапкой справа снизу в HUD  или клавиша P.  Закрыть: P, E, Esc или крестик.
-//
-// Что показывает:
-//   Слоты       до 3 штук (сколько открыто, решает уровень: GameBalance.PetSlotLevels). Закрытый слот подписан уровнем.
-//               Нажал на занятый слот: питомец выбран. Нажал на пустой открытый слот: в него встаёт выбранный питомец.
-//   Бонусы      суммарный бонус всех питомцев в слотах по характеристикам (PetManager.Bonus), без нулевых.
-//   Коллекция   все питомцы игрока карточками (PetCardView), по редкости от Легендарных к Обычным, внутри по имени.
-//               Прокрутка, зелёная галочка на тех, кто сейчас в слоте, рамка на выбранном. Дубликаты показаны отдельными карточками.
-//   Выбранный   крупная карточка, имя, редкость, что усиливает и на сколько, кнопки «Взять с собой» / «Снять» и «Отпустить»
-//               («Отпустить» с подтверждением вторым нажатием: питомец удаляется навсегда).
-// Окно только читает PetManager (Owned, GetEquipped, Equip, Unequip, Release, Bonus) и слушает PetManager.Changed,
-// поэтому всё обновляется само: открыли клеть, сменился уровень, поменяли слоты из другого места.
-// Выбранный питомец показан живой вращающейся 3D-моделью (PetLiveView) в стадии роста PetManager.GrowthStage. Остальные карточки: 3D-снимок,
-// иначе иконка PetData.icon, иначе лапка на цветной плашке (см. PetCardView).
-//
-// Дополнительно (задача «UI питомцев»):
-//   Дельта      у выбранного питомца: «Скорость рубки +3% -> +5%» (относительно того, кого он заменит или если снять) и живое значение
-//               «Рубка: 3.00 с -> 2.85 с» через PlayerUpgrades.Calc и PetBonus.Rebase. Кнопка «Заменить» ставит питомца на место вытесняемого.
-//   Сортировка  по редкости / характеристике / имени / новым и фильтр по характеристике (PetStat). Бейдж NEW гаснет, когда питомца выбрали.
-//   Подобрать   «Подобрать лучших»: PetManager.AutoEquipBest ставит набор с максимальным суммарным эффектом с учётом PetBonusCap.
-//   Слияние     GameBalance.PetMergeCount одинаковых -> одна с +1 звездой (PetManager.Merge). Дубликаты предлагают слияние раньше «Отпустить».
-//   Книга       вкладка со всеми видами из PetDatabase: неоткрытые тёмными силуэтами, прогресс «12/30», бонус за полную редкость.
-//   Карточки    пул (PoolRows × Cols штук): рисуются только видимые, при 100+ питомцах окно не тормозит.
-//
-// Кнопка в HUD появляется, когда питомцы уже «открыты» сюжетом (первая клеть открыта или питомцы уже есть), и прячется
-// на время диалогов, окон, большой карты и заставок. Красная «!» на кнопке: есть питомец вне слота и свободный слот.
-// Пока окно открыто, MobileInput.ModalOpen = true: персонаж стоит, рубка и E «сквозь» окно не работают.
-// Для теста: в PetDebugPanel (F10) кнопка «Окно коллекции» открывает окно, даже если питомцы ещё не открыты сюжетом.
-//
-// Доработка «Удобство и анимации»:
-//   Слоты       крестик «снять» на занятом слоте, ПКМ по слоту снимает, ПКМ по карточке берёт/снимает, подсказки у каждого слота.
-//               Цифра 1-4 или клик по пустому слоту при выбранном питомце, который уже в команде: переносит его (или меняет местами). Ctrl+Z отменяет.
-//   Сообщения   зелёные (получилось), жёлтые (нельзя), белые (подсказка); всплывают с «пружинкой».
-//   Анимации    карточки появляются волной при открытии, смене вкладки и фильтра; плавная рамка выбора; переход описания при смене питомца;
-//               вспышка панели бонусов при их изменении; полоса таймера на «Отпустить»; индикатор прокрутки в коллекции.
-//   Понятность  подсказка при наведении на каждую кнопку, «Показано N из M» при фильтре, кнопка «Сбросить фильтры» в пустом списке,
-//               предупреждение при отпуске редкого или питомца в команде, число новых питомцев на кнопке в HUD.
-//   Ошибки      выбор больше не сбрасывается при смене вкладки; после «Отпустить» и «Слить» выбирается соседний питомец и список прокручивается к нему;
-//               подсказка внизу не вылезает за окно; PetHover больше не оставляет «залипшую» подсказку.
-//
-// Доработка «Наборы и живой питомец»:
-//   Наборы      пресеты переехали из нижней части левой колонки (карточки 112x112, портреты по 23 px) в отдельную колонку «Наборы» справа:
-//               три карточки 168x216, портреты 58 px по схеме слотов 2x2, два главных бонуса крупно, кнопки 49x28. Окно стало шире (1600).
-//               Освободившееся место в левой колонке отдано слотам (выше) и бонусам (строки 24 px вместо 20 px). Рядом с «Подобрать» появилась кнопка «Отмена».
-//   Интерактив  питомца справа можно погладить: клик (или тап) по нему: подпрыгивает, летят сердечки, реплика, растёт «привязанность»
-//               (Присматривается, Доверяет, Любит тебя, Лучший друг). Перетаскивание мышью вращает модель. Счётчик живёт до перезапуска сцены.
-//   Анимации    слоты и наборы появляются волной при открытии, у надетого набора пульсирует рамка, при сохранении или надевании набора портреты
-//               «подпрыгивают», у пустого набора мигает плюс, лапка в пустом слоте покачивается, полоски бонусов плавно доезжают,
-//               кнопка «Взять с собой» дышит, пока есть свободный слот, карточка питомца «приседает» при поглаживании.
+// Pet collection: team, owned pets and a live preview. Secondary tools open in separate popups.
 using System.Collections.Generic;
 using System.Globalization;
 using TMPro;
@@ -109,43 +57,29 @@ public partial class PetCollectionWindow : MonoBehaviour
     public static void Close() { if (instance != null) instance.DoClose(); }
     public static void Toggle() { if (IsOpen) Close(); else Open(); }
 
-    // ============================================================ размеры (единицы Canvas 1920x1080)
-    const float WinW = 1600f, WinH = 900f, BS = 1.5f;             // шире прежних 1400: справа новая колонка «Наборы»
-    const float InW = WinW - 78f;                                  // внутренняя область 1522 x 807
-    const float InH = WinH - 39f - 54f;
-    const float TopH = 64f;                                        // верхняя полоса: вкладки, сортировка, «Подобрать»
-
-    // левая колонка «Команда»: слоты 2x2, бонусы, пресеты (координаты внутри панели)
-    const float TeamX = 20f, TeamY = TopH + 6f, TeamW = 372f, TeamH = InH - TeamY - 16f;
-    const float SlotW = 170f, SlotH = 184f, SlotGapX = 12f, SlotGapY = 10f, SlotY = 46f;      // слоты выше прежних 164: место освободили наборы
-    const float BonusY = SlotY + 2f * SlotH + SlotGapY + 8f, BonusH = TeamH - BonusY - 12f;    // панель бонусов занимает всё остальное
-    const float BonusRowY = 44f, BonusPitch = 32f;                                              // строки бонусов: шрифт 24 вместо 20
+    // Layout is authored at 1920x1080, then fitted to the canvas safe area.
+    const float WinW = 1600f, WinH = 900f;
+    const float ContentX = 40f, ContentY = 104f;
+    const float InW = WinW - 2f * ContentX, InH = WinH - ContentY - 58f;
+    const float TopH = 58f;
+    const float TeamX = 0f, TeamY = 0f, TeamW = 300f, TeamH = InH;
+    const float SlotW = 132f, SlotH = 150f, SlotGapX = 12f, SlotGapY = 12f, SlotY = 64f;
+    const float BonusY = 418f, BonusH = TeamH - BonusY - 80f;
+    const float BonusRowY = 46f, BonusPitch = 26f;
     const int BonusRows = 7;
-
-    // середина: фильтр по редкости и коллекция
-    const float ChipY = TopH + 6f, ChipH = 40f;
-    const float GridX = 404f, GridY = ChipY + ChipH + 8f, GridW = 520f, GridH = InH - GridY - 16f;
-    const float CardW = 152f, CardH = 180f, PitchX = 168f, PitchY = 196f;
-    const int Cols = 3;
-    const int PoolRows = 5;                                        // видимых строк не больше 4: пять с запасом
-    const int PoolSize = Cols * PoolRows;
+    const float GridX = 324f, GridY = 72f, GridW = 724f, GridH = InH - GridY;
+    const float CardW = 208f, CardH = 236f, PitchX = 232f, PitchY = 260f;
+    const int Cols = 3, PoolRows = 5, PoolSize = Cols * PoolRows;
     const float CellLeft = (GridW - 16f - (Cols * PitchX - 16f)) * 0.5f;
-    const string Arrow = " -> ";
-
-    // справа: выбранный питомец
-    const float DetX = GridX + GridW + 12f, DetY = TeamY, DetW = 366f, DetH = TeamH;
-
-    // колонка «Наборы» справа от описания питомца
-    const float PrX = DetX + DetW + 12f, PrY = TeamY, PrW = InW - PrX - 20f, PrH = TeamH;
-
+    const string Arrow = " → ";
+    const float DetX = 1072f, DetY = 0f, DetW = InW - DetX, DetH = TeamH;
     const float HudBtn = UpgradeWindow.HudBtnH;      // кнопка в HUD: той же высоты, что «Прокачка», стоит левее неё
     const float ArmTime = 3f;                        // сколько живёт подтверждение «Отпустить»
 
     // ============================================================ цвета
-    static readonly Color Soft = PetUi.Soft;
-    static readonly Color Dim = PetUi.Dim;
-    static readonly Color WoodText = new Color32(0x2A, 0x16, 0x08, 255);
-    static readonly Color OffText = new Color(0.86f, 0.88f, 0.92f, 1f);
+    static readonly Color Soft = TWPetCollectionSkin.Muted;
+    static readonly Color Dim = TWPetCollectionSkin.Muted;
+    static readonly Color OffText = new Color(0.52f, 0.49f, 0.63f, 1f);
     static readonly Color Clear = PetUi.Clear;
     static readonly Color DotColor = new Color32(0xE8, 0x4B, 0x3C, 255);
 
@@ -303,6 +237,7 @@ public partial class PetCollectionWindow : MonoBehaviour
         if (!built) return;
         open = true;
         openFrame = Time.frameCount;                                // клавиша, которой открыли окно, его же не закроет
+        SetPopup(Popup.None);
         armedUntil = 0f;
         toastUntil = 0f;
         hoverPc = null;
@@ -320,6 +255,7 @@ public partial class PetCollectionWindow : MonoBehaviour
     void DoClose()
     {
         if (!open) return;
+        SetPopup(Popup.None);
         open = false;
         closeFrame = Time.frameCount;
         SaveSystem.RequestSave("pets");   // окно закрыли: питомцы и слоты уходят в файл
@@ -374,8 +310,9 @@ public partial class PetCollectionWindow : MonoBehaviour
         if (overlay.gameObject.activeSelf != show) overlay.gameObject.SetActive(show);
         if (!show) return;
 
+        FitWindow();
         overlay.alpha = openK;
-        panel.localScale = Vector3.one * Mathf.Lerp(0.94f, 1f, UiDraw.EaseOutCubic(openK));
+        panel.localScale = Vector3.one * (fitScale * Mathf.Lerp(0.96f, 1f, UiDraw.EaseOutCubic(openK)));
         if (!open) return;
 
         if (dirty) Populate();
@@ -394,7 +331,7 @@ public partial class PetCollectionWindow : MonoBehaviour
         string hint;
         if (toastOn)
         {
-            Color tc = toastKind == ToastKind.Good ? UiKit.Good : (toastKind == ToastKind.Info ? Color.white : UiKit.Warn);
+            Color tc = toastKind == ToastKind.Good ? TWPetCollectionSkin.Good : (toastKind == ToastKind.Info ? TWPetCollectionSkin.Ink : TWPetCollectionSkin.Warning);
             hint = "<color=#" + PetUi.Hex(tc) + ">" + toastText + "</color>";
         }
         else hint = HoverInfo() ?? (PetHover.Tip ?? DefaultHint);
@@ -416,9 +353,11 @@ public partial class PetCollectionWindow : MonoBehaviour
         if (Time.frameCount == openFrame) return;
         if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P) || Input.GetKeyDown(MobileInput.ActionKey))
         {
-            DoClose();
+            if (popup != Popup.None && Input.GetKeyDown(KeyCode.Escape)) SetPopup(Popup.None);
+            else DoClose();
             return;
         }
+        if (popup != Popup.None) return;
         if (Input.GetKeyDown(KeyCode.Tab)) { SetTab(tab == Tab.Collection ? Tab.Book : Tab.Collection); return; }
         if (tab != Tab.Collection) return;
 
@@ -486,15 +425,15 @@ public partial class PetCollectionWindow : MonoBehaviour
         var e = items[hoverPc.index];
         if (e.data == null) return null;
         if (e.locked) return "<b>???</b>  ·  " + PetText.Rarity(e.data.rarity) + "  ·  ещё не найден: открывай клети";
-        return "<b>" + PetUi.NameOf(e.data) + "</b>  ·  " + PetText.Rarity(e.data.rarity) + "  ·  " + PetUi.StatLine(e.data, e.inst != null ? e.inst.stars : 0);
+        return "<b>" + PetUi.NameOf(e.data) + "</b>  ·  " + PetText.Rarity(e.data.rarity) + "  ·  " + PetText.Stat(e.data.stat) + " " + PetUi.BonusText(e.data, e.inst != null ? e.inst.stars : 0);
     }
 
     static string DefaultHint
     {
         get
         {
-            return Application.isMobilePlatform ? "Нажми на питомца, чтобы выбрать  ·  двойное нажатие: взять или снять"
-                : "Стрелки: выбор  ·  Enter, двойной клик или ПКМ: взять/снять  ·  1-4: в слот  ·  U: снять всех  ·  Ctrl+Z: отмена  ·  Tab: Книга  ·  Esc: закрыть";
+            return Application.isMobilePlatform ? "Выбери питомца и нажми «Взять с собой»"
+                : "Клик — выбрать   ·   Enter — взять или снять   ·   Esc — назад";
         }
     }
 
@@ -510,6 +449,7 @@ public class PetHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     public System.Action<bool> cb;
     static string cur;
     public static string Tip { get { return cur; } }
+    public static void ClearTip() { cur = null; }
 
     bool over;
     float k;

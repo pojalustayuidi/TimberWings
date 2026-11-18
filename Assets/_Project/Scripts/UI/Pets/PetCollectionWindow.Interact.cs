@@ -95,7 +95,7 @@ public partial class PetCollectionWindow
         PetLiveView live = detCard.Live;
         if (live != null) live.Hop();
 
-        Vector2 c = InnerToFx(DetX + DetW * 0.5f, DetY + 10f + 110f);
+        Vector2 c = InnerToFx(DetX + DetW * 0.5f, DetY + 249f);
         hearts.Burst(c, patCombo >= 5 ? 7 : 3, 60f, patCombo >= 5 ? 38f : 30f);
         SfxManager.Play("ui", 0.35f, Mathf.Min(1.9f, 1.2f + 0.07f * patCombo));  // с серией звук становится выше
         ShowBubble(patCombo >= 5 ? "Мурррр!" : PatPhrases[Random.Range(0, PatPhrases.Length)]);
@@ -109,8 +109,8 @@ public partial class PetCollectionWindow
         {
             if (fx != null)
             {
-                fx.Burst(c, UiKit.BrassHi, 22, 340f, 26f, 280f, 0.9f);
-                fx.FloatText(c + new Vector2(0f, 90f), PetTiers[t1], UiKit.BrassHi, 36f);
+                fx.Burst(c, TWPetCollectionSkin.Accent, 22, 340f, 26f, 280f, 0.9f);
+                fx.FloatText(c + new Vector2(0f, 90f), PetTiers[t1], TWPetCollectionSkin.Accent, 36f);
             }
             hearts.Burst(c, 10, 90f, 40f);
             SfxManager.Play("coin", 0.7f, 1.3f);
@@ -154,7 +154,7 @@ public partial class PetCollectionWindow
                 float inK = UiDraw.EaseOutBack(Mathf.Clamp01(bubbleT / 0.2f));
                 float a = Mathf.Clamp01((Life - bubbleT) / 0.3f);
                 petBubble.rectTransform.localScale = Vector3.one * Mathf.LerpUnclamped(0.5f, 1f, inK);
-                petBubble.rectTransform.anchoredPosition = new Vector2(0f, -34f + 2f * Mathf.Sin(bubbleT * 6f));
+                petBubble.rectTransform.anchoredPosition = new Vector2(74f, -155f + 2f * Mathf.Sin(bubbleT * 6f));
                 petBubble.color = new Color(1f, 1f, 1f, a);
                 petBubbleText.alpha = a;
             }
@@ -168,14 +168,10 @@ public partial class PetCollectionWindow
     }
 
     // фон и живые эффекты: цвет сцены по редкости, дыхание свечения, лучи легендарных, подсветка под курсором, пульс пустых слотов
-    Image gridBase, gridGlow, detGlow, detRays, equipIco;
     AchSparks fx;
     readonly int[] lastUid = { -2, -2, -2, -2 };
     int lastClickIdx = -1;
     float lastClickT;
-    AchMotes gridMotes;
-    Color tintCur = new Color(1f, 0.84f, 0.42f, 1f), detTintCur = new Color(1f, 0.84f, 0.42f, 1f);
-    float raysAng;
     int rarFilter = -1;
     readonly Image[] rarImg = new Image[5];
     readonly Button[] rarBtn = new Button[5];
@@ -183,35 +179,6 @@ public partial class PetCollectionWindow
     void AnimateFx(float dt)
     {
         float tm = Time.unscaledTime;
-        var si = tab == Tab.Collection ? FindInstance(selectedUid) : null;
-        Color target = rarFilter >= 0 ? PetUi.RarityAccent((PetRarity)rarFilter) : (si != null ? PetUi.RarityAccent(si.data.rarity) : UiKit.Brass);
-        tintCur = Color.Lerp(tintCur, target, 1f - Mathf.Exp(-8f * dt));
-        float breathe = 0.5f + 0.5f * Mathf.Sin(tm * 0.8f);
-        if (gridBase != null) gridBase.color = Color.Lerp(UiKit.Ink, tintCur, 0.16f);
-        if (gridGlow != null)
-        {
-            gridGlow.color = new Color(tintCur.r, tintCur.g, tintCur.b, 0.14f + 0.07f * breathe);
-            gridGlow.rectTransform.localScale = Vector3.one * (1f + 0.04f * breathe);
-        }
-        if (gridMotes != null) gridMotes.SetColor(tintCur);
-
-        // свечение и лучи за большой карточкой выбранного
-        Color dt2 = si != null ? PetUi.RarityAccent(si.data.rarity) : UiKit.Brass;
-        detTintCur = Color.Lerp(detTintCur, dt2, 1f - Mathf.Exp(-10f * dt));
-        if (detGlow != null)
-        {
-            detGlow.gameObject.SetActive(si != null);
-            detGlow.color = new Color(detTintCur.r, detTintCur.g, detTintCur.b, 0.30f + 0.16f * Mathf.Sin(tm * 2.2f));
-        }
-        if (detRays != null)
-        {
-            bool legend = si != null && si.data.rarity == PetRarity.Legendary;
-            detRays.gameObject.SetActive(legend);
-            raysAng += dt * 16f;
-            detRays.rectTransform.localEulerAngles = new Vector3(0f, 0f, -raysAng);
-            detRays.color = new Color(detTintCur.r, detTintCur.g, detTintCur.b, 0.38f);
-        }
-
         if (hoverFrame != null)
         {
             bool on = hoverPc != null && hoverPc.index >= 0 && hoverPc.view.rt.gameObject.activeSelf && tab == Tab.Collection;
@@ -224,7 +191,7 @@ public partial class PetCollectionWindow
                 float cy = 8f + (idx / Cols) * PitchY;
                 hoverFrame.rectTransform.anchoredPosition = new Vector2(x + CardW * 0.5f, -(cy + CardH * 0.5f));
             }
-            var hc = UiKit.Brass; hc.a = 0.55f * UiDraw.EaseOutCubic(hoverK);
+            var hc = TWPetCollectionSkin.Selection; hc.a = 0.55f * UiDraw.EaseOutCubic(hoverK);
             hoverFrame.color = hc;
         }
 
@@ -232,7 +199,7 @@ public partial class PetCollectionWindow
         if (selFrame != null && selFrame.gameObject.activeSelf)
         {
             selFrame.rectTransform.anchoredPosition = Vector2.Lerp(selFrame.rectTransform.anchoredPosition, selTarget, 1f - Mathf.Exp(-18f * dt));
-            selFrame.color = Color.Lerp(UiKit.Brass, UiKit.BrassHi, 0.5f + 0.5f * Mathf.Sin(tm * 3f));
+            selFrame.color = TWPetCollectionSkin.Selection;
         }
 
         // описание выбранного: короткий «выезд» при смене питомца
@@ -245,7 +212,7 @@ public partial class PetCollectionWindow
         if (bonusPanel != null)
         {
             bonusFlash = Mathf.MoveTowards(bonusFlash, 0f, dt / 0.6f);
-            bonusPanel.color = Color.Lerp(Color.white, UiKit.Good, 0.6f * bonusFlash);
+            bonusPanel.color = Color.Lerp(Color.white, new Color(0.76f, 0.96f, 0.85f), 0.6f * bonusFlash);
         }
 
         var pm = PetManager.Instance;
@@ -254,9 +221,9 @@ public partial class PetCollectionWindow
         for (int i = 0; i < slots.Length; i++)
         {
             var sl = slots[i];
-            if (sl == null) continue;
+            if (sl == null || !sl.bg.gameObject.activeSelf) continue;
             Color c = sl.baseCol;
-            if (canPlace && pm.IsSlotOpen(i) && pm.GetEquipped(i) == null) c = Color.Lerp(Color.white, UiKit.Good, 0.25f + 0.35f * pulse);
+            if (canPlace && pm.IsSlotOpen(i) && pm.GetEquipped(i) == null) c = Color.Lerp(Color.white, new Color(0.70f, 0.93f, 0.82f), 0.35f + 0.25f * pulse);
             sl.bg.color = Color.Lerp(sl.bg.color, c, Mathf.Clamp01(dt * 14f));
             if (slotIn[i] < 1f) slotIn[i] = Mathf.Min(1f, slotIn[i] + dt);
             float inS = Mathf.LerpUnclamped(0.55f, 1f, UiDraw.EaseOutBack(Mathf.Clamp01(slotIn[i] / 0.32f)));   // выезд при открытии
@@ -314,7 +281,7 @@ public partial class PetCollectionWindow
     }
 
     // координаты внутри внутренней панели (от её левого верхнего угла) -> координаты искр (от центра окна)
-    static Vector2 InnerToFx(float x, float y) { return new Vector2(39f + x - WinW * 0.5f, WinH * 0.5f - (54f + y)); }
+    static Vector2 InnerToFx(float x, float y) { return new Vector2(ContentX + x - WinW * 0.5f, WinH * 0.5f - (ContentY + y)); }
 
     void OnRarClick(int j)
     {
@@ -340,334 +307,176 @@ public partial class PetCollectionWindow
         Populate();
     }
 
-    // коллекция: вкладки, сортировка, фильтр, окно прокрутки с пулом карточек (карточки привязывает LayoutCells)
-    void BuildGrid(Transform p)
+    void BuildGrid(Transform parent)
     {
-        // верхняя полоса
-        var colBtn = MakeBtn(p, "Коллекция", UiBtn.Green, 20f, 8f, 210f, 48f, 22f, () => SetTab(Tab.Collection), out tabColLabel);
-        tabColImg = colBtn.GetComponent<Image>();
-        var bookBtn = MakeBtn(p, "Книга", UiBtn.Green, 238f, 8f, 210f, 48f, 22f, () => SetTab(Tab.Book), out tabBookLabel);
-        tabBookImg = bookBtn.GetComponent<Image>();
-        sortBtn = MakeBtn(p, "Сорт.", UiBtn.Amber, 456f, 8f, 230f, 48f, 20f, OnSortClick, out sortLabel);
-        filterBtn = MakeBtn(p, "Фильтр", UiBtn.Amber, 694f, 8f, 230f, 48f, 20f, OnFilterClick, out filterLabel);
-        autoBtn = MakeBtn(p, "Подобрать лучших", UiBtn.Yellow, DetX, 8f, 290f, 48f, 22f, OnAutoClick, out autoLabel);
-        BtnIco(colBtn, UiKit.Icon(UiIcon.Paw), 30f, 18f);
-        BtnIco(bookBtn, UiKit.Icon(UiIcon.Book), 30f, 18f);
-        BtnIco(sortBtn, PetIcons.Get(PetIco.Sort), 28f, 16f);
-        BtnIco(filterBtn, PetIcons.Get(PetIco.Filter), 28f, 16f);
-        BtnIco(autoBtn, PetIcons.Get(PetIco.Wand), 34f, 16f);
-        Tip(colBtn, "Твои питомцы: выбирай, бери с собой, сливай дубликаты (Tab)");
-        Tip(bookBtn, "Книга: все виды питомцев и награда за полный набор редкости (Tab)");
-        Tip(sortBtn, "Порядок карточек: клик переключает (редкость, характеристика, имя, новые)");
-        Tip(filterBtn, "Показать только питомцев одной характеристики: клик переключает");
-        Tip(autoBtn, "Сам подберёт команду с наибольшим суммарным бонусом. Ctrl+Z вернёт прежний состав");
+        var col = MakeBtn(parent, "Коллекция", UiBtn.Gray, GridX, 6f, 210f, 50f, 23f, () => SetTab(Tab.Collection), out tabColLabel);
+        var book = MakeBtn(parent, "Книга", UiBtn.Gray, GridX + 222f, 6f, 210f, 50f, 23f, () => SetTab(Tab.Book), out tabBookLabel);
+        tabColImg = col.GetComponent<Image>();
+        tabBookImg = book.GetComponent<Image>();
+        filtersToggle = MakeBtn(parent, "Фильтры", UiBtn.Gray, GridX + 444f, 6f, 140f, 50f, 20f,
+            () => SetPopup(popup == Popup.Filters ? Popup.None : Popup.Filters), out filtersCaption);
+        TMP_Text presetLabel;
+        presetsToggle = MakeBtn(parent, "Наборы", UiBtn.Gray, GridX + 596f, 6f, 128f, 50f, 20f,
+            () => SetPopup(Popup.Presets), out presetLabel);
+        Tip(book, "Все виды питомцев, открытия и награды за коллекцию");
+        Tip(presetsToggle, "Сохранить команду или выбрать сохранённый набор");
 
-        // «Отмена»: то же, что Ctrl+Z, но видно глазами (над колонкой «Наборы»)
-        undoBtn = MakeBtn(p, "Отмена", UiBtn.Gray, PrX, 8f, PrW, 48f, 22f, OnUndoClick, out undoLabel);
-        BtnIco(undoBtn, PetIcons.Get(PetIco.Swap), 26f, 12f);
-        Tip(undoBtn, "Вернуть прежний состав команды (Ctrl+Z). Повторное нажатие вернёт обратно");
-
-        // фильтр по редкости (над коллекцией)
-        string[] rn = { "Все", "Обычн.", "Необыч.", "Редкие", "Легенд." };
-        for (int j = 0; j < 5; j++)
-        {
-            int jj = j;
-            TMP_Text rl;
-            var cb = MakeBtn(p, rn[j], UiBtn.Amber, GridX + j * 104f, ChipY, 100f, ChipH, 17f, () => OnRarClick(jj), out rl);
-            rarBtn[j] = cb;
-            rarImg[j] = cb.GetComponent<Image>();
-            var gem = UiKit.MakeIcon(cb.transform, j == 0 ? UiIcon.Paw : UiIcon.Gem, 20f, "G");
-            gem.color = j == 0 ? Color.white : PetUi.RarityAccent((PetRarity)(j - 1));
-            gem.raycastTarget = false;
-            Anch(gem.rectTransform, new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(15f, 0f), new Vector2(20f, 20f));
-            if (rl != null)
-            {
-                rl.rectTransform.offsetMin = new Vector2(28f, rl.rectTransform.offsetMin.y);
-                rl.rectTransform.offsetMax = new Vector2(-4f, rl.rectTransform.offsetMax.y);
-            }
-        }
-
-        var view = UiKit.MakeImage(p, "View", UiKit.Slot, true, 1f);
+        var view = TWPetCollectionSkin.Surface(parent, "Collection");
         TL(view.rectTransform, GridX, GridY, GridW, GridH);
-
-        // сцена как у «Достижений»: тёмная подложка цвета редкости, дышащее свечение, пылинки
-        gridBase = UiKit.MakeImage(view.transform, "Base", null, false);
-        Stretch(gridBase.rectTransform);
-        gridBase.rectTransform.offsetMin = new Vector2(8f, 8f);
-        gridBase.rectTransform.offsetMax = new Vector2(-8f, -8f);
-        gridBase.raycastTarget = false;
-        gridGlow = UiKit.MakeImage(view.transform, "Glow", PetUi.GlowSprite, false);
-        gridGlow.raycastTarget = false;
-        Anch(gridGlow.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(GridW * 1.1f, GridH * 0.8f));
-        gridMotes = AchMotes.Create(view.transform, GridW, GridH);
-
-        var vp = NewRT("Viewport", view.transform);
-        Stretch(vp);
-        vp.offsetMin = new Vector2(8f, 8f);
-        vp.offsetMax = new Vector2(-8f, -8f);
-        vp.gameObject.AddComponent<RectMask2D>();
-        var vpImg = vp.gameObject.AddComponent<Image>();
-        vpImg.color = Clear;
-        vpImg.raycastTarget = true;                                  // ловит перетаскивание
-
-        contentsRt = NewRT("Content", vp);
+        var viewport = NewRT("Viewport", view.transform);
+        Stretch(viewport);
+        viewport.offsetMin = new Vector2(8f, 8f);
+        viewport.offsetMax = new Vector2(-8f, -8f);
+        viewport.gameObject.AddComponent<RectMask2D>();
+        var image = viewport.gameObject.AddComponent<Image>();
+        image.color = Clear;
+        image.raycastTarget = true;
+        contentsRt = NewRT("Cards", viewport);
         contentsRt.anchorMin = new Vector2(0f, 1f);
-        contentsRt.anchorMax = new Vector2(1f, 1f);
+        contentsRt.anchorMax = Vector2.one;
         contentsRt.pivot = new Vector2(0.5f, 1f);
         contentsRt.anchoredPosition = Vector2.zero;
         contentsRt.sizeDelta = new Vector2(0f, 100f);
-
         scroll = view.gameObject.AddComponent<ScrollRect>();
-        scroll.viewport = vp;
-        scroll.content = contentsRt;
-        scroll.horizontal = false;
-        scroll.vertical = true;
+        scroll.viewport = viewport; scroll.content = contentsRt;
+        scroll.horizontal = false; scroll.vertical = true;
         scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 40f;
-        scroll.inertia = true;
+        scroll.scrollSensitivity = 50f;
 
-        // рамка выбранной карточки: лежит под всеми карточками, выглядывает по краям
-        selFrame = UiKit.MakeImage(contentsRt, "Select", UiKit.Slot, true, 1f);
-        selFrame.color = UiKit.BrassHi;
-        selFrame.raycastTarget = false;
-        Anch(selFrame.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(CardW + 14f, CardH + 14f));
+        selFrame = TWPetCollectionSkin.Surface(contentsRt, "Selected");
+        selFrame.color = TWPetCollectionSkin.Selection;
+        Anch(selFrame.rectTransform, new Vector2(0f, 1f), Vector2.one * 0.5f, Vector2.zero, new Vector2(CardW + 14f, CardH + 14f));
         selFrame.gameObject.SetActive(false);
-
-        // подсветка под курсором (под карточками, как рамка выбранного)
-        hoverFrame = UiKit.MakeImage(contentsRt, "Hover", UiKit.Slot, true, 1f);
-        hoverFrame.raycastTarget = false;
-        Anch(hoverFrame.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(CardW + 10f, CardH + 10f));
+        hoverFrame = TWPetCollectionSkin.Surface(contentsRt, "Hovered");
+        Anch(hoverFrame.rectTransform, new Vector2(0f, 1f), Vector2.one * 0.5f, Vector2.zero, new Vector2(CardW + 8f, CardH + 8f));
         hoverFrame.gameObject.SetActive(false);
-
-        // пул карточек: создаётся один раз
-        for (int k = 0; k < PoolSize; k++)
+        for (int i = 0; i < PoolSize; i++)
         {
             var cv = PetCardView.Create(contentsRt, CardW, CardH, "Pet", false);
-            var pc = new PoolCard { view = cv };
-            pc.cg = cv.rt.gameObject.AddComponent<CanvasGroup>();
-            pc.mark = AddEquippedMark(cv);
-            cv.frame.gameObject.AddComponent<PetRightClick>().cb = () => OnCardRightClick(pc);
-            cv.frame.raycastTarget = true;
-            var btn = cv.frame.gameObject.AddComponent<Button>();
-            btn.transition = Selectable.Transition.None;
-            btn.targetGraphic = cv.frame;
-            btn.onClick.AddListener(() => OnCardClick(pc));
-            var hov = cv.frame.gameObject.AddComponent<PetHover>();
-            hov.cb = on => { if (on) hoverPc = pc; else if (hoverPc == pc) hoverPc = null; };
+            cv.UseCloudStyle(TWPetCollectionSkin.Current);
+            var card = new PoolCard { view = cv, cg = cv.rt.gameObject.AddComponent<CanvasGroup>() };
+            card.mark = AddEquippedMark(cv);
+            cv.frame.gameObject.AddComponent<PetRightClick>().cb = () => OnCardRightClick(card);
+            AddBtn(cv.frame, () => OnCardClick(card));
+            var hover = cv.frame.gameObject.AddComponent<PetHover>();
+            hover.cb = over => { if (over) hoverPc = card; else if (hoverPc == card) hoverPc = null; };
             cv.rt.gameObject.SetActive(false);
-            pool.Add(pc);
+            pool.Add(card);
         }
-
-        var vig = UiKit.MakeImage(view.transform, "Vignette", AchUi.Vignette, false);
-        vig.raycastTarget = false;
-        Stretch(vig.rectTransform);
-
-        // пустая коллекция: подсказка поверх окна прокрутки
-        emptyGrid = UiKit.MakeLabel(view.transform, "", 26f, Dim, TextAlignmentOptions.Center, false);
-        Anch(emptyGrid.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(GridW - 80f, 140f));
+        emptyGrid = TWPetCollectionSkin.Label(view.transform, "", 25f, Dim, TextAlignmentOptions.Center, false);
+        Anch(emptyGrid.rectTransform, Vector2.one * 0.5f, Vector2.one * 0.5f, Vector2.zero, new Vector2(GridW - 80f, 120f));
         emptyGrid.enableWordWrapping = true;
-        emptyGrid.gameObject.SetActive(false);
-
-        TMP_Text rl2;
-        resetBtn = MakeBtn(view.transform, "Сбросить фильтры", UiBtn.Amber, (GridW - 260f) * 0.5f, GridH * 0.5f + 56f, 260f, 50f, 22f, OnResetFilters, out rl2);
+        TMP_Text reset;
+        resetBtn = MakeBtn(view.transform, "Сбросить фильтры", UiBtn.Gray, (GridW - 280f) * 0.5f, GridH * 0.5f + 76f, 280f, 48f, 22f, OnResetFilters, out reset);
         resetBtn.gameObject.SetActive(false);
-
-        // индикатор прокрутки
         scrollTrack = UiKit.MakeImage(view.transform, "ScrollTrack", null, false);
-        scrollTrack.raycastTarget = false;
-        scrollTrack.color = new Color(0f, 0f, 0f, 0.35f);
-        Anch(scrollTrack.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-3f, -14f), new Vector2(5f, GridH - 28f));
+        scrollTrack.color = new Color(0.55f, 0.50f, 0.75f, 0.15f);
+        Anch(scrollTrack.rectTransform, Vector2.one, Vector2.one, new Vector2(-4f, -14f), new Vector2(5f, GridH - 28f));
         scrollHandle = UiKit.MakeImage(scrollTrack.transform, "Handle", null, false);
-        scrollHandle.raycastTarget = false;
-        scrollHandle.color = new Color(UiKit.BrassHi.r, UiKit.BrassHi.g, UiKit.BrassHi.b, 0.85f);
+        scrollHandle.color = TWPetCollectionSkin.Selection;
         Anch(scrollHandle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(5f, 40f));
         scrollTrack.gameObject.SetActive(false);
     }
 
-    // правая панель: выбранный питомец крупно, что он даёт, кнопки
-    void BuildDetail(Transform p)
+    void BuildDetail(Transform parent)
     {
-        var det = UiKit.MakeImage(p, "Detail", UiKit.Slot, true, 1f);
-        TL(det.rectTransform, DetX, DetY, DetW, DetH);
-
-        detRoot = NewRT("DetailRoot", det.transform);
+        var detail = TWPetCollectionSkin.Surface(parent, "SelectedPet");
+        TL(detail.rectTransform, DetX, DetY, DetW, DetH);
+        detRoot = NewRT("Details", detail.transform);
         Stretch(detRoot);
-        detCg = detRoot.gameObject.AddComponent<CanvasGroup>();      // плавное появление при смене питомца
-        var t = detRoot;
-
-        // свечение и лучи за карточкой (цвет редкости, лучи только у легендарных)
-        const float CW = 200f, CH = 236f;
-        float cx = DetW * 0.5f, cyc = 10f + CH * 0.5f;
-        detRays = UiKit.MakeImage(t, "Rays", PetUi.RaysSprite, false);
-        detRays.raycastTarget = false;
-        Anch(detRays.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), new Vector2(cx, -cyc), new Vector2(520f, 520f));
-        detRays.gameObject.SetActive(false);
-        detGlow = UiKit.MakeImage(t, "Glow", PetUi.GlowSprite, false);
-        detGlow.raycastTarget = false;
-        Anch(detGlow.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), new Vector2(cx, -cyc), new Vector2(380f, 380f));
-
-        detCard = PetCardView.Create(t, CW, CH, "DetailCard", false);
-        detCard.EnableLive();        // питомец вращается живой 3D-моделью (стадия роста по PetManager.GrowthStage)
-        Anch(detCard.rt, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(CW, CH));
-
-        float w = DetW - 32f;
-        detName = UiKit.MakeLabel(t, "", 32f, Color.white, TextAlignmentOptions.Center, true);
-        TL(detName.rectTransform, 16f, 254f, w, 40f);
-        PetUi.AutoSize(detName, 16f, 32f);
-
-        detRarity = UiKit.MakeLabel(t, "", 24f, Color.white, TextAlignmentOptions.Center, true);
-        TL(detRarity.rectTransform, 16f, 294f, w, 28f);
-        PetUi.AutoSize(detRarity, 14f, 24f);
-
-        detExtra = UiKit.MakeLabel(t, "", 20f, Soft, TextAlignmentOptions.Top, false);
-        TL(detExtra.rectTransform, 16f, 322f, w, 26f);
-        detExtra.enableWordWrapping = true;
-
-        // блок «что даёт»
-        var box = UiKit.MakeImage(t, "StatBox", UiKit.Slot, true, 0.6f);
-        TL(box.rectTransform, 10f, 352f, DetW - 20f, 162f);
-        box.raycastTarget = false;
-
-        detStat = UiKit.MakeLabel(t, "", 26f, Color.white, TextAlignmentOptions.Center, true);
-        TL(detStat.rectTransform, 16f, 358f, w, 30f);
-        PetUi.AutoSize(detStat, 14f, 26f);
-
-        detHead = UiKit.MakeLabel(t, "", 20f, Dim, TextAlignmentOptions.Center, false);
-        TL(detHead.rectTransform, 16f, 390f, w, 22f);
-        PetUi.AutoSize(detHead, 12f, 20f);
-
-        detD1 = UiKit.MakeLabel(t, "", 22f, Color.white, TextAlignmentOptions.Center, false);
-        TL(detD1.rectTransform, 16f, 413f, w, 24f);
-        PetUi.AutoSize(detD1, 12f, 22f);
-
-        detD2 = UiKit.MakeLabel(t, "", 22f, Color.white, TextAlignmentOptions.Center, false);
-        TL(detD2.rectTransform, 16f, 437f, w, 24f);
-        PetUi.AutoSize(detD2, 12f, 22f);
-
-        detLive = UiKit.MakeLabel(t, "", 22f, Color.white, TextAlignmentOptions.Center, false);
-        TL(detLive.rectTransform, 16f, 461f, w, 24f);
-        PetUi.AutoSize(detLive, 12f, 22f);
-
-        detNote = UiKit.MakeLabel(t, "", 20f, Color.white, TextAlignmentOptions.Center, false);
-        TL(detNote.rectTransform, 16f, 485f, w, 24f);
-        PetUi.AutoSize(detNote, 12f, 20f);
-
-        detEmpty = UiKit.MakeLabel(t, "Выбери питомца", 28f, Dim, TextAlignmentOptions.Center, true);
-        Anch(detEmpty.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(DetW - 30f, 60f));
-
-        // «Взять с собой» («Заменить») и «Снять» делят одно место: показывается одна из двух
-        float bw = DetW - 40f;
-        equipBtn = MakeBtn(t, "Взять с собой", UiBtn.Green, 20f, 528f, bw, 58f, 28f, OnEquipClick, out equipLabel);
-        unequipBtn = MakeBtn(t, "Снять", UiBtn.Amber, 20f, 528f, bw, 58f, 28f, OnUnequipClick, out unequipLabel);
-        mergeBtn = MakeBtn(t, "Слить", UiBtn.Amber, 20f, 594f, bw, 44f, 22f, OnMergeClick, out mergeLabel);
-        releaseBtn = MakeBtn(t, "Отпустить", UiBtn.Gray, 20f, 646f, bw, 42f, 22f, OnReleaseClick, out releaseLabel);
-        releaseColor = releaseLabel.color;
-        equipIco = BtnIco(equipBtn, PetIcons.Get(PetIco.Plus), 38f, 22f);
-        BtnIco(unequipBtn, PetIcons.Get(PetIco.Minus), 38f, 22f);
-        BtnIco(mergeBtn, PetIcons.Get(PetIco.Merge), 30f, 16f);
-        BtnIco(releaseBtn, PetIcons.Get(PetIco.Release), 28f, 16f);
-        Tip(equipBtn, "Взять питомца в команду: он начнёт усиливать тебя (Enter, двойной клик или ПКМ)");
-        Tip(unequipBtn, "Убрать питомца из команды: он останется в коллекции (Enter, двойной клик или ПКМ)");
-        Tip(mergeBtn, GameBalance.PetMergeCount + " одинаковых питомца сливаются в одного с +1 звездой: его бонус растёт");
-        Tip(releaseBtn, "Отпустить навсегда: питомец исчезнет. Нужно подтвердить вторым нажатием");
-
-        // полоса таймера подтверждения «Отпустить» (сжимается за ArmTime секунд)
-        armBar = UiKit.MakeImage(releaseBtn.transform, "ArmBar", null, false);
-        armBar.raycastTarget = false;
-        armBar.color = UiKit.Warn;
-        var arb = armBar.rectTransform;
-        arb.anchorMin = new Vector2(0f, 0f);
-        arb.anchorMax = new Vector2(1f, 0f);
-        arb.pivot = new Vector2(0f, 0f);
-        arb.offsetMin = new Vector2(12f, 7f);
-        arb.offsetMax = new Vector2(-12f, 11f);
-        armBar.gameObject.SetActive(false);
-
-        // ---- интерактив: питомца можно погладить (клик) и покрутить (перетаскивание)
-        var zone = UiKit.MakeImage(detCard.rt, "PetZone", null, false);
-        zone.color = new Color(1f, 1f, 1f, 0f);
-        zone.raycastTarget = true;
+        detCg = detRoot.gameObject.AddComponent<CanvasGroup>();
+        detName = TWPetCollectionSkin.Label(detRoot, "", 34f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+        TL(detName.rectTransform, 24f, 18f, DetW - 138f, 44f);
+        PetUi.AutoSize(detName, 25f, 34f);
+        TMP_Text more;
+        moreActions = MakeBtn(detRoot, "Ещё", UiBtn.Gray, DetW - 102f, 20f, 78f, 40f, 18f, () => SetPopup(Popup.Actions), out more);
+        detRarity = TWPetCollectionSkin.Label(detRoot, "", 21f, Dim, TextAlignmentOptions.Left, false);
+        TL(detRarity.rectTransform, 24f, 66f, DetW - 48f, 30f);
+        detExtra = TWPetCollectionSkin.Label(detRoot, "", 18f, Dim, TextAlignmentOptions.Left, false);
+        TL(detExtra.rectTransform, 24f, 98f, DetW - 48f, 28f);
+        detCard = PetCardView.Create(detRoot, 286f, 246f, "PetModel", false);
+        detCard.UseCloudStyle(TWPetCollectionSkin.Current, true);
+        detCard.EnableLive();
+        Anch(detCard.rt, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -126f), new Vector2(286f, 246f));
+        var zone = UiKit.MakeImage(detCard.rt, "PetTouch", null, false);
+        zone.color = Clear; zone.raycastTarget = true;
         Stretch(zone.rectTransform);
         petZone = zone.gameObject.AddComponent<PetPetZone>();
-        petZone.onPat = OnPetPat;
-        petZone.onDrag = OnPetDrag;
-        zone.gameObject.AddComponent<PetHover>().tip = "Клик: погладить питомца  ·  потяни мышью: покрутить";
-
-        // реплика питомца над карточкой (пузырь появляется и гаснет сам)
-        petBubble = UiKit.MakeImage(t, "PetBubble", UiKit.Slot, true, 0.7f);
-        Anch(petBubble.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0f, -34f), new Vector2(150f, 38f));
-        petBubble.raycastTarget = false;
-        petBubbleText = UiKit.MakeLabel(petBubble.transform, "", 20f, UiKit.BrassHi, TextAlignmentOptions.Center, true);
-        PetUi.AutoSize(petBubbleText, 12f, 20f);
+        petZone.onPat = OnPetPat; petZone.onDrag = OnPetDrag;
+        zone.gameObject.AddComponent<PetHover>().tip = "Клик — погладить   ·   Потяни мышью — покрутить";
+        var skin = TWPetCollectionSkin.Current;
+        petBubble = UiKit.MakeImage(detRoot, "PetSpeech", skin != null ? skin.speech : UiKit.Slot, false);
+        Anch(petBubble.rectTransform, new Vector2(0.5f, 1f), Vector2.one * 0.5f, new Vector2(74f, -155f), new Vector2(132f, 68f));
+        petBubbleText = TWPetCollectionSkin.Label(petBubble.transform, "", 19f, TWPetCollectionSkin.Ink);
+        petBubbleText.rectTransform.offsetMin = new Vector2(8f, 15f);
+        petBubbleText.rectTransform.offsetMax = new Vector2(-8f, -8f);
         petBubble.gameObject.SetActive(false);
-
-        // строка внизу: сердечко и уровень привязанности
-        patHeart = UiKit.MakeImage(t, "PatHeart", PetHeartFx.HeartSprite, false);
+        patHeart = UiKit.MakeImage(detRoot, "Heart", PetHeartFx.HeartSprite, false);
         patHeart.color = PetHeartFx.Pink;
-        patHeart.preserveAspect = true;
-        patHeart.raycastTarget = false;
-        TLC(patHeart.rectTransform, 34f, 705f, 24f, 24f);
-        patText = UiKit.MakeLabel(t, "", 20f, Soft, TextAlignmentOptions.Left, false);
-        TL(patText.rectTransform, 52f, 692f, DetW - 70f, 26f);
-        PetUi.AutoSize(patText, 12f, 20f);
+        TLC(patHeart.rectTransform, 42f, 384f, 23f, 23f);
+        patText = TWPetCollectionSkin.Label(detRoot, "", 18f, Dim, TextAlignmentOptions.Left, false);
+        TL(patText.rectTransform, 60f, 370f, DetW - 82f, 30f);
+        PetUi.AutoSize(patText, 16f, 18f);
 
-        BuildBook(det.transform);
+        detailStatBox = TWPetCollectionSkin.Surface(detRoot, "Help");
+        TL(detailStatBox.rectTransform, 16f, 416f, DetW - 32f, 136f);
+        detailStatBox.color = new Color(0.96f, 0.95f, 1f);
+        detStat = TWPetCollectionSkin.Label(detailStatBox.transform, "", 25f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+        TL(detStat.rectTransform, 20f, 14f, DetW - 72f, 34f);
+        PetUi.AutoSize(detStat, 21f, 25f);
+        detHead = TWPetCollectionSkin.Label(detailStatBox.transform, "", 18f, Dim, TextAlignmentOptions.Left, false);
+        TL(detHead.rectTransform, 20f, 52f, DetW - 72f, 24f);
+        detLive = TWPetCollectionSkin.Label(detailStatBox.transform, "", 22f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left, false);
+        TL(detLive.rectTransform, 20f, 80f, DetW - 72f, 28f);
+        PetUi.AutoSize(detLive, 18f, 22f);
+        detD1 = TWPetCollectionSkin.Label(detailStatBox.transform, "", 18f, Dim);
+        detD1.gameObject.SetActive(false);
+        detD2 = TWPetCollectionSkin.Label(detailStatBox.transform, "", 17f, Dim, TextAlignmentOptions.Left, false);
+        TL(detD2.rectTransform, 20f, 108f, DetW - 72f, 24f);
+        PetUi.AutoSize(detD2, 15f, 17f);
+        detNote = TWPetCollectionSkin.Label(detRoot, "", 19f, Dim, TextAlignmentOptions.Center, false);
+        TL(detNote.rectTransform, 22f, 560f, DetW - 44f, 36f);
+        PetUi.AutoSize(detNote, 16f, 19f);
+        detEmpty = TWPetCollectionSkin.Label(detRoot, "Выбери питомца", 26f, Dim);
+        Anch(detEmpty.rectTransform, Vector2.one * 0.5f, Vector2.one * 0.5f, Vector2.zero, new Vector2(DetW - 64f, 120f));
+        detEmpty.enableWordWrapping = true;
+        equipBtn = MakeBtn(detRoot, "Взять с собой", UiBtn.Yellow, 24f, 606f, DetW - 48f, 60f, 27f, OnEquipClick, out equipLabel);
+        unequipBtn = MakeBtn(detRoot, "Убрать из команды", UiBtn.Gray, 24f, 606f, DetW - 48f, 60f, 24f, OnUnequipClick, out unequipLabel);
+        mergeBtn = MakeBtn(detRoot, "Объединить копии", UiBtn.Gray, 24f, 676f, DetW - 48f, 44f, 21f, OnMergeClick, out mergeLabel);
+        Tip(unequipBtn, "Питомец останется в коллекции");
+        Tip(mergeBtn, GameBalance.PetMergeCount + " одинаковых питомца превращаются в одного с дополнительной звездой");
+        BuildBook(detail.transform);
     }
 
-    // Книга питомцев: общий прогресс, по строке на каждую редкость
-    void BuildBook(Transform p)
+    void BuildBook(Transform parent)
     {
-        bookRoot = NewRT("BookRoot", p);
-        Stretch(bookRoot);
-        var t = bookRoot;
-
-        var title = UiKit.MakeLabel(t, "Книга питомцев", 28f, Color.white, TextAlignmentOptions.Center, true);
-        TL(title.rectTransform, 10f, 10f, DetW - 20f, 34f);
-
-        bookTotal = UiKit.MakeLabel(t, "", 24f, Soft, TextAlignmentOptions.Center, false);
-        TL(bookTotal.rectTransform, 10f, 46f, DetW - 20f, 30f);
-
-        var barBg = UiKit.MakeImage(t, "BarBg", UiKit.Slot, true, 0.5f);
-        TL(barBg.rectTransform, 20f, 82f, DetW - 40f, 20f);
-        barBg.raycastTarget = false;
-        var inner = NewRT("BarInner", barBg.transform);
-        Stretch(inner);
-        inner.offsetMin = new Vector2(5f, 5f);
-        inner.offsetMax = new Vector2(-5f, -5f);
-        bookBarFill = UiKit.MakeImage(inner, "BarFill", null, false);
-        bookBarFill.color = UiKit.Good;
-        bookBarFill.raycastTarget = false;
-        bookBarFill.rectTransform.anchorMin = Vector2.zero;
-        bookBarFill.rectTransform.anchorMax = new Vector2(0f, 1f);
-        bookBarFill.rectTransform.offsetMin = bookBarFill.rectTransform.offsetMax = Vector2.zero;
-
+        bookRoot = NewRT("Book", parent); Stretch(bookRoot);
+        var title = TWPetCollectionSkin.Label(bookRoot, "Книга питомцев", 29f, TWPetCollectionSkin.Ink);
+        TL(title.rectTransform, 20f, 24f, DetW - 40f, 40f);
+        bookTotal = TWPetCollectionSkin.Label(bookRoot, "", 24f, Dim);
+        TL(bookTotal.rectTransform, 20f, 80f, DetW - 40f, 34f);
+        var track = TWPetCollectionSkin.Surface(bookRoot, "Progress");
+        TL(track.rectTransform, 32f, 130f, DetW - 64f, 14f);
+        var inner = NewRT("Inner", track.transform); Stretch(inner);
+        inner.offsetMin = new Vector2(4f, 4f); inner.offsetMax = new Vector2(-4f, -4f);
+        bookBarFill = UiKit.MakeImage(inner, "Fill", null, false);
+        bookBarFill.color = TWPetCollectionSkin.Selection;
+        Stretch(bookBarFill.rectTransform);
         for (int r = 3; r >= 0; r--)
         {
-            float y0 = 130f + (3 - r) * 100f;
-            PetRarity rar = (PetRarity)r;
-            var gem = UiKit.MakeIcon(t, UiIcon.Gem, 28f, "Gem" + r);
-            gem.color = PetUi.RarityAccent(rar);
-            TLC(gem.rectTransform, 32f, y0 + 15f, 28f, 28f);
-
-            bookName[r] = UiKit.MakeLabel(t, "", 24f, Color.white, TextAlignmentOptions.Left, true);
-            TL(bookName[r].rectTransform, 54f, y0, 140f, 30f);
-            PetUi.AutoSize(bookName[r], 13f, 24f);
-
-            bookCount[r] = UiKit.MakeLabel(t, "", 24f, Color.white, TextAlignmentOptions.Right, true);
-            TL(bookCount[r].rectTransform, DetW - 100f, y0, 80f, 30f);
-
-            bookCheck[r] = UiKit.MakeIcon(t, UiIcon.Check, 24f, "Done" + r);
-            bookCheck[r].color = UiKit.Good;
-            TLC(bookCheck[r].rectTransform, DetW - 118f, y0 + 15f, 24f, 24f);
-
-            bookBonus[r] = UiKit.MakeLabel(t, "", 18f, Dim, TextAlignmentOptions.Left, false);
-            TL(bookBonus[r].rectTransform, 20f, y0 + 38f, DetW - 40f, 44f);
+            float y = 186f + (3 - r) * 104f;
+            bookName[r] = TWPetCollectionSkin.Label(bookRoot, "", 24f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+            TL(bookName[r].rectTransform, 28f, y, DetW - 142f, 32f);
+            bookCount[r] = TWPetCollectionSkin.Label(bookRoot, "", 24f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Right);
+            TL(bookCount[r].rectTransform, DetW - 100f, y, 72f, 32f);
+            bookCheck[r] = PetIcon(bookRoot, UiIcon.Check, 22f, "Complete");
+            TLC(bookCheck[r].rectTransform, DetW - 120f, y + 16f, 22f, 22f);
+            bookBonus[r] = TWPetCollectionSkin.Label(bookRoot, "", 18f, Dim, TextAlignmentOptions.Left, false);
+            TL(bookBonus[r].rectTransform, 28f, y + 38f, DetW - 56f, 42f);
             bookBonus[r].enableWordWrapping = true;
-            PetUi.AutoSize(bookBonus[r], 12f, 20f);
         }
-
-        var note = UiKit.MakeLabel(t, "Рюкзак Книга не усиливает. Сумма с питомцами не выше +" + PetUi.Pct(GameBalance.PetBonusCap) + "%.", 17f, Dim, TextAlignmentOptions.Center, false);
-        TL(note.rectTransform, 14f, 560f, DetW - 28f, 60f);
+        var note = TWPetCollectionSkin.Label(bookRoot, "Открывай новые виды, чтобы получать бонусы коллекции.", 20f, Dim, TextAlignmentOptions.Center, false);
+        TL(note.rectTransform, 30f, 642f, DetW - 60f, 60f);
         note.enableWordWrapping = true;
     }
 }

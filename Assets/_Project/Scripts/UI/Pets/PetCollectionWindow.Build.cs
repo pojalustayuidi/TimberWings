@@ -1,192 +1,130 @@
-// Assets/_Project/Scripts/UI/Pets/PetCollectionWindow.Build.cs (НЕ в Editor)
-// ЧАСТЬ класса PetCollectionWindow (partial): сборка окна из кода (все RectTransform, кнопки, панели).
-// Это кусок одного класса, поля и методы видны из других частей. Файл с объявлением и состоянием: PetCollectionWindow.cs.
-// Остальные части: PetCollectionWindow.Actions.cs, PetCollectionWindow.Fill.cs, PetCollectionWindow.DeltaBook.cs, PetCollectionWindow.Presets.cs, PetCollectionWindow.Interact.cs, PetCollectionWindow.HudHelpers.cs.
-// Методы этой части: Build, BuildHeader, BuildTop.
-
-using System.Collections.Generic;
-using System.Globalization;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Events;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using static UiLayout;
 
 public partial class PetCollectionWindow
 {
-    // ============================================================ сборка окна
     void Build()
     {
         if (built) return;
-
         var cgo = new GameObject("PetCollectionCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         cgo.layer = 5;
         cgo.transform.SetParent(transform, false);
         var canvas = cgo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = UiLayers.Window;
-        var sc = cgo.GetComponent<CanvasScaler>();
-        sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        sc.referenceResolution = new Vector2(1920, 1080);
-        sc.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        sc.matchWidthOrHeight = 0.5f;
+        windowCanvas = (RectTransform)cgo.transform;
+        var scaler = cgo.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
 
-        // затемнение: только гасит клики по миру
         var ov = UiKit.MakeImage(cgo.transform, "Overlay", null, false);
-        ov.color = new Color(0f, 0f, 0f, 0.6f);
+        ov.color = new Color(0.08f, 0.06f, 0.16f, 0.72f);
         Stretch(ov.rectTransform);
-        ov.raycastTarget = true;   // затемнение гасит клики по миру, но окно НЕ закрывает (промах мимо окна не должен его сбрасывать)
+        ov.raycastTarget = true;
         overlay = ov.gameObject.AddComponent<CanvasGroup>();
-
-        // окно: деревянная планка сверху. Пустая кнопка на самом окне не даёт клику «всплыть» до затемнения и закрыть окно
-        var win = UiKit.MakePanel(ov.transform, new Vector2(WinW, WinH), true, BS, "Window");
+        var skin = TWPetCollectionSkin.Current;
+        var win = UiKit.MakeImage(ov.transform, "Window", skin != null ? skin.window : UiKit.Panel, true, 0.65f);
         panel = win.rectTransform;
-        Anch(panel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(WinW, WinH));
+        Anch(panel, Vector2.one * 0.5f, Vector2.one * 0.5f, Vector2.zero, new Vector2(WinW, WinH));
         AddBtn(win, () => { });
         BuildHeader();
-
         var content = NewRT("Content", panel);
-        content.anchorMin = Vector2.zero; content.anchorMax = Vector2.one;
-        content.offsetMin = new Vector2(26f * BS, 26f * BS);
-        content.offsetMax = new Vector2(-26f * BS, -36f * BS);
-
-        var inner = UiKit.MakePanel(content, new Vector2(InW, InH), false, 0.6f, "Inner");
-        Stretch(inner.rectTransform);
-
-        BuildTop(inner.transform);
-        BuildGrid(inner.transform);
-        BuildDetail(inner.transform);
-
-        hintText = UiKit.MakeLabel(ov.transform, "", 22f, Dim, TextAlignmentOptions.Center, false);
-        Anch(hintText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 1f), new Vector2(0, -(WinH * 0.5f + 12f)), new Vector2(WinW - 40f, 34f));
-        PetUi.AutoSize(hintText, 14f, 22f);                          // длинная подсказка уменьшается, а не вылезает за экран
-
-        fx = AchSparks.Create(panel, new Vector2(0.5f, 0.5f));
-        hearts = PetHeartFx.Create(panel, new Vector2(0.5f, 0.5f));      // сердечки над питомцем (поверх всего окна)
-
+        TL(content, ContentX, ContentY, InW, InH);
+        BuildTop(content);
+        BuildGrid(content);
+        BuildDetail(content);
+        hintText = TWPetCollectionSkin.Label(panel, "", 19f, Dim, TextAlignmentOptions.Center, false);
+        TL(hintText.rectTransform, 96f, WinH - 48f, WinW - 192f, 30f);
+        PetUi.AutoSize(hintText, 15f, 19f);
+        fx = AchSparks.Create(panel, Vector2.one * 0.5f);
+        hearts = PetHeartFx.Create(panel, Vector2.one * 0.5f);
+        BuildFilters();
+        BuildPresets(panel);
+        BuildActions();
+        Canvas.ForceUpdateCanvases();
+        FitWindow();
         ov.gameObject.SetActive(false);
         built = true;
     }
 
     void BuildHeader()
     {
-        // сколько питомцев всего: слева на деревянной планке
-        var paw = UiKit.MakeIcon(panel, UiIcon.Paw, 36f, "PawIcon");
-        TLC(paw.rectTransform, 64, 27, 36, 36);
-        countText = UiKit.MakeLabel(panel, "0", 30f, WoodText, TextAlignmentOptions.Left, true);
-        TL(countText.rectTransform, 90, 8, 200, 38);
-
-        titleText = UiKit.MakeLabel(panel, "ПИТОМЦЫ", 34f, WoodText, TextAlignmentOptions.Center, true);
-        Anch(titleText.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -8), new Vector2(520, 40));
-
-        var close = UiKit.MakeButton(panel, "", UiBtn.Amber, new Vector2(64, 48), 20f, 1f);
-        Anch(close.GetComponent<RectTransform>(), new Vector2(1, 1), new Vector2(1, 1), new Vector2(-34, -5), new Vector2(64, 48));
-        close.onClick.AddListener(DoClose);
-        var x = UiKit.MakeIcon(close.transform, UiIcon.Cross, 30f, "X");
-        x.rectTransform.anchoredPosition = new Vector2(0, 2);
+        var paw = PetIcon(panel, UiIcon.Paw, 44f, "Paw");
+        TLC(paw.rectTransform, 132f, 52f, 44f, 44f);
+        titleText = TWPetCollectionSkin.Label(panel, "Питомцы", 40f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+        TL(titleText.rectTransform, 170f, 28f, 400f, 54f);
+        countText = TWPetCollectionSkin.Label(panel, "", 21f, Dim, TextAlignmentOptions.Right, false);
+        TL(countText.rectTransform, WinW - 510f, 38f, 300f, 34f);
+        TMP_Text label;
+        var close = MakeBtn(panel, "×", UiBtn.Gray, WinW - 158f, 28f, 54f, 54f, 32f, DoClose, out label);
+        var skin = TWPetCollectionSkin.Current;
+        if (skin != null && skin.close.Length >= 4 && skin.close[0] != null)
+        {
+            label.text = "";
+            var image = close.GetComponent<Image>();
+            image.sprite = skin.close[0]; image.type = Image.Type.Simple;
+            close.transition = Selectable.Transition.SpriteSwap;
+            close.spriteState = new SpriteState { highlightedSprite = skin.close[1], pressedSprite = skin.close[2], selectedSprite = skin.close[0], disabledSprite = skin.close[3] };
+        }
     }
 
-    // левая колонка «Команда»: слоты 2x2, бонусы, пресеты
-    void BuildTop(Transform p)
+    void BuildTop(Transform parent)
     {
-        var team = UiKit.MakeImage(p, "Team", UiKit.Slot, true, 1f);
+        var team = TWPetCollectionSkin.Surface(parent, "Team");
         TL(team.rectTransform, TeamX, TeamY, TeamW, TeamH);
-        team.raycastTarget = false;
         var tr = team.transform;
-
-        var paw = UiKit.MakeIcon(tr, UiIcon.Paw, 30f, "TeamIcon");
-        TLC(paw.rectTransform, 28f, 24f, 30f, 30f);
-        slotsLabel = UiKit.MakeLabel(tr, "Команда", 28f, Color.white, TextAlignmentOptions.Left, true);
-        TL(slotsLabel.rectTransform, 50f, 8f, 180f, 34f);
-        PetUi.AutoSize(slotsLabel, 16f, 28f);
-
-        // «Снять всех»: один клик убирает команду (U с клавиатуры, Ctrl+Z вернёт)
-        unequipAllBtn = MakeBtn(tr, "Снять всех", UiBtn.Gray, TeamW - 10f - 124f, 6f, 124f, 34f, 18f, OnUnequipAllClick, out unequipAllLabel);
-        BtnIco(unequipAllBtn, PetIcons.Get(PetIco.Minus), 22f, 8f);
-        unequipAllBtn.gameObject.AddComponent<PetHover>().tip = "Снять всех питомцев (U). Ctrl+Z вернёт состав назад";
-
+        slotsLabel = TWPetCollectionSkin.Label(tr, "Команда", 26f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+        TL(slotsLabel.rectTransform, 22f, 18f, TeamW - 44f, 34f);
+        PetUi.AutoSize(slotsLabel, 22f, 26f);
         for (int i = 0; i < slots.Length; i++)
         {
-            var s = new SlotView();
-            float x = 10f + (i % 2) * (SlotW + SlotGapX);
-            float y = SlotY + (i / 2) * (SlotH + SlotGapY);
-
-            s.bg = UiKit.MakeImage(tr, "Slot" + i, UiKit.Slot, true, 1f);
-            TL(s.bg.rectTransform, x, y, SlotW, SlotH);
-            int capI = i;
-            AddBtn(s.bg, () => OnSlotClick(capI));
-            s.hover = s.bg.gameObject.AddComponent<PetHover>();
-            s.hover.grow = 0.04f;
-            s.bg.gameObject.AddComponent<PetRightClick>().cb = () => OnSlotUnequip(capI);
-
-            s.card = PetCardView.Create(s.bg.transform, SlotW, SlotH, "SlotCard", false);
-            Anch(s.card.rt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(SlotW, SlotH));
-
-            s.icon = UiKit.MakeIcon(s.bg.transform, UiIcon.Paw, 56f, "Empty");
-            s.icon.rectTransform.anchoredPosition = new Vector2(0f, 14f);
-
-            s.label = UiKit.MakeLabel(s.bg.transform, "", 22f, Dim, TextAlignmentOptions.Center, true);
-            Anch(s.label.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(SlotW - 12f, 30f));
-            PetUi.AutoSize(s.label, 14f, 22f);
-
-            // крестик «снять»: быстрее, чем выбирать питомца и жать «Снять»
-            var xb = UiKit.MakeButton(s.bg.transform, "", UiBtn.Gray, new Vector2(30f, 28f), 14f, 0.6f);
-            Anch(xb.GetComponent<RectTransform>(), new Vector2(1f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-19f, -6f), new Vector2(30f, 28f));
-            xb.onClick.AddListener(() => OnSlotUnequip(capI));
-            var xi = UiKit.MakeIcon(xb.transform, UiIcon.Cross, 16f, "X");
-            xi.raycastTarget = false;
-            var xh = xb.gameObject.AddComponent<PetHover>();
-            xh.grow = 0.1f;
-            xh.tip = "Снять питомца из этого слота (он останется в коллекции)";
-            s.xBtn = xb.gameObject;
-            s.xBtn.SetActive(false);
-
-            // номер слота = горячая клавиша (на телефоне не показываем)
-            if (!Application.isMobilePlatform)
-            {
-                var kc = UiKit.MakeKeycap(s.bg.transform, (i + 1).ToString(), 30f);
-                Anch(kc.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), new Vector2(18f, -18f), new Vector2(30f, 30f));
-                kc.raycastTarget = false;
-            }
-            slots[i] = s;
+            int index = i;
+            var slot = new SlotView();
+            slot.bg = TWPetCollectionSkin.Surface(tr, "Slot" + i);
+            TL(slot.bg.rectTransform, 12f + i % 2 * (SlotW + SlotGapX), SlotY + i / 2 * (SlotH + SlotGapY), SlotW, SlotH);
+            AddBtn(slot.bg, () => OnSlotClick(index));
+            slot.hover = slot.bg.gameObject.AddComponent<PetHover>();
+            slot.bg.gameObject.AddComponent<PetRightClick>().cb = () => OnSlotUnequip(index);
+            slot.card = PetCardView.Create(slot.bg.transform, SlotW, SlotH, "Pet", false);
+            slot.card.UseCloudStyle(TWPetCollectionSkin.Current);
+            Anch(slot.card.rt, Vector2.one * 0.5f, Vector2.one * 0.5f, Vector2.zero, new Vector2(SlotW, SlotH));
+            slot.icon = PetIcon(slot.bg.transform, UiIcon.Paw, 40f, "Empty");
+            slot.icon.rectTransform.anchoredPosition = new Vector2(0f, 14f);
+            slot.label = TWPetCollectionSkin.Label(slot.bg.transform, "", 18f, Dim);
+            Anch(slot.label.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 18f), new Vector2(SlotW - 14f, 28f));
+            TMP_Text xLabel;
+            var remove = MakeBtn(slot.bg.transform, "×", UiBtn.Gray, SlotW - 34f, 5f, 28f, 28f, 20f, () => OnSlotUnequip(index), out xLabel);
+            slot.xBtn = remove.gameObject;
+            slot.xBtn.SetActive(false);
+            Tip(remove, "Убрать из команды. Питомец останется в коллекции");
+            slots[i] = slot;
         }
-
-        // бонусы: до семи строк в одну колонку (крупнее прежних: место освободили наборы, переехавшие в свою колонку)
-        var bp = UiKit.MakeImage(tr, "Bonus", UiKit.Slot, true, 0.6f);
-        TL(bp.rectTransform, 10f, BonusY, TeamW - 20f, BonusH);
-        bp.raycastTarget = false;
-        bonusPanel = bp;
-
-        var title = UiKit.MakeLabel(bp.transform, "Бонусы питомцев", 26f, UiKit.BrassHi, TextAlignmentOptions.Left, true);
-        TL(title.rectTransform, 16f, 6f, 320f, 34f);
-
-        for (int i = 0; i < 7; i++)
+        teamHelp = TWPetCollectionSkin.Label(tr, "", 17f, Dim, TextAlignmentOptions.Center, false);
+        TL(teamHelp.rectTransform, 16f, 224f, TeamW - 32f, 28f);
+        bonusPanel = TWPetCollectionSkin.Surface(tr, "TeamBonuses");
+        TL(bonusPanel.rectTransform, 12f, BonusY, TeamW - 24f, BonusH);
+        var title = TWPetCollectionSkin.Label(bonusPanel.transform, "Бонусы команды", 23f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+        TL(title.rectTransform, 16f, 12f, TeamW - 56f, 32f);
+        for (int i = 0; i < BonusRows; i++)
         {
             float y = BonusRowY + i * BonusPitch;
-            bonusIcon[i] = UiKit.MakeIcon(bp.transform, UiIcon.Axe, 26f, "BIcon");
-            TLC(bonusIcon[i].rectTransform, 30f, y + 14f, 26f, 26f);
-            bonusText[i] = UiKit.MakeLabel(bp.transform, "", 24f, Color.white, TextAlignmentOptions.Left, false);
-            TL(bonusText[i].rectTransform, 54f, y, TeamW - 20f - 66f, 28f);
-            PetUi.AutoSize(bonusText[i], 13f, 24f);
-
-            // тонкая полоска: сколько от потолка бонуса уже набрано
-            var tk = UiKit.MakeImage(bp.transform, "BarTrack", null, false);
-            TL(tk.rectTransform, 54f, y + 27f, TeamW - 20f - 82f, 4f);
-            tk.color = new Color(0f, 0f, 0f, 0.4f);
-            tk.raycastTarget = false;
-            var bf = UiKit.MakeImage(tk.transform, "BarFill", null, false);
-            bf.raycastTarget = false;
-            bf.color = UiKit.Good;
-            Stretch(bf.rectTransform);
-            bonusBarTrack[i] = tk;
-            bonusBarFill[i] = bf;
+            bonusIcon[i] = PetIcon(bonusPanel.transform, UiIcon.Axe, 23f, "BonusIcon");
+            TLC(bonusIcon[i].rectTransform, 28f, y + 14f, 23f, 23f);
+            bonusText[i] = TWPetCollectionSkin.Label(bonusPanel.transform, "", 20f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left, false);
+            TL(bonusText[i].rectTransform, 50f, y, TeamW - 92f, 28f);
+            PetUi.AutoSize(bonusText[i], 17f, 20f);
+            bonusBarTrack[i] = UiKit.MakeImage(bonusPanel.transform, "HiddenTrack", null, false);
+            bonusBarFill[i] = UiKit.MakeImage(bonusBarTrack[i].transform, "Fill", null, false);
+            bonusBarTrack[i].gameObject.SetActive(false);
         }
-
-        bonusEmpty = UiKit.MakeLabel(bp.transform, "Поставь питомца в слот, и он начнёт помогать", 24f, Dim, TextAlignmentOptions.Center, false);
-        TL(bonusEmpty.rectTransform, 16f, 56f, TeamW - 52f, 150f);
+        bonusEmpty = TWPetCollectionSkin.Label(bonusPanel.transform, "Возьми питомца —\nон начнёт помогать.", 21f, Dim, TextAlignmentOptions.Center, false);
+        TL(bonusEmpty.rectTransform, 16f, 64f, TeamW - 56f, 100f);
         bonusEmpty.enableWordWrapping = true;
-
-        BuildPresets(p);
+        autoBtn = MakeBtn(tr, "Подобрать лучших", UiBtn.Gray, 12f, TeamH - 62f, TeamW - 24f, 46f, 21f, OnAutoClick, out autoLabel);
+        Tip(autoBtn, "Подобрать команду с наибольшим суммарным бонусом. Ctrl+Z вернёт прежний состав");
     }
 }

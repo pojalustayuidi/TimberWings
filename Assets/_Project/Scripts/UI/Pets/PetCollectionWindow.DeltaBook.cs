@@ -27,7 +27,7 @@ public partial class PetCollectionWindow
     static string DeltaLine(PetStat st, PetBonusSet before, PetBonusSet after)
     {
         float a = StatValue(before, st), b = StatValue(after, st);
-        Color col = b > a + 1e-4f ? UiKit.Good : (b < a - 1e-4f ? UiKit.Warn : Dim);
+        Color col = b > a + 1e-4f ? TWPetCollectionSkin.Good : (b < a - 1e-4f ? TWPetCollectionSkin.Warning : Dim);
         string unit = st == PetStat.Capacity ? " " + UiDraw.Plural(after.capacityLogs, "бревно", "бревна", "бревен") : "";
         return "<b>" + PetText.Stat(st) + "</b>  " + StatValueText(st, before) + Arrow
             + "<color=#" + PetUi.Hex(col) + ">" + StatValueText(st, after) + "</color>" + unit;
@@ -72,7 +72,7 @@ public partial class PetCollectionWindow
         // для времени «лучше» = меньше
         bool better = (st == PetStat.ChopPower || st == PetStat.SawSpeed) ? v1 < v0 - 1e-4f : v1 > v0 + 1e-4f;
         bool worse = (st == PetStat.ChopPower || st == PetStat.SawSpeed) ? v1 > v0 + 1e-4f : v1 < v0 - 1e-4f;
-        Color col = better ? UiKit.Good : (worse ? UiKit.Warn : Dim);
+        Color col = better ? TWPetCollectionSkin.Good : (worse ? TWPetCollectionSkin.Warning : Dim);
         return "<color=#" + PetUi.Hex(Soft) + ">" + name + ":</color> " + t0 + Arrow + "<color=#" + PetUi.Hex(col) + ">" + t1 + "</color>";
     }
 
@@ -91,42 +91,44 @@ public partial class PetCollectionWindow
         detExtra.gameObject.SetActive(has);
         detStat.gameObject.SetActive(has);
         detHead.gameObject.SetActive(has);
-        detD1.gameObject.SetActive(has);
+        detD1.gameObject.SetActive(false);
         detD2.gameObject.SetActive(has);
         detLive.gameObject.SetActive(has);
         detNote.gameObject.SetActive(has);
         releaseBtn.gameObject.SetActive(has);
         detEmpty.gameObject.SetActive(!has);
+        detailStatBox.gameObject.SetActive(has);
+        moreActions.gameObject.SetActive(has);
         if (!has)
         {
             equipBtn.gameObject.SetActive(false);
             unequipBtn.gameObject.SetActive(false);
             mergeBtn.gameObject.SetActive(false);
-            Set(detEmpty, sorted.Count == 0 ? "" : "Выбери питомца");
+            Set(detEmpty, sorted.Count == 0 ? "Здесь появятся подробности о твоём питомце" : "Выбери питомца");
             return;
         }
 
         PetData d = sel.data;
-        Color acc = PetUi.RarityAccent(d.rarity);
         int stage = Mathf.Clamp(pm.GrowthStage, 0, 2);
         detCard.LiveStage = stage;                       // стадия роста: малыш, подросток, взрослый
         detCard.Set(d, sel.stars, false);
-        detName.color = acc;
+        detName.color = TWPetCollectionSkin.Ink;
         Set(detName, PetUi.NameOf(d));
-        detRarity.color = acc;
+        detRarity.color = TWPetCollectionSkin.RarityInk(d.rarity);
         Set(detRarity, PetText.Rarity(d.rarity) + "  ·  " + StageNames[stage]);
-        Set(detStat, PetUi.StatLine(d, sel.stars));
+        Set(detStat, StatShort(d.stat) + "  <color=#" + PetUi.Hex(TWPetCollectionSkin.Good) + ">" + PetUi.BonusText(d, sel.stars) + "</color>");
 
         // звёзды и копии
         int copies = pm.CountOf(d);
         bool canMerge = pm.CanMerge(d);
         string extra = "";
         if (sel.stars > 0)
-            extra = "<color=#FFD24A>Звёзды: " + sel.stars + " из " + GameBalance.PetStarMax + "</color>  <size=80%>(бонус +"
+            extra = "<color=#875B1E>Звёзды: " + sel.stars + " из " + GameBalance.PetStarMax + "</color>  <size=80%>(бонус +"
                 + Mathf.RoundToInt((GameBalance.PetStarMult(sel.stars) - 1f) * 100f) + "%)</size>";
         else if (copies > 1)
-            extra = "Копий: <b>x" + copies + "</b>  <size=80%>(слияние от " + GameBalance.PetMergeCount + ")</size>";
+            extra = "Копий: <b>" + copies + "</b>  ·  для звезды нужно " + GameBalance.PetMergeCount;
         Set(detExtra, extra);
+        detExtra.gameObject.SetActive(!string.IsNullOrEmpty(extra));
 
         bool eq = pm.IsEquipped(sel.uid);
         bool free = pm.EquippedCount < pm.SlotCount;
@@ -147,35 +149,31 @@ public partial class PetCollectionWindow
             head = rep != null ? "Заменит «" + PetUi.NameOf(rep.data) + "»:" : "Если взять:";
         }
         Set(detHead, head);
-        Set(detD1, DeltaLine(d.stat, before, after));
+        Set(detD1, "");
         bool second = rep != null && rep.data.stat != d.stat;
         Set(detD2, second ? DeltaLine(rep.data.stat, before, after) : "");
-        Set(detLive, LiveLine(d.stat, before, after));
+        detD2.gameObject.SetActive(second);
+        string live = LiveLine(d.stat, before, after);
+        Set(detLive, string.IsNullOrEmpty(live) ? DeltaLine(d.stat, before, after) : live);
 
         equipBtn.gameObject.SetActive(!eq);
         unequipBtn.gameObject.SetActive(eq);
         SetBtn(equipBtn, equipLabel, free || rep != null);
         Set(equipLabel, free ? "Взять с собой" : "Заменить");
-        if (equipIco != null) equipIco.sprite = PetIcons.Get(free ? PetIco.Plus : PetIco.Swap);
 
-        if (eq) Set(detNote, "<color=#" + PetUi.Hex(UiKit.Good) + ">Сейчас с тобой</color>");
-        else if (free) Set(detNote, "");
-        else if (pm.SlotCount < PetManager.SkillSlotIndex && pm.SlotCount < GameBalance.PetSlotLevels.Length)
-            Set(detNote, "<color=#" + PetUi.Hex(UiKit.Warn) + ">Слоты заняты. Новый слот: ур. " + GameBalance.PetSlotLevels[pm.SlotCount] + "</color>");
-        else if (!PetManager.SkillSlotUnlocked)
-            Set(detNote, "<color=#" + PetUi.Hex(UiKit.Warn) + ">Слоты заняты. 4-й слот: навык «Верный друг»</color>");
-        else Set(detNote, "");
+        Set(detNote, eq ? "<color=#" + PetUi.Hex(TWPetCollectionSkin.Good) + ">Сейчас с тобой</color>"
+            : rep != null ? "Заменённый питомец останется в коллекции" : "");
 
         // слияние предлагается раньше «Отпустить»
         mergeBtn.gameObject.SetActive(canMerge);
-        if (canMerge) Set(mergeLabel, "Слить " + GameBalance.PetMergeCount + " копии: +1 звезда");
+        if (canMerge) Set(mergeLabel, "Объединить " + GameBalance.PetMergeCount + " копии");
 
         bool armed = armedUntil > 0f;
         bool precious = d.rarity >= PetRarity.Rare || sel.stars > 0;
         Set(releaseLabel, armed ? (precious ? "Отпустить навсегда?" : "Точно отпустить?") : "Отпустить");
-        releaseLabel.color = armed ? UiKit.Warn : releaseColor;
+        releaseLabel.color = armed ? TWPetCollectionSkin.Warning : releaseColor;
         if (armed)
-            Set(detNote, "<color=#" + PetUi.Hex(UiKit.Warn) + ">Питомец исчезнет навсегда"
+            Set(detNote, "<color=#" + PetUi.Hex(TWPetCollectionSkin.Warning) + ">Питомец исчезнет навсегда"
                 + (eq ? " и уйдёт из команды" : precious ? ": он ценный" : "") + "</color>");
     }
 
@@ -194,14 +192,13 @@ public partial class PetCollectionWindow
             int f, t;
             pm.RarityProgress(rar, out f, out t);
             bool done = t > 0 && f >= t;
-            Color acc = PetUi.RarityAccent(rar);
-            bookName[r].color = acc;
+            bookName[r].color = TWPetCollectionSkin.RarityInk(rar);
             Set(bookName[r], PetText.Rarity(rar));
             Set(bookCount[r], f + "/" + t);
-            bookCount[r].color = done ? UiKit.Good : Color.white;
+            bookCount[r].color = done ? TWPetCollectionSkin.Good : TWPetCollectionSkin.Ink;
             bookCheck[r].gameObject.SetActive(done);
             float bonus = r < GameBalance.PetBookBonusByRarity.Length ? GameBalance.PetBookBonusByRarity[r] : 0f;
-            bookBonus[r].color = done ? UiKit.Good : Dim;
+            bookBonus[r].color = done ? TWPetCollectionSkin.Good : Dim;
             Set(bookBonus[r], (done ? "Получено: " : "За все виды: ") + "+" + PetUi.Pct(bonus) + "% ко всем");
         }
     }
@@ -212,6 +209,6 @@ public partial class PetCollectionWindow
     {
         if (b == null) return;
         b.interactable = on;
-        if (label != null) label.color = on ? UiKit.Ink : OffText;
+        if (label != null) label.color = on ? TWPetCollectionSkin.Ink : OffText;
     }
 }

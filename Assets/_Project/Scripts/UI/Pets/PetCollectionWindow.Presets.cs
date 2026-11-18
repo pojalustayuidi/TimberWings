@@ -24,8 +24,8 @@ public partial class PetCollectionWindow
     const int PresetCount = PetManager.PresetCount;
     const string OldPresetKey = "pet_presets_v1";      // старое хранилище в PlayerPrefs: один раз удаляется
     readonly int[] presetRes = new int[PetManager.MaxSlots];
-    const float PCardX = 10f, PCardW = PrW - 20f, PCardH = 216f, PCardGap = 8f, PCardY0 = 46f;
-    const float PMini = 58f, PMiniGap = 4f, PMiniY = 34f;
+    const float PCardX = 30f, PCardW = 276f, PCardH = 354f, PCardGap = 16f, PCardY0 = 88f;
+    const float PMini = 64f, PMiniGap = 8f, PMiniY = 48f;
     static readonly string[] PresetCaptions = { "Основной", "Рубка", "Торговля", "Бригада", "Дорога", "Пила" };
     static readonly string[] AutoNames = { "Рубка", "Бег", "Рюкзак", "Добыча", "Торговля", "Пила", "Бригада" };   // по PetStat
     readonly RectTransform[] pWrap = new RectTransform[PresetCount];      // обёртка: на ней въезд при открытии (PetHover шевелит сам фон)
@@ -61,8 +61,8 @@ public partial class PetCollectionWindow
     void PresetBurst(int i)
     {
         if (fx == null) return;
-        float cy = PrY + PCardY0 + i * (PCardH + PCardGap) + PMiniY + PMini + PMiniGap * 0.5f;
-        fx.Burst(InnerToFx(PrX + PCardX + PCardW * 0.5f, cy), UiKit.BrassHi, 14, 240f, 20f, 260f, 0.7f);
+        Vector2 point = panel.InverseTransformPoint(pWrap[i].position);
+        fx.Burst(point, TWPetCollectionSkin.Selection, 14, 240f, 20f, 260f, 0.7f);
     }
 
     void LoadPresets()
@@ -113,11 +113,12 @@ public partial class PetCollectionWindow
         SfxManager.Play("coin", 0.7f, 1.1f);
         pPop[i] = 0.0001f;
         PresetBurst(i);
-        if (fx != null) fx.FloatText(InnerToFx(TeamX + TeamW * 0.5f, TeamY + SlotY + SlotH), "Набор " + (i + 1), UiKit.BrassHi, 40f);
+        if (fx != null) fx.FloatText(InnerToFx(TeamX + TeamW * 0.5f, TeamY + SlotY + SlotH), "Набор " + (i + 1), TWPetCollectionSkin.Accent, 40f);
         string msg = "Набор " + (i + 1) + " надет";
         if (subst > 0) msg += ", другие копии: " + subst;
         if (missing > 0) msg += ", не хватило питомцев или слотов: " + missing;
         Toast(msg + ". Ctrl+Z: отменить");
+        SetPopup(Popup.None);
     }
 
     void OnUnequipAllClick()
@@ -163,10 +164,11 @@ public partial class PetCollectionWindow
 
     static Sprite MiniPic(PetData d, out bool pending)
     {
+        if (d.icon != null) { pending = false; return d.icon; }
         Sprite s = PetPortrait.Get(d);
         pending = s == null && PetPortrait.Enabled && d.prefab != null;
         if (s != null) return s;
-        return d.icon != null ? d.icon : UiKit.Icon(UiIcon.Paw);
+        return d.icon != null ? d.icon : TWPetCollectionSkin.Icon(UiIcon.Paw);
     }
 
     void OnPresetCaption(int i)
@@ -181,7 +183,7 @@ public partial class PetCollectionWindow
 
     void RefreshPresets()
     {
-        if (pBg[0] == null) return;
+        if (pBg[0] == null || popup != Popup.Presets) return;
         var pm = PetManager.Instance;
         presetPortraitPending = false;
         bool canSave = pm != null && pm.EquippedCount > 0;
@@ -200,21 +202,21 @@ public partial class PetCollectionWindow
                 Image fr = pFrame[i][k], bk = pBack[i][k], pic = pPic[i][k];
                 if (!wants)
                 {
-                    fr.color = new Color(1f, 1f, 1f, 0.14f);
-                    bk.color = new Color(0f, 0f, 0f, 0.35f);
+                    fr.color = new Color(0.88f, 0.86f, 0.96f);
+                    bk.color = new Color(0.96f, 0.95f, 1f);
                     pic.enabled = false;
                 }
                 else if (inst == null)                                    // питомцев этого вида больше нет
                 {
                     fr.color = new Color(DotColor.r, DotColor.g, DotColor.b, 0.85f);
-                    bk.color = new Color(0.25f, 0.08f, 0.08f, 0.85f);
+                    bk.color = new Color(1f, 0.87f, 0.90f);
                     pic.enabled = false;
                 }
                 else
                 {
                     PetRarity r = inst.data.rarity;
                     fr.color = PetUi.RarityAccent(r);
-                    bk.color = Color.Lerp(PetUi.RarityFill(r), Color.black, 0.2f);
+                    bk.color = Color.Lerp(Color.white, PetUi.RarityAccent(r), 0.16f);
                     bool pend;
                     pic.sprite = MiniPic(inst.data, out pend);
                     pic.enabled = true;
@@ -230,7 +232,7 @@ public partial class PetCollectionWindow
                 pChipTxt[i][c].gameObject.SetActive(on);
                 if (!on) continue;
                 PetStat st = (PetStat)topI[c];
-                pChipIco[i][c].sprite = UiKit.Icon(PetUi.StatIcon(st));
+                pChipIco[i][c].sprite = TWPetCollectionSkin.Icon(PetUi.StatIcon(st));
                 Set(pChipTxt[i][c], StatValueText(st, pb));
             }
 
@@ -238,27 +240,29 @@ public partial class PetCollectionWindow
             string name = cap >= 0 && cap < PresetCaptions.Length ? PresetCaptions[cap]
                         : filled && topI[0] >= 0 ? AutoNames[topI[0]]
                         : "Набор " + (i + 1);
-            pLabel[i].color = active ? UiKit.BrassHi : Color.white;
+            pLabel[i].color = TWPetCollectionSkin.Ink;
             Set(pLabel[i], name);
 
             pEmpty[i].gameObject.SetActive(!filled);
-            pEmpty[i].color = canSave ? UiKit.BrassHi : Dim;
-            Set(pEmpty[i], canSave ? "Сохранить состав" : "Пока пусто");
+            pEmpty[i].color = canSave ? TWPetCollectionSkin.Accent : Dim;
+            Set(pEmpty[i], canSave ? "Готово к сохранению" : "Сначала собери команду");
             pPlus[i].gameObject.SetActive(!filled);
             pCheck[i].gameObject.SetActive(active);
             SetBtn(pCap[i], null, filled);
             SetBtn(pSave[i], null, canSave);
             SetBtn(pClear[i], null, filled);
+            Set(presetApplyText[i], filled ? (active ? "Эта команда выбрана" : "Выбрать команду") : "Сохранить команду");
+            SetBtn(presetApply[i], presetApplyText[i], filled || canSave);
             pHover[i].tip = filled
                 ? "<b>Набор " + (i + 1) + " «" + name + "»</b>: клик надевает всех сразу  ·  кнопки внизу: сменить подпись, перезаписать текущим составом, очистить"
-                : "Набор " + (i + 1) + " пуст: клик сохранит текущий состав слотов";
+                : "Набор " + (i + 1) + " пуст: кнопка «Сохранить команду» запомнит текущий состав";
         }
     }
 
     // анимации наборов: въезд при открытии, пульс рамки надетого набора, волна на портретах, мигающий плюс у пустого
     void AnimatePresets(float dt)
     {
-        if (pBg[0] == null) return;
+        if (pBg[0] == null || popup != Popup.Presets) return;
         float tm = Time.unscaledTime;
         var pm = PetManager.Instance;
         bool canSave = pm != null && pm.EquippedCount > 0;
@@ -267,12 +271,12 @@ public partial class PetCollectionWindow
             if (pIn[i] < 1f) pIn[i] = Mathf.Min(1f, pIn[i] + dt);
             float k = Mathf.Clamp01(pIn[i] / 0.35f);
             pWrap[i].localScale = Vector3.one * Mathf.LerpUnclamped(0.82f, 1f, UiDraw.EaseOutBack(k));
-            pWrap[i].anchoredPosition = new Vector2(PCardX + PCardW * 0.5f,
-                -(PCardY0 + i * (PCardH + PCardGap) + PCardH * 0.5f) - (1f - UiDraw.EaseOutCubic(k)) * 24f);
+            pWrap[i].anchoredPosition = new Vector2(PCardX + i * (PCardW + PCardGap) + PCardW * 0.5f,
+                -(PCardY0 + PCardH * 0.5f) - (1f - UiDraw.EaseOutCubic(k)) * 12f);
             pCg[i].alpha = Mathf.Clamp01(k * 2.5f);
 
             // надетый набор: рамка тёплым светом пульсирует
-            Color tgt = pActive[i] ? Color.Lerp(Color.white, UiKit.BrassHi, 0.45f + 0.2f * Mathf.Sin(tm * 3.2f)) : Color.white;
+            Color tgt = pActive[i] ? Color.Lerp(Color.white, TWPetCollectionSkin.Accent, 0.45f + 0.2f * Mathf.Sin(tm * 3.2f)) : Color.white;
             pBg[i].color = Color.Lerp(pBg[i].color, tgt, Mathf.Clamp01(dt * 12f));
             if (pCheck[i].gameObject.activeSelf) pCheck[i].rectTransform.localScale = Vector3.one * (1f + 0.1f * Mathf.Sin(tm * 4f));
 
@@ -299,132 +303,69 @@ public partial class PetCollectionWindow
         }
     }
 
-    void BuildPresets(Transform p)
+    void BuildPresets(Transform parent)
     {
         LoadPresets();
-
-        // колонка в той же рамке, что и «Команда»
-        var col = UiKit.MakeImage(p, "PresetsCol", UiKit.Slot, true, 1f);
-        TL(col.rectTransform, PrX, PrY, PrW, PrH);
-        col.raycastTarget = false;
-        var tr = col.transform;
-
-        var hico = UiKit.MakeImage(tr, "TitleIco", PetIcons.Get(PetIco.Save), false);
-        hico.preserveAspect = true;
-        hico.raycastTarget = false;
-        TLC(hico.rectTransform, 28f, 24f, 28f, 28f);
-        var ttl = UiKit.MakeLabel(tr, "Наборы", 28f, Color.white, TextAlignmentOptions.Left, true);
-        TL(ttl.rectTransform, 50f, 8f, PrW - 60f, 34f);
-        PetUi.AutoSize(ttl, 16f, 28f);
-
-        Vector2 mid = new Vector2(0.5f, 0.5f);
+        var card = PopupCard("PresetsPopup", new Vector2(920f, 550f), Vector2.zero, out presetsPopup);
+        var title = TWPetCollectionSkin.Label(card, "Сохранённые команды", 30f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+        TL(title.rectTransform, 30f, 22f, 700f, 42f);
+        TMP_Text done;
+        MakeBtn(card, "Готово", UiBtn.Gray, 760f, 22f, 130f, 44f, 20f, () => SetPopup(Popup.None), out done);
         for (int i = 0; i < PresetCount; i++)
         {
-            int n = i;
-
-            // обёртка по центру карточки: на ней масштаб и прозрачность въезда
-            var wrap = NewRT("PresetWrap" + (i + 1), tr);
-            Anch(wrap, new Vector2(0f, 1f), mid, new Vector2(PCardX + PCardW * 0.5f, -(PCardY0 + i * (PCardH + PCardGap) + PCardH * 0.5f)), new Vector2(PCardW, PCardH));
-            pCg[i] = wrap.gameObject.AddComponent<CanvasGroup>();
+            int index = i;
+            var wrap = NewRT("Preset" + i, card);
+            Anch(wrap, new Vector2(0f, 1f), Vector2.one * 0.5f,
+                new Vector2(PCardX + i * (PCardW + PCardGap) + PCardW * 0.5f, -(PCardY0 + PCardH * 0.5f)), new Vector2(PCardW, PCardH));
             pWrap[i] = wrap;
+            pCg[i] = wrap.gameObject.AddComponent<CanvasGroup>();
             pIn[i] = 1f;
-
-            var bg = UiKit.MakeImage(wrap, "Preset" + (i + 1), UiKit.Slot, true, 0.9f);
+            var bg = TWPetCollectionSkin.Surface(wrap, "Card");
             Stretch(bg.rectTransform);
-            AddBtn(bg, () => OnPresetMain(n));
-            var hv = bg.gameObject.AddComponent<PetHover>();
-            hv.grow = 0.03f;
             pBg[i] = bg;
-            pHover[i] = hv;
-
-            // имя набора и галочка «надет сейчас»
-            pLabel[i] = UiKit.MakeLabel(bg.transform, "", 22f, Color.white, TextAlignmentOptions.Left, true);
-            TL(pLabel[i].rectTransform, 10f, 5f, PCardW - 44f, 26f);
-            PetUi.AutoSize(pLabel[i], 13f, 22f);
-            pLabel[i].raycastTarget = false;
-            pCheck[i] = UiKit.MakeIcon(bg.transform, UiIcon.Check, 22f, "Active");
-            pCheck[i].raycastTarget = false;
-            pCheck[i].color = UiKit.Good;
-            Anch(pCheck[i].rectTransform, new Vector2(1f, 1f), mid, new Vector2(-20f, -18f), new Vector2(24f, 24f));
-            pCheck[i].gameObject.SetActive(false);
-
-            // 4 портрета по схеме слотов 2x2: рамка цвета редкости, плашка, сам питомец
-            pFrame[i] = new Image[PetManager.MaxSlots];
-            pBack[i] = new Image[PetManager.MaxSlots];
-            pPic[i] = new Image[PetManager.MaxSlots];
-            float mx0 = (PCardW - (2f * PMini + PMiniGap)) * 0.5f;
-            for (int k = 0; k < PetManager.MaxSlots; k++)
+            pHover[i] = bg.gameObject.AddComponent<PetHover>();
+            pLabel[i] = TWPetCollectionSkin.Label(bg.transform, "", 24f, TWPetCollectionSkin.Ink, TextAlignmentOptions.Left);
+            TL(pLabel[i].rectTransform, 14f, 10f, PCardW - 56f, 30f);
+            pCheck[i] = PetIcon(bg.transform, UiIcon.Check, 22f, "Active");
+            TLC(pCheck[i].rectTransform, PCardW - 26f, 26f, 22f, 22f);
+            pFrame[i] = new Image[PetManager.MaxSlots]; pBack[i] = new Image[PetManager.MaxSlots]; pPic[i] = new Image[PetManager.MaxSlots];
+            float x0 = (PCardW - PMini * 2f - PMiniGap) * 0.5f;
+            for (int j = 0; j < PetManager.MaxSlots; j++)
             {
-                float mx = mx0 + (k % 2) * (PMini + PMiniGap), my = PMiniY + (k / 2) * (PMini + PMiniGap);
-                var fr = UiKit.MakeImage(bg.transform, "Mini" + k, null, false);
-                TLC(fr.rectTransform, mx + PMini * 0.5f, my + PMini * 0.5f, PMini, PMini);   // от центра: подпрыгивает без смещения
-                fr.raycastTarget = false;
-                var bk = UiKit.MakeImage(fr.transform, "Back", null, false);
-                Stretch(bk.rectTransform);
-                bk.rectTransform.offsetMin = new Vector2(2f, 2f);
-                bk.rectTransform.offsetMax = new Vector2(-2f, -2f);
-                bk.raycastTarget = false;
-                var pic = UiKit.MakeImage(fr.transform, "Pic", null, false);
-                pic.preserveAspect = true;
-                pic.raycastTarget = false;
-                Stretch(pic.rectTransform);
-                pic.rectTransform.offsetMin = new Vector2(3f, 3f);
-                pic.rectTransform.offsetMax = new Vector2(-3f, -3f);
-                pFrame[i][k] = fr;
-                pBack[i][k] = bk;
-                pPic[i][k] = pic;
+                var frame = TWPetCollectionSkin.Surface(bg.transform, "Pet" + j);
+                TLC(frame.rectTransform, x0 + j % 2 * (PMini + PMiniGap) + PMini * 0.5f,
+                    PMiniY + j / 2 * (PMini + PMiniGap) + PMini * 0.5f, PMini, PMini);
+                var back = UiKit.MakeImage(frame.transform, "Back", null, false);
+                Stretch(back.rectTransform); back.rectTransform.offsetMin = Vector2.one * 4f; back.rectTransform.offsetMax = Vector2.one * -4f;
+                var pic = UiKit.MakeImage(frame.transform, "Portrait", null, false);
+                Stretch(pic.rectTransform); pic.preserveAspect = true;
+                pic.rectTransform.offsetMin = Vector2.one * 3f; pic.rectTransform.offsetMax = Vector2.one * -3f;
+                pFrame[i][j] = frame; pBack[i][j] = back; pPic[i][j] = pic;
             }
-
-            // плюс по центру блока портретов: виден, только пока набор пуст
-            pPlus[i] = UiKit.MakeImage(bg.transform, "Plus", PetIcons.Get(PetIco.Plus), false);
-            pPlus[i].preserveAspect = true;
-            pPlus[i].raycastTarget = false;
-            TLC(pPlus[i].rectTransform, PCardW * 0.5f, PMiniY + PMini + PMiniGap * 0.5f, 56f, 56f);
-
-            // два главных бонуса набора: значок характеристики и значение
-            pChipIco[i] = new Image[2];
-            pChipTxt[i] = new TMP_Text[2];
-            for (int c = 0; c < 2; c++)
+            pPlus[i] = PetIcon(bg.transform, UiIcon.Paw, 44f, "Empty");
+            TLC(pPlus[i].rectTransform, PCardW * 0.5f, PMiniY + PMini + PMiniGap * 0.5f, 44f, 44f);
+            pChipIco[i] = new Image[2]; pChipTxt[i] = new TMP_Text[2];
+            for (int j = 0; j < 2; j++)
             {
-                float cx = 8f + c * (PCardW * 0.5f - 4f);
-                var ci = UiKit.MakeImage(bg.transform, "ChipIco" + c, null, false);
-                ci.preserveAspect = true;
-                ci.raycastTarget = false;
-                TL(ci.rectTransform, cx, 159f, 22f, 22f);
-                var ct = UiKit.MakeLabel(bg.transform, "", 20f, UiKit.Good, TextAlignmentOptions.Left, true);
-                TL(ct.rectTransform, cx + 24f, 157f, PCardW * 0.5f - 34f, 26f);
-                PetUi.AutoSize(ct, 11f, 20f);
-                ct.raycastTarget = false;
-                pChipIco[i][c] = ci;
-                pChipTxt[i][c] = ct;
+                float x = 24f + j * 120f;
+                pChipIco[i][j] = PetIcon(bg.transform, UiIcon.Star, 23f, "Bonus");
+                TL(pChipIco[i][j].rectTransform, x, 208f, 23f, 23f);
+                pChipTxt[i][j] = TWPetCollectionSkin.Label(bg.transform, "", 20f, TWPetCollectionSkin.Good, TextAlignmentOptions.Left);
+                TL(pChipTxt[i][j].rectTransform, x + 30f, 206f, 78f, 28f);
             }
-
-            pEmpty[i] = UiKit.MakeLabel(bg.transform, "Сохранить состав", 17f, Dim, TextAlignmentOptions.Center, true);
-            TL(pEmpty[i].rectTransform, 4f, 157f, PCardW - 8f, 26f);
-            PetUi.AutoSize(pEmpty[i], 11f, 17f);
-            pEmpty[i].raycastTarget = false;
-
-            // кнопки: подпись, перезаписать, очистить
-            const float BW = 49f, BH = 28f, BY = 184f;
-            pCap[i] = UiKit.MakeButton(bg.transform, "", UiBtn.Amber, new Vector2(BW, BH), 14f, 0.6f);
-            TL(pCap[i].GetComponent<RectTransform>(), 6f, BY, BW, BH);
-            pCap[i].onClick.AddListener(() => OnPresetCaption(n));
-            Ico(pCap[i].transform, PetIco.Swap, 18f);
-            pCap[i].gameObject.AddComponent<PetHover>().tip = "Сменить подпись набора " + (i + 1) + " (по кругу, первая: по главному бонусу)";
-
-            pSave[i] = UiKit.MakeButton(bg.transform, "", UiBtn.Green, new Vector2(BW, BH), 14f, 0.6f);
-            TL(pSave[i].GetComponent<RectTransform>(), 6f + BW + 4f, BY, BW, BH);
-            pSave[i].onClick.AddListener(() => SavePreset(n));
-            Ico(pSave[i].transform, PetIco.Save, 19f);
-            var hs = pSave[i].gameObject.AddComponent<PetHover>(); hs.grow = 0.08f; hs.tip = "Перезаписать набор " + (i + 1) + " текущим составом слотов";
-
-            pClear[i] = UiKit.MakeButton(bg.transform, "", UiBtn.Gray, new Vector2(BW, BH), 14f, 0.6f);
-            TL(pClear[i].GetComponent<RectTransform>(), 6f + 2f * (BW + 4f), BY, BW, BH);
-            pClear[i].onClick.AddListener(() => ClearPreset(n));
-            var ci2 = UiKit.MakeIcon(pClear[i].transform, UiIcon.Cross, 16f, "C");
-            ci2.raycastTarget = false;
-            var hc = pClear[i].gameObject.AddComponent<PetHover>(); hc.grow = 0.08f; hc.tip = "Очистить набор " + (i + 1);
+            pEmpty[i] = TWPetCollectionSkin.Label(bg.transform, "", 19f, Dim, TextAlignmentOptions.Center, false);
+            TL(pEmpty[i].rectTransform, 12f, 204f, PCardW - 24f, 34f);
+            presetApply[i] = MakeBtn(bg.transform, "", UiBtn.Gray, 12f, 252f, PCardW - 24f, 46f, 19f, () => OnPresetMain(index), out presetApplyText[i]);
+            TMP_Text label;
+            pCap[i] = MakeBtn(bg.transform, "Имя", UiBtn.Gray, 12f, 310f, 60f, 32f, 16f, () => OnPresetCaption(index), out label);
+            pSave[i] = MakeBtn(bg.transform, "Обновить", UiBtn.Gray, 82f, 310f, 124f, 32f, 16f, () => SavePreset(index), out label);
+            pClear[i] = MakeBtn(bg.transform, "×", UiBtn.Gray, 216f, 310f, 48f, 32f, 21f, () => ClearPreset(index), out label);
+            Tip(pSave[i], "Заменить сохранённую команду текущим составом");
+            Tip(pClear[i], "Очистить набор. Питомцы останутся в коллекции");
         }
-        RefreshPresets();
+        unequipAllBtn = MakeBtn(card, "Снять всех", UiBtn.Gray, 30f, 478f, 210f, 44f, 20f, OnUnequipAllClick, out unequipAllLabel);
+        undoBtn = MakeBtn(card, "Вернуть состав", UiBtn.Gray, 256f, 478f, 250f, 44f, 20f, OnUndoClick, out undoLabel);
+        var note = TWPetCollectionSkin.Label(card, "Ctrl+Z — отменить смену команды", 17f, Dim, TextAlignmentOptions.Right, false);
+        TL(note.rectTransform, 520f, 484f, 366f, 32f);
     }
 }

@@ -22,7 +22,19 @@ public partial class PetCollectionWindow
         if (pm == null) return;
 
         PetInstance e = pm.GetEquipped(i);
-        if (e != null) { SelectUid(e.uid, true, true); return; }
+        if (e != null)
+        {
+            if (tab != Tab.Collection || FindInstance(e.uid) == null)
+            {
+                filterStat = rarFilter = -1;
+                tab = Tab.Collection;
+                selectedUid = e.uid;
+                animateNext = true;
+                Populate();
+            }
+            SelectUid(e.uid, true, true);
+            return;
+        }
 
         if (!pm.IsSlotOpen(i))
         {
@@ -94,6 +106,7 @@ public partial class PetCollectionWindow
     void SetTab(Tab t)
     {
         if (tab == t) return;
+        SetPopup(Popup.None);
         tab = t;
         contentsRt.anchoredPosition = Vector2.zero;
         armedUntil = 0f;
@@ -172,6 +185,7 @@ public partial class PetCollectionWindow
         {
             selectedUid = next;
             revealPending = true;
+            SetPopup(Popup.None);
             Toast("Питомец отпущен", ToastKind.Info);
             SfxManager.Play("ui", 0.5f, 0.7f);
         }

@@ -26,7 +26,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 [DefaultExecutionOrder(-90)]
-public class OrbitCamera : MonoBehaviour
+public partial class OrbitCamera : MonoBehaviour
 {
     const string PrefKey = "tw_cam_orbit_v2";   // новый ключ: у всех по умолчанию «Свободная»
 
@@ -272,12 +272,14 @@ public class OrbitCamera : MonoBehaviour
 
     void OnDestroy()
     {
+        FpLeave(true);
         if (applied) ClearTreePeek();
         if (instance == this) instance = null;
     }
 
     void OnDisable()
     {
+        FpLeave(true);
         ReleaseCursor();
         if (applied) ClearTreePeek();
     }
@@ -291,8 +293,10 @@ public class OrbitCamera : MonoBehaviour
 
     void Update()
     {
+        FpToggle();
         if (Input.GetKeyDown(toggleKey) && !LeoCelebration.IsPlaying && !ArrivalIntroSequence.Active && !MobileInput.ModalOpen && !DialoguePreferences.ConversationOwnsCamera && !StoryInspection.Active)
         {
+            FpLeave(true);
             Enabled = !Enabled;
             PlayerPrefs.Save();
         }
@@ -303,6 +307,7 @@ public class OrbitCamera : MonoBehaviour
         // сцена сменилась или это меню: камеры/игрока может не быть
         if (cam == null || !cam.isActiveAndEnabled)
         {
+            FpLeave(true);
             if (applied) ClearTreePeek();
             treePeekBlend = 0f;
             cam = Camera.main;
@@ -317,6 +322,7 @@ public class OrbitCamera : MonoBehaviour
 
         if (player == null)
         {
+            FpLeave(true);
             if (Time.unscaledTime < nextFind) return;
             nextFind = Time.unscaledTime + 1f;
             player = PlayerMovement.Instance;
@@ -329,7 +335,7 @@ public class OrbitCamera : MonoBehaviour
         if (want && !applied) Enter();
         else if (!want && applied) Exit();
 
-        if (applied) Step();
+        if (applied && !FpStep()) Step();
     }
 
     void Enter()
@@ -371,6 +377,7 @@ public class OrbitCamera : MonoBehaviour
 
     void Exit()
     {
+        FpLeave(true);
         ClearTreePeek();
         treePeekBlend = 0f;
         applied = false;

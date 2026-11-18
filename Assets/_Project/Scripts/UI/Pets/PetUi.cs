@@ -68,6 +68,20 @@ public static class PetUi
         }
     }
 
+    public static string ShortStat(PetStat stat)
+    {
+        switch (stat)
+        {
+            case PetStat.ChopPower: return "Рубка";
+            case PetStat.MoveSpeed: return "Бег";
+            case PetStat.Capacity: return "Рюкзак";
+            case PetStat.DoubleYield: return "Добыча";
+            case PetStat.Haggle: return "Продажа";
+            case PetStat.SawSpeed: return "Пила";
+            default: return "Рабочие";
+        }
+    }
+
     // ============================================================ тексты
     public static string NameOf(PetData d)
     {
@@ -226,9 +240,13 @@ public class PetCardView
     public bool pendingPortrait;         // 3D-снимок ещё не готов: окно перерисует карточку позже
 
     // дополнительные элементы создаются лениво (ленте рулетки они не нужны)
-    Image newBadge, newBg;
+    Image newBadge;
     TMP_Text newLabel;
     Image[] mergeStars;
+
+    TWPetCollectionSkin cloudSkin;
+    bool modelOnly;
+    TMP_Text compactBonus;
 
     float w, h;
     PetLiveView live;     // живая вращающаяся модель (только если вызван EnableLive)
@@ -319,6 +337,75 @@ public class PetCardView
         return c;
     }
 
+    // Only the collection opts in; crate/reward cards keep their own presentation.
+    public void UseCloudStyle(TWPetCollectionSkin skin, bool portraitOnly = false)
+    {
+        cloudSkin = skin;
+        modelOnly = portraitOnly;
+        if (skin == null) return;
+        frame.sprite = skin.surface;
+        frame.pixelsPerUnitMultiplier = 1.5f;
+        if (skin.font != null) nameLabel.font = skin.font;
+        nameLabel.color = TWPetCollectionSkin.Ink;
+        nameLabel.fontSizeMax = Mathf.Min(26f, h * 0.115f);
+        nameLabel.fontSizeMin = Mathf.Min(18f, h * 0.095f);
+        if (!modelOnly)
+        {
+            float labelHeight = Mathf.Min(64f, h * 0.30f);
+            strip.rectTransform.offsetMax = new Vector2(-Inset, Inset + labelHeight);
+            nameLabel.rectTransform.anchorMin = new Vector2(0f, 0.5f);
+            nameLabel.rectTransform.anchorMax = Vector2.one;
+            nameLabel.rectTransform.offsetMin = new Vector2(6f, -1f);
+            nameLabel.rectTransform.offsetMax = new Vector2(-6f, -2f);
+            compactBonus = TWPetCollectionSkin.Label(strip.transform, "", Mathf.Min(19f, h * 0.085f), TWPetCollectionSkin.Good);
+            compactBonus.rectTransform.anchorMax = new Vector2(1f, 0.5f);
+            compactBonus.rectTransform.offsetMin = new Vector2(4f, 2f);
+            compactBonus.rectTransform.offsetMax = new Vector2(-4f, 2f);
+        }
+        RefreshCloud(null, false);
+    }
+
+    void RefreshCloud(PetData data, bool locked, int starCount = 0)
+    {
+        if (cloudSkin == null) return;
+        Color accent = data != null ? PetUi.RarityAccent(data.rarity) : Color.white;
+        frame.color = modelOnly ? Clear0 : Color.Lerp(Color.white, accent, locked ? 0f : 0.12f);
+        fill.enabled = false; dim.enabled = false; shine.enabled = false;
+        badge.gameObject.SetActive(false); gem.gameObject.SetActive(false); topBar.enabled = false;
+        strip.gameObject.SetActive(!modelOnly);
+        nameLabel.color = locked ? TWPetCollectionSkin.Muted : TWPetCollectionSkin.Ink;
+        strip.color = new Color(1f, 1f, 1f, 0.55f);
+        if (!modelOnly)
+        {
+            icon.rectTransform.anchoredPosition = new Vector2(0f, h * 0.15f);
+            if (icon.enabled) icon.rectTransform.sizeDelta = Vector2.one * w * 0.84f;
+        }
+        if (locked) icon.color = new Color(0.22f, 0.18f, 0.36f, 0.38f);
+        if (compactBonus != null)
+        {
+            compactBonus.color = locked ? TWPetCollectionSkin.Muted : TWPetCollectionSkin.Good;
+            compactBonus.text = locked ? "Не найден" : data != null ? PetUi.ShortStat(data.stat) + " " + PetUi.BonusText(data, starCount) : "";
+        }
+        if (newBadge != null)
+        {
+            newBadge.sprite = cloudSkin.surface;
+            newBadge.type = Image.Type.Sliced;
+            newBadge.color = new Color(1f, 0.96f, 0.74f);
+            newLabel.text = "Новый";
+            newLabel.color = TWPetCollectionSkin.Accent;
+            if (cloudSkin.font != null) newLabel.font = cloudSkin.font;
+            PetUi.Anchor(newBadge.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(8f, -8f), new Vector2(w * 0.45f, h * 0.12f));
+            for (int i = 0; i < mergeStars.Length; i++)
+            {
+                mergeStars[i].sprite = cloudSkin.star;
+                mergeStars[i].color = Color.white;
+                float size = Mathf.Min(h * 0.075f, w * 0.09f);
+                PetUi.Anchor(mergeStars[i].rectTransform, Vector2.one, Vector2.one * 0.5f,
+                    new Vector2(-(8f + size * 0.5f + i * size * 1.05f), -(8f + size * 0.5f)), Vector2.one * size);
+            }
+        }
+    }
+
     // Показывать питомца живой вращающейся 3D-моделью вместо снимка (для больших карточек: результат клети, окно подробностей).
     // Звать один раз после Create. Остальные карточки получают 3D-снимок (PetPortrait) без лишней нагрузки.
     public void EnableLive()
@@ -326,7 +413,8 @@ public class PetCardView
         if (live != null) return;
         var mid = new Vector2(0.5f, 0.5f);
         live = PetLiveView.Create(rt, "Live");
-        PetUi.Anchor(live.rect, mid, mid, new Vector2(0f, h * 0.10f), new Vector2(w * 0.92f, w * 0.92f));
+        float size = modelOnly ? Mathf.Min(w, h) : w * 0.92f;
+        PetUi.Anchor(live.rect, mid, mid, modelOnly ? Vector2.zero : new Vector2(0f, h * 0.10f), new Vector2(size, size));
         live.transform.SetSiblingIndex(icon.transform.GetSiblingIndex() + 1);   // над иконкой, под затемнением, медальоном и именем
     }
 
@@ -379,7 +467,7 @@ public class PetCardView
         dim.color = Clear0;
         shine.color = new Color(1f, 1f, 1f, 0.05f);
         if (live != null) live.Show(null);
-        Sprite portrait = d != null ? PetPortrait.Get(d) : null;
+        Sprite portrait = d != null ? (cloudSkin != null && d.icon != null ? d.icon : PetPortrait.Get(d)) : null;
         pendingPortrait = portrait == null && d != null && PetPortrait.Enabled && d.prefab != null;
         icon.sprite = portrait != null ? portrait : UiKit.Icon(UiIcon.Paw);
         icon.color = new Color(0.03f, 0.03f, 0.05f, 1f);            // силуэт: рисунок залит чёрным
@@ -391,6 +479,7 @@ public class PetCardView
         nameLabel.text = "???";
         if (stars != null) for (int i = 0; i < stars.Length; i++) stars[i].gameObject.SetActive(false);
         SetExtras(0, false);
+        RefreshCloud(d, true);
     }
 
     public void Set(PetData d, int starCount = 0, bool isNew = false)
@@ -409,7 +498,7 @@ public class PetCardView
         bool liveOn = live != null && live.Show(d, LiveStage);
         Sprite pic;
         float k;
-        Sprite portrait = liveOn ? null : PetPortrait.Get(d);
+        Sprite portrait = liveOn ? null : cloudSkin != null && d.icon != null ? d.icon : PetPortrait.Get(d);
         pendingPortrait = !liveOn && portrait == null && PetPortrait.Enabled && d.prefab != null;
         if (portrait != null) { pic = portrait; k = 0.8f; }
         else if (d.icon != null) { pic = d.icon; k = 0.58f; }
@@ -436,5 +525,6 @@ public class PetCardView
                 if (on) stars[i].rectTransform.anchoredPosition = new Vector2((i - (n - 1) * 0.5f) * ss * 1.08f, y);
             }
         }
+        RefreshCloud(d, false, starCount);
     }
 }

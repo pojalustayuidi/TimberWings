@@ -101,7 +101,7 @@ public partial class PetCollectionWindow
         img.preserveAspect = true;
         img.raycastTarget = false;
         Anch(img.rectTransform, new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(padLeft + size * 0.5f, 1f), new Vector2(size, size));
-        var lbl = b.GetComponentInChildren<TMP_Text>();
+        var lbl = b.GetComponentInChildren<TMP_Text>(true);
         if (lbl != null)
         {
             lbl.rectTransform.offsetMin = new Vector2(padLeft + size + 4f, lbl.rectTransform.offsetMin.y);
@@ -131,10 +131,10 @@ public partial class PetCollectionWindow
     static Button MakeBtn(Transform parent, string label, UiBtn style, float x, float y, float w, float h, float font,
                           UnityAction onClick, out TMP_Text labelText)
     {
-        var b = UiKit.MakeButton(parent, label, style, new Vector2(w, h), font, 1f);
+        var b = TWPetCollectionSkin.Button(parent, label, style, new Vector2(w, h), font);
         TL(b.GetComponent<RectTransform>(), x, y, w, h);
         b.onClick.AddListener(onClick);
-        labelText = b.GetComponentInChildren<TMP_Text>();
+        labelText = b.GetComponentInChildren<TMP_Text>(true);
         if (labelText != null) PetUi.AutoSize(labelText, 14f, font);
         return b;
     }

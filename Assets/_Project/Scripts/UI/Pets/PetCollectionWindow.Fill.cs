@@ -61,16 +61,7 @@ public partial class PetCollectionWindow
 
     static string StatShort(PetStat s)
     {
-        switch (s)
-        {
-            case PetStat.ChopPower: return "Рубка";
-            case PetStat.MoveSpeed: return "Бег";
-            case PetStat.Capacity: return "Рюкзак";
-            case PetStat.DoubleYield: return "Двойная добыча";
-            case PetStat.Haggle: return "Цена";
-            case PetStat.SawSpeed: return "Пила";
-            default: return "Рабочие";
-        }
+        return PetUi.ShortStat(s);
     }
 
     // пересобирает список (данные, не объекты), слоты, бонусы и описание. Зовётся при открытии, смене вида и при PetManager.Changed
@@ -256,17 +247,24 @@ public partial class PetCollectionWindow
         for (int k = 0; k < pool.Count; k++)
             if (pool[k].index >= 0 && pool[k].view.pendingPortrait) Bind(pool[k], pool[k].index);
         if (detCard != null && detCard.pendingPortrait && tab == Tab.Collection) RefreshDetail();
-        if (presetPortraitPending) RefreshPresets();
+        for (int i = 0; i < slots.Length; i++)
+        {
+            var slot = slots[i];
+            if (slot == null || !slot.bg.gameObject.activeSelf || !slot.card.pendingPortrait) continue;
+            var pet = PetManager.Instance != null ? PetManager.Instance.GetEquipped(i) : null;
+            if (pet != null) slot.card.Set(pet.data, pet.stars);
+        }
+        if (presetPortraitPending && popup == Popup.Presets) RefreshPresets();
     }
 
     // зелёная галочка в правом нижнем углу карточки: питомец сейчас в слоте
     static GameObject AddEquippedMark(PetCardView cv)
     {
         var mid = new Vector2(0.5f, 0.5f);
-        var m = UiKit.MakeImage(cv.rt, "Equipped", UiKit.Medallion, false);
-        m.color = UiKit.Good;
-        Anch(m.rectTransform, new Vector2(1f, 0f), mid, new Vector2(-26f, 62f), new Vector2(38f, 38f));
-        var ic = UiKit.MakeIcon(m.transform, UiIcon.Check, 24f, "Check");
+        var m = TWPetCollectionSkin.Surface(cv.rt, "Equipped");
+        m.color = new Color(0.77f, 0.94f, 0.85f);
+        Anch(m.rectTransform, new Vector2(1f, 0f), mid, new Vector2(-22f, 84f), new Vector2(30f, 30f));
+        var ic = PetIcon(m.transform, UiIcon.Check, 21f, "Check");
         ic.rectTransform.anchoredPosition = Vector2.zero;
         m.gameObject.SetActive(false);
         return m.gameObject;
@@ -331,13 +329,13 @@ public partial class PetCollectionWindow
     {
         var pm = PetManager.Instance;
         int n = pm != null ? pm.Owned.Count : 0;
-        Set(countText, n.ToString());
+        Set(countText, "В коллекции: " + n);
 
         int found = pm != null ? pm.DiscoveredCount : 0, total = pm != null ? pm.TotalSpecies : 0;
         Set(tabColLabel, "Коллекция  " + (sorted.Count != n ? sorted.Count + "/" + n : n.ToString()));
         Set(tabBookLabel, "Книга  " + found + "/" + total);
-        tabColImg.color = tab == Tab.Collection ? Color.white : new Color(0.62f, 0.62f, 0.62f, 1f);
-        tabBookImg.color = tab == Tab.Book ? Color.white : new Color(0.62f, 0.62f, 0.62f, 1f);
+        tabColImg.color = tab == Tab.Collection ? new Color(0.85f, 0.80f, 1f) : Color.white;
+        tabBookImg.color = tab == Tab.Book ? new Color(0.85f, 0.80f, 1f) : Color.white;
 
         bool col = tab == Tab.Collection;
         Set(sortLabel, "Сорт.: " + SortNames[(int)sortMode]);
@@ -346,9 +344,10 @@ public partial class PetCollectionWindow
         SetBtn(filterBtn, filterLabel, col);
         for (int j = 0; j < 5; j++)
         {
-            rarImg[j].color = (rarFilter == j - 1 && col) ? Color.white : new Color(0.62f, 0.62f, 0.62f, 1f);
+            rarImg[j].color = (rarFilter == j - 1 && col) ? new Color(0.85f, 0.80f, 1f) : Color.white;
             if (rarBtn[j] != null) rarBtn[j].interactable = col;
         }
+        RefreshFilterCaption();
     }
 
     void RefreshSlots()
@@ -358,13 +357,20 @@ public partial class PetCollectionWindow
         int used = pm != null ? pm.EquippedCount : 0;
         Set(slotsLabel, "Команда  <size=65%><color=#" + PetUi.Hex(Dim) + ">" + used + " / " + unlocked + "</color></size>");
 
+        int nextLocked = -1, visibleSlots = 0;
+        for (int i = 0; i < slots.Length; i++)
+            if ((pm == null ? i != 0 : !pm.IsSlotOpen(i)) && nextLocked < 0) nextLocked = i;
         for (int i = 0; i < slots.Length; i++)
         {
             var s = slots[i];
             bool isOpen = pm != null ? pm.IsSlotOpen(i) : i == 0;
             PetInstance e = pm != null ? pm.GetEquipped(i) : null;
             bool has = e != null;
-
+            bool visible = isOpen || has || i == nextLocked;
+            s.bg.gameObject.SetActive(visible);
+            if (!visible) continue;
+            int position = visibleSlots++;
+            TL(s.bg.rectTransform, 12f + position % 2 * (SlotW + SlotGapX), SlotY + position / 2 * (SlotH + SlotGapY), SlotW, SlotH);
             s.card.rt.gameObject.SetActive(has);
             if (s.xBtn != null) s.xBtn.SetActive(has);
             if (s.hover != null)
@@ -382,8 +388,7 @@ public partial class PetCollectionWindow
             {
                 s.pop = 1f;
                 if (fx != null)
-                    fx.Burst(InnerToFx(TeamX + 10f + (i % 2) * (SlotW + SlotGapX) + SlotW * 0.5f, TeamY + SlotY + (i / 2) * (SlotH + SlotGapY) + SlotH * 0.5f),
-                             PetUi.RarityAccent(e.data.rarity), 16, 280f, 22f, 320f, 0.75f);
+                    fx.Burst(panel.InverseTransformPoint(s.bg.rectTransform.position), PetUi.RarityAccent(e.data.rarity), 12, 220f, 18f, 260f, 0.6f);
             }
             lastUid[i] = curUid;
             if (has)
@@ -393,16 +398,23 @@ public partial class PetCollectionWindow
             }
 
             s.icon.gameObject.SetActive(!has);
-            s.icon.sprite = UiKit.Icon(isOpen ? UiIcon.Paw : UiIcon.Lock);
-            s.icon.color = new Color(1f, 1f, 1f, isOpen ? 0.28f : 0.5f);
+            s.icon.sprite = TWPetCollectionSkin.Icon(isOpen ? UiIcon.Paw : UiIcon.Lock);
+            s.icon.color = new Color(1f, 1f, 1f, isOpen ? 0.65f : 0.55f);
 
             s.label.gameObject.SetActive(!has);
             if (!has)
             {
                 int lvl = i < GameBalance.PetSlotLevels.Length ? GameBalance.PetSlotLevels[i] : 0;
-                Set(s.label, isOpen ? "Пусто" : (i == PetManager.SkillSlotIndex ? "Навык" : "Ур. " + lvl));
+                Set(s.label, isOpen ? "Выбрать" : (i == PetManager.SkillSlotIndex ? "Навык" : "Ур. " + lvl));
             }
         }
+        float slotsBottom = SlotY + ((visibleSlots + 1) / 2) * (SlotH + SlotGapY);
+        TL(teamHelp.rectTransform, 16f, slotsBottom + 2f, TeamW - 32f, 26f);
+        string next = nextLocked < 0 ? "Все слоты открыты" : nextLocked == PetManager.SkillSlotIndex ? "4-й слот: навык «Верный друг»"
+            : "Ещё один слот: ур. " + GameBalance.PetSlotLevels[nextLocked];
+        Set(teamHelp, next);
+        float top = slotsBottom + 32f;
+        TL(bonusPanel.rectTransform, 12f, top, TeamW - 24f, TeamH - top - 76f);
         if (autoBtn != null) SetBtn(autoBtn, autoLabel, pm != null && pm.Owned.Count > 0);
         if (unequipAllBtn != null) SetBtn(unequipAllBtn, unequipAllLabel, pm != null && pm.EquippedCount > 0);
         if (undoBtn != null) SetBtn(undoBtn, undoLabel, pm != null && pm.CanUndoLoadout);
@@ -437,16 +449,16 @@ public partial class PetCollectionWindow
             if (val == null) continue;
 
             bonusIcon[n].gameObject.SetActive(true);
-            bonusIcon[n].sprite = UiKit.Icon(PetUi.StatIcon(st));
+            bonusIcon[n].sprite = TWPetCollectionSkin.Icon(PetUi.StatIcon(st));
             bonusText[n].gameObject.SetActive(true);
-            bonusBarTrack[n].gameObject.SetActive(frac >= 0f);
+            bonusBarTrack[n].gameObject.SetActive(false);
             if (frac >= 0f)
             {
                 bonusBarTgt[n] = Mathf.Max(0.02f, frac);                       // дальше доезжает AnimateMisc
                 if (!bonusSigInit) bonusBarCur[n] = bonusBarTgt[n];            // первая отрисовка после открытия: сразу на месте
-                bonusBarFill[n].color = frac >= 0.999f ? UiKit.BrassHi : UiKit.Good;
+                bonusBarFill[n].color = frac >= 0.999f ? TWPetCollectionSkin.Accent : TWPetCollectionSkin.Good;
             }
-            Set(bonusText[n], "<b>" + PetText.Stat(st) + "</b>  <color=#" + PetUi.Hex(UiKit.Good) + ">" + val + "</color>");
+            Set(bonusText[n], "<b>" + StatShort(st) + "</b>  <color=#" + PetUi.Hex(TWPetCollectionSkin.Good) + ">" + val + "</color>");
             n++;
         }
         // бонусы изменились (взяли, сняли, слили): панель коротко вспыхивает

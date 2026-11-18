@@ -209,8 +209,8 @@ public partial class PlayerInteraction : MonoBehaviour
     }
 
     // «нажал» и «держу»: E (или кнопка на телефоне) либо ЛКМ по дереву
-    bool PressDown { get { return MobileInput.ActionDown || (clickArmed && clickDownFrame == Time.frameCount); } }
-    bool PressHeld { get { return MobileInput.ActionHeld || (clickArmed && Input.GetMouseButton(0)); } }
+    bool PressDown { get { return (!OrbitCamera.FirstPersonActive && MobileInput.ActionDown) || (clickArmed && clickDownFrame == Time.frameCount); } }
+    bool PressHeld { get { return (!OrbitCamera.FirstPersonActive && MobileInput.ActionHeld) || (clickArmed && Input.GetMouseButton(0)); } }
 
     static bool DialogueBusy()
     {
@@ -221,6 +221,7 @@ public partial class PlayerInteraction : MonoBehaviour
     bool MouseActive()
     {
         if (!mouseChop || Application.isMobilePlatform || !Input.mousePresent) return false;
+        if (OrbitCamera.FirstPersonActive && (!OrbitCamera.CrosshairActive || Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt))) return false;
         if (Cursor.lockState != CursorLockMode.None && !OrbitCamera.CrosshairActive) return false;   // курсор скрыт, но есть прицел OrbitCamera: целимся им
         if (MobileInput.ModalOpen || DialogueBusy()) return false;
         return true;
@@ -260,6 +261,7 @@ public partial class PlayerInteraction : MonoBehaviour
         far = false;
         var cam = Camera.main;
         if (cam == null) return null;
+        if (OrbitCamera.FirstPersonActive) return PickFirstPersonTree(cam, out far, maxPlanarDistance);
         Vector2 m = OrbitCamera.PointerPos;
         if (m.x < 0f || m.y < 0f || m.x > Screen.width || m.y > Screen.height) return null;
 
@@ -360,8 +362,8 @@ public partial class PlayerInteraction : MonoBehaviour
                     }
                     else if (ChoppingEnabled)
                     {
-                        // дерево далеко: идём к нему. Не получилось (слишком далеко): как раньше, просим подойти
-                        if (!StartWalk(it, walkRangeClick) && Time.time >= farToastAt)
+                        // FPS: only a short existing approach to an in-range tree, never a distant click-to-move.
+                        if ((OrbitCamera.FirstPersonActive || !StartWalk(it, walkRangeClick)) && Time.time >= farToastAt)
                         {
                             farToastAt = Time.time + 2f;
                             SaveIndicator.ShowToast("Подойди ближе к дереву");
@@ -398,6 +400,8 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void OnDisable()
     {
+        armedLog = null;
+        StopPrototypeWork();
         clickArmed = false;
         leoWalkArrival = leoApproachAttempt = null;
         leoEnterRhythmOnArrival = false;
@@ -406,6 +410,8 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void Update()
     {
+        PrototypeToggle();
+        if (TickPrototypeLog()) return;
         // A tree click or held E must never replace the construction approach or move Leo during a fall.
         if (BuildWorkPose.MovementLocked || LeoCelebration.IsPlaying || WaterSwim.Swimming ||
             movement != null && movement.ControlLocked)
@@ -464,7 +470,7 @@ public partial class PlayerInteraction : MonoBehaviour
         {
             StopChop();
             // E (или кнопка действия на телефоне) без дерева рядом: идём к ближайшему
-            if (walkToTree && MobileInput.ActionDown && WalkTarget == null) StartWalkNearest();
+            if (!OrbitCamera.FirstPersonActive && walkToTree && MobileInput.ActionDown && WalkTarget == null) StartWalkNearest();
             return;
         }
 
@@ -585,12 +591,14 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void FindTarget(bool force, ResourceItem preferred = null)
     {
+        bool firstPerson = OrbitCamera.FirstPersonActive;
+        if (firstPerson) { force = true; preferred = null; }
         findTimer -= Time.deltaTime;
         if (!force && findTimer > 0f && lastTarget == CurrentTarget) return;
         findTimer = 0.08f;
 
         // пока рубим, цель не меняем: курсор ушёл с дерева или рядом оказалось другое дерево ближе, рубка не сбрасывается
-        if (IsChopping && lastTarget != null && lastItem != null && lastItem.gameObject.activeInHierarchy)
+        if (!firstPerson && IsChopping && lastTarget != null && lastItem != null && lastItem.gameObject.activeInHierarchy)
         {
             Vector3 ld = lastTarget.position - transform.position;
             ld.y = 0f;
@@ -626,6 +634,7 @@ public partial class PlayerInteraction : MonoBehaviour
         }
 
         if (hovT != null) { best = hovT; bestItem = hov; }
+        else if (firstPerson) { best = null; bestItem = null; }
 
         if (best != lastTarget)
         {
@@ -671,6 +680,8 @@ public partial class PlayerInteraction : MonoBehaviour
             }
             TargetItem.SetChopping(true);
         }
+
+        if (PrototypeStanding(TargetItem)) { TickPrototypeFelling(); return; }
 
         holdTime += Time.deltaTime;
         Progress = Mathf.Clamp01(holdTime / Mathf.Max(0.1f, GatherTime));
@@ -773,6 +784,7 @@ public partial class PlayerInteraction : MonoBehaviour
 
         bool wasGolden = item.IsGolden;
         LumberSkills.RegisterFelled(chainLock);        // «Серия рубки»: это дерево продлило серию
+        if (TryPrototypeFall(item, wood, xp, wasGolden)) return;
 
         // Бревна летят в HUD, начисляем по прилёту. Влезло столько, сколько свободно (ReserveLogs резервирует место сразу,
         // поэтому второе дерево подряд не обойдёт проверку, пока бревна ещё в полёте)
