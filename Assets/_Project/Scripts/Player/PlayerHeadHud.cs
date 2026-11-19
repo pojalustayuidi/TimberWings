@@ -66,6 +66,7 @@ public partial class PlayerHeadHud : MonoBehaviour
 
     // ---------------------------------------------------------------- UI
     RectTransform root, packRt, chopRt;
+    TWCompactBackpackHud backpackDock;
     CanvasGroup rootCg, chopCg;
     RectTransform rhythmRt, rzGoodRt, rzPerfectRt, rMarkerRt, rzGlowRt;
     Image rzGoodImg, rzGlowImg, rFrameImg;
@@ -135,6 +136,7 @@ public partial class PlayerHeadHud : MonoBehaviour
     // ================================================================ API: рюкзак
     public void SetPackIcon(Sprite s)
     {
+        if (backpackDock != null) backpackDock.SetIcon(s);
         if (packIcon == null) return;
         packIcon.sprite = HudPolishRoot.Skin != null ? HudPolishRoot.Skin.backpack : (s != null ? s : CandyTag.Icon(UiIcon.Backpack));
     }
@@ -155,6 +157,7 @@ public partial class PlayerHeadHud : MonoBehaviour
 
     public void PunchPack(float amount)
     {
+        if (backpackDock != null) backpackDock.Flash();
         packPunchAmount = amount;
         packPunch = 1f;
     }
@@ -303,6 +306,16 @@ public partial class PlayerHeadHud : MonoBehaviour
     {
         TryGetFont();
         Build();
+        if (TryGetComponent<PlayerInventory>(out var inventory))
+        {
+            backpackDock = GetComponent<TWCompactBackpackHud>();
+            if (backpackDock == null) backpackDock = gameObject.AddComponent<TWCompactBackpackHud>();
+            backpackDock.Bind(this, inventory, canvasCmp, fnt);
+            packRt.gameObject.SetActive(false);
+            root.Find("Tail").gameObject.SetActive(false);
+            chopRt.anchoredPosition = new Vector2(0f, Gap);
+            rhythmRt.anchoredPosition = new Vector2(0f, 2f * Gap + ChopH);
+        }
     }
 
     void Start()
@@ -316,7 +329,11 @@ public partial class PlayerHeadHud : MonoBehaviour
         zoomScaleReady = false;
         if (root != null) root.gameObject.SetActive(true);
     }
-    void OnDisable() { if (root != null) root.gameObject.SetActive(false); }
+    void OnDisable()
+    {
+        if (root != null) root.gameObject.SetActive(false);
+        if (backpackDock != null) backpackDock.Hide();
+    }
     void OnDestroy() { if (root != null) Destroy(root.gameObject); }
 
     static bool TryGetFont()
@@ -439,8 +456,23 @@ public partial class PlayerHeadHud : MonoBehaviour
         chopCg.alpha = Mathf.Clamp01(chopShown * 1.6f);
 
         // --- положение на экране
+        if (backpackDock != null && (HudGameplayLayout.Blocked || (chopShown <= .005f && rhythmShown <= .005f)))
+        {
+            rootCg.alpha = 0f;
+            return;
+        }
         if (cam == null || !cam.isActiveAndEnabled) cam = Camera.main;
         if (cam == null) { rootCg.alpha = 0f; return; }
+
+        if (backpackDock != null && OrbitCamera.FirstPersonActive)
+        {
+            float fitScale = HudGameplayLayout.Fit(canvasCmp, ChopW, .72f);
+            root.localScale = Vector3.one * fitScale;
+            Vector2 center = cam.pixelRect.center;
+            root.position = center - new Vector2(0f, 266f * fitScale * canvasCmp.scaleFactor);
+            rootCg.alpha = 1f;
+            return;
+        }
 
         // свободная камера: точка прямо над макушкой (высота модели), а не фиксированные 2.7 м, которые на экране «улетают» вверх
         Vector3 wp = transform.position + (OrbitCamera.Active ? Vector3.up * HeadTop() : headOffset);
@@ -454,8 +486,8 @@ public partial class PlayerHeadHud : MonoBehaviour
 
         UpdateCameraZoomScale(sp.z, dt);
         float canvasScale = canvasCmp != null ? Mathf.Max(0.01f, canvasCmp.scaleFactor) : 1f;
-        float w = packRt.rect.width * Mathf.Abs(packRt.localScale.x);
-        float h = packRt.anchoredPosition.y + packRt.rect.height * Mathf.Abs(packRt.localScale.y);
+        float w = backpackDock != null ? 0f : packRt.rect.width * Mathf.Abs(packRt.localScale.x);
+        float h = backpackDock != null ? 0f : packRt.anchoredPosition.y + packRt.rect.height * Mathf.Abs(packRt.localScale.y);
         if (chopShown > 0.01f)
         {
             w = Mathf.Max(w, chopRt.rect.width * Mathf.Abs(chopRt.localScale.x));

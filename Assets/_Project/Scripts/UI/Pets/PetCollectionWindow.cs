@@ -137,7 +137,6 @@ public partial class PetCollectionWindow : MonoBehaviour
     bool bonusSigInit;
     Button resetBtn;
     TMP_Text hudBang;
-    bool hudRegistered;
     float dotT;
 
     // новое: анимации и интерактив
@@ -229,7 +228,7 @@ public partial class PetCollectionWindow : MonoBehaviour
     void DoOpen(bool force)
     {
         if (open || Time.frameCount == closeFrame) return;          // клавиша, которой закрыли окно, его же не откроет заново
-        if (MobileInput.ModalOpen || DialogueManager.IsBusy || DialogueSequence.AnyPlaying) return;   // два окна сразу не нужны
+        if (HudGameplayLayout.Blocked) return;   // два окна сразу не нужны
         if (PetManager.Instance == null) return;
         if (!force && !Available) return;
 

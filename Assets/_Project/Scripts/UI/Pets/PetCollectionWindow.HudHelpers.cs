@@ -36,30 +36,23 @@ public partial class PetCollectionWindow
         var btn = UiKit.MakeButton(cgo.transform, "", UiBtn.Amber, new Vector2(HudBtn, HudBtn), 20f, 1f);
         btn.name = "PetsButton";
         hudRt = btn.GetComponent<RectTransform>();
-        // раньше обе кнопки стояли в одной точке справа внизу, и «Прокачка» закрывала лапку: теперь питомцы левее неё через зазор
-        Anch(hudRt, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-(UpgradeWindow.HudRight + UpgradeWindow.HudBtnW + UpgradeWindow.HudGap), UpgradeWindow.HudBottom), new Vector2(HudBtn, HudBtn));
         btn.onClick.AddListener(Toggle);
 
-        var paw = UiKit.MakeIcon(btn.transform, UiIcon.Paw, 54f, "Paw");
+        var paw = UiKit.MakeIcon(btn.transform, UiIcon.Paw, 42f, "Paw");
         paw.rectTransform.anchoredPosition = new Vector2(0f, 2f);
 
         // подсказка клавиши (на телефоне клавиатуры нет)
-        if (!Application.isMobilePlatform)
-        {
-            var key = UiKit.MakeKeycap(btn.transform, "P", 38f);
-            Anch(key.rectTransform, new Vector2(0f, 1f), new Vector2(0.5f, 0.5f), new Vector2(8f, -8f), new Vector2(38f, 38f));
-        }
-
         // красная «!»: есть питомец вне слота и есть свободный слот
         var dot = UiKit.MakeImage(btn.transform, "Dot", UiKit.Medallion, false);
         dot.color = DotColor;
         hudDot = dot.rectTransform;
-        Anch(hudDot, new Vector2(1f, 1f), new Vector2(0.5f, 0.5f), new Vector2(-8f, -8f), new Vector2(34f, 34f));
-        var bang = UiKit.MakeLabel(dot.transform, "!", 24f, Color.white, TextAlignmentOptions.Center, true);
+        Anch(hudDot, new Vector2(1f, 1f), new Vector2(0.5f, 0.5f), new Vector2(-8f, -8f), new Vector2(25f, 25f));
+        var bang = UiKit.MakeLabel(dot.transform, "!", 18f, Color.white, TextAlignmentOptions.Center, true);
         Stretch(bang.rectTransform);
         hudBang = bang;
         hudDot.gameObject.SetActive(false);
-        HudPolishRoot.SetupShortcut(btn, 1, "Питомцы · P", "Коллекция, активные слоты и бонусы");
+        HudPolishRoot.SetupShortcut(btn, 1, "Питомцы · P", "Коллекция и активные бонусы",
+            "Pets · P", "Collection and active bonuses");
         if (HudPolishRoot.Skin != null) paw.sprite = HudPolishRoot.Skin.paw;
     }
 
@@ -67,18 +60,14 @@ public partial class PetCollectionWindow
     {
         if (hudGroup == null) return;
 
-        // пока не зарегистрировали в реестре HUD, метки над миром могут оказаться под кнопкой
-        if (!hudRegistered && HudSafeAreaRegistry.Instance != null)
-        {
-            HudSafeAreaRegistry.Instance.Register(hudRt);
-            hudRegistered = true;
-        }
-
-        bool visible = Available && !MobileInput.ModalOpen && !DialogueManager.IsBusy && !DialogueSequence.AnyPlaying;
-        hudGroup.alpha = Mathf.MoveTowards(hudGroup.alpha, visible ? 1f : 0f, dt / 0.2f);
+        bool visible = Available && PlayerInventory.Instance != null && !HudGameplayLayout.Blocked;
+        hudGroup.alpha = VibeSettings.ReduceEffects ? (visible ? 1f : 0f) :
+            Mathf.MoveTowards(hudGroup.alpha, visible ? 1f : 0f, dt / .16f);
         bool on = visible && hudGroup.alpha > 0.5f;
         hudGroup.blocksRaycasts = on;
         hudGroup.interactable = on;
+        bool shown = visible || hudGroup.alpha > .005f;
+        if (hudRt.gameObject.activeSelf != shown) hudRt.gameObject.SetActive(shown);
 
         var pm = PetManager.Instance;
         bool hint = visible && pm != null && pm.Owned.Count > pm.EquippedCount && pm.EquippedCount < pm.SlotCount;

@@ -17,11 +17,7 @@ public partial class PlayerHeadHud
         canvasCmp = go.GetComponent<Canvas>();
         canvasCmp.renderMode = RenderMode.ScreenSpaceOverlay;
         canvasCmp.sortingOrder = UiLayers.WorldTag;
-        var sc = go.GetComponent<CanvasScaler>();
-        sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        sc.referenceResolution = new Vector2(1920, 1080);
-        sc.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        sc.matchWidthOrHeight = 0.5f;
+        HudGameplayLayout.Configure(go.GetComponent<CanvasScaler>());
         canvasRoot = (RectTransform)go.transform;
         return canvasRoot;
     }

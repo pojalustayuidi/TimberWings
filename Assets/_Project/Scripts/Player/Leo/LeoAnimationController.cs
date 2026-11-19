@@ -194,7 +194,9 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         bool sheath = conversation || blocked || motion.StowTool || StoryInspection.Active ||
             (building && !chopping) || work.Weight > .001f || idleSheathe;
         LeoCelebration.Pose cheer = rig.Celebration.Frame;
-        float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
+        if (OrbitCamera.FirstPersonCarryAxe && !blocked && !conversation && !motion.StowTool &&
+            !StoryInspection.Active && !building && work.Weight <= .001f && rig.Celebration.Age < 0f) sheath = false;
+        float wantedHolster = sheath ? 1f : chopping || OrbitCamera.FirstPersonCarryAxe ? 0f : cheer.holster;
         float holsterRate = chopping || motion.InMotion ? 8f :
             rig.Celebration.Age >= 0f || building || work.Weight > .001f ? 5.5f : 1f / Mathf.Max(.1f, book.holsterSeconds);
         if (!sheath || actionWeight < .05f)

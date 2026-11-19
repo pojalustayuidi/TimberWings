@@ -208,6 +208,7 @@ public class TreeGrowthVisual : MonoBehaviour
         if (!trunk.ClearOfPlayer(prototypeOrigin, middle) || !trunk.ClearOfPlayer(prototypeOrigin, tilt))
             return;
 
+        bool startRustle = prototypeTilt < .17f && tilt >= .17f;
         fallT = next;
         prototypeTilt = tilt;
         var layout = trunk.Layout;
@@ -216,6 +217,8 @@ public class TreeGrowthVisual : MonoBehaviour
         Quaternion rotation = Quaternion.FromToRotation(prototypeStart * Vector3.up, worldUp) * prototypeStart;
         Vector3 pivot = ChopPrototypeLog.FallBase(layout, prototypeOrigin, tilt);
         transform.SetPositionAndRotation(pivot, rotation);
+        if (startRustle)
+            SfxManager.Timber("fallRustle", .76f, 1f, pivot + axis * Mathf.Min(layout.fallHeight * .42f, 3.2f));
 
         // Branches taper into the salvaged trunk near ground contact. Leave the full crown
         // visible during the wind-up and the main part of the fall.

@@ -3,12 +3,12 @@ using System;
 internal static class Chop03Balance
 {
     internal const int HitsPerCut = 8;
-    internal const float PreciseMultiplier = 1.60f;
-    internal static float GreenHalfWidth => PlayerSkills.Has(SkillIds.WideZone) ? .24f : .17f;
+    internal const float PreciseMultiplier = 1.28f;
+    internal const float OffBeatMultiplier = .90f;
     internal const float ContactInterval = .56f;
     internal const float StandingWindup = .44f;
     internal const float GroundWindup = .50f;
-    internal const float Recovery = .12f;
+    internal const float Recovery = .23f;
     internal const float ProcessingChainLimit = 18f;
 
     internal static int StandingHits(TreeSize size) => size == TreeSize.Young ? 3 : size == TreeSize.Old ? 10 : 7;
@@ -20,8 +20,17 @@ internal static class Chop03Balance
         return Math.Min(2.5f, (axePower + playerPower + support) * (1f + chainBonus));
     }
 
-    internal static float Damage(float power, int strikes, bool precise) =>
-        power * (precise ? PreciseMultiplier : 1f) / strikes;
+    internal static float Damage(float power, int strikes, ChopTimingResult timing)
+    {
+        float multiplier = timing switch
+        {
+            ChopTimingResult.Perfect => PreciseMultiplier,
+            ChopTimingResult.Early or ChopTimingResult.Late => OffBeatMultiplier,
+            ChopTimingResult.Miss => 0f,
+            _ => 1f
+        };
+        return power * multiplier / strikes;
+    }
 
     internal static float Advance(float current, float damage)
     {
@@ -30,33 +39,41 @@ internal static class Chop03Balance
     }
 }
 
+internal enum ChopTimingResult { None, Early, Good, Perfect, Late, Miss }
+
 internal struct Chop03Swing
 {
-    const float BeforeContact = .04f;
-    float opensAt;
-    bool attempted;
-
+    internal float OpensAt { get; private set; }
     internal float ImpactAt { get; private set; }
+    internal float GoodHalf { get; private set; }
+    internal float PerfectHalf { get; private set; }
     internal bool Armed { get; private set; }
-    internal bool Precise { get; private set; }
-    internal bool Attempted => attempted;
+    internal ChopTimingResult Result { get; private set; }
+    internal bool Attempted => Result != ChopTimingResult.None;
 
-    internal void Arm(float now, float delay, float recovery)
+    internal void Arm(float now, float delay, float recovery, bool wideZone)
     {
-        opensAt = now + recovery;
-        ImpactAt = now + delay;
+        OpensAt = now + Math.Max(0f, recovery);
+        ImpactAt = Math.Max(now + delay, OpensAt + .04f);
+        GoodHalf = wideZone ? GameBalance.RhythmGoodHalf : .20f;
+        PerfectHalf = wideZone ? GameBalance.RhythmPerfectHalf : .085f;
         Armed = true;
-        attempted = Precise = false;
+        Result = ChopTimingResult.None;
     }
 
     internal float Marker(float now) =>
-        Math.Min(1f, Math.Max(0f, (now - opensAt) / (ImpactAt - opensAt - BeforeContact)));
+        Armed ? Math.Min(1f, Math.Max(0f, (now - OpensAt) / (ImpactAt - OpensAt))) : 0f;
+
+    internal bool InGoodZone(float marker) => Math.Abs(marker - .5f) <= GoodHalf;
 
     internal void TimePress(float now)
     {
-        if (!Armed || attempted || now >= ImpactAt) return;
-        attempted = true;
-        Precise = Math.Abs(Marker(now) - .5f) <= Chop03Balance.GreenHalfWidth;
+        if (!Armed || Attempted || now < OpensAt) return;
+        float marker = Marker(now);
+        float offCenter = Math.Abs(marker - .5f);
+        if (offCenter <= PerfectHalf) Result = ChopTimingResult.Perfect;
+        else if (InGoodZone(marker)) Result = ChopTimingResult.Good;
+        else Result = marker < .5f ? ChopTimingResult.Early : ChopTimingResult.Late;
     }
 
     internal bool Due(float now) => Armed && now >= ImpactAt;

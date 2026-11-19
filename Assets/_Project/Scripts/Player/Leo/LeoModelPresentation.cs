@@ -120,7 +120,9 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
         bool idleSheathe = !chopping && now - lastToolUse >= Mathf.Max(0f, autoSheatheDelay);
         bool sheath = blocked || motion.StowTool || StoryInspection.Active || work.Weight > .001f ||
             (!chopping && (talking || building || idleSheathe));
-        float wantedHolster = sheath ? 1f : chopping ? 0f : cheer.holster;
+        if (OrbitCamera.FirstPersonCarryAxe && !blocked && !talking && !motion.StowTool &&
+            !StoryInspection.Active && !building && work.Weight <= .001f && rig.Celebration.Age < 0f) sheath = false;
+        float wantedHolster = sheath ? 1f : chopping || OrbitCamera.FirstPersonCarryAxe ? 0f : cheer.holster;
         if (!sheath || chopWeight < .05f)
             holster = Mathf.MoveTowards(holster, wantedHolster, dt * (chopping || motion.InMotion ? 8f : 5.5f));
         if (motion.InMotion) work.Reset();

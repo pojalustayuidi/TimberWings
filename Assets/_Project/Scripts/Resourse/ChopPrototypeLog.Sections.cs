@@ -10,9 +10,11 @@ public sealed partial class ChopPrototypeLog
     sealed class Section
     {
         internal GameObject root;
+        internal Transform visual;
         internal BoxCollider solid;
         internal Mesh mesh;
         internal float start, end, length, shift;
+        internal float strikeAt, strikeRoll;
     }
 
     Section[] sections;
@@ -47,16 +49,18 @@ public sealed partial class ChopPrototypeLog
             part.solid = root.AddComponent<BoxCollider>();
             part.solid.size = new Vector3(layout.radius * 1.72f, layout.radius * 1.59f, part.length);
             part.solid.sharedMaterial = TreeCollision.SlipMat;
+            part.visual = new GameObject("Bark and end grain").transform;
+            part.visual.SetParent(root.transform, false);
             if (bakedSection != null)
             {
-                var visual = Instantiate(bakedSection, root.transform, false);
+                var visual = Instantiate(bakedSection, part.visual, false);
                 visual.transform.localScale = new Vector3(layout.radius, layout.radius, part.length);
             }
             else
             {
                 part.mesh = new Mesh { name = "Tapered bark and end grain" };
-                root.AddComponent<MeshFilter>().sharedMesh = part.mesh;
-                root.AddComponent<MeshRenderer>().sharedMaterials = materials;
+                part.visual.gameObject.AddComponent<MeshFilter>().sharedMesh = part.mesh;
+                part.visual.gameObject.AddComponent<MeshRenderer>().sharedMaterials = materials;
                 RebuildSection(i);
             }
         }
@@ -67,6 +71,32 @@ public sealed partial class ChopPrototypeLog
             anchor.SetParent(transform, false);
             cutAnchors[i] = anchor;
             cutMarks[i] = CreateCutMark(anchor, endgrain);
+        }
+    }
+
+    void ReactToStrike(int cut, bool precise)
+    {
+        if (VibeSettings.ReduceEffects) return;
+        float roll = precise ? 2.4f : 1.55f;
+        sections[cut].strikeAt = sections[cut + 1].strikeAt = Time.time;
+        sections[cut].strikeRoll = roll;
+        sections[cut + 1].strikeRoll = -roll * .74f;
+    }
+
+    void UpdateStrikeResponse()
+    {
+        foreach (var section in sections)
+        {
+            if (section.strikeRoll == 0f) continue;
+            float phase = (Time.time - section.strikeAt) / .19f;
+            if (phase >= 1f || VibeSettings.ReduceEffects)
+            {
+                section.strikeRoll = 0f;
+                section.visual.localRotation = Quaternion.identity;
+                continue;
+            }
+            float kick = Mathf.Sin(phase * Mathf.PI * 2f) * (1f - phase);
+            section.visual.localRotation = Quaternion.Euler(kick * section.strikeRoll, 0f, kick * -.8f);
         }
     }
 

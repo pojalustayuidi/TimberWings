@@ -419,7 +419,12 @@ public class SettingsMenu : MonoBehaviour
         Slider(c, 5, "Затемнение за меню", () => Mathf.InverseLerp(.30f, .80f, SettingsAppearance.Backdrop),
             v => SettingsAppearance.Backdrop = Mathf.Lerp(.30f, .80f, v), .44f,
             v => Mathf.RoundToInt(Mathf.Lerp(30f, 80f, v)) + " %");
-        Info(c, 6, "Масштаб влияет только на окно настроек.");
+        Slider(c, 6, "Масштаб игрового HUD", () => Mathf.InverseLerp(.85f, 1.15f, SettingsAppearance.HudScale),
+            v => SettingsAppearance.HudScale = Mathf.Lerp(.85f, 1.15f, v), .5f,
+            v => Mathf.RoundToInt(Mathf.Lerp(85f, 115f, v)) + " %");
+        if (!Application.isMobilePlatform)
+            ToggleRow(c, 7, "Тайминг рубки", () => PlayerInteraction.SavedChopBonus,
+                PlayerInteraction.SetChopBonus, GameBalance.ChopBonusDefault);
 
         c = pages[5].transform;
         Choice(c, 0, "Скорость суток", new[] { "Обычная", "Медленная", "Фиксированный день" },

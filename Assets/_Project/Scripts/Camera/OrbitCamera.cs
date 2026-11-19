@@ -242,7 +242,7 @@ public partial class OrbitCamera : MonoBehaviour
     Image chImg;
     RectTransform chRt;
     Outline chOutline;
-    static Sprite reticle, petReticle;
+    static Sprite reticle;
 
     float chopT, introElapsed;
     float moveBlend;
@@ -254,7 +254,7 @@ public partial class OrbitCamera : MonoBehaviour
     static readonly RaycastHit[] hits = new RaycastHit[16];
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { Active = false; instance = null; cached = -1; cachedLook = -1; fpBobSetting = -1; reticle = petReticle = null; snapPending = false; }
+    static void ResetStatics() { Active = false; instance = null; cached = -1; cachedLook = -1; fpBobSetting = -1; reticle = null; snapPending = false; }
 
     // После телепорта игрока: фокус камеры сразу встаёт на него (зовёт CameraFollow.SnapToTarget)
     static bool snapPending;
@@ -440,11 +440,7 @@ public partial class OrbitCamera : MonoBehaviour
         var canvas = chGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = UiLayers.OrbitCameraHud;
-        var sc = chGo.GetComponent<CanvasScaler>();
-        sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        sc.referenceResolution = new Vector2(1920, 1080);
-        sc.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        sc.matchWidthOrHeight = 0.5f;
+        HudGameplayLayout.Configure(chGo.GetComponent<CanvasScaler>());
 
         var img = new GameObject("Reticle", typeof(RectTransform), typeof(Image), typeof(Outline));
         img.layer = 5;
@@ -473,9 +469,10 @@ public partial class OrbitCamera : MonoBehaviour
 
         if (fpLive)
         {
-            UpdateFirstPersonReticle();
+            UpdateFirstPersonReticle(dt);
             return;
         }
+        chRt.anchoredPosition = Vector2.zero;
         chImg.sprite = HudPolishRoot.Skin != null ? HudPolishRoot.Skin.reticle : Reticle();
         chOutline.enabled = false;
         float size = HudPolishRoot.Skin != null ? 38f : crosshairSize;
@@ -484,54 +481,6 @@ public partial class OrbitCamera : MonoBehaviour
         chT = Mathf.MoveTowards(chT, hover ? 1f : 0f, dt / 0.12f);
         chImg.color = Color.Lerp(Color.white, HudPolishRoot.Skin != null ? new Color32(164, 255, 213, 255) : new Color32(0xF5, 0xC5, 0x42, 255), chT);
         chRt.localScale = Vector3.one * Mathf.Lerp(1f, VibeSettings.ReduceEffects ? 1f : 1.18f, Mathf.SmoothStep(0f, 1f, chT));
-    }
-
-    void UpdateFirstPersonReticle()
-    {
-        var tree = interaction != null ? interaction.AimedLandmark : null;
-        bool pet = tree != null && ReferenceEquals(InteractionHub.Current, tree);
-        bool gather = interaction != null && interaction.AimingAtWood;
-        bool chop = interaction != null && PlayerInteraction.ChoppingEnabled &&
-            (interaction.IsChopping || interaction.AimingAtCut || interaction.HoverItem != null);
-        chImg.sprite = pet ? PetReticle() : gather ? UiKit.Icon(UiIcon.Backpack) : chop ? UiKit.Icon(UiIcon.Axe) : Reticle();
-        chImg.color = Color.white;
-        chOutline.enabled = pet || gather || chop;
-        chRt.sizeDelta = Vector2.one * (chOutline.enabled ? 25f : 29f);
-        chRt.localScale = Vector3.one;
-    }
-
-    static Sprite PetReticle()
-    {
-        if (petReticle != null) return petReticle;
-        const int size = 32;
-        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
-        var pixels = new Color32[size * size];
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                Vector2 p = new Vector2(x, y);
-                float palm = Vector2.Distance(p, new Vector2(17f, 11f)) - 7f;
-                float fingers = Mathf.Min(Finger(p, 11f, 13f, 22f), Finger(p, 15.5f, 15f, 27f),
-                    Finger(p, 20f, 15f, 25f), Finger(p, 24f, 11f, 20f));
-                float thumb = DistToHandSegment(p, new Vector2(13f, 9f), new Vector2(6f, 15f)) - 2.25f;
-                byte alpha = (byte)(255f * Mathf.Clamp01(.5f - Mathf.Min(palm, fingers, thumb)));
-                pixels[y * size + x] = new Color32(255, 237, 203, alpha);
-            }
-        }
-        tex.SetPixels32(pixels);
-        tex.Apply(false, true);
-        petReticle = Sprite.Create(tex, new Rect(0f, 0f, size, size), Vector2.one * .5f);
-        return petReticle;
-    }
-
-    static float Finger(Vector2 point, float x, float bottom, float top) =>
-        Vector2.Distance(point, new Vector2(x, Mathf.Clamp(point.y, bottom, top))) - 1.9f;
-
-    static float DistToHandSegment(Vector2 point, Vector2 a, Vector2 b)
-    {
-        Vector2 span = b - a;
-        return Vector2.Distance(point, a + span * Mathf.Clamp01(Vector2.Dot(point - a, span) / span.sqrMagnitude));
     }
 
     // кольцо с точкой в центре и тёмной обводкой в цвет UI (#1C2A3A), нарисовано кодом: картинок в проект добавлять не нужно

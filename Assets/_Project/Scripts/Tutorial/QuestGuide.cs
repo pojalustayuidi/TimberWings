@@ -262,6 +262,9 @@ public class QuestGuide : MonoBehaviour
         if (tree != null)
         {
             if (pack != null && pack.IsFull) return "Рюкзак полон: сначала сдай брёвна, потом руби дальше";
+            if (ChopPrototypeLog.Supports(tree))
+                return ChopPrototypeLog.Text("ЛКМ · руби дерево и разделывай ствол. E · собери древесину",
+                    "LMB · chop the tree and cut the trunk. E · collect wood");
             return dist < 3f ? (PlayerInteraction.RhythmChop ? "Нажми <color=#6BCB5A>E</color> у дерева и бей <color=#6BCB5A>E</color>, когда маркер в зелёной зоне" : "Удерживай <color=#6BCB5A>E</color> у дерева, пока не заполнится полоска")
                              : (PlayerInteraction.RhythmChop ? "Подойди к дереву с золотой меткой и нажми <color=#6BCB5A>E</color>" : "Подойди к дереву с золотой меткой и удерживай <color=#6BCB5A>E</color>");
         }

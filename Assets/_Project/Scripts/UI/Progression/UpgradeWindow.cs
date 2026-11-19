@@ -37,7 +37,7 @@ public class UpgradeWindow : MonoBehaviour
     // Открыть окно и подсветить строку (из окна пилорамы: «Прокачать пилу»). Подсветка снимается при закрытии.
     public void OpenFor(int type)
     {
-        if (!unlocked) { toastUntil = Time.unscaledTime + 2f; return; }
+        if (!unlocked) { SaveIndicator.ShowToast(ChopPrototypeLog.Text("Прокачка откроется по сюжету", "Upgrades unlock through the story")); return; }
         if (highlight < 0 && type >= 0) { highlight = type; tempHighlight = true; }
         SetOpen(true);
     }
@@ -93,7 +93,7 @@ public class UpgradeWindow : MonoBehaviour
 
     bool unlocked, open, built, tempHighlight;
     int highlight = -1, only = -1;
-    float openK, refreshAt, toastUntil, flashUntil;
+    float openK, refreshAt, flashUntil;
     int flashRow = -1;
     // кнопка в HUD справа внизу (кнопка питомцев ставится левее неё: PetCollectionWindow читает эти же числа)
     public const float HudBtnW = 280f, HudBtnH = 88f, HudRight = 40f, HudBottom = 64f, HudGap = 14f;
@@ -101,14 +101,12 @@ public class UpgradeWindow : MonoBehaviour
     RectTransform hudPtsRt;
     TMP_Text hudPtsText;
     UiIcon hudIconShown = UiIcon.Lock;
-    UiBtn hudStyle = UiBtn.Gray;
-    bool hudStyleSet;
 
     CanvasGroup overlay;
     RectTransform panel;              // окно UiCandy.Window (на нём CandyPopIn: его масштаб здесь не трогаем)
     Image hudImg;
     CandyButtonJuice hudJuice;        // «желе» на кнопке HUD: пружина, искры, качается, когда есть что открыть
-    TMP_Text hudText, coinsText, pointsText, levelText, traitsText;
+    TMP_Text coinsText, pointsText, levelText, traitsText;
     GameObject traitsPanel;
     Image xpFill;
     readonly Row[] rows = new Row[6];
@@ -180,8 +178,8 @@ public class UpgradeWindow : MonoBehaviour
     // ------------------------------------------------------------ действия
     void Toggle()
     {
-        if (!open && MobileInput.ModalOpen) return;
-        if (!unlocked) { toastUntil = Time.unscaledTime + 2f; return; }
+        if (!open && HudGameplayLayout.Blocked) return;
+        if (!unlocked) { SaveIndicator.ShowToast(ChopPrototypeLog.Text("Прокачка откроется по сюжету", "Upgrades unlock through the story")); return; }
         SetOpen(!open);
     }
 
@@ -322,24 +320,12 @@ public class UpgradeWindow : MonoBehaviour
     // ------------------------------------------------------------ кнопка на HUD
     void UpdateHudButton()
     {
+        bool visible = !open && PlayerInventory.Instance != null && !HudGameplayLayout.Blocked;
+        if (hudImg.gameObject.activeSelf != visible) hudImg.gameObject.SetActive(visible);
+        if (!visible) return;
+        bool pulse = unlocked && highlight >= 0;
         float t = Time.unscaledTime;
-        bool pulse = unlocked && !open && highlight >= 0;
-
-        UiBtn style;
-        int pts = 0;
-        if (!unlocked)
-        {
-            style = UiBtn.Gray;
-            hudText.color = UiCandy.Muted;
-            hudText.text = t < toastUntil ? "Откроется по сюжету" : "Прокачка\n<size=60%>закрыто</size>";
-        }
-        else
-        {
-            style = pulse ? UiBtn.Green : UiBtn.Amber;
-            pts = (FindRefs() ? up.freePoints : 0) + PlayerSkills.FreePoints;   // очки улучшений и очки навыков вместе
-            hudText.color = UiCandy.Ink;
-            hudText.text = "Прокачка";      // клавиша U нарисована отдельной клавишей справа, свободные очки отдельным значком
-        }
+        int pts = unlocked ? (FindRefs() ? up.freePoints : 0) + PlayerSkills.FreePoints : 0;
 
         // значок слева: замок, пока закрыто, потом стрелка вверх (значки берём в Candy: вне using по умолчанию был бы латунный)
         UiIcon want = unlocked ? UiIcon.ArrowUp : UiIcon.Lock;
@@ -356,20 +342,6 @@ public class UpgradeWindow : MonoBehaviour
                 hudPtsRt.localScale = Vector3.one * (1f + (VibeSettings.ReduceEffects ? 0f : 0.06f * Mathf.Sin(t * 3f)));
             }
         }
-        if (!hudStyleSet || style != hudStyle)
-        {
-            hudStyle = style;
-            hudStyleSet = true;
-            using (UiKit.UseSkin(UiSkin.Candy)) hudImg.sprite = UiKit.BtnSprite(style, style == UiBtn.Gray ? UiBtnState.Disabled : UiBtnState.Normal);
-            HudPolishRoot.Palette(hudImg, style);
-            if (hudJuice != null)
-            {
-                hudJuice.fxColor = UiCandy.FxColor(style);
-                if (hudJuice.kit == null) hudJuice.kit = UiCandy.Kit;   // набор искр мог найтись уже после сборки окна
-            }
-        }
-        // готовая к нажатию кнопка раз в несколько секунд качается сама (CandyButtonJuice.attention).
-        // Ручное «дыхание» масштабом убрано: оно мешало пружине CandyButtonJuice
         if (hudJuice != null) hudJuice.attention = pulse;
     }
 
@@ -397,38 +369,24 @@ public class UpgradeWindow : MonoBehaviour
 
         // --- кнопка на HUD: конфетное «желе»
         hudImg = UiKit.MakeImage(cgo.transform, "HudButton", UiKit.BtnSprite(UiBtn.Gray, UiBtnState.Disabled), true, 1f);
-        Anch(hudImg.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-HudRight, HudBottom), new Vector2(HudBtnW, HudBtnH));
         AddBtn(hudImg, Toggle);
         hudJuice = UiCandy.Juice(hudImg.gameObject, UiBtn.Gray);
 
-        // слева круглый значок, справа клавиша (на телефоне клавиатуры нет, тогда текст занимает всё место)
-        var med = UiKit.MakeImage(hudImg.transform, "IconMedallion", UiKit.Medallion, false);
-        Anch(med.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(14f, 1f), new Vector2(60f, 60f));
-        hudIcon = UiKit.MakeIcon(med.transform, UiIcon.Lock, 36f, "Icon");
-        bool keyboard = !Application.isMobilePlatform;
-
-        hudText = UiKit.AddButtonLabel(hudImg.transform, "Прокачка", UiBtn.Amber, 32f);
-        hudText.alignment = TextAlignmentOptions.Left;
-        hudText.rectTransform.offsetMin = new Vector2(84f, 6f);
-        hudText.rectTransform.offsetMax = new Vector2(keyboard ? -62f : -14f, -6f);
-        AutoSize(hudText, 16f, 30f);
-
-        if (keyboard)
-        {
-            var key = UiKit.MakeKeycap(hudImg.transform, "U", 42f);
-            Anch(key.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-12f, 1f), new Vector2(42f, 42f));
-        }
+        var med = UiKit.MakeImage(hudImg.transform, "Icon backing", CandyTag.Medallion, false);
+        Anch(med.rectTransform, Mid, Mid, Vector2.zero, Vector2.one * 49f);
+        hudIcon = UiKit.MakeIcon(med.transform, UiIcon.Lock, 41f, "Icon");
 
         // «свободные очки»: мятный кружок в правом верхнем углу, число индиго
         hudPts = UiKit.MakeImage(hudImg.transform, "PointsBadge", UiKit.Medallion, false);
         hudPts.color = UiCandy.Mint;
         hudPtsRt = hudPts.rectTransform;
-        Anch(hudPtsRt, new Vector2(1f, 1f), Mid, new Vector2(-6f, -4f), new Vector2(38f, 38f));
-        hudPtsText = UiKit.MakeLabel(hudPts.transform, "0", 22f, UiCandy.Ink, TextAlignmentOptions.Center, true);
+        Anch(hudPtsRt, new Vector2(1f, 1f), Mid, new Vector2(-8f, -8f), new Vector2(25f, 25f));
+        hudPtsText = UiKit.MakeLabel(hudPts.transform, "0", 16f, UiCandy.Ink, TextAlignmentOptions.Center, true);
         Stretch(hudPtsText.rectTransform);
         hudPtsRt.gameObject.SetActive(false);
 
-        HudPolishRoot.SetupShortcut(hudImg.GetComponent<Button>(), 0, "Прокачка · U", "Улучшения за монеты и свободные очки уровня");
+        HudPolishRoot.SetupShortcut(hudImg.GetComponent<Button>(), 0, "Прокачка · U", "Навыки и улучшения",
+            "Upgrades · U", "Skills and upgrades", () => !unlocked);
         if (HudPolishRoot.Skin != null) med.sprite = HudPolishRoot.Skin.medal;
 
         // --- затемнение: мягкий индиго, только гасит клики по миру

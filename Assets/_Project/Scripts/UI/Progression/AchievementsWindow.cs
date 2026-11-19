@@ -107,7 +107,7 @@ public partial class AchievementsWindow : MonoBehaviour
 
     class TabBtn { public Button btn; public Image img; public TMP_Text label; public RectTransform dot; public TMP_Text dotLabel; }
 
-    bool open, built, dirty = true, hudRegistered, focusing;
+    bool open, built, dirty = true, focusing;
     int openFrame, closeFrame = -1;
     float openK, dotT, nextRefresh, tabT, time, detK, detPunch, contentW, contentH;
     Vector2 focusTarget;
@@ -149,7 +149,7 @@ public partial class AchievementsWindow : MonoBehaviour
     void DoOpen()
     {
         if (open || Time.frameCount == closeFrame) return;
-        if (MobileInput.ModalOpen || DialogueManager.IsBusy || DialogueSequence.AnyPlaying) return;
+        if (HudGameplayLayout.Blocked) return;
         var m = AchievementManager.Instance;
         if (m == null) return;
         EnsureBuilt();

@@ -24,8 +24,6 @@ public sealed class HudPolishRoot : MonoBehaviour
         [NonSerialized] public float age = 10f;
         [NonSerialized] public Vector2[] home;
     }
-    [Serializable] public sealed class Dock
-    { public RectTransform rect; public int slot; }
 
     public SkinSet skin = new SkinSet();
     public RectTransform resources, level, minimap, action;
@@ -43,7 +41,6 @@ public sealed class HudPolishRoot : MonoBehaviour
     [HideInInspector] public string sceneBackup;
     [HideInInspector] public HudPolishSnapshot before = new HudPolishSnapshot();
     [HideInInspector] public List<GameObject> created = new List<GameObject>();
-    readonly List<Dock> docks = new List<Dock>();
     readonly List<RectTransform> safeRects = new List<RectTransform>();
     static HudPolishRoot instance;
     int screenW, screenH;
@@ -52,7 +49,8 @@ public sealed class HudPolishRoot : MonoBehaviour
     float noticeUntil, tooltipAt, nextPhase;
     HudPolishButton tipOwner;
     string tipTitle, tipBody;
-    bool safeRegistered, firstPersonDock;
+    bool safeRegistered;
+    float lastHudScale;
     public static HudPolishRoot Instance { get { return instance != null && instance.isActiveAndEnabled ? instance : null; } }
     public static SkinSet Skin { get { var p = Instance; return p != null && p.skin.chip != null ? p.skin : null; } }
     public static bool Reduced { get { return VibeSettings.ReduceEffects || (Instance != null && Instance.effects <= 0.01f); } }
@@ -90,7 +88,7 @@ public sealed class HudPolishRoot : MonoBehaviour
         if (canvas == null) return;
         var cr = canvas.transform as RectTransform;
         if (screenW != Screen.width || screenH != Screen.height || lastSafe != Screen.safeArea ||
-            firstPersonDock != OrbitCamera.FirstPersonActive ||
+            !Mathf.Approximately(lastHudScale, SettingsAppearance.HudScale) ||
             (cr != null && (lastCanvas - cr.rect.size).sqrMagnitude > 1f)) Reflow();
         if (!safeRegistered && HudSafeAreaRegistry.Instance != null)
         {
@@ -100,7 +98,7 @@ public sealed class HudPolishRoot : MonoBehaviour
             safeRegistered = true;
         }
         float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f), now = Time.unscaledTime;
-        bool busy = MobileInput.ModalOpen || DialogueManager.IsBusy || DialogueSequence.AnyPlaying;
+        bool busy = HudGameplayLayout.Blocked;
         if (rewards != null) foreach (var watch in rewards) TickSpark(watch, dt, busy);
         if (levelNotice != null)
         {
@@ -201,7 +199,7 @@ public sealed class HudPolishRoot : MonoBehaviour
         if (canvas == null) return;
         var cr = canvas.transform as RectTransform; if (cr == null) return;
         screenW = Screen.width; screenH = Screen.height; lastSafe = Screen.safeArea; lastCanvas = cr.rect.size;
-        firstPersonDock = OrbitCamera.FirstPersonActive;
+        lastHudScale = SettingsAppearance.HudScale;
         float scale = Mathf.Max(0.01f, canvas.scaleFactor);
         float left = lastSafe.xMin / scale + 34f, right = (Screen.width - lastSafe.xMax) / scale + 34f;
         float top = (Screen.height - lastSafe.yMax) / scale + 34f, bottom = lastSafe.yMin / scale + 42f;
@@ -223,58 +221,27 @@ public sealed class HudPolishRoot : MonoBehaviour
         Anchor(action, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, bottom + 10f), new Vector2(390, 94));
         if (tooltip != null)
         {
-            Vector2 corner = firstPersonDock ? Vector2.zero : Vector2.right;
-            float height = firstPersonDock ? 172f : 122f;
-            Anchor(tooltip.transform as RectTransform, corner, corner,
-                new Vector2(firstPersonDock ? left : -right, bottom + height), new Vector2(362, 96));
+            var rect = tooltip.transform as RectTransform;
+            Anchor(rect, Vector2.right, Vector2.right,
+                new Vector2(-right, bottom + HudGameplayLayout.ShortcutSize * lastHudScale + 4f),
+                new Vector2(298f, 81f));
+            if (rect != null) rect.localScale = Vector3.one * HudGameplayLayout.Fit(canvas, 298f, .92f);
         }
         if (levelNotice != null) Anchor(levelNotice.transform as RectTransform, Vector2.one, Vector2.one, new Vector2(-right, -top - 116), new Vector2(356, 42));
-        foreach (var d in docks) if (d.rect != null) DockNow(d.rect, d.slot);
     }
-    static void DockNow(RectTransform r, int slot)
+    public static void SetupShortcut(Button button, int slot, string title, string detail,
+        string englishTitle = null, string englishDetail = null, Func<bool> locked = null)
     {
-        var c = r.GetComponentInParent<Canvas>(); float scale = c != null ? Mathf.Max(.01f, c.scaleFactor) : 1f;
-        float right = (Screen.width - Screen.safeArea.xMax) / scale + 34f;
-        float bottom = Screen.safeArea.yMin / scale + 42f;
-        if (OrbitCamera.FirstPersonActive)
-        {
-            float left = Screen.safeArea.xMin / scale + 34f;
-            float available = Screen.safeArea.width / scale * .5f - left - 211f;
-            bool narrow = available < 386f;
-            float upgradeWidth = narrow ? Mathf.Clamp(available, 156f, 216f) : 216f;
-            float xLeft = left + (slot > 0 && !narrow ? upgradeWidth + 12f : 0f) + (slot == 2 ? 86f : 0f);
-            float y = bottom + (narrow && slot > 0 ? 86f : 0f);
-            Anchor(r, Vector2.zero, Vector2.zero, new Vector2(xLeft, y), new Vector2(slot == 0 ? upgradeWidth : 76f, 76f));
-            return;
-        }
-        float x = slot == 0 ? right : right + 300f + 16f + (slot - 1) * 108f;
-        Anchor(r, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-x, bottom), new Vector2(slot == 0 ? 300f : 92f, 92f));
-    }
-    public static void SetupShortcut(Button button, int slot, string title, string detail)
-    {
-        if (Skin == null || button == null) return;
-        DockNow(button.transform as RectTransform, slot);
-        var owner = Instance;
-        bool found = false; foreach (var d in owner.docks) if (d.rect == button.transform) { found = true; break; }
-        if (!found) owner.docks.Add(new Dock { rect = button.transform as RectTransform, slot = slot });
+        if (button == null) return;
         var tip = button.GetComponent<HudPolishButton>();
         if (tip == null) tip = button.gameObject.AddComponent<HudPolishButton>();
-        tip.title = title; tip.detail = detail;
-        Palette(button.targetGraphic as Image, slot == 1 ? UiBtn.Green : UiBtn.Amber);
-        if (slot > 0)
-        {
-            var image = button.targetGraphic as Image;
-            if (image != null) { image.sprite = slot == 1 ? Skin.medal : Skin.keycap; image.type = Image.Type.Simple; image.preserveAspect = true; }
-            button.transition = Selectable.Transition.ColorTint;
-            var colors = button.colors;
-            colors.normalColor = slot == 1 ? new Color(.81f, 1f, .91f) : Color.white;
-            colors.highlightedColor = Color.white; colors.selectedColor = Color.white;
-            colors.pressedColor = new Color(.83f, .86f, 1f); button.colors = colors;
-        }
+        tip.Bind(button, slot, title, detail, englishTitle, englishDetail, locked);
         var juice = button.GetComponent<CandyButtonJuice>();
         if (juice == null) juice = UiCandy.Juice(button.gameObject, slot == 1 ? UiBtn.Green : UiBtn.Amber);
-        juice.hoverScale = 1.045f; juice.burstCount = 4; juice.ringOnClick = false;
-        owner.RegisterSafe(button.transform as RectTransform);
+        juice.hoverScale = 1.055f;
+        juice.twinkleOnHover = false;
+        juice.burstOnClick = false;
+        juice.ringOnClick = false;
     }
     public static void Palette(Image image, UiBtn style)
     {

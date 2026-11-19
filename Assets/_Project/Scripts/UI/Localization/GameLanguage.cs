@@ -38,6 +38,8 @@ public static class GameLanguage
         { "FPS в настройках", "FPS in Settings" },
         { "Анимация открытия окна", "Animate window opening" },
         { "Размер окна настроек", "Settings window size" },
+        { "Масштаб игрового HUD", "Gameplay HUD scale" },
+        { "Тайминг рубки", "Chop timing" },
         { "Затемнение за меню", "Menu backdrop dimming" },
         { "Масштаб влияет только на окно настроек.", "Scaling only affects the Settings window." },
         { "Быстрые советы", "Quick tips" },

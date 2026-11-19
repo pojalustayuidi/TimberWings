@@ -7,9 +7,14 @@ public static class SettingsAppearance
 {
     const string ThemeKey = "tw_settings_a_theme";
     const string ScaleKey = "tw_settings_a_scale";
+    const string HudScaleKey = "tw_settings_hud_scale";
     const string DimKey = "tw_settings_a_dim";
     const string AnimationKey = "tw_settings_a_motion";
     const string PeriodicSaveKey = "tw_settings_a_periodic_save";
+    static float hudScale;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetHudScaleCache() => hudScale = 0f;
 
     public static int Theme
     {
@@ -17,12 +22,24 @@ public static class SettingsAppearance
         set { PlayerPrefs.SetInt(ThemeKey, Mathf.Clamp(value, 0, 1)); }
     }
 
-    // Scaling is intentionally scoped to the Settings window. The game's many
-    // independent HUD canvases use separate layout rules.
     public static float MenuScale
     {
         get { return Mathf.Clamp(PlayerPrefs.GetFloat(ScaleKey, 1f), .85f, 1.05f); }
         set { PlayerPrefs.SetFloat(ScaleKey, Mathf.Clamp(value, .85f, 1.05f)); }
+    }
+
+    public static float HudScale
+    {
+        get
+        {
+            if (hudScale == 0f) hudScale = Mathf.Clamp(PlayerPrefs.GetFloat(HudScaleKey, 1f), .85f, 1.15f);
+            return hudScale;
+        }
+        set
+        {
+            hudScale = Mathf.Clamp(value, .85f, 1.15f);
+            PlayerPrefs.SetFloat(HudScaleKey, hudScale);
+        }
     }
 
     public static float Backdrop

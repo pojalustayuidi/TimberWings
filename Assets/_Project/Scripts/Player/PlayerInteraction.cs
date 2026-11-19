@@ -81,6 +81,7 @@ public partial class PlayerInteraction : MonoBehaviour
     // бонус «Пробел в зелёной зоне» в режиме «зажми E». Хранится в PlayerPrefs (можно выключить в настройках доступности)
     public static bool ChopBonus = GameBalance.ChopBonusDefault;
     const string BonusPref = "chop_bonus";
+    public static bool SavedChopBonus => PlayerPrefs.GetInt(BonusPref, GameBalance.ChopBonusDefault ? 1 : 0) == 1;
     public static void SetChopBonus(bool on) { ChopBonus = on; PlayerPrefs.SetInt(BonusPref, on ? 1 : 0); }
 
     // Обучение бонусу: сколько раз игрок уже попал Пробелом в зелёную зону (хранится в PlayerPrefs).
@@ -88,11 +89,13 @@ public partial class PlayerInteraction : MonoBehaviour
     const string BonusHitsPref = "chop_bonus_hits";
     static int bonusHits = -1;     // -1 = ещё не читали из PlayerPrefs
 
-    public static bool BonusTeaching
+    public static bool BonusTeaching => !RhythmChop && NeedsChopTimingHint;
+
+    static bool NeedsChopTimingHint
     {
         get
         {
-            if (RhythmChop || !ChopBonus || Application.isMobilePlatform) return false;   // на телефоне Пробела нет
+            if (!ChopBonus || Application.isMobilePlatform) return false;
             if (bonusHits < 0) bonusHits = PlayerPrefs.GetInt(BonusHitsPref, 0);
             return bonusHits < GameBalance.ChopBonusTeachHits;
         }
@@ -399,7 +402,7 @@ public partial class PlayerInteraction : MonoBehaviour
         MobileInput.ActionKey = chopKey;
         inst = this;
         RhythmChop = PlayerPrefs.GetInt(RhythmPref, GameBalance.RhythmChopDefault ? 1 : 0) == 1;
-        ChopBonus = PlayerPrefs.GetInt(BonusPref, GameBalance.ChopBonusDefault ? 1 : 0) == 1;
+        ChopBonus = SavedChopBonus;
     }
 
     void OnDestroy()

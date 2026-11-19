@@ -4,14 +4,20 @@ using UnityEngine;
 public partial class PlayerInteraction
 {
     Chop03Swing chop03Swing;
-    bool chop03Accurate;
+    ChopTimingResult chop03Result;
+    bool windupSoundPlayed, timingSoundPlayed;
     int chop03ImpactFrame = -1;
     bool chop03Standing;
     float chop03ReadyAt;
 
     internal bool IsChop03Working => IsChopping && (chop03Standing || IsProcessingPrototypeLog);
     internal bool Chop03ImpactThisFrame => chop03ImpactFrame == Time.frameCount;
-    internal static bool PreciseChop03Impact => inst != null && inst.Chop03ImpactThisFrame && inst.chop03Accurate;
+    internal static bool PreciseChop03Impact => CurrentChop03Result == ChopTimingResult.Perfect;
+    internal static ChopTimingResult CurrentChop03Result =>
+        inst != null && inst.Chop03ImpactThisFrame ? inst.chop03Result : ChopTimingResult.None;
+    internal static PlayerInteraction ActivePlayer => inst;
+    internal float FirstPersonWindupStart => IsChop03Working && chop03Swing.Armed ? chop03Swing.OpensAt : -1f;
+    static bool UsesChopTiming => ChopBonus && !Application.isMobilePlatform;
 
     internal float AxeSwingSpeed => Chop03Balance.ContactInterval /
         Mathf.Max(.1f, Axes != null ? Axes.EquippedSwingInterval : EquippedAxe.Interval);
@@ -25,8 +31,8 @@ public partial class PlayerInteraction
             rank, supportTime, LumberSkills.ChainBonus(chain));
     }
 
-    float Chop03Damage(int strikes, bool precise) =>
-        Chop03Balance.Damage(CurrentChopPower(chainLock), strikes, precise);
+    float Chop03Damage(int strikes, ChopTimingResult result) =>
+        Chop03Balance.Damage(CurrentChopPower(chainLock), strikes, result);
 
     void PrepareChop03(bool standing)
     {
@@ -42,13 +48,16 @@ public partial class PlayerInteraction
     {
         float speed = AxeSwingSpeed;
         float now = Time.time;
-        chop03Swing.Arm(now, Mathf.Max(interval / speed, chop03ReadyAt - now), recovery / speed);
+        float windup = Mathf.Max(.12f, (interval - recovery) / speed);
+        float delay = Mathf.Max(windup + recovery / speed, chop03ReadyAt - now);
+        chop03Swing.Arm(now, delay, delay - windup, PlayerSkills.Has(SkillIds.WideZone));
+        windupSoundPlayed = timingSoundPlayed = false;
         nextHitAt = chop03Swing.ImpactAt;
     }
 
-    bool TickChop03Swing(bool ground, out bool precise)
+    bool TickChop03Swing(bool ground, out ChopTimingResult result)
     {
-        precise = false;
+        result = ChopTimingResult.None;
         if (!LeoAxeReady) return false;
         if (waitingForChopAxe)
         {
@@ -71,15 +80,32 @@ public partial class PlayerInteraction
             ArmChop03Swing(ground ? Chop03Balance.GroundWindup : Chop03Balance.StandingWindup, 0f);
         }
 
-        if (ChopBonus && MobileInput.BonusDown) chop03Swing.TimePress(Time.time);
-        if (!chop03Swing.Due(Time.time)) return false;
+        float now = Time.time;
+        float marker = chop03Swing.Marker(now);
+        if (!windupSoundPlayed && marker >= .60f && marker < 1f)
+        {
+            windupSoundPlayed = true;
+            bool heavy = ground || EquippedAxe.Id == AxeId.Iron || EquippedAxe.Id == AxeId.Gunnar;
+            SfxManager.Timber(heavy ? "axeSwingHeavy" : "axeSwing", .57f,
+                Mathf.Lerp(.96f, 1.08f, Mathf.InverseLerp(.85f, 1.28f, AxeSwingSpeed)));
+        }
+        if (UsesChopTiming)
+        {
+            if (!timingSoundPlayed && !chop03Swing.Attempted && chop03Swing.InGoodZone(marker))
+            {
+                timingSoundPlayed = true;
+                if (!VibeSettings.ReduceEffects) SfxManager.Timber("timingWindow", .26f);
+            }
+            if (MobileInput.BonusDown) chop03Swing.TimePress(now);
+        }
+        if (!chop03Swing.Due(now)) return false;
 
-        precise = ChopBonus && chop03Swing.Precise;
+        result = UsesChopTiming ? chop03Swing.Result : ChopTimingResult.None;
         chop03FirstHitPending = false;
-        chop03Accurate = precise;
+        chop03Result = result;
         chop03ImpactFrame = Time.frameCount;
-        chop03ReadyAt = Time.time + (Axes != null ? Axes.EquippedSwingInterval : EquippedAxe.Interval);
-        ArmChop03Swing(Chop03Balance.ContactInterval, Chop03Balance.Recovery);
+        chop03ReadyAt = now + (Axes != null ? Axes.EquippedSwingInterval : EquippedAxe.Interval);
+        ArmChop03Swing(Chop03Balance.ContactInterval, ground ? .19f : Chop03Balance.Recovery);
         return true;
     }
 
@@ -94,29 +120,31 @@ public partial class PlayerInteraction
             PrepareChop03(true);
         }
 
-        if (TickChop03Swing(false, out bool precise))
+        if (TickChop03Swing(false, out var result))
         {
             ReadLeoImpact(tree); // Snapshot the point the axe is reaching before the notch deepens.
             float previous = tree.StandingDamage;
-            float damage = Chop03Damage(tree.IsGolden ? 3 : Chop03Balance.StandingHits(tree.Size), precise);
+            int strikes = tree.IsGolden ? 3 : Chop03Balance.StandingHits(tree.Size);
+            float damage = Chop03Damage(strikes, result);
             if (ActiveRune == AxeRuneId.GunnarStrike && IsOrdinaryRuneTree(tree)) damage = 1f;
-            float summer = precise && ActiveRune == AxeRuneId.SummerSpark
-                ? Chop03Damage(tree.IsGolden ? 3 : Chop03Balance.StandingHits(tree.Size), false) : 0f;
+            bool precise = result == ChopTimingResult.Perfect;
+            float summer = precise && ActiveRune == AxeRuneId.SummerSpark ? Chop03Damage(strikes, ChopTimingResult.None) : 0f;
             Progress = tree.DamageStanding(damage, summer);
-            float strength = (precise ? 1.37f : .88f) + Progress * .34f;
+            float strength = (precise ? 1.26f : .85f) + Progress * .26f;
             var hits = GetTreeHits(tree);
             if (hits != null) hits.Shake(strength, leoHasImpact ? leoImpact : (Vector3?)null);
             GameEvents.RaiseChopHit();
-            FinishChop03Impact(precise);
+            FinishChop03Impact(result, leoHasImpact ? leoImpact : TreePromptPoint(tree));
             if (Progress >= 1f)
             {
                 CompleteChop();
                 chop03Tree = null;
+                Chop02Feedback.Hide();
                 return;
             }
 
             if (previous < .74f && Progress >= .74f)
-                SfxManager.Play("woodCrack", .29f, .83f);
+                SfxManager.Timber("woodCrack", .46f, .90f, leoHasImpact ? leoImpact : TreePromptPoint(tree));
         }
         ShowChop03Swing(TreePromptPoint(tree), Progress);
     }
@@ -134,19 +162,22 @@ public partial class PlayerInteraction
             PrepareChop03(false);
         }
 
-        if (TickChop03Swing(true, out bool precise))
+        if (TickChop03Swing(true, out var result))
         {
             leoImpact = target.log.CutContact(target.index, transform.position);
             leoImpactFrame = Time.frameCount;
             leoHasImpact = true;
-            bool opened = target.log.Hit(target.index, Chop03Damage(target.log.RequiredCutHits(target.index), precise), precise);
+            bool precise = result == ChopTimingResult.Perfect;
+            bool opened = target.log.Hit(target.index,
+                Chop03Damage(target.log.RequiredCutHits(target.index), result), precise);
             Progress = target.log.CutProgress(target.index);
             GameEvents.RaiseChopHit();
-            FinishChop03Impact(precise);
+            FinishChop03Impact(result, leoImpact);
             if (opened)
             {
                 StopPrototypeWork();
                 chop03Log = default;
+                Chop02Feedback.Hide();
                 return;
             }
         }
@@ -154,21 +185,24 @@ public partial class PlayerInteraction
         ShowChop03Swing(target.log.CutContact(target.index, transform.position), Progress);
     }
 
-    void FinishChop03Impact(bool precise)
+    void FinishChop03Impact(ChopTimingResult result, Vector3 contact)
     {
-        if (!precise) return;
-        RegisterBonusHit();
-        GameEvents.RaiseChopQuality(2);
-        Chop02Feedback.Pulse();
+        if (result == ChopTimingResult.None) return;
+        bool success = result == ChopTimingResult.Good || result == ChopTimingResult.Perfect;
+        bool first = success && NeedsChopTimingHint && bonusHits == 0;
+        if (success) RegisterBonusHit();
+        GameEvents.RaiseChopQuality(result == ChopTimingResult.Perfect ? 2 : success ? 1 : 0);
+        Chop02Feedback.Report(result, contact, first);
     }
 
     void ShowChop03Swing(Vector3 point, float progress)
     {
-        bool meter = ChopBonus && chop03Swing.Armed && !waitingForChopAxe;
-        string instruction = meter && BonusTeaching
-            ? ChopPrototypeLog.Text("Пробел в зелёной зоне — сильнее", "Space in green — stronger hit")
-            : null;
-        Chop02Feedback.Show(point, instruction, progress, meter,
-            meter ? chop03Swing.Marker(Time.time) : 0f, chop03Swing.Attempted, chop03Swing.Precise, working: true);
+        bool meter = UsesChopTiming && chop03Swing.Armed && !waitingForChopAxe;
+        string instruction = null;
+        if (meter && Time.time >= chop03Swing.OpensAt && !chop03Swing.Attempted)
+            instruction = NeedsChopTimingHint
+                ? ChopPrototypeLog.Text("Пробел в зелёной зоне", "Space in the green zone")
+                : ChopPrototypeLog.Text("Пробел · удар", "Space · strike");
+        Chop02Feedback.Show(point, instruction, progress, meter ? chop03Swing : default, working: true);
     }
 }

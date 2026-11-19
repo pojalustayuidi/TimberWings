@@ -31,46 +31,35 @@ public partial class AchievementsWindow
         var btn = UiKit.MakeButton(cgo.transform, "", UiBtn.Yellow, new Vector2(HudBtn, HudBtn), 20f, 1f);
         btn.name = "AchievementsButton";
         hudRt = btn.GetComponent<RectTransform>();
-        // справа налево: «Прокачка», питомцы, достижения
-        float x = -(UpgradeWindow.HudRight + UpgradeWindow.HudBtnW + UpgradeWindow.HudGap + HudBtn + UpgradeWindow.HudGap);
-        Anch(hudRt, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(x, UpgradeWindow.HudBottom), new Vector2(HudBtn, HudBtn));
         btn.onClick.AddListener(Toggle);
 
-        hudIcon = UiKit.MakeIcon(btn.transform, UiIcon.Trophy, 58f, "Cup");
+        hudIcon = UiKit.MakeIcon(btn.transform, UiIcon.Trophy, 42f, "Cup");
         hudIcon.rectTransform.anchoredPosition = new Vector2(0f, 2f);
-
-        if (!Application.isMobilePlatform)
-        {
-            var key = UiKit.MakeKeycap(btn.transform, "K", 38f);
-            Anch(key.rectTransform, new Vector2(0f, 1f), Ctr, new Vector2(8f, -8f), new Vector2(38f, 38f));
-        }
 
         // красная точка с числом: награды ждут
         var dot = UiKit.MakeImage(btn.transform, "Dot", UiKit.Medallion, false);
         dot.color = DotColor;
         hudDot = dot.rectTransform;
-        Anch(hudDot, new Vector2(1f, 1f), Ctr, new Vector2(-8f, -8f), new Vector2(34f, 34f));
-        dotLabel = UiKit.MakeLabel(dot.transform, "!", 22f, Color.white, TextAlignmentOptions.Center, true);
+        Anch(hudDot, new Vector2(1f, 1f), Ctr, new Vector2(-8f, -8f), new Vector2(25f, 25f));
+        dotLabel = UiKit.MakeLabel(dot.transform, "!", 18f, Color.white, TextAlignmentOptions.Center, true);
         Stretch(dotLabel.rectTransform);
         hudDot.gameObject.SetActive(false);
-        HudPolishRoot.SetupShortcut(btn, 2, "Достижения · K", "Испытания и готовые награды");
+        HudPolishRoot.SetupShortcut(btn, 2, "Достижения · K", "Испытания и награды",
+            "Achievements · K", "Challenges and rewards");
         if (HudPolishRoot.Skin != null) hudIcon.sprite = HudPolishRoot.Skin.trophy;
     }
 
     void UpdateHud(float dt)
     {
         if (hudGroup == null) return;
-        if (!hudRegistered && HudSafeAreaRegistry.Instance != null)
-        {
-            HudSafeAreaRegistry.Instance.Register(hudRt);
-            hudRegistered = true;
-        }
-
-        bool visible = Available && !MobileInput.ModalOpen && !DialogueManager.IsBusy && !DialogueSequence.AnyPlaying;
-        hudGroup.alpha = Mathf.MoveTowards(hudGroup.alpha, visible ? 1f : 0f, dt / 0.2f);
+        bool visible = Available && PlayerInventory.Instance != null && !HudGameplayLayout.Blocked;
+        hudGroup.alpha = VibeSettings.ReduceEffects ? (visible ? 1f : 0f) :
+            Mathf.MoveTowards(hudGroup.alpha, visible ? 1f : 0f, dt / .16f);
         bool on = visible && hudGroup.alpha > 0.5f;
         hudGroup.blocksRaycasts = on;
         hudGroup.interactable = on;
+        bool shown = visible || hudGroup.alpha > .005f;
+        if (hudRt.gameObject.activeSelf != shown) hudRt.gameObject.SetActive(shown);
 
         var m = AchievementManager.Instance;
         int n = visible && m != null ? m.ClaimableCount : 0;

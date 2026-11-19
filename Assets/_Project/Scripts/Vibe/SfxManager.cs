@@ -1,8 +1,7 @@
 // Assets/_Project/Scripts/Vibe/SfxManager.cs (НЕ в Editor)
-// Звук игры без единого аудиофайла: все эффекты синтезируются кодом при первом использовании.
+// Пул эффектов игры. В первую очередь использует записанные клипы из Resources/Sfx.
 // Слушает события игры сам: рубка (удары в такт, падение дерева), бревно и доска в рюкзак, монеты, шаги, стройка,
 // уровень, выполненное задание. Бормотание реплик (GDD 12.3, «голоса-бормотания»): DialogueManager зовёт SfxManager.Blip.
-// Когда появятся настоящие звуки из Freesound, замени клип в Get(): ключи остаются теми же.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -73,14 +72,15 @@ public class SfxManager : MonoBehaviour
 
     AudioSource[] pool;
     AudioSource blipSrc;
+    readonly bool[] timberVoice = new bool[PoolSize];
+    readonly float[] timberGain = new float[PoolSize];
     int next;
-    float volCache = 0.8f, volAt;
 
     readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
     readonly Dictionary<string, float> lastPlayed = new Dictionary<string, float>();
+    readonly System.Random soundRandom = new System.Random();
 
     PlayerMovement pm;
-    PlayerInteraction pi;
     PlayerInventory inv;
     float findAt;
     bool invInit;
@@ -104,6 +104,13 @@ public class SfxManager : MonoBehaviour
         if (Instance != null) Instance.PlayInternal(key, volume, pitch);
     }
 
+    internal static void Timber(string key, float volume = 1f, float pitch = 1f, Vector3? point = null,
+        string fallback = null)
+    {
+        if (Instance != null && Instance.isActiveAndEnabled)
+            Instance.PlayInternal(key, volume, pitch, point, timber: true, fallback: fallback);
+    }
+
     // бормотание реплики: зовётся на каждую новую букву, сам решает, на какой звучать
     public static void Blip(string speaker, string text, int index)
     {
@@ -121,15 +128,24 @@ public class SfxManager : MonoBehaviour
     {
         Instance = this;
         pool = new AudioSource[PoolSize];
-        for (int i = 0; i < PoolSize; i++) pool[i] = NewSource();
-        blipSrc = NewSource();
+        for (int i = 0; i < PoolSize; i++)
+        {
+            var voice = new GameObject("SFX voice " + (i + 1));
+            voice.transform.SetParent(transform, false);
+            pool[i] = NewSource(voice);
+        }
+        blipSrc = NewSource(gameObject);
     }
 
-    AudioSource NewSource()
+    static AudioSource NewSource(GameObject owner)
     {
-        var s = gameObject.AddComponent<AudioSource>();
+        var s = owner.AddComponent<AudioSource>();
         s.playOnAwake = false;
         s.spatialBlend = 0f;
+        s.dopplerLevel = 0f;
+        s.minDistance = 1.6f;
+        s.maxDistance = 24f;
+        s.rolloffMode = AudioRolloffMode.Linear;
         return s;
     }
 
@@ -139,6 +155,8 @@ public class SfxManager : MonoBehaviour
         GameEvents.ChopHit += OnChopHit;
         GameEvents.LevelUp += OnLevelUp;
         GameEvents.QuestDone += OnQuestDone;
+        SaveSystem.Loaded += ResetInventoryAudio;
+        SaveSystem.NewGameStarted += ResetInventoryAudio;
     }
 
     void OnDisable()
@@ -147,6 +165,10 @@ public class SfxManager : MonoBehaviour
         GameEvents.ChopHit -= OnChopHit;
         GameEvents.LevelUp -= OnLevelUp;
         GameEvents.QuestDone -= OnQuestDone;
+        SaveSystem.Loaded -= ResetInventoryAudio;
+        SaveSystem.NewGameStarted -= ResetInventoryAudio;
+        ResetInventoryAudio();
+        foreach (var voice in pool) voice.Stop();
     }
 
     void OnDestroy()
@@ -164,15 +186,38 @@ public class SfxManager : MonoBehaviour
     // удар топора приходит из PlayerInteraction (по таймеру или по событию из анимации), поэтому звук всегда в такт кадру удара
     void OnChopHit()
     {
-        bool precise = PlayerInteraction.PreciseChop03Impact;
-        bool ground = pi != null && pi.IsProcessingPrototypeLog;
-        float pitch = UnityEngine.Random.Range(.90f, precise ? .98f : ground ? 1.02f : 1.10f);
-        PlayInternal("thock", precise ? 1.02f : ground ? .82f : .95f, pitch);
+        var actor = PlayerInteraction.ActivePlayer;
+        if (actor == null || !actor.Chop03ImpactThisFrame && !OrbitCamera.FirstPersonActive)
+        {
+            PlayInternal("thock", .95f, UnityEngine.Random.Range(.90f, 1.10f));
+            return;
+        }
+        Vector3? point = actor.TryReadLeoImpact(out var contact) ? contact : actor.CurrentTarget != null
+            ? actor.CurrentTarget.position + Vector3.up * .65f : (Vector3?)null;
+        bool ground = actor.IsProcessingPrototypeLog;
+        var quality = PlayerInteraction.CurrentChop03Result;
+        string key = quality switch
+        {
+            ChopTimingResult.Perfect => "axePerfect",
+            ChopTimingResult.Early or ChopTimingResult.Late => "axeWeak",
+            _ => ground ? "axeGround" : "axeWood"
+        };
+        float pitch = ground ? .94f : 1f;
+        if (actor.EquippedAxe.Id == AxeId.Iron || actor.EquippedAxe.Id == AxeId.Gunnar) pitch *= .94f;
+        Timber(key, ground ? .83f : .91f, pitch, point, "thock");
+        if (VibeSettings.ReduceEffects) return;
+        if (quality == ChopTimingResult.Good) Timber("timingGood", .25f);
+        if (quality == ChopTimingResult.Perfect) Timber("timingPerfect", .29f);
+        if (quality == ChopTimingResult.Early || quality == ChopTimingResult.Late) Timber("timingError", .23f);
     }
     void OnTreeChopped()
     {
         if (PlayerInteraction.PrototypeFellingEvent)
-            PlayInternal("woodCrack", .76f, UnityEngine.Random.Range(.89f, 1.02f));
+        {
+            var actor = PlayerInteraction.ActivePlayer;
+            Vector3? point = actor != null && actor.TryReadLeoImpact(out var bark) ? bark : (Vector3?)null;
+            Timber("woodCrack", .78f, .91f, point);
+        }
         else
             PlayInternal("fall", 1f, UnityEngine.Random.Range(.94f, 1.06f));
     }
@@ -185,9 +230,9 @@ public class SfxManager : MonoBehaviour
     void Update()
     {
         float dt = Time.deltaTime;
-        volCache = GameAudio.SfxLevel;   // раньше обновлялось раз в 0.5 с: ползунок «Звуки» реагировал с задержкой
+        UpdateTimberVoices();
 
-        if (pm == null || pi == null || inv == null)
+        if (pm == null || inv == null)
         {
             if (Time.unscaledTime >= findAt)
             {
@@ -204,8 +249,11 @@ public class SfxManager : MonoBehaviour
                 }
                 if (pm != null)
                 {
-                    if (pi == null) pi = pm.GetComponent<PlayerInteraction>();
-                    if (inv == null) inv = pm.GetComponent<PlayerInventory>();
+                    if (inv == null)
+                    {
+                        inv = pm.GetComponent<PlayerInventory>();
+                        ResetInventoryAudio();
+                    }
                 }
             }
         }
@@ -268,15 +316,23 @@ public class SfxManager : MonoBehaviour
     void TickInventory()
     {
         if (inv == null) return;
-        if (!invInit)
+        if (!invInit || SaveSystem.IsLoading)
         {
             invInit = true;
             lastWood = inv.woodCount; lastPlanks = inv.planksCount; lastCoins = inv.coinsCount;
             return;
         }
 
-        if (inv.woodCount > lastWood) PlayInternal("log", 0.7f, 1f + Mathf.Min(6, inv.woodCount) * 0.025f);
-        if (inv.planksCount > lastPlanks) PlayInternal("log", 0.75f, 0.78f);
+        if (inv.woodCount > lastWood) Timber("logPickup", .70f, fallback: "log");
+        if (inv.planksCount > lastPlanks)
+        {
+            var workshop = PlankWorkshopWindow.Instance;
+            if (workshop != null && workshop.IsOpen && !SettingsMenu.IsOpen && Time.timeScale > 0f &&
+                Application.isFocused && !DialogueManager.IsBusy && !DialogueSequence.AnyPlaying)
+                PlayInternal("boardPickup", .69f, 1f, fallback: "log");
+            else
+                Timber("boardPickup", .69f, fallback: "log");
+        }
 
         int dc = inv.coinsCount - lastCoins;
         if (dc > 0)
@@ -287,6 +343,8 @@ public class SfxManager : MonoBehaviour
 
         lastWood = inv.woodCount; lastPlanks = inv.planksCount; lastCoins = inv.coinsCount;
     }
+
+    void ResetInventoryAudio() => invInit = false;
 
     IEnumerator Cascade(int n)
     {
@@ -311,23 +369,53 @@ public class SfxManager : MonoBehaviour
     }
 
     // ------------------------------------------------------------ воспроизведение
-    void PlayInternal(string key, float volume, float pitch)
+    void UpdateTimberVoices()
     {
-        volCache = GameAudio.SfxLevel;
-        if (volCache <= 0.001f) return;                    // звуки выключены: даже не создаём клип
-        AudioClip c = Get(key);
-        if (c == null) return;
+        bool blocked = HudGameplayLayout.Blocked;
+        float level = GameAudio.SfxLevel;
+        for (int i = 0; i < pool.Length; i++)
+        {
+            if (!timberVoice[i]) continue;
+            if (!pool[i].isPlaying || blocked)
+            {
+                pool[i].Stop();
+                timberVoice[i] = false;
+                continue;
+            }
+            pool[i].volume = Mathf.Clamp01(timberGain[i] * level);
+        }
+    }
 
-        float now = Time.unscaledTime, last;
-        if (lastPlayed.TryGetValue(key, out last) && now - last < 0.03f) return;
+    void PlayInternal(string key, float volume, float pitch, Vector3? point = null, bool timber = false,
+        string fallback = null)
+    {
+        float level = GameAudio.SfxLevel;
+        if (level <= .001f || timber && HudGameplayLayout.Blocked) return;
+
+        float now = Time.unscaledTime;
+        if (lastPlayed.TryGetValue(key, out var last) && now - last < (timber ? .058f : .03f)) return;
+        AudioClip clip = Get(key);
+        if (clip == null && fallback != null) clip = Get(fallback);
+        if (clip == null) return;
         lastPlayed[key] = now;
 
-        AudioSource s = pool[next];
+        int index = next;
+        AudioSource s = pool[index];
         next = (next + 1) % pool.Length;
         s.Stop();
-        s.clip = c;
+        s.clip = clip;
+        s.spatialBlend = point.HasValue ? .86f : 0f;
+        if (point.HasValue) s.transform.position = point.Value;
+        else s.transform.localPosition = Vector3.zero;
+        if (timber)
+        {
+            pitch *= Mathf.Lerp(.956f, 1.043f, (float)soundRandom.NextDouble());
+            volume *= Mathf.Lerp(.92f, 1.03f, (float)soundRandom.NextDouble());
+        }
+        timberVoice[index] = timber;
+        timberGain[index] = volume;
         s.pitch = pitch;
-        s.volume = Mathf.Clamp01(volume * volCache);
+        s.volume = Mathf.Clamp01(volume * level);
         s.Play();
     }
 
@@ -380,8 +468,13 @@ public class SfxManager : MonoBehaviour
             if (arr.Length > 0)
             {
                 // варианты не повторяются два раза подряд (иначе рубка и шаги звучат как заевшая пластинка)
-                int pick = UnityEngine.Random.Range(0, arr.Length), prev;
-                if (arr.Length > 1 && lastVariant.TryGetValue(key, out prev) && pick == prev) pick = (pick + 1) % arr.Length;
+                int pick;
+                if (arr.Length > 1 && lastVariant.TryGetValue(key, out int previous))
+                {
+                    pick = soundRandom.Next(arr.Length - 1);
+                    if (pick >= previous) pick++;
+                }
+                else pick = soundRandom.Next(arr.Length);
                 lastVariant[key] = pick;
                 return arr[pick];
             }

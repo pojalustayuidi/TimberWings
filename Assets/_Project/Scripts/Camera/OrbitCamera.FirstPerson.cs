@@ -48,6 +48,11 @@ public partial class OrbitCamera
     readonly Dictionary<Renderer, ShadowCastingMode> fpShadowBody = new Dictionary<Renderer, ShadowCastingMode>(240);
 
     public static bool FirstPersonActive => Active && instance != null && instance.fpLive;
+    internal static bool FirstPersonCarryAxe => FirstPersonActive && instance.fpCarryAxe &&
+        !instance.FpCinematic && !MobileInput.ModalOpen;
+
+    internal static bool TryFirstPersonMiss(float speed) => FirstPersonCarryAxe && CrosshairActive &&
+        instance.fpShowView && instance.fpView != null && instance.fpView.TryAirSwing(speed);
 
     bool FpCinematic => player == null || player.ControlLocked ||
         SaveSystem.IsLoading || BuildingController.AnyRestorePending || BuildWorkPose.MovementLocked ||
@@ -61,7 +66,7 @@ public partial class OrbitCamera
     {
         if (Application.isMobilePlatform || !Active || !Enabled || !Application.isFocused ||
             MobileInput.ModalOpen || FpCinematic || Time.timeScale <= 0f) return;
-        if (Input.GetKeyDown(firstPersonKey) && (interaction == null || !interaction.IsChopping))
+        if (Input.GetKeyDown(firstPersonKey) && (interaction == null || interaction.PrepareFirstPersonSwitch()))
         {
             if (!fpRequested)
             {
@@ -351,7 +356,9 @@ public partial class OrbitCamera
     void FpOnImpact()
     {
         fpView?.Hit(interaction, false);
-        if (!fpShowView || FpCinematic || VibeSettings.ReduceEffects) return;
+        if (!fpShowView || FpCinematic) return;
+        fpContactCueUntil = Time.unscaledTime + .17f;
+        if (VibeSettings.ReduceEffects) return;
         fpKick = PlayerInteraction.PreciseChop03Impact ? .66f : .39f;
     }
 
@@ -366,6 +373,7 @@ public partial class OrbitCamera
         }
         if (!fpLive) return;
         fpLive = fpShowView = false;
+        fpContactCueUntil = 0f;
         FpUnsubscribeRender();
         GameEvents.ChopHit -= FpOnImpact;
         GameEvents.TreeChopped -= FpOnFelled;
