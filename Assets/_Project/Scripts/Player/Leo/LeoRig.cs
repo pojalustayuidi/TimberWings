@@ -36,6 +36,8 @@ public sealed class LeoRig : MonoBehaviour
     AxeDefinition axeVisual;
     GameObject equippedAxeModel;
     MeshRenderer[] bakedAxeRenderers;
+    readonly AxeRuneFinish axeRuneFinish = new AxeRuneFinish();
+    PlayerAxeEquipment runeEquipment;
 
     internal Renderer EquippedAxeRenderer { get; private set; }
     internal Vector3 EquippedAxeEdge { get; private set; } = LeoAxePose.Edge;
@@ -104,6 +106,16 @@ public sealed class LeoRig : MonoBehaviour
     void LateUpdate()
     {
         // Run after both existing pose controllers reset the rig for this frame.
+        if (axeVisual != null)
+        {
+            if (runeEquipment == null) runeEquipment = GetComponentInParent<PlayerAxeEquipment>();
+            if (runeEquipment != null)
+            {
+                var rune = runeEquipment.RuneFor(axeVisual.Id);
+                axeRuneFinish.Set(EquippedAxeRenderer as MeshRenderer, axeVisual.Id, rune);
+                OrbitCamera.SyncFirstPersonRune(this, runeEquipment.Equipped.Id, runeEquipment.ActiveRune);
+            }
+        }
         UpdateJacketHem();
         float dt = Time.deltaTime;
         if (scarfTail == null || scarfShortTail == null || dt <= 0f) return;

@@ -60,10 +60,6 @@ internal sealed partial class PlayerAxeEquipment
         return true;
     }
 
-    // Reserved for a later update. No transfer UI or gameplay transfer in Simulator Update.
-    internal bool CanTransferRune(RuneForgeInspection table, AxeId from, AxeId to) => false;
-    internal bool TryTransferRune(RuneForgeInspection table, AxeId from, AxeId to) => false;
-
     internal bool TrySwitchBoardsMode()
     {
         if (!CanEquip || ActiveRune != AxeRuneId.RunicSaw) return false;

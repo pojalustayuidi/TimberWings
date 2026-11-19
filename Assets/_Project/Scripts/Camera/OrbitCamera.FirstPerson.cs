@@ -45,6 +45,7 @@ public partial class OrbitCamera
     LeoFirstPersonView fpView;
     readonly List<Renderer> fpBody = new List<Renderer>(240);
     readonly List<Renderer> fpMaskedBody = new List<Renderer>(240);
+    readonly Dictionary<Renderer, ShadowCastingMode> fpShadowBody = new Dictionary<Renderer, ShadowCastingMode>(240);
 
     public static bool FirstPersonActive => Active && instance != null && instance.fpLive;
 
@@ -296,9 +297,25 @@ public partial class OrbitCamera
 
     void FpMask(Renderer renderer)
     {
-        if (renderer == null || renderer.forceRenderingOff) return;
-        renderer.forceRenderingOff = true;
-        fpMaskedBody.Add(renderer);
+        if (renderer == null || renderer.forceRenderingOff || !renderer.enabled ||
+            !renderer.gameObject.activeInHierarchy ||
+            // Never shadow-mask the separate FP viewmodel, including setups
+            // that parent the world camera under the player hierarchy.
+            fpCamera != null && renderer.transform.IsChildOf(fpCamera.transform)) return;
+        // ShadowCastingMode.ShadowsOnly leaves Leo's world silhouette on the
+        // ground while preventing his face/body from clipping the FP camera.
+        // Preserve original settings (including Off) for third-person mode.
+        ShadowCastingMode mode = renderer.shadowCastingMode;
+        if (mode != ShadowCastingMode.Off)
+        {
+            fpShadowBody[renderer] = mode;
+            renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+        }
+        else
+        {
+            renderer.forceRenderingOff = true;
+            fpMaskedBody.Add(renderer);
+        }
     }
 
     void FpAfterRender(ScriptableRenderContext context, Camera rendering)
@@ -313,6 +330,9 @@ public partial class OrbitCamera
         foreach (var r in fpMaskedBody)
             if (r != null) r.forceRenderingOff = false;
         fpMaskedBody.Clear();
+        foreach (var pair in fpShadowBody)
+            if (pair.Key != null) pair.Key.shadowCastingMode = pair.Value;
+        fpShadowBody.Clear();
         fpView?.SetRendered(false);
     }
 

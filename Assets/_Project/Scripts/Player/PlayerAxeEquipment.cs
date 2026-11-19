@@ -133,6 +133,7 @@ internal sealed partial class PlayerAxeEquipment : MonoBehaviour, ISaveable
         legacyForgeRestored = data.forgeRestored || data.runes == null && (Has(AxeId.Steel) || Has(AxeId.Gunnar));
         runes = data.runes ?? new PlayerRuneLoadout();
         runes.Normalize(Has);
+        if (runes.HasDrawHistory && inventory != null) inventory.RestoreRuneEssenceDiscovery();
     }
 
     public void ResetToDefault()

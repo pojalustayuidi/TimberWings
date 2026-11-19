@@ -25,7 +25,8 @@ internal sealed partial class LeoFirstPersonView
     readonly Transform[] axeModels = new Transform[AxeCatalog.All.Length];
     AxeDefinition activeAxe;
     Vector3 cuttingEdge = new Vector3(0f, .23748f, .28564f);
-    readonly Arm right;
+    readonly Arm left, right;
+    bool axeVisible = true;
     readonly Camera camera;
     readonly LeoRig source;
     readonly bool hasGeometry;
@@ -35,6 +36,7 @@ internal sealed partial class LeoFirstPersonView
     {
         internal Transform upper, elbow, forearm, wrist;
         internal SkinnedMeshRenderer hand;
+        internal Vector3 gripCenter = LeoFirstPersonHandMesh.GripCenter;
         internal Quaternion upperRest, elbowRest, wristRest;
         internal float reach;
 
@@ -49,7 +51,7 @@ internal sealed partial class LeoFirstPersonView
 
         internal Quaternion GripWrist(Transform space, Vector3 grip, Vector3 pole, Quaternion fallback, Vector3 shaft)
         {
-            PlaceWrist(space, grip - fallback * LeoFirstPersonHandMesh.GripCenter, pole, fallback);
+            PlaceWrist(space, grip - fallback * gripCenter, pole, fallback);
             Vector3 forearmDirection = space.InverseTransformDirection((wrist.position - elbow.position).normalized);
             Vector3 fingers = Vector3.ProjectOnPlane(forearmDirection, shaft);
             if (fingers.sqrMagnitude < .001f) return fallback;
@@ -76,7 +78,8 @@ internal sealed partial class LeoFirstPersonView
     internal static LeoFirstPersonView Create(Camera camera, LeoRig source)
     {
         if (source.upperArmR == null || source.elbowR == null || source.forearmTwistR == null ||
-            source.handR == null || source.axeRoot == null)
+            source.handR == null || source.upperArmL == null || source.elbowL == null ||
+            source.forearmTwistL == null || source.handL == null || source.axeRoot == null)
             return null;
         LeoFirstPersonHandMesh shape = LeoFirstPersonHandMesh.Load();
         if (shape == null) return null;
@@ -119,7 +122,8 @@ internal sealed partial class LeoFirstPersonView
         }
 
         root = NewTransform("Leo First Person (HideFromMap)", camera.transform);
-        right = CopyArm(source.upperArmR, source.elbowR, source.forearmTwistR, source.handR, shape);
+        left = CopyArm(source.upperArmL, source.elbowL, source.forearmTwistL, source.handL, shape, true);
+        right = CopyArm(source.upperArmR, source.elbowR, source.forearmTwistR, source.handR, shape, false);
         int beforeAxe = renderers.Count;
         axe = NewTransform("Axe", root);
         foreach (var definition in AxeCatalog.All)
@@ -149,7 +153,7 @@ internal sealed partial class LeoFirstPersonView
     }
 
     Arm CopyArm(Transform upper, Transform elbow, Transform twist, Transform wrist,
-        LeoFirstPersonHandMesh shape)
+        LeoFirstPersonHandMesh shape, bool mirrored)
     {
         var arm = new Arm();
         arm.upper = CopyBone(upper, root, false);
@@ -189,6 +193,11 @@ internal sealed partial class LeoFirstPersonView
         arm.hand.shadowCastingMode = ShadowCastingMode.Off;
         arm.hand.receiveShadows = overlay == null;
         arm.hand.forceRenderingOff = true;
+        if (mirrored)
+        {
+            arm.gripCenter = new Vector3(-arm.gripCenter.x, arm.gripCenter.y, arm.gripCenter.z);
+            arm.hand.transform.localScale = new Vector3(-1f, 1f, 1f);
+        }
         renderers.Add(arm.hand);
         return arm;
     }
@@ -293,13 +302,13 @@ internal sealed partial class LeoFirstPersonView
         activeAxe = definition;
 
         var chosen = axeModels[(int)definition.Id] ?? axeModels[(int)AxeId.Old];
-        if (bakedAxe != null) bakedAxe.gameObject.SetActive(chosen == null);
+        if (bakedAxe != null) bakedAxe.gameObject.SetActive(axeVisible && chosen == null);
         // Disable the fallback too when changing from a missing model to an imported one.
         var old = axeModels[(int)AxeId.Old];
         if (old != null && old != chosen) old.gameObject.SetActive(false);
         if (chosen != null)
         {
-            chosen.gameObject.SetActive(true);
+            chosen.gameObject.SetActive(axeVisible);
             cuttingEdge = (definition.Model ?? AxeCatalog.Get(AxeId.Old).Model)
                 .transform.Find("CuttingEdge").localPosition;
         }
@@ -317,6 +326,21 @@ internal sealed partial class LeoFirstPersonView
         var part = new GameObject(name) { layer = layer };
         part.transform.SetParent(parent, false);
         return part.transform;
+    }
+
+    internal void SetAxeVisible(bool show)
+    {
+        if (axeVisible == show) return;
+        axeVisible = show;
+        if (activeAxe != null && axeModels[(int)activeAxe.Id] != null)
+            axeModels[(int)activeAxe.Id].gameObject.SetActive(show);
+        if (bakedAxe != null && bakedAxe.gameObject.activeSelf != (show && activeAxe == null))
+            bakedAxe.gameObject.SetActive(show && activeAxe == null);
+        if (stroke != null && !show)
+        {
+            stroke.emitting = false;
+            stroke.Clear();
+        }
     }
 
     internal void SetVisible(bool show)
@@ -388,6 +412,7 @@ internal sealed partial class LeoFirstPersonView
             if (material != null) Object.Destroy(material);
         litMaterials.Clear();
         if (nailMaterial != null) Object.Destroy(nailMaterial);
+        if (left.hand != null) Object.Destroy(left.hand.sharedMesh);
         if (right.hand != null) Object.Destroy(right.hand.sharedMesh);
         if (root != null)
         {

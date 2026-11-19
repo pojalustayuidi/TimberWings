@@ -25,7 +25,7 @@ using Shade = System.Func<float, float, UnityEngine.Color>;
 public enum UiBtn { Amber, Green, Yellow, Gray }
 public enum UiBtnState { Normal, Hover, Pressed, Disabled }
 public enum UiBar { Amber, Green, Blue }
-public enum UiIcon { Coin, Star, Log, Plank, Axe, Flame, Lock, Backpack, Fish, Tent, Check, Boot, Saw, Target, Cross, Clock, Sawmill, ArrowUp, Play, Box, ArrowRight, Planks, Paw, Gem, Trophy, Tree, Hut, Stall, Bridge, Scroll, Person, Hammer, Book, Bolt }
+public enum UiIcon { Coin, Star, Log, Plank, Axe, Flame, Lock, Backpack, Fish, Tent, Check, Boot, Saw, Target, Cross, Clock, Sawmill, ArrowUp, Play, Box, ArrowRight, Planks, Paw, Gem, Trophy, Tree, Hut, Stall, Bridge, Scroll, Person, Hammer, Book, Bolt, RuneEssence }
 
 public static partial class UiKit
 {
@@ -1042,6 +1042,29 @@ public static partial class UiKit
                 p.Fill(Poly(V(38, 61), V(15, 31), V(29, 31), V(24, 3), V(50, 39), V(36, 39), V(47, 61)), VGrad(3, 61, C(0xE0, 0x9A, 0x14), C(0xFF, 0xE8, 0x70)));
                 p.Fill(Poly(V(38, 61), V(15, 31), V(22, 31), V(42, 58)), new Color(1f, 1f, 1f, 0.35f));
                 break;
+
+            case UiIcon.RuneEssence:
+            {
+                Vector2 tip = V(39, 59), shoulder = V(17, 44), left = V(10, 24);
+                Vector2 baseTip = V(27, 5), heel = V(48, 17), right = V(54, 39);
+                Vector2 ridgeTop = V(38, 44), ridgeBottom = V(32, 17);
+
+                p.Fill(Poly(tip, shoulder, left, baseTip, heel, right), C(0x71, 0x4B, 0xAE));
+                p.Fill(Poly(tip, shoulder, left, ridgeBottom, ridgeTop),
+                    VGrad(17, 59, C(0x89, 0x5B, 0xCC), C(0xD6, 0xB4, 0xFF)));
+                p.Fill(Poly(ridgeTop, right, heel, baseTip, ridgeBottom),
+                    VGrad(6, 44, C(0x4A, 0x33, 0x87), C(0x95, 0x6A, 0xDB)));
+                p.Fill(Poly(tip, ridgeTop, right), C(0xE5, 0xC8, 0xFF));
+                p.Fill(Poly(left, ridgeBottom, baseTip), C(0x5F, 0x40, 0xA3));
+                p.Fill(Capsule(18, 42, 35, 54, 1.15f), C(0xFF, 0xEB, 0xFF, 165));
+
+                Sdf rune = Union(Capsule(26, 22, 31, 43, 2.05f),
+                    Union(Capsule(31, 43, 38, 34, 2.05f), Capsule(38, 34, 28, 30, 2.05f)));
+                Sdf glow = (x, y) => rune(x, y) - 1.4f;
+                p.Fill(glow, C(0x3E, 0x2D, 0x75, 160));
+                p.Fill(rune, VGrad(21, 45, C(0x7D, 0xF9, 0xDF), C(0xE0, 0xFF, 0xF7)));
+                break;
+            }
 
             case UiIcon.Gem:   // огранённый камень, почти белый: красится через Image.color (цвет редкости)
             {

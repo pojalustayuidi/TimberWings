@@ -10,6 +10,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
     public int coinsCount = 0;
     public int planksCount = 0;   // доски (из мастерской), нужны для заказов и моста
     public int RuneEssence { get; private set; }
+    public bool RuneEssenceDiscovered { get; private set; }
 
     [Header("Визуальный рюкзак")]
     public Transform backpackPoint;
@@ -19,6 +20,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
     public Vector3 logRotation = new Vector3(90, 0, 0);
 
     private List<GameObject> stackedLogs = new List<GameObject>();
+    bool committingProduction;
 
     // ------------------------------------------------------------ сохранение
     [System.Serializable]
@@ -28,6 +30,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         public int coins;
         public int planks;
         public int runeEssence;
+        public bool runeEssenceDiscovered;
     }
 
     static PlayerInventory instance;
@@ -49,7 +52,14 @@ public class PlayerInventory : MonoBehaviour, ISaveable
 
     public string Save()
     {
-        return JsonUtility.ToJson(new SaveData { wood = woodCount, coins = coinsCount, planks = planksCount, runeEssence = RuneEssence });
+        return JsonUtility.ToJson(new SaveData
+        {
+            wood = woodCount,
+            coins = coinsCount,
+            planks = planksCount,
+            runeEssence = RuneEssence,
+            runeEssenceDiscovered = RuneEssenceDiscovered
+        });
     }
 
     // Без наград, событий, тостов и RequestSave (правило ISaveable)
@@ -66,6 +76,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         coinsCount = Mathf.Max(0, d.coins);
         planksCount = Mathf.Max(0, d.planks);
         RuneEssence = Mathf.Max(0, d.runeEssence);
+        RuneEssenceDiscovered = d.runeEssenceDiscovered || RuneEssence > 0;
         pendingLogs = 0;   // летевшие в HUD брёвна старой игры не вернутся
         RebuildBackpack();
         UpdateUI();
@@ -74,6 +85,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
     public void ResetToDefault()
     {
         woodCount = 0; coinsCount = 0; planksCount = 0; RuneEssence = 0;
+        RuneEssenceDiscovered = false;
         pendingLogs = 0;
         RebuildBackpack();
         UpdateUI();
@@ -219,7 +231,10 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         woodCount += goods.logs;
         planksCount += goods.planks;
         coinsCount += coins;
-        commit?.Invoke(goods.logs, goods.planks);
+        bool wasCommittingProduction = committingProduction;
+        committingProduction = true;
+        try { commit?.Invoke(goods.logs, goods.planks); }
+        finally { committingProduction = wasCommittingProduction; }
         if (goods.planks > 0)
             stats.AddXP((int)System.Math.Min(int.MaxValue, (long)goods.planks * GameBalance.XpPerPlank));
         for (int i = 0; i < goods.logs; i++) SpawnLog();
@@ -228,15 +243,26 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         return goods;
     }
 
-    // Essence is a normal persistent resource: update the UI on the very first drop.
+    // Trunk pickups publish the whole batch together. Standalone bonuses publish immediately.
     internal void ReceiveRuneEssence(int amount)
     {
-        if (amount <= 0) return;
-        int next = (int)System.Math.Min(int.MaxValue, (long)RuneEssence + amount);
-        if (next == RuneEssence) return;
-        RuneEssence = next;
-        UpdateUI();
-        SaveSystem.RequestSave("inventory");
+        if (amount <= 0 || RuneEssence == int.MaxValue) return;
+        RuneEssence = (int)System.Math.Min(int.MaxValue, (long)RuneEssence + amount);
+        RuneEssenceDiscovered = true;
+        if (!committingProduction)
+        {
+            UpdateUI();
+            SaveSystem.RequestSave("inventory");
+        }
+    }
+
+    // A paid draw, socketed rune or guarantee progress identifies discovery in older saves.
+    internal void RestoreRuneEssenceDiscovery()
+    {
+        if (RuneEssenceDiscovered) return;
+        RuneEssenceDiscovered = true;
+        var ui = UIManager.Instance;
+        if (ui != null) ui.UpdateRuneEssence(RuneEssence, true);
     }
 
     public void AddPlanks(int amount)
@@ -274,7 +300,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         return true;
     }
 
-    // Любое изменение брёвен, досок или монет (в том числе загрузка сохранения). Подписчики: ObjectiveView (живые счётчики цели).
+    // Любое изменение ресурсов, в том числе загрузка сохранения.
     // static: переживает пересоздание инвентаря; подписчик отписывается в OnDisable.
     public static event System.Action Changed;
 
@@ -284,6 +310,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         {
             UIManager.Instance.UpdateResources(woodCount, coinsCount);
             UIManager.Instance.UpdatePlanks(planksCount);
+            UIManager.Instance.UpdateRuneEssence(RuneEssence, RuneEssenceDiscovered);
         }
         if (Changed != null) Changed();
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 internal enum AxeRuneId
 {
@@ -82,6 +83,10 @@ internal static class AxeRunes
 
     internal static bool IsValid(AxeRuneId id) => (uint)id < (uint)Catalog.Length;
     internal static AxeRune Get(AxeRuneId id) => Catalog[IsValid(id) ? (int)id : 0];
+    internal static IEnumerable<AxeRune> AtRarity(RuneRarity rarity)
+    {
+        foreach (var id in Pools[(int)rarity]) yield return Get(id);
+    }
     internal static bool ValidTier(ForgeTier tier) => (uint)tier < (uint)Coins.Length;
     internal static int EssenceCost(ForgeTier tier) => (int)tier + 1;
     internal static int BaseCoins(ForgeTier tier) => Coins[(int)tier];
@@ -178,6 +183,7 @@ internal sealed class PlayerRuneLoadout
     public int masterMisses, sturdyWood, forestSpark, cleanStock;
 
     internal bool MasterGuaranteed => masterMisses >= AxeRunes.MasterLimit;
+    internal bool HasDrawHistory => pending != null || masterMisses > 0 || Array.Exists(sockets, rune => rune != AxeRuneId.None);
 
     internal void SetOffer(ForgeRuneOffer offer)
     {

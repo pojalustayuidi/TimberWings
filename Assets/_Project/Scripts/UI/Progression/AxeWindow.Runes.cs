@@ -6,23 +6,39 @@ using static UiLayout;
 
 internal sealed partial class AxeWindow
 {
+    const float ForgeWidth = 1280f, ForgeHeight = 748f;
+    const float LeftWidth = 760f, RightX = 784f, RightWidth = 436f;
+    const float HammerGap = .17f;
     static readonly AxeId[] RuneAxes = { AxeId.Iron, AxeId.Steel, AxeId.Gunnar };
-    GameObject runeView, rollView, chosenView, transferView;
-    AxeId runeAxe, transferSource;
-    ForgeTier forgeTier;
-    bool transferring;
-    readonly Button[] runeAxes = new Button[3], tiers = new Button[3], sources = new Button[3];
-    readonly TMP_Text[] sourceLabels = new TMP_Text[3];
-    Button rollTab, transferTab, pay, transfer;
-    TMP_Text currentRune, currentEffect, runeWallet, oddsLabel, quoteLabel, unlockLabel, paidLabel, transferText;
-    TMP_Text keepLabel;
-    RuneCard[] offered;
+    static readonly Color Selection = new Color32(255, 218, 133, 255);
+    static readonly Color SelectedTab = new Color32(219, 192, 253, 255);
 
-    sealed class RuneCard
+    enum ForgeMotion { None, Draw, Apply }
+    ForgeMotion motion;
+    float motionAt;
+    int playedHits;
+    bool catalogOpen, runeViewEnglish;
+    AxeId runeAxe;
+    ForgeTier forgeTier;
+    ForgeRuneOffer inspectedOffer;
+    AxeRuneId pickedRune, appliedRune, replacedRune;
+
+    RectTransform runeHost;
+    GameObject runeView, drawView, resultView, catalogView, motionView, receiptView, forgeAxeView;
+    RawImage forgePreview;
+    Button drawTab, catalogTab, previousAxe, nextAxe, pay, apply;
+    TMP_Text coinWallet, essenceWallet, axeHeading, axeStatus, slotName, slotEffect, guidance, oddsTitle, quote, remainder;
+    TMP_Text resultRarity, replaceHint, keepLabel, receiptName, receiptEffect, receiptChange, motionTitle, motionHint;
+    Image socketStamp, receiptStamp, motionStamp, motionGlow;
+    readonly Image[] sparks = new Image[5];
+    readonly Image[] tierFrames = new Image[3], tierCards = new Image[3];
+    readonly TMP_Text[] tierEssence = new TMP_Text[3], tierCoins = new TMP_Text[3], tierLabels = new TMP_Text[3], oddsValues = new TMP_Text[5];
+    RuneOption[] options;
+
+    sealed class RuneOption
     {
-        internal GameObject root;
-        internal TMP_Text name, rarity, effect;
-        internal Button choose;
+        internal Image face, border, stamp;
+        internal TMP_Text name, effect;
     }
 
     static string ForgeText(string ru, string en) => GameLanguage.English ? en : ru;
@@ -30,246 +46,550 @@ internal sealed partial class AxeWindow
     void ShowRunes()
     {
         if (table == null || !table.CanUse(equipment)) return;
-        if (runeView == null)
+        if (runeView == null || runeViewEnglish != GameLanguage.English)
+        {
+            if (runeHost != null)
+            {
+                runeHost.gameObject.SetActive(false);
+                Destroy(runeHost.gameObject);
+            }
             using (UiKit.UseSkin(UiSkin.Candy)) BuildRuneView();
-
-        runeAxe = equipment.PendingRuneOffer?.axe ?? selected;
+        }
+        ResetForgePresentation();
+        var paid = equipment.PendingRuneOffer;
+        runeAxe = paid?.axe ?? selected;
         if (!AxeRunes.Supports(runeAxe) || !equipment.Has(runeAxe))
-            runeAxe = equipment.Has(AxeId.Iron) ? AxeId.Iron :
-                equipment.Has(AxeId.Steel) ? AxeId.Steel : equipment.Has(AxeId.Gunnar) ? AxeId.Gunnar : AxeId.Iron;
-        transferring = false;
-        forgeTier = ForgeTier.Simple;
-        transferSource = AxeId.Old;
+        {
+            runeAxe = equipment.Equipped.Id;
+            if (!AxeRunes.Supports(runeAxe))
+                foreach (AxeId axe in RuneAxes)
+                    if (equipment.Has(axe)) { runeAxe = axe; break; }
+        }
+        catalogOpen = false;
+        forgeTier = paid?.tier ?? ForgeTier.Simple;
         dragging = false;
         axeView.SetActive(false);
-        previewStage.SetActive(false);
+        FitRuneWindow();
         runeView.SetActive(true);
         Refresh();
     }
 
     void ShowAxes()
     {
+        ResetForgePresentation();
         runeView.SetActive(false);
         axeView.SetActive(true);
         previewStage.SetActive(true);
-        Select(runeAxe);
+        Select(ForgeOpeningAxe());
+    }
+
+    AxeId ForgeOpeningAxe()
+    {
+        if (forge != null && forge.GunnarBladeAvailable && !equipment.Has(AxeId.Gunnar)) return AxeId.Gunnar;
+        return equipment.Has(AxeId.Steel) && AxeRunes.Supports(runeAxe) && equipment.Has(runeAxe) ? runeAxe : AxeId.Steel;
+    }
+
+    void ResetForgePresentation()
+    {
+        motion = ForgeMotion.None;
+        inspectedOffer = null;
+        pickedRune = appliedRune = replacedRune = AxeRuneId.None;
+    }
+
+    void FitRuneWindow()
+    {
+        var size = ((RectTransform)panel.transform).rect.size;
+        float scale = Mathf.Min(1f, Mathf.Min((size.x - 34f) / ForgeWidth, (size.y - 38f) / ForgeHeight));
+        if (scale > 0f && !Mathf.Approximately(runeHost.localScale.x, scale))
+            runeHost.localScale = Vector3.one * scale;
     }
 
     void BuildRuneView()
     {
-        var window = UiCandy.Window(panel.transform, new Vector2(1090, 646), ForgeText("РУННАЯ КУЗНИЦА", "RUNE FORGE"), Close);
+        runeViewEnglish = GameLanguage.English;
+        runeHost = Layer(panel.transform, "Rune forge");
+        var window = UiCandy.Window(runeHost, new Vector2(ForgeWidth, ForgeHeight), ForgeText("РУННАЯ КУЗНИЦА", "RUNE FORGE"), Close);
         Prepare(window.close);
         runeView = window.root.gameObject;
         var content = window.content;
 
-        for (int i = 0; i < RuneAxes.Length; i++)
-        {
-            AxeId axe = RuneAxes[i];
-            runeAxes[i] = MakeButton(content, ShortAxe(axe), UiBtn.Gray, 10 + i * 245, 8, 234, 55, () =>
-            {
-                runeAxe = axe;
-                transferSource = AxeId.Old;
-                Refresh();
-            });
-        }
-        MakeButton(content, ForgeText("К топорам", "Axes"), UiBtn.Gray, 755, 8, 278, 55, ShowAxes);
+        drawTab = ForgeTab(content, ForgeText("Зачарование", "Enchant"), UiIcon.Star, 10, 212, () => ShowRuneTab(false));
+        catalogTab = ForgeTab(content, ForgeText("Справочник рун", "Rune guide"), UiIcon.Book, 234, 241, () => ShowRuneTab(true));
+        ForgeTab(content, ForgeText("Топоры", "Axes"), UiIcon.Axe, 487, 159, ShowAxes);
+        coinWallet = ForgeWallet(content, UiIcon.Coin, UiTone.Lemon, 794, 183);
+        essenceWallet = ForgeWallet(content, UiIcon.RuneEssence, UiTone.Lavender, 987, 233);
 
-        RectTransform installed = RunicSurface(content, "Installed rune", UiTone.Lavender, 10, 75, 1023, 93);
-        currentRune = ForgeLabel(installed, 25, 17, 9, 285, 73, true);
-        currentEffect = ForgeLabel(installed, 23, 325, 9, 678, 73);
-        rollTab = MakeButton(content, ForgeText("Подбор рун", "Rune draw"), UiBtn.Yellow, 10, 177, 1023, 48, () =>
-        {
-            transferring = false;
-            Refresh();
-        });
-        transferTab = MakeButton(content, ForgeText("Перенос", "Transfer"), UiBtn.Gray, 525, 177, 508, 48, () =>
-        {
-            transferring = true;
-            Refresh();
-        });
-
-        var roll = Layer(content, "Draw tier");
-        rollView = roll.gameObject;
-        for (int i = 0; i < tiers.Length; i++)
-        {
-            var tier = (ForgeTier)i;
-            tiers[i] = MakeButton(roll, TierName(tier), UiBtn.Gray, 10 + i * 343, 239, 333, 54, () =>
-            {
-                forgeTier = tier;
-                Refresh();
-            });
-        }
-        oddsLabel = ForgeLabel(roll, 21, 12, 305, 1020, 52, true);
-        unlockLabel = ForgeLabel(roll, 21, 12, 362, 1020, 41);
-        pay = MakeButton(roll, ForgeText("Оплатить подбор", "Pay for draw"), UiBtn.Green, 10, 424, 373, 56, () =>
-        {
-            equipment.TryRollRune(table, runeAxe, forgeTier);
-            Refresh();
-        });
-        quoteLabel = ForgeLabel(roll, 22, 400, 411, 628, 81);
-
-        var pending = Layer(content, "Paid draw");
-        chosenView = pending.gameObject;
-        paidLabel = ForgeLabel(pending, 23, 12, 178, 1015, 51, true);
-        offered = new[] { MakeRuneCard(pending, 0), MakeRuneCard(pending, 1) };
-        var keep = MakeButton(pending, "", UiBtn.Gray, 10, 443, 496, 54, () =>
-        {
-            equipment.TryChooseRune(table, equipment.PendingRuneOffer, AxeRuneId.None);
-            Refresh();
-        });
-        keepLabel = keep.GetComponentInChildren<TMP_Text>();
-
-        var moving = Layer(content, "Transfer rune");
-        transferView = moving.gameObject;
-        for (int i = 0; i < RuneAxes.Length; i++)
-        {
-            AxeId source = RuneAxes[i];
-            sources[i] = MakeButton(moving, "", UiBtn.Gray, 10 + i * 343, 239, 333, 54, () =>
-            {
-                transferSource = source;
-                Refresh();
-            });
-            sourceLabels[i] = sources[i].GetComponentInChildren<TMP_Text>();
-        }
-        transferText = ForgeLabel(moving, 25, 13, 306, 1005, 105);
-        transfer = MakeButton(moving, ForgeText("Перенести бесплатно", "Transfer free"), UiBtn.Green, 10, 424, 373, 56, () =>
-        {
-            equipment.TryTransferRune(table, transferSource, runeAxe);
-            transferSource = AxeId.Old;
-            Refresh();
-        });
-
-        runeWallet = ForgeLabel(content, 22, 12, 508, 1017, 35, true);
+        BuildDraw(content);
+        BuildOptions(content);
+        BuildCatalog(content);
+        BuildMotion(content);
+        BuildReceipt(content);
+        BuildAxeCard(content);
         runeView.SetActive(false);
     }
 
-    RuneCard MakeRuneCard(Transform parent, int index)
+    Button ForgeTab(Transform parent, string label, UiIcon icon, float x, float width, UnityEngine.Events.UnityAction action)
     {
-        RectTransform card = RunicSurface(parent, "Rune choice", UiTone.Mint, 10 + index * 515, 234, 507, 198);
-        var refs = new RuneCard
+        var tab = MakeButton(parent, label, UiBtn.Gray, x, 9, width, 52, action);
+        var text = tab.GetComponentInChildren<TMP_Text>();
+        text.rectTransform.offsetMin = new Vector2(39, 5);
+        text.rectTransform.offsetMax = new Vector2(-7, -1);
+        AutoSize(text, 17, 24);
+        var glyph = UiKit.MakeIcon(tab.transform, icon, 31);
+        TLC(glyph.rectTransform, 24, 24, 31, 31);
+        return tab;
+    }
+
+    static TMP_Text ForgeWallet(Transform parent, UiIcon icon, UiTone tone, float x, float width)
+    {
+        var plate = ForgeSurface(parent, "Wallet", tone, x, 11, width, 48).rectTransform;
+        var image = UiKit.MakeIcon(plate, icon, 31);
+        TLC(image.rectTransform, 26, 22, 31, 31);
+        return ForgeLabel(plate, "", 23, 49, 4, width - 60, 38, true);
+    }
+
+    void BuildDraw(Transform parent)
+    {
+        var draw = Layer(parent, "Choose a draw");
+        drawView = draw.gameObject;
+        ForgeLabel(draw, ForgeText("Подбор рун", "Rune draw"), 32, 12, 78, LeftWidth, 44, true);
+        ForgeLabel(draw, ForgeText("После оплаты появятся до двух рун одной редкости.",
+            "After payment, choose from up to two runes of the rolled rarity."), 21, 13, 122, LeftWidth, 31);
+
+        for (int i = 0; i < tierCards.Length; i++)
         {
-            root = card.gameObject,
-            name = ForgeLabel(card, 28, 17, 11, 472, 34, true),
-            rarity = ForgeLabel(card, 19, 17, 46, 472, 28),
-            effect = ForgeLabel(card, 22, 17, 78, 472, 55)
-        };
-        refs.choose = MakeButton(card, ForgeText("Установить", "Apply rune"), UiBtn.Green, 17, 141, 472, 45, () =>
+            var tier = (ForgeTier)i;
+            float x = 10 + i * 256;
+            tierFrames[i] = ForgeSurface(draw, "Tier highlight", UiTone.Lemon, x - 4, 162, 251, 153);
+            var card = ForgeSurface(draw, "Draw tier", UiTone.Lavender, x, 166, 243, 145);
+            tierCards[i] = card;
+            AddClick(card, () => { forgeTier = tier; Refresh(); });
+            Prepare(card.GetComponent<Button>());
+            var gem = UiKit.MakeIcon(card.transform, UiIcon.Gem, 47);
+            gem.color = RarityColor((RuneRarity)i);
+            TLC(gem.rectTransform, 32, 32, 45, 45);
+            ForgeLabel(card.transform, TierName(tier), 24, 60, 13, 176, 34, true);
+            tierLabels[i] = ForgeLabel(card.transform, "", 19, 16, 54, 212, 43);
+            var cost = ForgeSurface(card.transform, "Tier price", UiTone.Neutral, 10, 102, 223, 32).rectTransform;
+            var crystal = UiKit.MakeIcon(cost, UiIcon.RuneEssence, 24);
+            var coin = UiKit.MakeIcon(cost, UiIcon.Coin, 23);
+            TLC(crystal.rectTransform, 47, 15, 24, 24);
+            TLC(coin.rectTransform, 136, 15, 23, 23);
+            tierEssence[i] = ForgeLabel(cost, "", 20, 62, 0, 49, 29, true);
+            tierCoins[i] = ForgeLabel(cost, "", 20, 151, 0, 56, 29, true);
+        }
+
+        oddsTitle = ForgeLabel(draw, "", 26, 12, 324, LeftWidth, 41, true);
+        for (int i = 0; i < oddsValues.Length; i++)
         {
-            var offer = equipment.PendingRuneOffer;
-            if (offer != null)
+            var rarity = (RuneRarity)i;
+            var tile = ForgeSurface(draw, "Rarity odds", RarityTone(rarity), 10 + i * 153, 369, 148, 82).rectTransform;
+            var gem = UiKit.MakeIcon(tile, UiIcon.Gem, 20);
+            gem.color = RarityColor(rarity);
+            TLC(gem.rectTransform, 20, 23, 20, 20);
+            var name = ForgeLabel(tile, RarityName(rarity), 18, 34, 5, 109, 31, true);
+            name.color = RarityColor(rarity);
+            oddsValues[i] = ForgeLabel(tile, "", 28, 8, 34, 132, 42, true, TextAlignmentOptions.Center);
+        }
+        guidance = ForgeLabel(draw, "", 20, 12, 459, LeftWidth, 54);
+
+        var buy = ForgeSurface(draw, "Draw checkout", UiTone.Lavender, 10, 522, LeftWidth, 121).rectTransform;
+        quote = ForgeLabel(buy, "", 20, 16, 6, 281, 42, true);
+        remainder = ForgeLabel(buy, "", 19, 312, 6, 427, 42, false, TextAlignmentOptions.MidlineRight);
+        pay = MakeButton(buy, ForgeText("Подобрать руны", "Draw runes"), UiBtn.Green, 13, 50, 734, 57, PayForRune);
+    }
+
+    void BuildAxeCard(Transform parent)
+    {
+        var frame = ForgeSurface(parent, "Selected axe", UiTone.Lavender, RightX, 79, RightWidth, 565).rectTransform;
+        forgeAxeView = frame.gameObject;
+        ForgeLabel(frame, ForgeText("Выбранный топор", "Selected axe"), 28, 17, 11, 402, 38, true, TextAlignmentOptions.Center);
+        previousAxe = MakeButton(frame, "‹", UiBtn.Gray, 15, 59, 52, 47, () => CycleAxe(-1));
+        nextAxe = MakeButton(frame, "›", UiBtn.Gray, 369, 59, 52, 47, () => CycleAxe(1));
+        var namePlate = ForgeSurface(frame, "Axe name", UiTone.Neutral, 74, 59, 288, 47).rectTransform;
+        axeHeading = ForgeLabel(namePlate, "", 26, 4, 2, 280, 41, true, TextAlignmentOptions.Center);
+        var stand = ForgeSurface(frame, "Axe stand", UiTone.Neutral, 15, 119, 406, 322).rectTransform;
+        forgePreview = MakePreviewImage(stand, 23, 3, 358, 314);
+        forgePreview.texture = previewTexture;
+        axeStatus = ForgeLabel(frame, "", 17, 21, 445, 394, 22, true);
+        socketStamp = UiKit.MakeIcon(frame, UiIcon.Gem, 58, "Socket");
+        TLC(socketStamp.rectTransform, 51, 507, 58, 58);
+        slotName = ForgeLabel(frame, "", 24, 88, 474, 329, 30, true);
+        slotEffect = ForgeLabel(frame, "", 19, 89, 505, 326, 48);
+    }
+
+    void BuildOptions(Transform parent)
+    {
+        var result = Layer(parent, "Choose a rune");
+        resultView = result.gameObject;
+        ForgeLabel(result, ForgeText("Выпавшие руны", "Runes revealed"), 32, 12, 78, LeftWidth, 43, true);
+        resultRarity = ForgeLabel(result, "", 21, 13, 123, LeftWidth, 37, true);
+        options = new RuneOption[2];
+        for (int i = 0; i < options.Length; i++)
+        {
+            int optionIndex = i;
+            float y = 173 + i * 138;
+            var border = ForgeSurface(result, "Rune selection", UiTone.Lemon, 6, y - 4, LeftWidth + 8, 135);
+            var card = ForgeSurface(result, "Rune option", UiTone.Neutral, 10, y, LeftWidth, 127);
+            var stamp = UiKit.MakeIcon(card.transform, UiIcon.Gem, 73);
+            TLC(stamp.rectTransform, 53, 58, 73, 73);
+            options[i] = new RuneOption
             {
-                AxeRuneId rune = index == 0 ? offer.first : offer.second;
-                if (rune != AxeRuneId.None) equipment.TryChooseRune(table, offer, rune);
+                face = card, border = border, stamp = stamp,
+                name = ForgeLabel(card.transform, "", 27, 101, 13, 643, 36, true),
+                effect = ForgeLabel(card.transform, "", 23, 101, 54, 640, 57)
+            };
+            AddClick(card, () =>
+            {
+                var offer = equipment.PendingRuneOffer;
+                if (offer == null || motion != ForgeMotion.None) return;
+                pickedRune = optionIndex == 0 ? offer.first : offer.second;
+                Refresh();
+            });
+            Prepare(card.GetComponent<Button>());
+        }
+        replaceHint = ForgeLabel(result, "", 21, 12, 454, LeftWidth, 62);
+        apply = MakeButton(result, ForgeText("Нанести руну", "Apply rune"), UiBtn.Green, 10, 525, LeftWidth, 61, ApplyPickedRune);
+        var keep = MakeButton(result, "", UiBtn.Gray, 10, 593, LeftWidth, 49, () => FinishRuneChoice(AxeRuneId.None));
+        keepLabel = keep.GetComponentInChildren<TMP_Text>();
+        AutoSize(keepLabel, 18, 25);
+    }
+
+    void BuildCatalog(Transform parent)
+    {
+        var catalog = Layer(parent, "Rune guide");
+        catalogView = catalog.gameObject;
+        int index = 0;
+        for (int i = 0; i < oddsValues.Length; i++)
+        {
+            foreach (AxeRune rune in AxeRunes.AtRarity((RuneRarity)i))
+            {
+                var card = ForgeSurface(catalog, "Rune", RarityTone(rune.Rarity), 10 + index % 2 * 610, 80 + index / 2 * 112, 600, 103).rectTransform;
+                var stamp = UiKit.MakeIcon(card, UiIcon.Gem, 56);
+                stamp.sprite = UiKit.RuneStamp(rune.Id);
+                TLC(stamp.rectTransform, 40, 49, 56, 56);
+                ForgeLabel(card, rune.Name, 24, 77, 8, 342, 29, true);
+                var rarity = ForgeLabel(card, RarityName(rune.Rarity), 18, 407, 9, 175, 24, true, TextAlignmentOptions.MidlineRight);
+                rarity.color = RarityColor(rune.Rarity);
+                ForgeLabel(card, rune.Effect, 21, 78, 41, 502, 54);
+                index++;
             }
+        }
+    }
+
+    void BuildMotion(Transform parent)
+    {
+        var plate = ForgeSurface(parent, "Stamping", UiTone.Lavender, 10, 79, LeftWidth, 565).rectTransform;
+        motionView = plate.gameObject;
+        motionTitle = ForgeLabel(plate, "", 34, 30, 27, 700, 57, true, TextAlignmentOptions.Center);
+        motionGlow = UiKit.MakeIcon(plate, UiIcon.Gem, 207);
+        TLC(motionGlow.rectTransform, 380, 244, 207, 207);
+        motionStamp = UiKit.MakeIcon(plate, UiIcon.RuneEssence, 152);
+        TLC(motionStamp.rectTransform, 380, 244, 152, 152);
+        for (int i = 0; i < sparks.Length; i++) sparks[i] = UiKit.MakeIcon(plate, UiIcon.Star, 22);
+        motionHint = ForgeLabel(plate, "", 23, 38, 367, 684, 65, false, TextAlignmentOptions.Center);
+        MakeButton(plate, ForgeText("Показать результат", "Show result"), UiBtn.Gray, 171, 470, 418, 58, EndForgeMotion);
+    }
+
+    void BuildReceipt(Transform parent)
+    {
+        var plate = ForgeSurface(parent, "Engraved rune", UiTone.Lavender, 10, 79, LeftWidth, 565).rectTransform;
+        receiptView = plate.gameObject;
+        ForgeLabel(plate, ForgeText("Руна нанесена", "Rune applied"), 35, 19, 20, 722, 53, true, TextAlignmentOptions.Center);
+        receiptStamp = UiKit.MakeIcon(plate, UiIcon.Gem, 134);
+        TLC(receiptStamp.rectTransform, 380, 156, 134, 134);
+        receiptName = ForgeLabel(plate, "", 33, 24, 229, 712, 45, true, TextAlignmentOptions.Center);
+        receiptEffect = ForgeLabel(plate, "", 25, 53, 281, 654, 98, false, TextAlignmentOptions.Center);
+        receiptChange = ForgeLabel(plate, "", 20, 24, 389, 712, 51, false, TextAlignmentOptions.Center);
+        MakeButton(plate, ForgeText("Новый подбор", "New draw"), UiBtn.Green, 111, 466, 538, 61, () =>
+        {
+            appliedRune = replacedRune = AxeRuneId.None;
             Refresh();
         });
-        return refs;
+    }
+
+    void ShowRuneTab(bool catalog)
+    {
+        if (catalogOpen == catalog) return;
+        catalogOpen = catalog;
+        dragging = false;
+        motion = ForgeMotion.None;
+        Refresh();
+    }
+
+    void CycleAxe(int direction)
+    {
+        if (equipment.PendingRuneOffer != null || motion != ForgeMotion.None || appliedRune != AxeRuneId.None) return;
+        int currentIndex = System.Array.IndexOf(RuneAxes, runeAxe);
+        for (int step = 1; step <= RuneAxes.Length; step++)
+        {
+            int index = (currentIndex + RuneAxes.Length + direction * step + RuneAxes.Length) % RuneAxes.Length;
+            if (!equipment.Has(RuneAxes[index])) continue;
+            runeAxe = RuneAxes[index];
+            Refresh();
+            return;
+        }
     }
 
     void RefreshRunes()
     {
-        ForgeRuneOffer offer = equipment.PendingRuneOffer;
-        bool awaiting = offer != null;
-        if (awaiting) runeAxe = offer.axe;
-        for (int i = 0; i < RuneAxes.Length; i++)
-            runeAxes[i].interactable = !awaiting && equipment.Has(RuneAxes[i]) && runeAxe != RuneAxes[i];
-
-        AxeRune current = AxeRunes.Get(equipment.RuneFor(runeAxe));
-        bool hasAxe = equipment.Has(runeAxe);
-        Set(currentRune, current.Name);
-        Set(currentEffect, hasAxe ? current.Effect : ForgeText(
-            "Нужен железный, стальной или топор Гуннара.", "You need an iron, steel or Gunnar axe."));
-
-        PlayerInventory stock = equipment.GetComponent<PlayerInventory>();
-        Set(runeWallet, stock == null ? "" : ForgeText(
-            $"{stock.coinsCount} монет  ·  {stock.RuneEssence} эссенции  ·  {stock.planksCount} досок",
-            $"{stock.coinsCount} coins  ·  {stock.RuneEssence} essence  ·  {stock.planksCount} boards"));
-
-        rollTab.gameObject.SetActive(!awaiting);
-        // Rune transfer is intentionally unavailable in this update.
-        transferTab.gameObject.SetActive(false);
-        rollTab.interactable = transferring;
-        transferTab.interactable = !transferring;
-        rollView.SetActive(!awaiting && !transferring);
-        transferView.SetActive(!awaiting && transferring);
-        chosenView.SetActive(awaiting);
-
-        if (awaiting)
+        var offer = equipment.PendingRuneOffer;
+        if (offer != inspectedOffer)
         {
-            Set(paidLabel, TierName(offer.tier) + ForgeText(" подбор оплачен · ", " draw paid · ") + CostText(offer.tier, offer.coins));
-            Set(keepLabel, current.Id == AxeRuneId.None ? ForgeText("Оставить гнездо пустым", "Leave socket empty") :
-                ForgeText("Оставить прежнюю", "Keep current rune"));
-            ShowRuneCard(offered[0], offer.first);
-            ShowRuneCard(offered[1], offer.second);
+            inspectedOffer = offer;
+            pickedRune = offer?.first ?? AxeRuneId.None;
         }
-        else if (transferring) RefreshTransfer();
-        else RefreshQuote(stock);
+        if (offer != null) runeAxe = offer.axe;
+
+        bool show = !catalogOpen;
+        bool animating = motion != ForgeMotion.None;
+        drawView.SetActive(show && !animating && offer == null && appliedRune == AxeRuneId.None);
+        resultView.SetActive(show && !animating && offer != null);
+        receiptView.SetActive(show && !animating && appliedRune != AxeRuneId.None);
+        motionView.SetActive(show && animating);
+        catalogView.SetActive(catalogOpen);
+        forgeAxeView.SetActive(show);
+        previewStage.SetActive(show);
+        drawTab.targetGraphic.color = show ? SelectedTab : Color.white;
+        catalogTab.targetGraphic.color = show ? Color.white : SelectedTab;
+
+        var stock = equipment.GetComponent<PlayerInventory>();
+        if (stock != null)
+        {
+            Set(coinWallet, ForgeText("Монеты  ", "Coins  ") + stock.coinsCount);
+            Set(essenceWallet, ForgeText("Эссенция  ", "Essence  ") + stock.RuneEssence);
+            essenceWallet.transform.parent.gameObject.SetActive(stock.RuneEssenceDiscovered);
+        }
+        if (!show) return;
+        RefreshAxeCard(offer);
+        if (animating) return;
+        if (offer != null) RefreshOptions(offer);
+        else if (appliedRune != AxeRuneId.None) RefreshReceipt();
+        else RefreshDraw(stock);
     }
 
-    void RefreshQuote(PlayerInventory stock)
+    void RefreshAxeCard(ForgeRuneOffer offer)
     {
-        for (int i = 0; i < tiers.Length; i++) tiers[i].interactable = i != (int)forgeTier;
+        bool owns = equipment.Has(runeAxe);
+        var current = equipment.RuneFor(runeAxe);
+        bool preview = offer != null && motion == ForgeMotion.None && pickedRune != AxeRuneId.None && pickedRune != current;
+        int ownedAxes = 0;
+        foreach (AxeId axe in RuneAxes) if (equipment.Has(axe)) ownedAxes++;
+        previousAxe.interactable = nextAxe.interactable =
+            offer == null && motion == ForgeMotion.None && appliedRune == AxeRuneId.None && ownedAxes > 1;
+        Set(axeHeading, ShortAxe(runeAxe));
+
+        AxeRuneId display = preview ? pickedRune : current;
+        if (motion == ForgeMotion.Apply)
+        {
+            float elapsed = Time.unscaledTime - motionAt;
+            display = elapsed < .21f ? replacedRune : elapsed < .38f ? AxeRuneId.None : appliedRune;
+        }
+        DisplayAxe(runeAxe, display);
+        previewCamera.backgroundColor = new Color32(232, 223, 248, 255);
+
+        var shownRune = AxeRunes.Get(display);
+        socketStamp.sprite = UiKit.RuneStamp(shownRune.Id);
+        Set(axeStatus, preview ? ForgeText("ПРЕДПРОСМОТР РУНЫ", "RUNE PREVIEW")
+            : ForgeText("ГНЕЗДО", "SOCKET"));
+        bool hasSocket = owns && AxeRunes.Supports(runeAxe);
+        Set(slotName, hasSocket ? shownRune.Name : ForgeText("Нет гнезда", "No socket"));
+        Set(slotEffect, !hasSocket ? ForgeText(
+            "Купи железный у Рико или стальной во вкладке «Топоры».", "Buy an iron axe from Rico or a steel axe in the Axes tab.")
+            : shownRune.Effect);
+    }
+
+    void RefreshDraw(PlayerInventory stock)
+    {
+        for (int i = 0; i < tierCards.Length; i++)
+        {
+            var tier = (ForgeTier)i;
+            bool available = equipment.TierUnlocked(tier);
+            bool chosen = tier == forgeTier;
+            tierFrames[i].gameObject.SetActive(chosen);
+            if (chosen) tierFrames[i].color = Selection;
+            tierCards[i].color = UiCandy.TintOf(available ? UiTone.Lavender : UiTone.Locked);
+            Set(tierEssence[i], AxeRunes.EssenceCost(tier).ToString());
+            Set(tierCoins[i], PlayerAxeEquipment.RuneCoinCost(tier).ToString());
+            Set(tierLabels[i], available ? TierDescription(tier) : TierRequirement(tier));
+        }
+
         bool guaranteed = forgeTier == ForgeTier.Master && equipment.MasterGuaranteed;
-        string[] odds = new string[5];
-        for (int i = 0; i < odds.Length; i++)
+        Set(oddsTitle, ForgeText("Шансы выпадения · ", "Drop odds · ") + TierName(forgeTier) +
+            (guaranteed ? ForgeText(" с гарантией", " guaranteed") : ""));
+        for (int i = 0; i < oddsValues.Length; i++)
         {
             var rarity = (RuneRarity)i;
-            float percentage = AxeRunes.Weight(forgeTier, rarity, guaranteed) / 10f;
-            string value = percentage.ToString("0.#", CultureInfo.InvariantCulture);
-            odds[i] = RarityName(rarity) + " " + ForgeText(value.Replace('.', ','), value) + "%";
+            float percent = AxeRunes.Weight(forgeTier, rarity, guaranteed) / 10f;
+            string number = percent.ToString("0.#", CultureInfo.InvariantCulture);
+            Set(oddsValues[i], ForgeText(number.Replace('.', ','), number) + "%");
+            oddsValues[i].color = percent > 0f ? RarityColor(rarity) : UiCandy.Muted;
         }
-        Set(oddsLabel, string.Join("   ·   ", odds));
-        string note = "";
-        if (!equipment.TierUnlocked(forgeTier))
-            note = forgeTier == ForgeTier.Enhanced ? ForgeText("Откроется после покупки стального топора.", "Unlocks after buying the steel axe.")
-                : ForgeText("Откроется после восстановления топора Гуннара.", "Unlocks after restoring Gunnar's axe.");
-        else if (forgeTier == ForgeTier.Master)
-            note = guaranteed ? ForgeText("Следующий подбор гарантирует мифическую или гуннарную руну.",
-                "Your next draw guarantees a mythic or Gunnar rune.") : ForgeText(
-                $"Гарантия мастерского подбора · {equipment.MasterMisses}/{AxeRunes.MasterLimit}",
-                $"Master guarantee · {equipment.MasterMisses}/{AxeRunes.MasterLimit}");
-        Set(unlockLabel, note);
-        int coins = PlayerAxeEquipment.RuneCoinCost(forgeTier);
-        int essence = AxeRunes.EssenceCost(forgeTier);
-        bool affordable = stock != null && stock.coinsCount >= coins && stock.RuneEssence >= essence;
-        string after = affordable ? ForgeText("Останется · ", "Remaining · ") + MoneyAndEssence(stock.coinsCount - coins, stock.RuneEssence - essence)
-            : ForgeText("Не хватает ресурсов.", "More resources needed.");
-        Set(quoteLabel, ForgeText("Цена · ", "Price · ") + CostText(forgeTier, coins) + "\n" + after);
+
+        Set(guidance, DrawGuidance(guaranteed));
+        int coins = PlayerAxeEquipment.RuneCoinCost(forgeTier), essence = AxeRunes.EssenceCost(forgeTier);
+        Set(quote, CostText(forgeTier, coins));
+        if (stock != null)
+        {
+            int afterCoins = stock.coinsCount - coins, afterEssence = stock.RuneEssence - essence;
+            bool enough = afterCoins >= 0 && afterEssence >= 0;
+            remainder.color = enough ? UiCandy.Ink : UiCandy.Danger;
+            Set(remainder, enough ? ForgeText("Останется · ", "Remaining · ") + ResourcesText(afterCoins, afterEssence, true)
+                : ForgeText("Не хватает · ", "Missing · ") + ResourcesText(Mathf.Max(0, -afterCoins), Mathf.Max(0, -afterEssence)));
+        }
         pay.interactable = equipment.CanRollRune(table, runeAxe, forgeTier);
     }
 
-    void RefreshTransfer()
+    string DrawGuidance(bool guaranteed)
     {
-        for (int i = 0; i < RuneAxes.Length; i++)
-        {
-            var source = RuneAxes[i];
-            var rune = equipment.RuneFor(source);
-            Set(sourceLabels[i], ShortAxe(source) + (rune != AxeRuneId.None ? " · " + AxeRunes.Get(rune).Name : ""));
-            AutoSize(sourceLabels[i], 14, 25);
-            sources[i].interactable = source != transferSource && equipment.CanTransferRune(table, source, runeAxe);
-        }
-        bool can = equipment.CanTransferRune(table, transferSource, runeAxe);
-        if (can)
-        {
-            var rune = AxeRunes.Get(equipment.RuneFor(transferSource));
-            Set(transferText, ShortAxe(transferSource) + " → " + ShortAxe(runeAxe) + "\n" + rune.Name + " · " + rune.Effect);
-        }
-        else Set(transferText, equipment.RuneFor(runeAxe) != AxeRuneId.None
-            ? ForgeText("Выбери сверху топор с пустым гнездом.", "Choose an axe with an empty socket above.")
-            : ForgeText("Выбери топор, с которого нужно снять руну.", "Select the axe that holds the rune."));
-        transfer.interactable = can;
+        if (!AxeRunes.Supports(runeAxe) || !equipment.Has(runeAxe))
+            return ForgeText("Для зачарования нужен топор с гнездом.", "Enchanting requires an axe with a socket.");
+        if (!equipment.TierUnlocked(forgeTier)) return TierRequirement(forgeTier);
+        if (forgeTier == ForgeTier.Master)
+            return guaranteed ? ForgeText("В этот раз гарантирована мифическая или гуннарная руна.", "A mythic or Gunnar rune is guaranteed.")
+                : ForgeText($"До гарантии · {equipment.MasterMisses}/{AxeRunes.MasterLimit} без мифической или гуннарной",
+                    $"Guarantee · {equipment.MasterMisses}/{AxeRunes.MasterLimit} draws without a mythic or Gunnar rune");
+        return ForgeText("Эссенцию дают рунные деревья рядом с кузницей.", "Gather essence from the rune trees beside the forge.");
     }
 
-    static void ShowRuneCard(RuneCard card, AxeRuneId id)
+    void RefreshOptions(ForgeRuneOffer offer)
     {
-        card.root.SetActive(id != AxeRuneId.None);
-        if (id == AxeRuneId.None) return;
-        var rune = AxeRunes.Get(id);
-        Set(card.name, rune.Name);
-        Set(card.rarity, RarityName(rune.Rarity));
-        Set(card.effect, rune.Effect);
-        card.rarity.color = rune.Rarity == RuneRarity.Gunnar ? (Color)new Color32(120, 65, 28, 255)
-            : rune.Rarity >= RuneRarity.Legendary ? (Color)new Color32(88, 59, 130, 255) : UiCandy.Muted;
+        var installed = AxeRunes.Get(equipment.RuneFor(offer.axe));
+        resultRarity.color = RarityColor(offer.Rarity);
+        Set(resultRarity, RarityName(offer.Rarity) + ForgeText(" · списано ", " · paid ") + CostText(offer.tier, offer.coins));
+        SizeFirstOption(offer.second == AxeRuneId.None);
+        FillOption(options[0], offer.first);
+        FillOption(options[1], offer.second);
+        bool same = installed.Id == pickedRune;
+        Set(replaceHint, same ? ForgeText("Такая руна уже нанесена на этот топор.", "This axe already has that rune.")
+            : installed.Id == AxeRuneId.None ? ForgeText("Руна займёт пустое гнездо.", "This rune will fill the empty socket.")
+            : ForgeText("Будет заменена · ", "Replaces · ") + installed.Name + "\n" + installed.Effect);
+        Set(keepLabel, installed.Id == AxeRuneId.None ? ForgeText("Оставить гнездо пустым", "Leave socket empty")
+            : ForgeText("Оставить прежнюю руну", "Keep current rune"));
+        apply.interactable = !same && pickedRune != AxeRuneId.None && offer.Accepts(pickedRune);
+
+        void FillOption(RuneOption option, AxeRuneId id)
+        {
+            bool visible = id != AxeRuneId.None;
+            option.face.gameObject.SetActive(visible);
+            option.border.gameObject.SetActive(visible && id == pickedRune);
+            if (!visible) return;
+            var rune = AxeRunes.Get(id);
+            option.face.color = UiCandy.TintOf(RarityTone(rune.Rarity));
+            option.stamp.sprite = UiKit.RuneStamp(id);
+            Set(option.name, rune.Name);
+            Set(option.effect, rune.Effect);
+        }
+    }
+
+    void SizeFirstOption(bool single)
+    {
+        var option = options[0];
+        float top = single ? 195 : 173, height = single ? 218 : 127;
+        TL(option.face.rectTransform, 10, top, LeftWidth, height);
+        TL(option.border.rectTransform, 6, top - 4, LeftWidth + 8, height + 8);
+        TLC(option.stamp.rectTransform, single ? 88 : 53, single ? 103 : 58, single ? 119 : 73, single ? 119 : 73);
+        TL(option.name.rectTransform, single ? 175 : 101, single ? 36 : 13, single ? 556 : 643, single ? 48 : 36);
+        TL(option.effect.rectTransform, single ? 175 : 101, single ? 89 : 54, single ? 556 : 640, single ? 96 : 57);
+    }
+
+    void RefreshReceipt()
+    {
+        var rune = AxeRunes.Get(appliedRune);
+        receiptStamp.sprite = UiKit.RuneStamp(appliedRune);
+        receiptName.color = RarityColor(rune.Rarity);
+        Set(receiptName, rune.Name + " · " + RarityName(rune.Rarity));
+        Set(receiptEffect, rune.Effect);
+        Set(receiptChange, replacedRune != AxeRuneId.None ? AxeRunes.Get(replacedRune).Name + "  →  " + rune.Name
+            : ForgeText("Теперь руна действует с этим топором.", "The rune now works with this axe."));
+    }
+
+    void PayForRune()
+    {
+        if (motion != ForgeMotion.None || catalogOpen || !equipment.TryRollRune(table, runeAxe, forgeTier)) return;
+        BeginForgeMotion(ForgeMotion.Draw);
+    }
+
+    void ApplyPickedRune()
+    {
+        if (pickedRune != AxeRuneId.None) FinishRuneChoice(pickedRune);
+    }
+
+    void FinishRuneChoice(AxeRuneId rune)
+    {
+        var offer = equipment.PendingRuneOffer;
+        if (offer == null || motion != ForgeMotion.None) return;
+        var old = equipment.RuneFor(offer.axe);
+        if (!equipment.TryChooseRune(table, offer, rune)) return;
+        if (rune == AxeRuneId.None) { Refresh(); return; }
+
+        replacedRune = old;
+        appliedRune = rune;
+        BeginForgeMotion(ForgeMotion.Apply);
+    }
+
+    void BeginForgeMotion(ForgeMotion next)
+    {
+        if (!HudPolishRoot.Reduced)
+        {
+            motion = next;
+            motionAt = Time.unscaledTime;
+            playedHits = 0;
+            bool draw = next == ForgeMotion.Draw;
+            motionStamp.sprite = draw ? UiKit.CandyIcon(UiIcon.RuneEssence) : UiKit.RuneStamp(appliedRune);
+            Set(motionTitle, draw ? ForgeText("Кузница подбирает руны", "Drawing runes")
+                : ForgeText("Наносим руну", "Engraving the rune"));
+            Set(motionHint, draw ? ForgeText("Горн разгорается…", "The hearth heats up…")
+                : ForgeText("Знак проступает на лезвии", "The mark takes shape on the blade"));
+        }
+        Refresh();
+        if (motion != ForgeMotion.None) TickRuneView();
+    }
+
+    void EndForgeMotion()
+    {
+        motion = ForgeMotion.None;
+        Refresh();
+    }
+
+    void TickRuneView()
+    {
+        FitRuneWindow();
+        if (forgeAxeView.activeSelf) RotatePreview(forgePreview);
+        if (motion == ForgeMotion.None) return;
+
+        bool draw = motion == ForgeMotion.Draw;
+        int hits = draw ? (int)forgeTier + 1 : 1;
+        float elapsed = Time.unscaledTime - motionAt;
+        float lastHit = draw ? (hits - 1) * HammerGap : .38f;
+        if (elapsed >= lastHit + (draw ? .31f : .32f) || HudPolishRoot.Reduced)
+        {
+            EndForgeMotion();
+            return;
+        }
+
+        int count = draw ? Mathf.Min(hits, Mathf.FloorToInt(elapsed / HammerGap) + 1) : elapsed >= lastHit ? 1 : 0;
+        if (playedHits < count)
+        {
+            playedHits = count;
+            SfxManager.Play("build", .31f, .97f + .10f * count);
+        }
+        float t = count == 0 ? 0f : Mathf.Clamp01((elapsed - (draw ? (count - 1) * HammerGap : lastHit)) / .29f);
+        float glow = Mathf.Sin(t * Mathf.PI);
+        Color pulse = draw ? new Color(.77f, .57f, 1f) : AxeRuneArt.For(appliedRune).Accent;
+        pulse.a = glow * .52f;
+        motionGlow.color = pulse;
+        motionStamp.rectTransform.localScale = Vector3.one * (1f + glow * .17f);
+        motionStamp.color = new Color(1f, 1f, 1f, draw ? 1f : Mathf.Lerp(.44f, 1f, Mathf.Clamp01(elapsed / .45f)));
+        for (int i = 0; i < sparks.Length; i++)
+        {
+            float angle = (i * 72f + 15f) * Mathf.Deg2Rad;
+            float distance = 65f + 72f * t;
+            var spark = sparks[i];
+            TLC(spark.rectTransform, 380 + Mathf.Cos(angle) * distance, 244 - Mathf.Sin(angle) * distance, 22, 22);
+            spark.color = new Color(1f, .88f, .58f, glow * .89f);
+        }
+        if (!draw) RefreshAxeCard(null);
     }
 
     static RectTransform Layer(Transform parent, string name)
@@ -279,28 +599,45 @@ internal sealed partial class AxeWindow
         return rect;
     }
 
-    static RectTransform RunicSurface(Transform parent, string name, UiTone tone, float x, float y, float w, float h)
+    static Image ForgeSurface(Transform parent, string name, UiTone tone, float x, float y, float w, float h)
     {
         var surface = UiKit.MakeImage(parent, name, UiKit.Slot, true);
         surface.color = UiCandy.TintOf(tone);
         surface.raycastTarget = false;
         TL(surface.rectTransform, x, y, w, h);
-        return surface.rectTransform;
+        return surface;
     }
 
-    static TMP_Text ForgeLabel(Transform parent, float font, float x, float y, float w, float h, bool bold = false)
+    static TMP_Text ForgeLabel(Transform parent, string text, float font, float x, float y, float w, float h,
+        bool bold = false, TextAlignmentOptions alignment = TextAlignmentOptions.MidlineLeft)
     {
-        var label = Lbl(parent, "", font, UiCandy.Ink, TextAlignmentOptions.MidlineLeft, bold, x, y, w, h);
-        AutoSize(label, 16, font);
+        var label = Lbl(parent, text, font, UiCandy.Ink, alignment, bold, x, y, w, h);
+        AutoSize(label, Mathf.Min(15f, font), font);
         label.enableWordWrapping = true;
         return label;
     }
 
-    static string ShortAxe(AxeId axe) => axe == AxeId.Iron ? ForgeText("Железный", "Iron") :
-        axe == AxeId.Steel ? ForgeText("Стальной", "Steel") : ForgeText("Гуннара", "Gunnar");
+    static string ShortAxe(AxeId axe)
+    {
+        switch (axe)
+        {
+            case AxeId.Iron: return ForgeText("Железный", "Iron");
+            case AxeId.Steel: return ForgeText("Стальной", "Steel");
+            case AxeId.Gunnar: return ForgeText("Топор Гуннара", "Gunnar’s axe");
+            default: return ForgeText("Старый", "Old");
+        }
+    }
 
     static string TierName(ForgeTier tier) => tier == ForgeTier.Simple ? ForgeText("Простой", "Simple") :
         tier == ForgeTier.Enhanced ? ForgeText("Усиленный", "Enhanced") : ForgeText("Мастерский", "Master");
+
+    static string TierDescription(ForgeTier tier) => tier == ForgeTier.Simple ? ForgeText("Базовый подбор рун", "Basic rune draw") :
+        tier == ForgeTier.Enhanced ? ForgeText("Чаще выпадают редкие руны", "Rare runes are more likely") :
+        ForgeText("Доступна гуннарная редкость", "Gunnar rarity is possible");
+
+    static string TierRequirement(ForgeTier tier) => tier == ForgeTier.Enhanced ? ForgeText("Нужен стальной топор", "Requires the steel axe") :
+        tier == ForgeTier.Master ? ForgeText("Нужен топор Гуннара", "Requires Gunnar’s axe") :
+        ForgeText("Нужно восстановить кузницу", "Restore the forge first");
 
     static string RarityName(RuneRarity rarity)
     {
@@ -314,8 +651,39 @@ internal sealed partial class AxeWindow
         }
     }
 
-    static string CostText(ForgeTier tier, int coins) => MoneyAndEssence(coins, AxeRunes.EssenceCost(tier));
+    static UiTone RarityTone(RuneRarity rarity)
+    {
+        switch (rarity)
+        {
+            case RuneRarity.Rare: return UiTone.Mint;
+            case RuneRarity.Legendary: return UiTone.Lemon;
+            case RuneRarity.Mythic: return UiTone.Lavender;
+            case RuneRarity.Gunnar: return UiTone.Peach;
+            default: return UiTone.Neutral;
+        }
+    }
 
-    static string MoneyAndEssence(int coins, int essence) =>
-        ForgeText($"{essence} эссенции  ·  {coins} монет", $"{essence} essence  ·  {coins} coins");
+    static Color RarityColor(RuneRarity rarity)
+    {
+        switch (rarity)
+        {
+            case RuneRarity.Rare: return new Color32(34, 104, 83, 255);
+            case RuneRarity.Legendary: return new Color32(125, 79, 17, 255);
+            case RuneRarity.Mythic: return new Color32(91, 62, 150, 255);
+            case RuneRarity.Gunnar: return new Color32(139, 67, 43, 255);
+            default: return UiCandy.Ink;
+        }
+    }
+
+    static string CostText(ForgeTier tier, int coins) => ResourcesText(coins, AxeRunes.EssenceCost(tier));
+
+    static string ResourcesText(int coins, int essence, bool showBoth = false)
+    {
+        var e = essence + " " + ForgeText(UiDraw.Plural(essence, "эссенция", "эссенции", "эссенций"), "essence");
+        var c = coins + " " + ForgeText(UiDraw.Plural(coins, "монета", "монеты", "монет"), coins == 1 ? "coin" : "coins");
+        if (showBoth) return e + " · " + c;
+        if (coins == 0) return e;
+        if (essence == 0) return c;
+        return e + " + " + c;
+    }
 }

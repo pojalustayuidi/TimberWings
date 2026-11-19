@@ -19,6 +19,11 @@ internal sealed partial class AxeWindow : MonoBehaviour
     GameObject panel, axeView, previewStage;
     Transform previewPivot;
     GameObject previewModel;
+    MeshRenderer previewRenderer;
+    Camera previewCamera;
+    readonly AxeRuneFinish previewFinish = new AxeRuneFinish();
+    AxeId previewAxe;
+    bool previewSelected;
     RenderTexture previewTexture;
     RawImage previewImage;
     TMP_Text title, details, stats, status, purchaseLabel, repairLabel, wallet;
@@ -69,6 +74,8 @@ internal sealed partial class AxeWindow : MonoBehaviour
         open = true;
         openedFrame = Time.frameCount;
         panel.SetActive(true);
+        panel.GetComponent<Image>().color = table != null ? new Color(.16f, .12f, .27f, .34f)
+            : new Color(.17f, .18f, .36f, .48f);
         if (runeView != null) runeView.SetActive(false);
         axeView.SetActive(true);
         previewStage.SetActive(true);
@@ -77,14 +84,21 @@ internal sealed partial class AxeWindow : MonoBehaviour
         else if (table != null || forge != null)
             opening = forge != null && forge.GunnarBladeAvailable && !axes.Has(AxeId.Gunnar)
                 ? AxeId.Gunnar : AxeId.Steel;
+        if (table != null && (axes.PendingRuneOffer != null || opening != AxeId.Gunnar &&
+            (axes.Has(AxeId.Iron) || axes.Has(AxeId.Steel) || axes.Has(AxeId.Gunnar))))
+        {
+            selected = axes.Equipped.Id;
+            ShowRunes();
+            return;
+        }
         Select(opening);
-        if (table != null && axes.PendingRuneOffer != null) ShowRunes();
     }
 
     void Close()
     {
         if (!open) return;
         open = dragging = false;
+        ResetForgePresentation();
         panel.SetActive(false);
         previewStage.SetActive(false);
         MobileInput.SuppressHeldActionUntilRelease();
@@ -112,39 +126,52 @@ internal sealed partial class AxeWindow : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.LeftArrow)) Select((AxeId)(((int)selected + tabs.Length - 1) % tabs.Length));
             if (Input.GetKeyDown(KeyCode.RightArrow)) Select((AxeId)(((int)selected + 1) % tabs.Length));
-            RotatePreview();
+            RotatePreview(previewImage);
         }
+        else if (runeView != null && runeView.activeSelf) TickRuneView();
         if (Time.unscaledTime >= refreshAt) Refresh();
     }
 
     void Select(AxeId id)
     {
         selected = id;
-        if (previewModel != null)
-        {
-            previewModel.SetActive(false);
-            Destroy(previewModel);
-            previewModel = null;
-        }
-        yaw = 73f;
-        pitch = 7f;
-        previewPivot.localRotation = Quaternion.Euler(pitch, yaw, 6f);
-        var model = AxeCatalog.Get(id).Model;
-        if (model != null)
-        {
-            previewModel = Instantiate(model, previewPivot, false);
-            var mesh = model.GetComponent<MeshFilter>();
-            if (mesh != null && mesh.sharedMesh != null) previewModel.transform.localPosition = -mesh.sharedMesh.bounds.center;
-            foreach (Transform child in previewModel.GetComponentsInChildren<Transform>(true))
-                child.gameObject.layer = PreviewLayer;
-        }
         Refresh();
     }
 
-    void RotatePreview()
+    void DisplayAxe(AxeId id, AxeRuneId rune)
+    {
+        if (!previewSelected || previewAxe != id)
+        {
+            previewSelected = true;
+            previewAxe = id;
+            if (previewModel != null)
+            {
+                previewModel.SetActive(false);
+                Destroy(previewModel);
+            }
+            previewModel = null;
+            previewRenderer = null;
+            yaw = 81f;
+            pitch = 6f;
+            previewPivot.localRotation = Quaternion.Euler(pitch, yaw, -10f);
+            var model = AxeCatalog.Get(id).Model;
+            if (model != null)
+            {
+                previewModel = Instantiate(model, previewPivot, false);
+                previewRenderer = previewModel.GetComponent<MeshRenderer>();
+                var filter = model.GetComponent<MeshFilter>();
+                if (filter != null && filter.sharedMesh != null) previewModel.transform.localPosition = -filter.sharedMesh.bounds.center;
+                foreach (Transform child in previewModel.GetComponentsInChildren<Transform>(true))
+                    child.gameObject.layer = PreviewLayer;
+            }
+        }
+        previewFinish.Set(previewRenderer, id, rune);
+    }
+
+    void RotatePreview(RawImage target)
     {
         var pointer = (Vector2)Input.mousePosition;
-        if (Input.GetMouseButtonDown(0) && RectTransformUtility.RectangleContainsScreenPoint(previewImage.rectTransform, pointer))
+        if (Input.GetMouseButtonDown(0) && RectTransformUtility.RectangleContainsScreenPoint(target.rectTransform, pointer))
         {
             dragging = true;
             previousPointer = pointer;
@@ -155,7 +182,7 @@ internal sealed partial class AxeWindow : MonoBehaviour
         previousPointer = pointer;
         yaw -= delta.x * .55f;
         pitch = Mathf.Clamp(pitch + delta.y * .42f, -62f, 62f);
-        previewPivot.localRotation = Quaternion.Euler(pitch, yaw, 6f);
+        previewPivot.localRotation = Quaternion.Euler(pitch, yaw, -10f);
     }
 
     void UseSelection()
@@ -191,6 +218,8 @@ internal sealed partial class AxeWindow : MonoBehaviour
         }
         var definition = AxeCatalog.Get(selected);
         AxeRuneId rune = equipment.RuneFor(selected);
+        DisplayAxe(selected, rune);
+        previewCamera.backgroundColor = new Color32(220, 207, 180, 255);
         Set(title, definition.Name);
         Set(details, rune == AxeRuneId.None ? definition.Description : AxeRunes.Get(rune).Effect);
         float power = definition.Power + (rune == AxeRuneId.SharpEdge ? AxeRunes.EdgePower : 0f);
@@ -202,7 +231,8 @@ internal sealed partial class AxeWindow : MonoBehaviour
         var inventory = equipment.GetComponent<PlayerInventory>();
         string walletText = inventory != null && (merchant != null || forge != null || table != null)
             ? $"{inventory.coinsCount} монет    ·    {inventory.planksCount} досок" : "ЛКМ и перетащи, чтобы повернуть";
-        if (table != null && inventory != null) walletText += $"    ·    {inventory.RuneEssence} эссенции";
+        if (table != null && inventory != null && inventory.RuneEssenceDiscovered)
+            walletText += $"    ·    Эссенция {inventory.RuneEssence}";
         Set(wallet, walletText);
         Set(status, owned ? rune != AxeRuneId.None ? AxeRunes.Get(rune).Name : equipped ? "В руках у Лео" : "В коллекции"
             : restoring ? "Лезвие получено от Оскара" : definition.Source);
@@ -279,11 +309,7 @@ internal sealed partial class AxeWindow : MonoBehaviour
                 tabLabels[i] = tabs[i].GetComponentInChildren<TMP_Text>();
             }
 
-            var display = new GameObject("3D model", typeof(RectTransform), typeof(RawImage));
-            display.layer = 5;
-            display.transform.SetParent(content, false);
-            previewImage = display.GetComponent<RawImage>();
-            TL(previewImage.rectTransform, 10, 86, 474, 414);
+            previewImage = MakePreviewImage(content, 10, 86, 474, 414);
             BuildPreview();
 
             title = Lbl(content, "", 38, UiCandy.Ink, TextAlignmentOptions.Left, true, 514, 92, 500, 56);
@@ -298,7 +324,7 @@ internal sealed partial class AxeWindow : MonoBehaviour
                 UiBtn.Amber, 514, 440, 484, 60, RestoreForge);
             repairLabel = repair.GetComponentInChildren<TMP_Text>();
             AutoSize(repairLabel, 18, 25);
-            forgeRunes = MakeButton(content, "Руны", UiBtn.Amber, 514, 440, 232, 60, ShowRunes);
+            forgeRunes = MakeButton(content, ForgeText("Зачарование", "Enchant"), UiBtn.Amber, 514, 440, 232, 60, ShowRunes);
             sawMode = MakeButton(content, "", UiBtn.Gray, 756, 440, 242, 60, () =>
             {
                 equipment.TrySwitchBoardsMode();
@@ -326,6 +352,16 @@ internal sealed partial class AxeWindow : MonoBehaviour
         UiClickFallback.Register(button, () => open, true);
     }
 
+    static RawImage MakePreviewImage(Transform parent, float x, float y, float width, float height)
+    {
+        var display = new GameObject("3D axe", typeof(RectTransform), typeof(RawImage)) { layer = PreviewLayer };
+        display.transform.SetParent(parent, false);
+        var image = display.GetComponent<RawImage>();
+        image.raycastTarget = false;
+        TL(image.rectTransform, x, y, width, height);
+        return image;
+    }
+
     void BuildPreview()
     {
         // A render target refreshes only while the window is open. Keep the display clear of the world cameras.
@@ -338,6 +374,7 @@ internal sealed partial class AxeWindow : MonoBehaviour
         previewTexture.Create();
         previewImage.texture = previewTexture;
         var eye = new GameObject("Preview camera").AddComponent<Camera>();
+        previewCamera = eye;
         eye.transform.SetParent(previewStage.transform, false);
         eye.transform.localPosition = new Vector3(0, 0, -2.1f);
         eye.orthographic = true;

@@ -68,13 +68,51 @@ public class UIManager : MonoBehaviour
     }
 
     Pulse woodPulse, coinPulse, levelPulse, objectivePulse;
+    Pulse essencePulse;
+    Image essenceChip;
+    TMP_Text essenceName, essenceCount;
+    ResourceSlot[] inlineSlots;
+    HudPlanks inlinePlanks;
+    bool essenceInline, inlineHasBoards;
     int lastWood = int.MinValue, lastCoins = int.MinValue, lastLevel = int.MinValue, lastPlanks;
+    int lastEssence;
     float targetFill;
     string lastObjective;
     internal string CurrentObjectiveTitle { get; private set; }
 
     readonly List<Gain> gains = new List<Gain>();
     readonly Stack<Gain> gainPool = new Stack<Gain>();
+
+    readonly struct ResourceSlot
+    {
+        readonly RectTransform rect;
+        readonly Vector2 position, size;
+        internal readonly float Left, Top, Right;
+        internal float Height => size.y;
+
+        internal ResourceSlot(RectTransform rect)
+        {
+            this.rect = rect;
+            position = rect.anchoredPosition;
+            size = rect.sizeDelta;
+            Left = position.x - size.x * rect.pivot.x;
+            Right = Left + size.x;
+            Top = position.y + size.y * (1f - rect.pivot.y);
+        }
+
+        internal void SetWidth(float left, float width)
+        {
+            rect.sizeDelta = new Vector2(width, size.y);
+            rect.anchoredPosition = new Vector2(left + width * rect.pivot.x, position.y);
+        }
+
+        internal void Restore()
+        {
+            if (rect == null) return;
+            rect.sizeDelta = size;
+            rect.anchoredPosition = position;
+        }
+    }
 
     void Awake()
     {
@@ -122,6 +160,16 @@ public class UIManager : MonoBehaviour
         // счётчик досок: копия панели «дерево» (HudPlanks), строится сам
         HudPlanks.Create(woodText);
         if (HudPlanks.Instance != null) HudPlanks.Instance.Set(lastPlanks);
+        var inventory = PlayerInventory.Instance;
+        if (inventory != null) UpdateRuneEssence(inventory.RuneEssence, inventory.RuneEssenceDiscovered);
+    }
+
+    void OnDestroy()
+    {
+        GameLanguage.Changed -= RefreshEssenceName;
+        SetEssenceRow(false);
+        if (essenceChip != null) Destroy(essenceChip.gameObject);
+        if (Instance == this) Instance = null;
     }
 
     void Update()
@@ -140,10 +188,16 @@ public class UIManager : MonoBehaviour
 
         woodPulse?.Tick(dt, pulseTime, pulseAmount);
         coinPulse?.Tick(dt, pulseTime, pulseAmount);
+        essencePulse?.Tick(dt, pulseTime, 1.12f);
         levelPulse?.Tick(dt, pulseTime * 2f, pulseAmount * 1.3f);
         objectivePulse?.Tick(dt, pulseTime * 1.5f, 1.06f);
 
         TickGains(dt);
+    }
+
+    void LateUpdate()
+    {
+        if (essenceChip != null && essenceChip.gameObject.activeSelf) SetEssenceRow(true);
     }
 
     // Компактные значения HUD: маленькие суммы остаются точными, крупные не ломают панель.
@@ -204,6 +258,90 @@ public class UIManager : MonoBehaviour
     {
         lastPlanks = planks;
         if (HudPlanks.Instance != null) HudPlanks.Instance.Set(planks);
+    }
+
+    internal void UpdateRuneEssence(int count, bool discovered)
+    {
+        if (discovered && essenceChip == null) BuildEssenceChip();
+        if (essenceChip == null) return;
+        if (essenceChip.gameObject.activeSelf != discovered) essenceChip.gameObject.SetActive(discovered);
+        SetEssenceRow(discovered);
+        if (!discovered) { lastEssence = 0; return; }
+        string text = FormatResourceCount(count);
+        if (essenceCount.text != text) essenceCount.text = text;
+        if (count > lastEssence && !SaveSystem.IsLoading && !HudPolishRoot.Reduced) essencePulse.Kick();
+        lastEssence = count;
+    }
+
+    void BuildEssenceChip()
+    {
+        RectTransform resources = CandyHud.Active ? CandyHud.Instance.transform.Find("CandyResources") as RectTransform : null;
+        var coins = resources != null ? resources.Find("Coins") as RectTransform : null;
+        var wood = resources != null ? resources.Find("Wood") as RectTransform : null;
+        var planks = resources != null ? resources.Find("Planks") as RectTransform : null;
+        if (coins != null && wood != null && planks != null)
+        {
+            inlineSlots = new[] { new ResourceSlot(coins), new ResourceSlot(wood), new ResourceSlot(planks) };
+            inlinePlanks = planks.GetComponent<HudPlanks>();
+        }
+        RectTransform parent = inlineSlots != null ? resources : woodText != null ? woodText.transform.parent as RectTransform : null;
+        if (parent == null && coinText != null) parent = coinText.transform.parent as RectTransform;
+        if (parent == null) return;
+
+        using (UiKit.UseSkin(UiSkin.Candy))
+        {
+            var chip = UiKit.MakeImage(parent, "Rune essence", UiKit.Slot, true);
+            chip.raycastTarget = false;
+            chip.color = UiCandy.TintOf(UiTone.Lavender);
+            var rect = chip.rectTransform;
+            UiLayout.Anch(rect, new Vector2(1, .5f), new Vector2(0, .5f), new Vector2(8f, 0), new Vector2(140f, 52f));
+            chip.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            chip.gameObject.AddComponent<HudSafeAreaElement>();
+            var icon = UiKit.MakeIcon(rect, UiIcon.RuneEssence, 35f);
+            UiLayout.Anch(icon.rectTransform, new Vector2(0, .5f), new Vector2(.5f, .5f), new Vector2(20, 0), new Vector2(35, 35));
+            essenceName = UiKit.MakeLabel(rect, "", 18f, UiCandy.Ink, TextAlignmentOptions.MidlineLeft);
+            UiLayout.AutoSize(essenceName, 11f, 18f);
+            essenceName.rectTransform.offsetMin = new Vector2(39f, 0f);
+            essenceName.rectTransform.offsetMax = new Vector2(-34f, 0f);
+            essenceCount = UiKit.MakeLabel(rect, "0", 24f, UiCandy.Ink, TextAlignmentOptions.MidlineRight);
+            UiLayout.AutoSize(essenceCount, 11f, 24f);
+            UiLayout.Anch(essenceCount.rectTransform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-11, 0), new Vector2(34f, 40));
+            essencePulse = new Pulse(essenceCount.transform);
+            essenceChip = chip;
+        }
+        GameLanguage.Changed -= RefreshEssenceName;
+        GameLanguage.Changed += RefreshEssenceName;
+        RefreshEssenceName();
+    }
+
+    void SetEssenceRow(bool visible)
+    {
+        if (inlineSlots == null) return;
+        if (!visible)
+        {
+            if (essenceInline)
+                foreach (var slot in inlineSlots) slot.Restore();
+            essenceInline = false;
+            return;
+        }
+
+        bool boards = inlinePlanks == null || inlinePlanks.SlotExpected;
+        if (essenceInline && boards == inlineHasBoards) return;
+        essenceInline = true;
+        inlineHasBoards = boards;
+        int previousSlots = boards ? 3 : 2;
+        float left = inlineSlots[0].Left;
+        float gap = Mathf.Clamp(inlineSlots[1].Left - inlineSlots[0].Right, 7f, 16f);
+        // Fit four chips in the existing top-left footprint so they clear the quest and level HUD.
+        float width = (inlineSlots[2].Right - left - gap * previousSlots) / (previousSlots + 1);
+        for (int i = 0; i < previousSlots; i++)
+            inlineSlots[i].SetWidth(left + i * (width + gap), width);
+        UiLayout.TL(essenceChip.rectTransform, left + previousSlots * (width + gap), -inlineSlots[0].Top, width, inlineSlots[0].Height);
+    }
+
+    void RefreshEssenceName()
+    {
+        if (essenceName != null) essenceName.text = GameLanguage.English ? "Essence" : "Эссенция";
     }
 
     // currentXP и nextLevelXP — опыт ВНУТРИ уровня (см. PlayerStats.RefreshUI)

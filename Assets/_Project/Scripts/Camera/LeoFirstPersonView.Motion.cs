@@ -4,7 +4,9 @@ internal sealed partial class LeoFirstPersonView
 {
     const float Contact = .62f;
     const float Recovery = .29f;
+    static readonly Vector3 LeftShoulder = new Vector3(-.20f, -.30f, .060f);
     static readonly Vector3 RightShoulder = new Vector3(.27f, -.32f, .075f);
+    static readonly Vector3 OffGrip = LeoAxePose.MainGrip + new Vector3(.006f, -.155f, -.014f);
 
     struct Pose
     {
@@ -81,9 +83,10 @@ internal sealed partial class LeoFirstPersonView
         bool chopping = interaction != null && interaction.IsChopping;
         bool hit = impactFrame == Time.frameCount;
         if (chopping || hit) carryUntil = now + .80f;
-        bool draw = manualCarry || chopping || hit || now < carryUntil;
-        equipped = hit ? 1f : Mathf.MoveTowards(equipped, draw ? 1f : 0f, dt / (draw ? .19f : .35f));
-        stowPath = Mathf.MoveTowards(stowPath, draw ? 0f : 1f, dt * 7f);
+        bool drawAxe = manualCarry || chopping || hit || now < carryUntil;
+        equipped = Mathf.MoveTowards(equipped, 1f, dt / .19f);
+        stowPath = Mathf.MoveTowards(stowPath, drawAxe ? 0f : 1f, dt * 7f);
+        SetAxeVisible(drawAxe);
 
         float due = chopping ? interaction.FirstPersonImpactDue : -1f;
         if (chopping && due < 0f && interaction.useAnimationEvents && !PlayerInteraction.RhythmChop &&
@@ -266,19 +269,42 @@ internal sealed partial class LeoFirstPersonView
         float lean = Mathf.Clamp((main.z - .40f) * 1.04f, 0f, lowerSwing ? .67f : .52f) * extension;
         float shift = Mathf.Clamp((main.x - .19f) * .35f, -.10f, .07f) * extension;
         float drop = Mathf.Clamp((-.14f - main.y) * .38f, -.06f, .18f) * extension;
+
         right.upper.localPosition = RightShoulder + new Vector3(shift, -drop + lift * .012f, lean);
         Vector3 pole = right.upper.localPosition + new Vector3(.19f, -.16f, .07f);
         Vector3 shaft = pose.tool * Vector3.up;
         Quaternion wrist = right.GripWrist(root, main, pole, LeoAxePose.RightWrist(pose.tool), shaft);
-        Vector3 gripOffset = wrist * LeoFirstPersonHandMesh.GripCenter;
+        Vector3 gripOffset = wrist * right.gripCenter;
         Vector3 fitted = Limit(main, right.upper.localPosition + gripOffset, right.reach);
-        // Lean into the cut without stretching the forearm or letting the palm leave the handle.
         Vector3 bend = Vector3.ClampMagnitude(main - fitted, lowerSwing ? .31f : .20f) * extension;
         right.upper.localPosition += bend;
         main = fitted + bend;
+
         axe.localRotation = pose.tool;
         axe.localPosition = main - pose.tool * LeoAxePose.MainGrip;
-        right.Pose(root, main - gripOffset, pole + bend, wrist, 1f);
+        right.Pose(root, main - gripOffset, pole + bend, wrist, axeVisible ? 1f : 0f);
+
+        if (left != null)
+        {
+            float ready = 1f - Mathf.Clamp01(stowPath * 1.18f);
+            left.upper.localPosition = LeftShoulder + new Vector3(-shift * .28f, -drop * .15f + lift * .010f, lean * .26f);
+            Vector3 leftPole = left.upper.localPosition + new Vector3(-.18f, -.14f, .05f);
+            if (axeVisible)
+            {
+                Vector3 support = axe.localPosition + pose.tool * OffGrip;
+                Quaternion leftFallback = pose.tool * Quaternion.Euler(166f, -17f, 82f);
+                Quaternion leftWrist = left.GripWrist(root, support, leftPole, leftFallback, -shaft);
+                Vector3 leftOffset = leftWrist * left.gripCenter;
+                Vector3 leftGoal = Limit(support, left.upper.localPosition + leftOffset, left.reach);
+                left.Pose(root, leftGoal - leftOffset, leftPole, leftWrist, ready);
+            }
+            else
+            {
+                Vector3 relax = new Vector3(-.17f, -.28f + lift * .010f, .43f);
+                Quaternion leftRelax = Quaternion.Euler(9f, 24f, 22f);
+                left.Pose(root, relax, leftPole, leftRelax, 0f);
+            }
+        }
     }
 
     static Vector3 Limit(Vector3 value, Vector3 center, float radius) =>

@@ -262,7 +262,7 @@ public static partial class UiKit
         if (!DrawIconCandy(p, icon))
         {
             DrawIcon(p, icon);                          // старый рисунок как основа
-            if (icon != UiIcon.Gem) CandySoften(p);     // камень красится через Image.color: его тени не трогаем
+            if (icon != UiIcon.Gem && icon != UiIcon.RuneEssence) CandySoften(p);
         }
         p.Outline(2.4f, CandyInk);
         return Make(p, 0, 0, 0, 0);

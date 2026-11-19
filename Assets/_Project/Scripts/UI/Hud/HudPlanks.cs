@@ -32,6 +32,7 @@ public class HudPlanks : MonoBehaviour
 
     int planks;
     bool everHad, unlockedSeen;
+    internal bool SlotExpected => alwaysShow || everHad || unlockedSeen;
     float shown, checkAt;
     float dividerAlpha = 0.55f;
     PlankWorkshop workshop;
@@ -85,7 +86,7 @@ public class HudPlanks : MonoBehaviour
             if (workshop != null && workshop.unlocked) unlockedSeen = true;
         }
 
-        bool want = alwaysShow || everHad || unlockedSeen;
+        bool want = SlotExpected;
         float target = want ? 1f : 0f;
         if (Mathf.Approximately(shown, target)) return;
         shown = Mathf.MoveTowards(shown, target, Time.unscaledDeltaTime / Mathf.Max(0.05f, appearTime));
