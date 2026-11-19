@@ -13,14 +13,16 @@ public partial class PlayerInteraction
     internal bool Chop03ImpactThisFrame => chop03ImpactFrame == Time.frameCount;
     internal static bool PreciseChop03Impact => inst != null && inst.Chop03ImpactThisFrame && inst.chop03Accurate;
 
-    internal float AxeSwingSpeed => Chop03Balance.ContactInterval / EquippedAxe.Interval;
+    internal float AxeSwingSpeed => Chop03Balance.ContactInterval /
+        Mathf.Max(.1f, Axes != null ? Axes.EquippedSwingInterval : EquippedAxe.Interval);
     internal float EffectiveChopAnimSpeed => chopAnimSpeed * AxeSwingSpeed;
 
     float CurrentChopPower(int chain)
     {
         int rank = upgrades != null ? upgrades.Level(UpgradeType.ChopPower) : 0;
         float supportTime = upgrades != null ? upgrades.Bonus.chopMul : 1f;
-        return Chop03Balance.Power(EquippedAxe.Power, rank, supportTime, LumberSkills.ChainBonus(chain));
+        return Chop03Balance.Power(Axes != null ? Axes.EquippedPower : EquippedAxe.Power,
+            rank, supportTime, LumberSkills.ChainBonus(chain));
     }
 
     float Chop03Damage(int strikes, bool precise) =>
@@ -76,7 +78,7 @@ public partial class PlayerInteraction
         chop03FirstHitPending = false;
         chop03Accurate = precise;
         chop03ImpactFrame = Time.frameCount;
-        chop03ReadyAt = Time.time + EquippedAxe.Interval;
+        chop03ReadyAt = Time.time + (Axes != null ? Axes.EquippedSwingInterval : EquippedAxe.Interval);
         ArmChop03Swing(Chop03Balance.ContactInterval, Chop03Balance.Recovery);
         return true;
     }
@@ -96,7 +98,11 @@ public partial class PlayerInteraction
         {
             ReadLeoImpact(tree); // Snapshot the point the axe is reaching before the notch deepens.
             float previous = tree.StandingDamage;
-            Progress = tree.DamageStanding(Chop03Damage(tree.IsGolden ? 3 : Chop03Balance.StandingHits(tree.Size), precise));
+            float damage = Chop03Damage(tree.IsGolden ? 3 : Chop03Balance.StandingHits(tree.Size), precise);
+            if (ActiveRune == AxeRuneId.GunnarStrike && IsOrdinaryRuneTree(tree)) damage = 1f;
+            float summer = precise && ActiveRune == AxeRuneId.SummerSpark
+                ? Chop03Damage(tree.IsGolden ? 3 : Chop03Balance.StandingHits(tree.Size), false) : 0f;
+            Progress = tree.DamageStanding(damage, summer);
             float strength = (precise ? 1.37f : .88f) + Progress * .34f;
             var hits = GetTreeHits(tree);
             if (hits != null) hits.Shake(strength, leoHasImpact ? leoImpact : (Vector3?)null);

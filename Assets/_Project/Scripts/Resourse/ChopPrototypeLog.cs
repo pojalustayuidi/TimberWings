@@ -8,8 +8,11 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     internal static readonly List<ChopPrototypeLog> Active = new List<ChopPrototypeLog>();
     static bool? modeOverride;
     internal static bool Enabled => modeOverride ?? OrbitCamera.FirstPersonActive;
+    // Existing fallen trunks retain the processing flow even if F6 switches camera modes.
+    internal static bool UsesProcessing => Enabled || Active.Count > 0;
     internal bool Ready { get; private set; }
     internal bool HasWood => state.HasWood;
+    internal bool HasHarvest => state.HasHarvest;
     internal int CutCount => state.cuts.Length;
     internal int SectionCount => state.wood.Length;
     internal ChopPrototypeSave.Layout Layout => state.layout;
@@ -94,10 +97,11 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
 
     internal bool CanCut(int cut) => Ready && cut >= 0 && cut < CutCount && state.cuts[cut] < 1f;
     internal bool CanCollect(int section) => Ready && Time.time >= collectAt && state.SectionFree(section) &&
-        state.wood[section] > 0 && (section == 0 || separation[section - 1] >= 1f) &&
+        state.HasSectionHarvest(section) && (section == 0 || separation[section - 1] >= 1f) &&
         (section == CutCount || separation[section] >= 1f);
     internal float CutProgress(int cut) => state.cuts[cut];
     internal int WoodIn(int section) => state.wood[section];
+    internal int BoardsIn(int section) => state.PlanksIn(section);
     internal Transform CutAnchor(int cut) => cutAnchors[cut];
 
     internal void FocusCut(int cut)
@@ -183,24 +187,64 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     {
         if (!CanCollect(section) || inventory == null || state.xp > 0 && stats == null) return 0;
 
-        int essence = 0;
-        int taken = inventory.AddProcessedWood(state.wood[section], count =>
+        int logsTaken = 0, boardsTaken = 0, essenceTaken = 0;
+        bool completed = false;
+        AxeRuneId rune = state.rewardRune;
+        bool careful = rune == AxeRuneId.CarefulCollect;
+        int start = careful ? 0 : section;
+        int end = careful ? SectionCount : section + 1;
+        for (int i = start; i < end; i++)
         {
-            // Store the remainder before notifying inventory or level subscribers.
-            int xp = state.TakeWood(section, count, out essence);
-            if (essence > 0) inventory.ReceiveRuneEssence(essence);
-            LumberSkills.TouchProcessing(state);
-            if (xp > 0) stats.AddXP(xp);
-            SaveSystem.RequestSave(ChopPrototypeSave.Key);
-        });
-        if (taken <= 0) return 0;
-        if (essence > 0)
-            SaveIndicator.ShowToast(Text("Рунная эссенция", "Rune essence") + $" +{essence} · {inventory.RuneEssence}");
+            if (!CanCollect(i)) continue;
+            int index = i;
+            var goods = inventory.ReceiveProduction(state.wood[index], state.PlanksIn(index), (logs, boards) =>
+            {
+                // Consume the same amounts the wallet accepted before any observer sees a change.
+                int xp = state.TakeHarvest(index, logs, boards, out int essence);
+                if (essence > 0)
+                {
+                    inventory.ReceiveRuneEssence(essence);
+                    essenceTaken += essence;
+                }
+                if (xp > 0 && stats != null) stats.AddXP(xp);
+                LumberSkills.TouchProcessing(state);
+                completed = !state.HasHarvest;
+                SaveSystem.RequestSave(ChopPrototypeSave.Key);
+            });
+            logsTaken += goods.logs;
+            boardsTaken += goods.planks;
+            if (!careful) break;
+        }
+        if (logsTaken + boardsTaken <= 0) return 0;
 
-        if (!HasWood) Discard();
+        // Cycle bonuses happen once, only when the complete trunk has been claimed.
+        var axes = PlayerInteraction.CurrentAxes;
+        if (completed && axes != null && axes.CountRuneHarvest(rune))
+        {
+            switch (rune)
+            {
+                case AxeRuneId.SturdyWood:
+                    logsTaken += inventory.AddWood(1);
+                    break;
+                case AxeRuneId.ForestSpark:
+                    inventory.ReceiveRuneEssence(1);
+                    essenceTaken++;
+                    break;
+                case AxeRuneId.CleanStock:
+                    boardsTaken += inventory.ReceiveProduction(0, 1, null).planks;
+                    break;
+            }
+        }
+
+        if (essenceTaken > 0)
+            SaveIndicator.ShowToast(Text("Рунная эссенция", "Rune essence") + $" +{essenceTaken} · {inventory.RuneEssence}");
+        if (boardsTaken > 0)
+            SaveIndicator.ShowToast(Text("Доски", "Boards") + $" +{boardsTaken}");
+
+        if (!HasHarvest) Discard();
         else UpdateSections();
-        ChopRewards.Give(point, taken, 0); // HUD flight is cosmetic, the transfer is already committed.
-        return taken;
+        if (logsTaken > 0) ChopRewards.Give(point, logsTaken, 0); // cosmetic flight: items are already committed.
+        return logsTaken + boardsTaken;
     }
 
     internal void Discard()

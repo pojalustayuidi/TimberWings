@@ -60,19 +60,9 @@ internal sealed partial class PlayerAxeEquipment
         return true;
     }
 
-    internal bool CanTransferRune(RuneForgeInspection table, AxeId from, AxeId to) =>
-        table != null && table.CanUse(this) && CanEquip && runes.pending == null && from != to &&
-        AxeRunes.Supports(from) && AxeRunes.Supports(to) && Has(from) && Has(to) &&
-        RuneFor(from) != AxeRuneId.None && RuneFor(to) == AxeRuneId.None;
-
-    internal bool TryTransferRune(RuneForgeInspection table, AxeId from, AxeId to)
-    {
-        if (!CanTransferRune(table, from, to)) return false;
-        runes.sockets[(int)to] = runes.sockets[(int)from];
-        runes.sockets[(int)from] = AxeRuneId.None;
-        SaveRuneSelection();
-        return true;
-    }
+    // Reserved for a later update. No transfer UI or gameplay transfer in Simulator Update.
+    internal bool CanTransferRune(RuneForgeInspection table, AxeId from, AxeId to) => false;
+    internal bool TryTransferRune(RuneForgeInspection table, AxeId from, AxeId to) => false;
 
     internal bool TrySwitchBoardsMode()
     {

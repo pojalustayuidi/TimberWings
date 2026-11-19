@@ -228,8 +228,16 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         return goods;
     }
 
-    // The ground-trunk pickup has already reserved a slot and will save both inventory and its remainder.
-    internal void ReceiveRuneEssence(int amount) => RuneEssence = (int)System.Math.Min(int.MaxValue, (long)RuneEssence + amount);
+    // Essence is a normal persistent resource: update the UI on the very first drop.
+    internal void ReceiveRuneEssence(int amount)
+    {
+        if (amount <= 0) return;
+        int next = (int)System.Math.Min(int.MaxValue, (long)RuneEssence + amount);
+        if (next == RuneEssence) return;
+        RuneEssence = next;
+        UpdateUI();
+        SaveSystem.RequestSave("inventory");
+    }
 
     public void AddPlanks(int amount)
     {

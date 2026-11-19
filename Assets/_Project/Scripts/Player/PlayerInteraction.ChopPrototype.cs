@@ -35,6 +35,7 @@ public partial class PlayerInteraction
     bool mouseOnFallenTrunk, emittingPrototypeFall, chop03PointerBlocked;
     bool chop03Requested, chop03FirstHitPending;
     int pickupLabelWood = -1;
+    int pickupLabelBoards = -1;
     bool pickupLabelEnglish;
     string pickupLabel;
 
@@ -54,6 +55,8 @@ public partial class PlayerInteraction
         Application.isFocused && Time.timeScale > 0f;
 
     bool PrototypeStanding(ResourceItem item) => ChopPrototypeLog.Supports(item);
+    static bool IsOrdinaryRuneTree(ResourceItem item) => item != null &&
+        item.SpecialHarvest == null && !item.IsGolden;
     bool PrototypeHitDrivenFelling(ResourceItem item) => chop03Standing && PrototypeStanding(item);
 
     void PrototypeToggle()
@@ -70,14 +73,24 @@ public partial class PlayerInteraction
         ChopPrototypeLog.Toggle();
     }
 
-    void FellPrototype(ResourceItem item, ChopPrototypeSave.Layout layout, int wood, int xp, bool wasGolden)
+    void FellPrototype(ResourceItem item, ChopPrototypeSave.Layout layout, int wood, int xp,
+        bool wasGolden, bool ordinary)
     {
         ResourceItem echo = wasGolden ? null : LumberSkills.RollEcho(item, requireProcessing: true);
         if (leoImpactFrame != Time.frameCount) ReadLeoImpact(item);
         var special = item.SpecialHarvest;
         int cuts = special != null ? special.Cuts : wasGolden ? 0 : ChopPrototypeLog.CutsFor(item.Size);
+        AxeRuneId rune = ActiveRune;
+        int boards = AxeRunes.ApplyRecipe(rune, item.Size, ordinary, Axes != null && Axes.BoardsMode,
+            ref wood, ref cuts);
         var state = ChopPrototypeSave.Tree.Create(item.ChopSaveId, layout, cuts, wood, xp);
         state.golden = wasGolden;
+        state.planks = boards;
+        bool qualified = AxeRunes.Qualifies(item.Size, ordinary);
+        if (rune == AxeRuneId.CarefulCollect ||
+            rune == AxeRuneId.ForestSpark && special != null && !special.IsGolden ||
+            qualified && (rune == AxeRuneId.SturdyWood || rune == AxeRuneId.CleanStock))
+            state.rewardRune = rune;
         if (wasGolden && special == null) ChopPrototypeSave.SetGolden(null, GameBalance.SkillGoldenInterval);
         item.FellPrototype(state);
         LumberSkills.TrackProcessing(state);
@@ -257,13 +270,17 @@ public partial class PlayerInteraction
     void ShowPickup(LogTarget target)
     {
         int amount = target.log.WoodIn(target.index);
-        if (amount != pickupLabelWood || pickupLabelEnglish != GameLanguage.English)
+        int boards = target.log.BoardsIn(target.index);
+        if (amount != pickupLabelWood || boards != pickupLabelBoards || pickupLabelEnglish != GameLanguage.English)
         {
             pickupLabelWood = amount;
+            pickupLabelBoards = boards;
             pickupLabelEnglish = GameLanguage.English;
-            pickupLabel = ChopPrototypeLog.Text("E — Забрать древесину", "E — Pick up wood") + " · " + amount;
+            pickupLabel = ChopPrototypeLog.Text("E — Забрать", "E — Collect") +
+                (amount > 0 ? ChopPrototypeLog.Text($" · {amount} бр.", $" · {amount} logs") : "") +
+                (boards > 0 ? ChopPrototypeLog.Text($" · {boards} дос.", $" · {boards} boards") : "");
         }
-        string label = inventory != null && inventory.FreeSlots == 0
+        string label = inventory != null && inventory.FreeSlots == 0 && boards == 0
             ? ChopPrototypeLog.Text("Рюкзак полон", "Backpack full") : pickupLabel;
         Chop02Feedback.Show(target.Point(transform.position), label);
     }
@@ -442,7 +459,7 @@ public partial class PlayerInteraction
             if (pickup.Valid && !AtPickup(pickup)) pickup = default;
             if (action && pickup.Valid)
             {
-                if (inventory != null && inventory.FreeSlots > 0)
+                if (inventory != null && (inventory.FreeSlots > 0 || pickup.log.BoardsIn(pickup.index) > 0))
                 {
                     pickup.log.Collect(pickup.index, inventory, stats, pickup.Point(transform.position));
                     nextPickupScan = 0f;

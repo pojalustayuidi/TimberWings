@@ -77,7 +77,7 @@ internal sealed partial class AxeWindow
         RectTransform installed = RunicSurface(content, "Installed rune", UiTone.Lavender, 10, 75, 1023, 93);
         currentRune = ForgeLabel(installed, 25, 17, 9, 285, 73, true);
         currentEffect = ForgeLabel(installed, 23, 325, 9, 678, 73);
-        rollTab = MakeButton(content, ForgeText("Подбор", "Draw"), UiBtn.Yellow, 10, 177, 508, 48, () =>
+        rollTab = MakeButton(content, ForgeText("Подбор рун", "Rune draw"), UiBtn.Yellow, 10, 177, 1023, 48, () =>
         {
             transferring = false;
             Refresh();
@@ -186,7 +186,8 @@ internal sealed partial class AxeWindow
             $"{stock.coinsCount} coins  ·  {stock.RuneEssence} essence  ·  {stock.planksCount} boards"));
 
         rollTab.gameObject.SetActive(!awaiting);
-        transferTab.gameObject.SetActive(!awaiting);
+        // Rune transfer is intentionally unavailable in this update.
+        transferTab.gameObject.SetActive(false);
         rollTab.interactable = transferring;
         transferTab.interactable = !transferring;
         rollView.SetActive(!awaiting && !transferring);

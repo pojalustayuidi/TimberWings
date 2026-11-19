@@ -361,6 +361,27 @@ public class BuildingController : MonoBehaviour
         LockChanged?.Invoke();
     }
 
+    // Import paid restoration from the old axe workshop only when a legacy save requires it.
+    // Use the normal silent restore path: no duplicated XP, materials, reveal, or construction rewards.
+    internal bool RestorePaidRuneForge()
+    {
+        if (!Application.isPlaying || SiteKind != BuildSiteKind.RuneForge ||
+            SaveSystem.IsLoading || restorePending || revealing) return false;
+        if (isFinished) return true;
+        EnsureData();
+        QueueRestore(new BuildingSaveEntry
+        {
+            id = SaveId,
+            kind = (int)SiteKind,
+            step = costs.Length,
+            isFinished = true,
+            tutorialFired = true
+        });
+        ApplyRestore();
+        SaveSystem.RequestSave("buildings");
+        return true;
+    }
+
     // ---------------------------------------------------------------- внутреннее
     // рабочие значения: собираются один раз из Data или из запасных полей
     int[] costs;
