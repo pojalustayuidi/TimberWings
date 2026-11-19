@@ -65,7 +65,7 @@ public class TreeGrowthVisual : MonoBehaviour
     void BuildCopy()
     {
         Transform tree = item.transform;
-        var src = tree.GetComponentsInChildren<MeshRenderer>(false);
+        var src = tree.GetComponentsInChildren<MeshRenderer>(item.SpecialHarvest != null);
         for (int i = 0; i < src.Length; i++)
         {
             var r = src[i];

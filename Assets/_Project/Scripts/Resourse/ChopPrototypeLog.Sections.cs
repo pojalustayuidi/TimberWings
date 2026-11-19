@@ -25,7 +25,7 @@ public sealed partial class ChopPrototypeLog
     readonly List<int> woodTriangles = new List<int>(Sides * 50);
     readonly List<int> ringTriangles = new List<int>(Sides * 36);
 
-    void BuildSections()
+    void BuildSections(GameObject bakedSection)
     {
         var layout = state.layout;
         sections = new Section[SectionCount];
@@ -33,7 +33,8 @@ public sealed partial class ChopPrototypeLog
         cutMarks = new MeshRenderer[CutCount];
         Material bark = TreeMeshFactory.Bark();
         Material endgrain = TreeMeshFactory.Cut();
-        ringMaterial = new Material(endgrain) { color = new Color(.56f, .34f, .17f) };
+        if (bakedSection == null)
+            ringMaterial = new Material(endgrain) { color = new Color(.56f, .34f, .17f) };
         Material[] materials = { bark, endgrain, ringMaterial };
         for (int i = 0; i < SectionCount; i++)
         {
@@ -41,18 +42,23 @@ public sealed partial class ChopPrototypeLog
             root.transform.SetParent(transform, false);
             float start = Joint(i);
             float end = Joint(i + 1);
-            var part = new Section
-            {
-                root = root, start = start, end = end, length = end - start,
-                mesh = new Mesh { name = "Tapered bark and end grain" }
-            };
+            var part = new Section { root = root, start = start, end = end, length = end - start };
             sections[i] = part;
             part.solid = root.AddComponent<BoxCollider>();
             part.solid.size = new Vector3(layout.radius * 1.72f, layout.radius * 1.59f, part.length);
             part.solid.sharedMaterial = TreeCollision.SlipMat;
-            root.AddComponent<MeshFilter>().sharedMesh = part.mesh;
-            root.AddComponent<MeshRenderer>().sharedMaterials = materials;
-            RebuildSection(i);
+            if (bakedSection != null)
+            {
+                var visual = Instantiate(bakedSection, root.transform, false);
+                visual.transform.localScale = new Vector3(layout.radius, layout.radius, part.length);
+            }
+            else
+            {
+                part.mesh = new Mesh { name = "Tapered bark and end grain" };
+                root.AddComponent<MeshFilter>().sharedMesh = part.mesh;
+                root.AddComponent<MeshRenderer>().sharedMaterials = materials;
+                RebuildSection(i);
+            }
         }
 
         for (int i = 0; i < CutCount; i++)
@@ -112,7 +118,7 @@ public sealed partial class ChopPrototypeLog
     {
         bool positive = transform.InverseTransformPoint(actor).x >= 0f;
         float joint = Joint(cut + 1);
-        float depth = KerfDepth(state.cuts[cut]);
+        float depth = sections[cut].mesh != null ? KerfDepth(state.cuts[cut]) : 0f;
         // Use the near sloping face of the kerf. The axe stays above the wood
         // and reaches it without forcing either of Leo's wrists past its limit.
         Vector3 edge = Vector3.Lerp(Rim(joint, joint, positive ? 1 : Sides - 1, depth),
@@ -124,6 +130,7 @@ public sealed partial class ChopPrototypeLog
     void RebuildSection(int index)
     {
         Section part = sections[index];
+        if (part.mesh == null) return;
         var vertices = sectionVertices;
         var bark = barkTriangles;
         var wood = woodTriangles;

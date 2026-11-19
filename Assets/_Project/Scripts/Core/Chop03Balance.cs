@@ -4,7 +4,7 @@ internal static class Chop03Balance
 {
     internal const int HitsPerCut = 8;
     internal const float PreciseMultiplier = 1.60f;
-    internal const float GreenHalfWidth = .17f;
+    internal static float GreenHalfWidth => PlayerSkills.Has(SkillIds.WideZone) ? .24f : .17f;
     internal const float ContactInterval = .56f;
     internal const float StandingWindup = .44f;
     internal const float GroundWindup = .50f;
@@ -13,15 +13,12 @@ internal static class Chop03Balance
 
     internal static int StandingHits(TreeSize size) => size == TreeSize.Young ? 3 : size == TreeSize.Old ? 10 : 7;
 
-    // ChopTime already includes ChopPower, both chop talents and the active pet bonus.
-    internal static float Power(float baseTime, float upgradedTime, float chainBonus)
+    internal static float Power(float axePower, int playerLevel, float talentAndPetTime, float chainBonus)
     {
-        float efficiency = Math.Max(1f, baseTime / Math.Max(.10f, upgradedTime));
-        return Math.Min(2.5f, (1f + (efficiency - 1f) * 1.10f) * (1f + chainBonus));
+        float playerPower = GameBalance.ChopPowerBonus[Math.Min(GameBalance.ChopPowerBonus.Length - 1, Math.Max(0, playerLevel))];
+        float support = Math.Max(0f, 1f / Math.Max(.10f, talentAndPetTime) - 1f) * 1.10f;
+        return Math.Min(2.5f, (axePower + playerPower + support) * (1f + chainBonus));
     }
-
-    internal static float AnimationSpeed(int chopLevel, int maxLevel) =>
-        1f + .13f * Math.Min(1f, Math.Max(0, chopLevel) / (float)Math.Max(1, maxLevel));
 
     internal static float Damage(float power, int strikes, bool precise) =>
         power * (precise ? PreciseMultiplier : 1f) / strikes;

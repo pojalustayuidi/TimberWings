@@ -38,7 +38,8 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     internal static string Text(string russian, string english) => GameLanguage.English ? english : russian;
 
     internal static bool Supports(ResourceItem tree) =>
-        Enabled && tree != null && tree.respawn && !string.IsNullOrEmpty(tree.ChopSaveId);
+        tree != null && (Enabled || tree.SpecialHarvest != null) &&
+        tree.respawn && !string.IsNullOrEmpty(tree.ChopSaveId);
 
     internal static int CutsFor(TreeSize size) => size == TreeSize.Old ? 2 : size == TreeSize.Mature ? 1 : 0;
 
@@ -54,7 +55,7 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
         for (int i = 0; i < tree.cuts.Length; i++)
             log.separation[i] = tree.cuts[i] >= 1f ? 1f : 0f;
 
-        log.BuildSections();
+        log.BuildSections(source.SpecialHarvest != null ? source.SpecialHarvest.sectionPrefab : null);
         log.UpdateSections();
         if (!falling) log.Land(false);
         go.SetActive(true);
@@ -107,7 +108,10 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
         if (focusCut >= 0) StyleCut(focusCut);
     }
 
-    internal bool Hit(int cut, float damage)
+    internal int RequiredCutHits(int cut) =>
+        cut == 1 && state.layoutDiscount ? 6 : Chop03Balance.HitsPerCut;
+
+    internal bool Hit(int cut, float damage, bool precise)
     {
         if (!Ready || !state.AdvanceCut(cut, damage)) return false;
         RebuildSection(cut);
@@ -117,6 +121,15 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
         SaveSystem.RequestSave(ChopPrototypeSave.Key);
         if (CanCut(cut)) return false;
 
+        if (precise && cut == 0 && CutCount == 2 && PlayerSkills.Has(SkillIds.CutLayout) && !state.layoutDiscount)
+        {
+            state.layoutDiscount = true;
+            state.cuts[1] = Chop03Balance.Advance(0, state.cuts[1] * (8f / 6f));
+            RebuildSection(1);
+            RebuildSection(2);
+            UpdateCutAnchor(1);
+            StyleCut(1);
+        }
         Vector3 point = CutAnchor(cut).position;
         if (focusCut == cut) FocusCut(-1);
         StyleCut(cut);
@@ -169,15 +182,19 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     {
         if (!CanCollect(section) || inventory == null || state.xp > 0 && stats == null) return 0;
 
+        int essence = 0;
         int taken = inventory.AddProcessedWood(state.wood[section], count =>
         {
             // Store the remainder before notifying inventory or level subscribers.
-            int xp = state.TakeWood(section, count);
+            int xp = state.TakeWood(section, count, out essence);
+            if (essence > 0) inventory.ReceiveRuneEssence(essence);
             LumberSkills.TouchProcessing(state);
             if (xp > 0) stats.AddXP(xp);
             SaveSystem.RequestSave(ChopPrototypeSave.Key);
         });
         if (taken <= 0) return 0;
+        if (essence > 0)
+            SaveIndicator.ShowToast(Text("Рунная эссенция", "Rune essence") + $" +{essence} · {inventory.RuneEssence}");
 
         if (!HasWood) Discard();
         else UpdateSections();

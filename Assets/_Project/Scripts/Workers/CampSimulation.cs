@@ -196,7 +196,7 @@ public sealed class CampSimulation
     {
         get
         {
-            int cap = WorkerBalance.BaseLogStock;
+            int cap = PlayerSkills.Has(SkillIds.Storage) ? 50 : WorkerBalance.BaseLogStock;
             for (int i = 0; i < Slots; i++) if (slots[i] != null && slots[i].Has(WorkerPerk.Roomy)) cap += WorkerBalance.RoomyLogs;
             return cap;
         }
@@ -206,7 +206,7 @@ public sealed class CampSimulation
     {
         get
         {
-            int cap = WorkerBalance.BasePlankStock;
+            int cap = PlayerSkills.Has(SkillIds.Storage) ? 20 : WorkerBalance.BasePlankStock;
             for (int i = 0; i < Slots; i++) if (slots[i] != null && slots[i].Has(WorkerPerk.Stocker)) cap += WorkerBalance.StockerPlanks;
             return cap;
         }
@@ -259,6 +259,7 @@ public sealed class CampSimulation
     {
         double r = WorkerBalance.ClerkIncome(w.rarity, w.level)
                  * (1.0 + PerkSum(w, WorkerPerk.GoodDeal, WorkerBalance.GoodDealIncome) + MentorBonus) * coinMult;
+        if (PlayerSkills.Has(SkillIds.ClerkIncome)) r *= 1.15;
         return Math.Round(r, 6);               // 0.45f даёт 0.4499999..., округляем шум float
     }
 
@@ -271,7 +272,11 @@ public sealed class CampSimulation
     public double SawTime(WorkerState w)      // секунд на доску
     {
         float cut = WorkerBalance.CapSpeed(PerkSum(w, WorkerPerk.FastSaw, WorkerBalance.FastSawTime));
-        return Math.Round(WorkerBalance.SawyerTime(w.rarity, w.level, cut) / (1.0 + MentorBonus), 6);
+        double speed = 1.0 + MentorBonus;
+        if (PlayerSkills.Has(SkillIds.Crew) && Slots == 6 &&
+            CountInSlots(WorkerRole.Lumberjack) == 3 && CountInSlots(WorkerRole.Sawyer) == 3)
+            speed *= 1.15;
+        return Math.Round(WorkerBalance.SawyerTime(w.rarity, w.level, cut) / speed, 6);
     }
 
     public float LuckyChance(WorkerState w) { return WorkerBalance.CapChance(PerkSum(w, WorkerPerk.LuckyDeal, WorkerBalance.LuckyDealChance)); }
@@ -324,6 +329,8 @@ public sealed class CampSimulation
         FlushStock();
     }
 
+    static double WorkXpPerSecond => WorkerBalance.XpPerSecond * (PlayerSkills.Has(SkillIds.Mentor) ? 1.20 : 1.0);
+
     void StepClerk(WorkerState w, double dt)
     {
         double rate = ClerkRate(w);
@@ -356,7 +363,7 @@ public sealed class CampSimulation
             pendingCoins += total;
             Emit(w, CampResource.Coins, total, lucky || bonus > 0);
         }
-        AddXp(w, dt * WorkerBalance.XpPerSecond);          // Приказчик производит всегда
+        AddXp(w, dt * WorkXpPerSecond);          // Приказчик производит всегда
     }
 
     void StepLumberjack(WorkerState w, double dt)
@@ -391,7 +398,7 @@ public sealed class CampSimulation
                 Emit(w, CampResource.Logs, n, true);
             }
         }
-        AddXp(w, dt * WorkerBalance.XpPerSecond);
+        AddXp(w, dt * WorkXpPerSecond);
     }
 
     void StepSawyer(WorkerState w, double dt)
@@ -430,6 +437,6 @@ public sealed class CampSimulation
                 w.sawActive = false; w.sawPaid = false; w.sawProgress = 0;
             }
         }
-        if (worked > 0) AddXp(w, worked * WorkerBalance.XpPerSecond);   // опыт только за реальную работу
+        if (worked > 0) AddXp(w, worked * WorkXpPerSecond);   // опыт только за реальную работу
     }
 }

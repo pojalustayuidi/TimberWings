@@ -36,7 +36,7 @@ public static partial class LeoAxePose
         float height = model.InverseTransformPoint(edge).y;
         float shaftDrop = Mathf.Lerp(.41f, -.45f, Mathf.InverseLerp(.4f, 1.13f, height));
         Quaternion strike = GroundTool(toward, sectionAxis, model.right, shaftDrop);
-        Vector3 impactGrip = edge - strike * Vector3.Scale(GripToEdge, rig.axeRoot.lossyScale);
+        Vector3 impactGrip = edge - strike * Vector3.Scale(rig.EquippedAxeEdge - MainGrip, rig.axeRoot.lossyScale);
         var ready = model.TransformPoint(new Vector3(.263f, .79f, .174f));
         var windup = model.TransformPoint(new Vector3(.31f, 1.14f, .14f));
         Quaternion readyTool = model.rotation * Quaternion.Euler(21f, -31f, -50f);

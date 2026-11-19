@@ -24,6 +24,7 @@ public partial class HudMinimap
             case BuildSiteKind.Market: return MapIcons.Id.Market;
             case BuildSiteKind.Tent: return MapIcons.Id.Tent;
             case BuildSiteKind.Bridge: return MapIcons.Id.Bridge;
+            case BuildSiteKind.RuneForge: return MapIcons.Id.RuneForge;
             default: return MapIcons.Id.Building;
         }
     }
@@ -63,6 +64,13 @@ public partial class HudMinimap
         foreach (var site in sites)
         {
             if (site == null || !site.isActiveAndEnabled) continue;
+            if (site.SiteKind == BuildSiteKind.RuneForge)
+            {
+                var forge = site.GetComponentInParent<RuneForge>();
+                if (site.IsFinished && forge != null && forge.mapPoint != null)
+                    Add(forge.mapPoint, BuildingKind(site), site.BuildingTitle, completed: true, site: site);
+                continue;
+            }
             if (!site.IsFinished && (!UseCloudyV3 || site.IsLocked || site.SiteKind == BuildSiteKind.Other)) continue;
             Transform anchor = site.IsFinished && site.SiteKind != BuildSiteKind.Bridge
                 && site.finishedBuilding != null && site.finishedBuilding.activeInHierarchy

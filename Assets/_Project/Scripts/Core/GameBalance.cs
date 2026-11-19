@@ -9,7 +9,6 @@ public static class GameBalance
 {
     // ---------- игрок ----------
     public const float PlayerSpeed = 4f;      // м/с
-    public const float FullBackpackSlowdown = 0.25f;   // -25% скорости × заполненность рюкзака
 
     // ---------- рубка ----------
     public const float ChopTime = 3f;         // с удержания E на дерево (ResourceItem.gatherTime)
@@ -93,26 +92,15 @@ public static class GameBalance
     // ChopBonusTeachHits раз (счётчик хранится в PlayerPrefs). На телефоне подсказка молчит: там пока нет кнопки Пробела.
     public const int ChopBonusTeachHits = 3;
 
-    // ---------- прокачка (PlayerUpgrades) ----------
-    // порядок = enum UpgradeType: ChopPower, MoveSpeed, Capacity, DoubleYield, Haggle, SawSpeed
-    public static readonly int[] UpgradeMaxLevel = { 6, 6, 6, 6, 5, 5 };
-    public static readonly int[] UpgradeBaseCost = { 25, 20, 30, 40, 60, 50 };
-    public const float UpgradeCostGrowth = 1.5f;
-    public const int SawUnlockLevel = 3;                 // «Скорость пилы»: пила появляется в хижине на 2-м уровне, апгрейд с 3-го
-    public static readonly int[] FreePointLevels = { 3, 5, 7, 9 };
-
-    // цена повышения с уровня L на L+1: база × 1.5^L
-    public static int UpgradeCost(int type, int level)
-    {
-        return Mathf.RoundToInt(UpgradeBaseCost[type] * Mathf.Pow(UpgradeCostGrowth, level));
-    }
-
-    public const float ChopTimeFactor = 0.9f;            // время рубки × 0.9^L
-    public const float SpeedPerLevel = 0.06f;            // скорость × (1 + 0.06·L)
-    public const int CapacityPerLevel = 2;               // вместимость 4 + 2·L
-    public const float DoublePerLevel = 0.05f;           // шанс двойной добычи 5% × L
-    public const float HagglePerLevel = 0.05f;           // цена продажи × (1 + 0.05·L)
-    public const float SawTimeFactor = 0.88f;            // время пилы × 0.88^L
+    // Indices follow UpgradeType for compatibility with existing saves.
+    public static readonly int[] UpgradeMaxLevel = { 6, 6, 6, 6, 5, 6 };
+    public static readonly int[] UpgradeUnlockLevels = { 2, 3, 5, 7, 9, 11 };
+    internal static readonly float[] ChopPowerBonus = { 0f, .18f, .34f, .44f, .60f, .68f, .80f };
+    internal static readonly float[] RunSpeed = { 4f, 4.25f, 4.45f, 4.60f, 4.75f, 4.85f, 4.95f };
+    internal static readonly int[] BackpackCapacity = { 4, 6, 8, 11, 14, 17, 20 };
+    internal static readonly float[] SawSeconds = { 6f, 5.6f, 5.2f, 4.8f, 4.4f, 4f, 3.6f };
+    internal static readonly int[] SawQueue = { 5, 6, 7, 8, 9, 10, 10 };
+    public static int UpgradeCost(int type, int paidSteps) => 30 + 15 * paidSteps;
 
     // ---------- торговля ----------
     public const int LogPrice = 2;
@@ -273,25 +261,17 @@ public static class GameBalance
     public const int RevealFinalBursts = 3;        // сколько дополнительных вспышек после основной на последней стадии
 
     // ---------- опыт и уровни ----------
-    public const int MaxLevel = 10;
+    public const int MaxLevel = 15;
     public const int XpPerTree = 3;
-    public const int XpPerBuilding = 40;      // костёр, хижина, мастерская
+    public const int XpPerBuilding = 40;
     public const int XpPerPlank = 5;
+    static readonly int[] LevelXp = { 0, 50, 150, 275, 425, 600, 800, 1025, 1275, 1550, 1850, 2175, 2525, 2900, 3300 };
+    public static int XpForLevel(int level) => LevelXp[Mathf.Clamp(level, 1, MaxLevel) - 1];
+    public static int XpToNext(int level) => XpForLevel(level + 1) - XpForLevel(level);
+    public static int CoinsForLevel(int level) => level > 1 && level <= MaxLevel ? 10 : 0;
+    public const int SkillMaxPoints = 7;
+    public static readonly int[] SkillTierCost = { 1, 2, 3 };
 
-    // опыт до следующего уровня с уровня L: 50 * L (суммарно до 10-го уровня 2250)
-    public static int XpToNext(int level) { return 50 * level; }
-
-    // накопленный опыт, с которым достигается уровень n (n=2 -> 50, n=3 -> 150, ... n=10 -> 2250)
-    public static int XpForLevel(int n) { return n <= 1 ? 0 : 25 * n * (n - 1); }
-
-    // монеты за достижение уровня n: 15 * n
-    public static int CoinsForLevel(int n) { return n <= 1 ? 0 : 15 * n; }
-
-    // ---------- дерево навыков (Skills/SkillTree, PlayerSkills) ----------
-    // Очки навыков: по одному за каждый уровень со 2-го, максимум SkillMaxPoints (хватает на 9 из 18 очков трёх веток, приходится выбирать).
-    public const int SkillMaxPoints = 9;
-    public static readonly int[] SkillTierCost = { 1, 2, 3 };            // цена узла по ярусу (1..3)
-    public static readonly int[] SkillTierLevel = { 2, 4, 7 };           // уровень игрока для яруса (1..3)
     public const int SkillResetCoins = 100;                              // сброс навыков: первый бесплатно, дальше столько монет
 
     // значения эффектов (читают задачи 3 и 4; процент = доля, 0.08 = +8%)
@@ -300,15 +280,14 @@ public static class GameBalance
     public const float SkillChainPause = 4f;             // с, пауза между деревьями, после которой серия рвётся
     public const int SkillSturdyWood = 3;                // lumber_sturdy: бревен с дерева
     public const float SkillSturdyGrowth = 1.2f;         // ... дерево растёт в 1.2 раза дольше
-    public const float SkillFastGrowth = 0.6f;           // lumber_fastgrow: время роста × 0.6 (быстрее на 40%)
-    public const float SkillEchoChance = 0.2f;           // lumber_echo: шанс падения соседнего дерева
+    public const float SkillFastGrowth = 0.75f;          // 25% меньше времени после сбора
+    public const float SkillEchoChance = 0.15f;           // lumber_echo: шанс падения соседнего дерева
     public const int SkillEchoBonusWood = 1;             // ... столько бревен даёт упавший сосед (не умножается «Двойной добычей»)
     public const float SkillEchoRadius = 6f;             // «соседнее» дерево: ближайшее спелое в этом радиусе, м
-    public const float SkillGoldenInterval = 90f;        // lumber_golden: раз в столько секунд золотое дерево
-    public const int SkillGoldenWood = 6;
+    public const float SkillGoldenInterval = 180f;        // lumber_golden: раз в столько секунд золотое дерево
+    public const int SkillGoldenWood = 8;
     public const float SkillGoldenMinDist = 5f;          // золотым становится спелое дерево не ближе и не дальше этих расстояний от игрока, м
     public const float SkillGoldenMaxDist = 30f;         // (если таких нет, берётся любое спелое)
-    public const float SkillCarrySlowdown = 0.15f;       // carry_light: замедление от груза 15% вместо FullBackpackSlowdown
     public const float SkillDashMul = 2f;                // carry_dash: скорость ×2
     public const float SkillDashTime = 0.4f;
     public const float SkillDashCooldown = 8f;
@@ -316,12 +295,11 @@ public static class GameBalance
     public const float SkillLegsBonus = 0.12f;           // carry_legs: +12% скорости бега
     public const float SkillBazaarCooldown = 300f;       // boss_tongue: «Базарный день» раз в 5 минут
     public const float SkillBazaarMul = 1.5f;            // следующая продажа ×1.5
-    public const int SkillHoardQueue = 2;                // boss_hoard: очередь пилы +2
-    public const int SkillHoardOutput = 4;               // ... склад досок +4
+    public const int SkillHoardQueue = 3;                // очередь личной пилы
+    public const int SkillHoardOutput = 5;               // готовые доски личной пилы
     public const float SkillChiefBonus = 0.2f;           // boss_chief: рабочие приносят на 20% больше
-    public const int SkillBulkMinItems = 10;             // boss_bulk: от 10 предметов за раз
+    public const int SkillBulkMinItems = 50;            // порог оптовой партии
     public const float SkillBulkBonus = 0.1f;            // ... цена +10%
-    public const float SkillSawyerChance = 0.15f;        // boss_sawyer: шанс доски без трат брёвен
 
     // ---------- сохранения (SaveSystem, SaveAutoRunner) ----------
     public const float SaveAutoIntervalSeconds = 60f;   // автосохранение по таймеру (в паузе timeScale 0 пропускается)

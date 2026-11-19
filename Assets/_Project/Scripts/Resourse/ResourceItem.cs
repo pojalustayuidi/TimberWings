@@ -78,6 +78,7 @@ public partial class ResourceItem : MonoBehaviour
 
     TreeRespawn regrowth;
     internal string ChopSaveId { get; private set; }
+    public SpecialHarvestTree SpecialHarvest { get; private set; }
 
     void OnDestroy()
     {
@@ -91,14 +92,17 @@ public partial class ResourceItem : MonoBehaviour
     public float TrunkRadius { get; private set; }
 
     public bool IsChopping { get { return isBeingChopped; } }
-    public bool IsGolden { get { return goldenFx != null; } }
+    public bool IsGolden { get { return goldenFx != null || (SpecialHarvest != null && SpecialHarvest.IsGolden); } }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatic() { Active.Clear(); waveOrigin = null; lastWaveSoundFrame = -1; }
 
     void Awake()
     {
-        if (respawn) ChopSaveId = ChopPrototypeSave.TreeId(this);
+        SpecialHarvest = GetComponent<SpecialHarvestTree>();
+        if (respawn)
+            ChopSaveId = SpecialHarvest != null && !string.IsNullOrWhiteSpace(SpecialHarvest.saveId)
+                ? SpecialHarvest.saveId : ChopPrototypeSave.TreeId(this);
         Size = overrideSize ? forcedSize : TreeSizing.Roll(transform.position);
         if (autoSize) transform.localScale *= GameBalance.TreeScaleMul[(int)Size];
         bool jittered = false;
@@ -131,7 +135,7 @@ public partial class ResourceItem : MonoBehaviour
         restLocalScale = transform.localScale;
         restLocalRot = (sway != null && sway.Agent != null) ? sway.Agent.r0 : transform.localRotation;
         started = true;
-        if (dirt == null) dirt = TreeGround.Create(originalPosition, (int)Size, gameObject.layer, SpeciesKey());   // земля под деревом (своя у каждого вида): видно, что его можно рубить
+        if (SpecialHarvest == null && dirt == null) dirt = TreeGround.Create(originalPosition, (int)Size, gameObject.layer, SpeciesKey());   // земля под деревом (своя у каждого вида): видно, что его можно рубить
         BeginWave(false);   // старт сцены: деревья вырастают волной от игрока
         if (respawn) ChopPrototypeSave.Attach(this);
     }
@@ -372,6 +376,7 @@ public partial class ResourceItem : MonoBehaviour
     // золотое дерево (lumber_golden): вид и статус. Зовёт LumberjackEffects; статус не сохраняется
     public void SetGolden(bool on)
     {
+        if (SpecialHarvest != null) return;
         if (on)
         {
             if (goldenFx == null && gameObject.activeInHierarchy) goldenFx = GoldenTreeFx.Attach(this);
@@ -388,6 +393,14 @@ public partial class ResourceItem : MonoBehaviour
     internal void FellPrototype(ChopPrototypeSave.Tree state)
     {
         state.respawnSeconds = RespawnDelay();
+        state.silver = SilverTree.Is(this);
+        if (SpecialHarvest != null)
+        {
+            state.essence = SpecialHarvest.Essence;
+            state.anchored = true;
+            state.anchorPosition = transform.position;
+            state.anchorRotation = transform.rotation;
+        }
         ChopPrototypeSave.Record(state);
         ChopDown(state, false);
     }
@@ -407,10 +420,13 @@ public partial class ResourceItem : MonoBehaviour
             return;
         }
         if (!gameObject.activeSelf) gameObject.SetActive(true);
+        if (state.anchored && SpecialHarvest != null)
+            state.MoveTo(transform.position, transform.rotation);
         ChopDown(state, true);
     }
 
-    float RespawnDelay() => useBalanceRespawn ? RespawnBase : Random.Range(respawnSeconds.x, respawnSeconds.y);
+    float RespawnDelay() => SpecialHarvest != null ? SpecialHarvest.RegrowthSeconds
+        : useBalanceRespawn ? RespawnBase : Random.Range(respawnSeconds.x, respawnSeconds.y);
 
     void ChopDown(ChopPrototypeSave.Tree state, bool restoring)
     {
@@ -421,8 +437,9 @@ public partial class ResourceItem : MonoBehaviour
 
         if (stumpPrefab != null)
         {
-            Vector3 stumpPos = transform.position + new Vector3(0, 0.2f, 0);
-            stump = Instantiate(stumpPrefab, stumpPos, stumpPrefab.transform.rotation);
+            Vector3 stumpPos = transform.position + (SpecialHarvest == null ? Vector3.up * .2f : Vector3.zero);
+            Quaternion rotation = SpecialHarvest == null ? stumpPrefab.transform.rotation : transform.rotation;
+            stump = Instantiate(stumpPrefab, stumpPos, rotation);
             if (autoSize) stump.transform.localScale *= ScaleMul;   // пень старого дерева толще
         }
         else if (useGeneratedModel)

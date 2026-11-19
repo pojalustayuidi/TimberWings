@@ -69,10 +69,13 @@ public partial class PlayerInteraction
 
     void FellPrototype(ResourceItem item, ChopPrototypeSave.Layout layout, int wood, int xp, bool wasGolden)
     {
-        ResourceItem echo = inventory != null && inventory.FreeSlots >= GameBalance.SkillEchoBonusWood
-            ? LumberSkills.RollEcho(item) : null;
+        ResourceItem echo = wasGolden ? null : LumberSkills.RollEcho(item, requireProcessing: true);
         if (leoImpactFrame != Time.frameCount) ReadLeoImpact(item);
-        var state = ChopPrototypeSave.Tree.Create(item.ChopSaveId, layout, ChopPrototypeLog.CutsFor(item.Size), wood, xp);
+        var special = item.SpecialHarvest;
+        int cuts = special != null ? special.Cuts : wasGolden ? 0 : ChopPrototypeLog.CutsFor(item.Size);
+        var state = ChopPrototypeSave.Tree.Create(item.ChopSaveId, layout, cuts, wood, xp);
+        state.golden = wasGolden;
+        if (wasGolden && special == null) ChopPrototypeSave.SetGolden(null, GameBalance.SkillGoldenInterval);
         item.FellPrototype(state);
         LumberSkills.TrackProcessing(state);
         emittingPrototypeFall = true;
@@ -143,7 +146,6 @@ public partial class PlayerInteraction
             return;
         }
 
-        if (!ChopPrototypeLog.Enabled) return;
         ResourceItem item = hit != null ? hit.GetComponentInParent<ResourceItem>() : null;
         // The solid ray has priority. The top-down camera can also select through the existing crown trigger.
         if (item == null && !firstPerson)
@@ -329,7 +331,7 @@ public partial class PlayerInteraction
     bool TickChop03()
     {
         bool enabled = ChopPrototypeLog.Enabled;
-        if (!enabled && ChopPrototypeLog.Active.Count == 0 && !IsChop03Working && !chop03Walking)
+        if (!enabled && SpecialTreeGroves.Current == null && ChopPrototypeLog.Active.Count == 0 && !IsChop03Working && !chop03Walking)
         {
             if (PrototypeReticleActive || mouseOnFallenTrunk || !ReferenceEquals(nearestPickup.log, null))
                 ResetPrototypeInput();
@@ -369,7 +371,7 @@ public partial class PlayerInteraction
             chop03Log = default;
             StopPrototypeWork();
         }
-        else if (click && !chop03PointerBlocked && (enabled || aimedLog.Valid && aimedLog.cut))
+        else if (click && !chop03PointerBlocked && (enabled || aimedTree != null || aimedLog.Valid && aimedLog.cut))
         {
             CancelChop03Approach();
             StopPrototypeWork();
@@ -436,6 +438,6 @@ public partial class PlayerInteraction
             ClearChopTargets();
         }
         ShowChop03Target(pickup);
-        return enabled;
+        return enabled || (click && aimedTree != null && !chop03PointerBlocked && !moving);
     }
 }

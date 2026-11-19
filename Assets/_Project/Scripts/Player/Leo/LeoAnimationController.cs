@@ -105,6 +105,8 @@ public sealed partial class LeoAnimationController : MonoBehaviour
     void LateUpdate()
     {
         if(!Initialize()||Time.deltaTime<=0)return;
+        if (interaction != null && rig.SyncAxe(interaction.EquippedAxe) && axeTrail != null)
+            axeTrail.Clear();
         float dt=Mathf.Min(.1f,Time.deltaTime),now=Time.time;Vector3 delta=transform.position-previousPosition;delta.y=0;
         previousPosition=transform.position;float size=Mathf.Max(.01f,transform.lossyScale.y);
         float expectedTravel = player != null ? Mathf.Max(4f, player.CurrentSpeed) * Time.deltaTime : 0f;
@@ -123,15 +125,17 @@ public sealed partial class LeoAnimationController : MonoBehaviour
         bool blocked=SaveSystem.IsLoading||BuildingController.AnyRevealing||BuildingController.AnyRestorePending||motion.InMotion||WaterSwim.Swimming||(player!=null&&player.ControlLocked&&!conversation);
         bool chopping=interaction!=null&&interaction.IsChopping&&!blocked&&!conversation&&!StoryInspection.Active&&!handsBusy;
         bool chopReady = chopping && rig.IsAxeInHand;
+        float swingSpeed = interaction != null ? interaction.AxeSwingSpeed : 1f;
+        float recovery = book.recovery / swingSpeed;
         var current=chopping?interaction.CurrentTarget:null;
         if(current!=target&&chopping){if(hitFrame!=Time.frameCount)impact.Clear();target=current;}
         if(chopReady)
         {
             float due=interaction.AnimationHasScheduledImpact?interaction.AnimationScheduledImpact:!PlayerInteraction.RhythmChop&&interaction.useAnimationEvents?legacy.Next(interaction.animator,now):-1;
-            if(due>=0)impact.Forecast(now,due,book.windup);else impact.ForgetForecast();
+            if(due>=0)impact.Forecast(now,due,book.windup / swingSpeed);else impact.ForgetForecast();
         }
         else impact.ForgetForecast();
-        bool recovering=impact.Recovering(now,book.recovery);
+        bool recovering=impact.Recovering(now,recovery);
         if (chopReady && !recovering)
         {
             groundCut = interaction.TryReadPrototypeContact(out Vector3 point, out groundCutAxis);
@@ -200,7 +204,7 @@ public sealed partial class LeoAnimationController : MonoBehaviour
             !blocked && !conversation && !StoryInspection.Active && !chopping && actionWeight < .02f, debugWork);
         if(!chopReady&&wasChopping&&!recovering){cancelPhase=posePhase;cancelling=true;}
         if(chopReady)cancelling=false;
-        float actionPhase=cancelling?cancelPhase:impact.Phase(now,book.contact,book.recovery,hitFrame==Time.frameCount);
+        float actionPhase=cancelling?cancelPhase:impact.Phase(now,book.contact,recovery,hitFrame==Time.frameCount);
         posePhase=actionPhase;wasChopping=chopReady;
         talk=Mathf.MoveTowards(talk,Speaking()&&!blocked?1:0,dt*7);
         float eye=1;
@@ -227,7 +231,13 @@ public sealed partial class LeoAnimationController : MonoBehaviour
             move > .1f ? (carry > .65f ? "Heavy move" : run > .5f ? "Run" : "Walk") :
             conversation ? "Listen" : "Idle";
         bool trail=axeTrail!=null&&!OrbitCamera.FirstPersonActive&&!VibeSettings.ReduceEffects&&frame.action>.8f&&holster<.01f&&actionPhase>.40f&&actionPhase<.74f;
-        if(axeTrail!=null){if(trail&&!trailWasOn)axeTrail.Clear();axeTrail.emitting=trail;if(blocked)axeTrail.Clear();}trailWasOn=trail;
+        if (axeTrail != null)
+        {
+            if (rig.axeRoot != null) axeTrail.transform.position = rig.axeRoot.TransformPoint(rig.EquippedAxeEdge);
+            if (trail && !trailWasOn || blocked) axeTrail.Clear();
+            axeTrail.emitting = trail;
+        }
+        trailWasOn = trail;
     }
     public static float ClipDuration(string name,LeoMotionProfile.Book book)
     {

@@ -8,8 +8,6 @@ internal sealed partial class LeoFirstPersonView
     const float GroundWindup = .42f;
     static readonly Vector3 RightShoulder = new Vector3(.285f, -.30f, .075f);
     static readonly Vector3 LeftShoulder = new Vector3(-.285f, -.30f, .075f);
-    // Leading lip of the baked cutting edge at the center of the axe profile.
-    static readonly Vector3 CuttingEdge = new Vector3(0f, .23748f, .28564f);
     static readonly Vector3 SupportGrip = new Vector3(0f, -.183f, 0f);
 
     struct Pose
@@ -82,6 +80,7 @@ internal sealed partial class LeoFirstPersonView
 
     internal void Step(PlayerInteraction interaction, bool manualCarry, float dt, float stride, float move, float run, float viewScale)
     {
+        SetAxe(interaction != null ? interaction.EquippedAxe : AxeCatalog.Get(AxeId.Old));
         suspended = false;
         float now = Time.time;
         bool chopping = interaction != null && interaction.IsChopping;
@@ -95,7 +94,8 @@ internal sealed partial class LeoFirstPersonView
         if (chopping && due < 0f && interaction.useAnimationEvents && !PlayerInteraction.RhythmChop &&
             !interaction.IsProcessingPrototypeLog)
             due = legacy.Next(interaction.animator, now);
-        float phase = ReadPhase(now, due, hit, chopping && interaction.IsProcessingPrototypeLog);
+        float swingSpeed = interaction != null ? interaction.AxeSwingSpeed : 1f;
+        float phase = ReadPhase(now, due, hit, chopping && interaction.IsProcessingPrototypeLog, swingSpeed);
         bool recovering = now < recoveryEnd;
 
         // Keep the weapon at real world depth, with fuller arms for the closer viewpoint.
@@ -169,13 +169,14 @@ internal sealed partial class LeoFirstPersonView
         compassNeedle.localRotation = Quaternion.AngleAxis(needleAngle, Vector3.forward);
     }
 
-    float ReadPhase(float now, float due, bool hit, bool ground)
+    float ReadPhase(float now, float due, bool hit, bool ground, float swingSpeed)
     {
+        float recovery = Recovery / swingSpeed;
         if (hit)
         {
             // Snapshot the recovery length at contact so releasing the action cannot rewind the pose.
             recoveryStart = now;
-            recoveryEnd = now + (due > now ? Mathf.Clamp((due - now) * .48f, .04f, Recovery) : Recovery);
+            recoveryEnd = now + (due > now ? Mathf.Clamp((due - now) * .48f, .04f, recovery) : recovery);
             clock.Clear();
             forecastDue = -1f;
             return Contact;
@@ -191,8 +192,8 @@ internal sealed partial class LeoFirstPersonView
             clock.ForgetForecast();
             return 0f;
         }
-        clock.Forecast(now, due, ground ? GroundWindup : StandingWindup);
-        return clock.Phase(now, Contact, Recovery, false);
+        clock.Forecast(now, due, (ground ? GroundWindup : StandingWindup) / swingSpeed);
+        return clock.Phase(now, Contact, recovery, false);
     }
 
     static Pose Equip(Pose carry, float ready, float stow)
@@ -242,7 +243,7 @@ internal sealed partial class LeoFirstPersonView
             impactTool = Quaternion.Inverse(root.rotation) *
                 LeoAxePose.GroundTool(toward, groundCutAxis, camera.transform.right);
         }
-        var strike = new Pose(edge - impactTool * (CuttingEdge - LeoAxePose.MainGrip), impactTool, 1f);
+        var strike = new Pose(edge - impactTool * (cuttingEdge - LeoAxePose.MainGrip), impactTool, 1f);
         if (phase <= Contact)
         {
             float t = Mathf.Pow((phase - loaded) / (Contact - loaded), 1.45f);

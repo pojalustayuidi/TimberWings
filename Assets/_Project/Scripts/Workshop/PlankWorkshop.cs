@@ -5,7 +5,7 @@
 //   рецепт:   GameBalance.PlankRecipe бревна -> 1 доска (потолок дизайна GameBalance.MaxLogsPerPlank = 6)
 //   время:    GameBalance.PlankTime на доску, с прокачкой «Скорость пилы» (PlayerUpgrades.SawTime)
 //   очередь:  не больше QueueCap досок в работе; склад готовых: OutputCap (GameBalance + «Запасливый» boss_hoard)
-//   «Мастер-пильщик» (boss_sawyer): каждая доска заказа с шансом SkillSawyerChance не тратит бревна (они возвращаются в рюкзак)
+//   «Мастер-пильщик»: каждая шестая заказанная доска требует на одно бревно меньше.
 // Вешается на корень хижины (меню Tools > BuilderSim > Настроить цепочку StoryFlow делает это само).
 // Пока хижина не достроена, пила закрыта (StoryFlow включает её после главы про хижину).
 // Для квестов: unlocked, totalCollected (сколько досок забрано за всю игру).
@@ -46,6 +46,8 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
     GameObject statusGo;
     string statusShown;
     float statusAt;
+    int sawyerRemainder;
+    internal static PlankWorkshop ActiveWorkshop { get; private set; }
 
     // ------------------------------------------------------------ данные для окна
     public int LogsPerPlank { get { return GameBalance.PlankRecipe; } }
@@ -62,11 +64,13 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
     public int LogsInBackpack { get { return FindPlayer() ? inv.woodCount : 0; } }
 
     // вместимость очереди и склада: базовая + «Запасливый» (boss_hoard)
-    public static int QueueCap { get { return GameBalance.PlankQueueCap + (PlayerSkills.Has(SkillIds.BossHoard) ? GameBalance.SkillHoardQueue : 0); } }
+    public static int QueueCap => QueueAt(PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.Level(UpgradeType.SawSpeed) : 0);
+    internal static int QueueAt(int rank) => GameBalance.SawQueue[rank] +
+        (PlayerSkills.Has(SkillIds.BossHoard) ? GameBalance.SkillHoardQueue : 0);
     public static int OutputCap { get { return GameBalance.PlankOutputCap + (PlayerSkills.Has(SkillIds.BossHoard) ? GameBalance.SkillHoardOutput : 0); } }
 
     // самый большой возможный предел (с навыком): по нему режем сохранение, чтобы не потерять доски, пока навык ещё не сверен с уровнем
-    static int QueueCapMax { get { return GameBalance.PlankQueueCap + GameBalance.SkillHoardQueue; } }
+    static int QueueCapMax { get { return GameBalance.SawQueue[GameBalance.SawQueue.Length - 1] + GameBalance.SkillHoardQueue; } }
     static int OutputCapMax { get { return GameBalance.PlankOutputCap + GameBalance.SkillHoardOutput; } }
 
     // сколько досок ещё можно поставить в работу: очередь и склад готовых не должны переполниться.
@@ -82,7 +86,19 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
     }
 
     // сколько досок можно заказать прямо сейчас (бревна в рюкзаке и свободные места)
-    public int MaxOrder { get { return Mathf.Max(0, Mathf.Min(FreeSlots, LogsInBackpack / LogsPerPlank)); } }
+    public int MaxOrder
+    {
+        get
+        {
+            int boards = FreeSlots;
+            int logs = LogsInBackpack;
+            while (boards > 0 && OrderWoodCost(boards) > logs) boards--;
+            return boards;
+        }
+    }
+
+    public int OrderWoodCost(int boards) => boards * LogsPerPlank - (PlayerSkills.Has(SkillIds.BossSawyer)
+        ? (sawyerRemainder + boards) / 6 : 0);
 
     public float SecondsLeft { get { return queuedPlanks <= 0 ? 0f : (queuedPlanks - progress) * SecondsPerPlank; } }
 
@@ -95,9 +111,9 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
             if (FreeSlots <= 0)
                 return queuedPlanks >= QueueCap ? "Очередь полна: подожди, пока пила освободится" : "Склад досок полон: забери готовые";
             int logs = LogsInBackpack;
-            if (logs < LogsPerPlank)
+            if (logs < OrderWoodCost(1))
             {
-                int need = LogsPerPlank - logs;
+                int need = OrderWoodCost(1) - logs;
                 return "Не хватает бревен: нужно ещё " + need + ". На 1 доску идёт " + LogsPerPlank;
             }
             return null;
@@ -125,33 +141,15 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
         planks = Mathf.Min(planks, MaxOrder);
         if (planks <= 0) return false;
 
-        if (!inv.RemoveWood(planks * LogsPerPlank)) return false;   // не хватило брёвен: доски не выдаём
-
-        // «Мастер-пильщик»: часть досок без трат. Сначала списываем всё, потом возвращаем бревна за счастливые доски:
-        // так не нужно ничего предсказывать заранее, а рюкзак после возврата не больше, чем был до заказа
-        int free = RollSawyer(planks);
-        if (free > 0)
+        int cost = OrderWoodCost(planks);
+        if (!inv.RemoveGoods(cost, 0, () =>
         {
-            inv.AddWood(free * LogsPerPlank);
-            var popups = RewardPopups.Instance;
-            if (popups != null)
-                popups.ShowText(PromptPoint, "Мастер-пильщик: " + free + " " + UiDraw.Plural(free, "доска", "доски", "досок") + " без бревен", plankColor, 40f);
-        }
-
-        queuedPlanks += planks;
-        SaveSystem.RequestSave("workshop");
+            if (PlayerSkills.Has(SkillIds.BossSawyer)) sawyerRemainder = (sawyerRemainder + planks) % 6;
+            queuedPlanks += planks;
+            SaveSystem.RequestSave("workshop");
+        })) return false;
         RaiseChanged();
         return true;
-    }
-
-    // сколько из заказанных досок повезло (без навыка всегда 0)
-    static int RollSawyer(int planks)
-    {
-        if (!PlayerSkills.Has(SkillIds.BossSawyer)) return 0;
-        int n = 0;
-        for (int i = 0; i < planks; i++)
-            if (UnityEngine.Random.value < GameBalance.SkillSawyerChance) n++;
-        return n;
     }
 
     public int Collect()
@@ -202,6 +200,7 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
         public int queued;
         public int ready;
         public int collected;
+        public int sawyerRemainder;
         public float progress;
     }
 
@@ -210,7 +209,7 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
 
     public string Save()
     {
-        return JsonUtility.ToJson(new SaveData { queued = queuedPlanks, ready = readyPlanks, collected = totalCollected, progress = progress });
+        return JsonUtility.ToJson(new SaveData { queued = queuedPlanks, ready = readyPlanks, collected = totalCollected, progress = progress, sawyerRemainder = sawyerRemainder });
     }
 
     // Без наград, XP, всплывашек и RequestSave (правило ISaveable). Окно уведомит OnSaveLoaded
@@ -223,6 +222,7 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
             catch (Exception e) { Debug.LogWarning("PlankWorkshop: не удалось прочитать сохранение пилы: " + e.Message); }
         }
         if (d == null) { ResetToDefault(); return; }
+        sawyerRemainder = Mathf.Clamp(d.sawyerRemainder, 0, 5);
 
         queuedPlanks = Mathf.Clamp(d.queued, 0, QueueCapMax);     // по максимуму с навыком: доски за уже списанные бревна не теряем
         readyPlanks = Mathf.Clamp(d.ready, 0, OutputCapMax);
@@ -232,6 +232,7 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
 
     public void ResetToDefault()
     {
+        sawyerRemainder = 0;
         queuedPlanks = 0;
         readyPlanks = 0;
         totalCollected = 0;
@@ -246,12 +247,14 @@ public class PlankWorkshop : MonoBehaviour, IInteractable, IPriorityInteractable
 
     void OnEnable()
     {
+        ActiveWorkshop = this;
         Interactables.Register(this); SaveSystem.Loaded += OnSaveLoaded;
         PlayerSkills.Changed -= RaiseChanged; PlayerSkills.Changed += RaiseChanged;   // пределы очереди и склада поменялись: окно обновится
     }
 
     void OnDisable()
     {
+        if (ActiveWorkshop == this) ActiveWorkshop = null;
         PlayerSkills.Changed -= RaiseChanged;
         SaveSystem.Loaded -= OnSaveLoaded;
         Interactables.Unregister(this);

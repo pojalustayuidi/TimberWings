@@ -286,25 +286,16 @@ public class PlayerMovement : MonoBehaviour
         if (GetComponent<WaterSwim>() == null) gameObject.AddComponent<WaterSwim>();   // плавание и утопление в реке (без WaterVolume ничего не делает)
     }
 
-    // GDD: базовая скорость × бонус прокачки × (1 − 25% × заполненность рюкзака)
-    // «Лёгкая поступь» (carry_light): замедление 15% вместо 25%. «Быстрые ноги» (carry_legs) входят в SpeedMultiplier.
-    // Рывок (carry_dash): ×2 на 0.4 с поверх всего остального.
+    internal float BaseRunSpeed => useBalanceSpeed ? GameBalance.PlayerSpeed : speed;
+
     public float CurrentSpeed
     {
         get
         {
-            float v = useBalanceSpeed ? GameBalance.PlayerSpeed : speed;
-            var up = PlayerUpgrades.Instance;
-            if (up != null) v *= up.SpeedMultiplier;
-            if (backpack != null && backpack.Capacity > 0)
-            {
-                float fill = Mathf.Clamp01((float)backpack.Carried / backpack.Capacity);
-                float slow = PlayerSkills.Has(SkillIds.CarryLight) ? GameBalance.SkillCarrySlowdown : GameBalance.FullBackpackSlowdown;
-                v *= 1f - slow * fill;
-            }
-            if (IsDashing) v *= GameBalance.SkillDashMul;
-            v *= WaterSwim.SpeedMul;   // брод и плавание: медленнее
-            return v;
+            var upgrades = PlayerUpgrades.Instance;
+            float result = BaseRunSpeed * (upgrades != null ? upgrades.SpeedMultiplier : 1f);
+            if (IsDashing) result *= GameBalance.SkillDashMul;
+            return result * WaterSwim.SpeedMul;
         }
     }
 

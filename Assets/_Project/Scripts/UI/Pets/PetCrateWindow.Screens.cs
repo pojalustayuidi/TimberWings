@@ -91,7 +91,7 @@ public partial class PetCrateWindow
     void BuildStrip(PetData winner, PetDatabase db)
     {
         // в ленте только те редкости, что реально выпадают из этой клети
-        float[] odds = GameBalance.PetCrateOdds[(int)crate];
+        float[] odds = PetRoller.OddsFor(crate);
         var pool = new List<PetData>();
         if (db != null && db.pets != null)
             for (int i = 0; i < db.pets.Count; i++)

@@ -62,16 +62,18 @@ public sealed partial class LeoModelPresentation
             chopTarget = interaction.TargetItem;
         }
 
+        float swingSpeed = interaction != null ? interaction.AxeSwingSpeed : 1f;
+        float recovery = chopBook.recovery / swingSpeed;
         float due = chopping && interaction.AnimationHasScheduledImpact ? interaction.AnimationScheduledImpact : -1f;
         if (chopping && due < 0f && interaction.useAnimationEvents && !PlayerInteraction.RhythmChop)
             due = legacyTiming.Next(interaction.animator, now);
-        if (due >= 0f) chopClock.Forecast(now, due, chopBook.windup);
+        if (due >= 0f) chopClock.Forecast(now, due, chopBook.windup / swingSpeed);
         else chopClock.ForgetForecast();
 
-        bool recovering = chopClock.Recovering(now, chopBook.recovery);
+        bool recovering = chopClock.Recovering(now, recovery);
         if (chopping || recovering || impactFrame)
         {
-            chopPhase = chopClock.Phase(now, chopBook.contact, chopBook.recovery, impactFrame);
+            chopPhase = chopClock.Phase(now, chopBook.contact, recovery, impactFrame);
             chopWeight = impactFrame ? 1f : Mathf.MoveTowards(chopWeight, 1f, dt * 12f);
             if (!impactFrame && !recovering)
             {
@@ -138,7 +140,7 @@ public sealed partial class LeoModelPresentation
                 var tip = new GameObject("Leo Axe Stroke");
                 tip.layer = rig.axeRoot.gameObject.layer;
                 tip.transform.SetParent(rig.axeRoot, false);
-                tip.transform.localPosition = LeoAxePose.Edge;
+                tip.transform.localPosition = rig.EquippedAxeEdge;
                 chopTrail = tip.AddComponent<TrailRenderer>();
                 chopTrail.sharedMaterial = mat;
                 chopTrail.time = .055f;
@@ -153,6 +155,7 @@ public sealed partial class LeoModelPresentation
             }
         }
         if (chopTrail == null) return;
+        chopTrail.transform.localPosition = rig.EquippedAxeEdge;
         if (emit && !chopTrail.emitting) chopTrail.Clear();
         chopTrail.emitting = emit;
     }

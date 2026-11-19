@@ -90,6 +90,7 @@ public sealed partial class LeoModelPresentation : MonoBehaviour
     {
         Initialize();
         if (!initialized || rig == null || PrimaryOwnsRig || Time.deltaTime <= 0f) return;
+        if (interaction != null && rig.SyncAxe(interaction.EquippedAxe)) ResetChopPose();
         float frameTime = Time.deltaTime;
         float dt = Mathf.Min(.1f, frameTime), now = Time.time;
         float travel = 0f;

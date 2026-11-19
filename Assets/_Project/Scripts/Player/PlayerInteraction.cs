@@ -185,22 +185,22 @@ public partial class PlayerInteraction : MonoBehaviour
     public bool InRhythm { get { return rhythmActive; } }
     public int Combo { get { return combo; } }
 
+    internal static PlayerAxeEquipment CurrentAxes => inst != null ? inst.Axes : null;
+    internal PlayerAxeEquipment Axes { get; private set; }
+    internal AxeDefinition EquippedAxe => Axes != null ? Axes.Equipped : AxeCatalog.Get(AxeId.Old);
+
     public float GatherTime
     {
         get
         {
             if (gatherTimeOverride > 0f) return gatherTimeOverride;
-            // «Сила удара» и таланты уже внутри upgrades.ChopTime (3 с × 0.9^L × ...). Серия рубки делит это время на (1 + бонус):
-            // бонусы перемножаются. Без навыка (или после сброса) ChainBonus = 0, и время прежнее.
-            float t = upgrades != null ? upgrades.ChopTime : GameBalance.ChopTime;
             int chain = IsChopping ? chainLock : LumberSkills.ChainNow;
-            // размер дерева: молодое рубится быстрее (×0.7), старое дольше (×1.5). Во время рубки цель не меняется (смена цели сбрасывает рубку)
-            float sizeMul = TargetItem != null ? TargetItem.ChopMul : 1f;
-            return t / (1f + LumberSkills.ChainBonus(chain)) * sizeMul;
+            float size = TargetItem != null ? TargetItem.ChopMul : 1f;
+            return GameBalance.ChopTime * size / CurrentChopPower(chain);
         }
     }
 
-    // сколько бревен у дерева: база без случайной «Двойной добычи» (3 с «Крепкой древесиной», 6 у золотого, 1 / 2 / 4 по размеру)
+    // Сколько брёвен у дерева до случайных бонусов.
     public int WoodFull { get { return LumberSkills.BaseWood(TargetItem); } }
 
     // сколько из них ВЛЕЗЕТ в рюкзак прямо сейчас: это число плашка рисует как «+2», а «+2/4», если влезает не всё
@@ -391,6 +391,8 @@ public partial class PlayerInteraction : MonoBehaviour
         progressUI = GetComponent<ChopProgress>();
         upgrades = GetComponent<PlayerUpgrades>();
         if (upgrades == null) upgrades = gameObject.AddComponent<PlayerUpgrades>();
+        Axes = GetComponent<PlayerAxeEquipment>();
+        if (Axes == null) Axes = gameObject.AddComponent<PlayerAxeEquipment>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
         // чтобы MobileInput знал какую клавишу слушать
         MobileInput.ActionKey = chopKey;
@@ -424,6 +426,8 @@ public partial class PlayerInteraction : MonoBehaviour
 
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.I) && PrototypeInputAllowed && Axes.CanEquip)
+            AxeWindow.Open(Axes);
         PrototypeToggle();
         if (TickChop03()) return;
         // A tree click or held E must never replace the construction approach or move Leo during a fall.
@@ -775,7 +779,7 @@ public partial class PlayerInteraction : MonoBehaviour
         if (TargetItem == null) return;
 
         var item = TargetItem;
-        bool prototype = PrototypeStanding(item);
+        bool prototype = PrototypeStanding(item) || item.IsGolden;
         // Обычная рубка по-прежнему требует свободного слота. В CHOP-02 древесина ждёт на земле.
         if (!prototype && backpack != null && backpack.NoRoom)
         {
@@ -804,13 +808,14 @@ public partial class PlayerInteraction : MonoBehaviour
         if (rhythmActive && hud != null) hud.CompleteChop();
 
         // ---- сколько бревен (порядок описан в LumberSkills) ----
-        // 1) база дерева: 2; «Крепкая древесина» делает 3; золотое дерево 6 (берётся большее)
-        // 2) «Двойная добыча»: ×2 к базе (у золотого 12, у крепкого 6)
-        // 3) «Чистый спил» ритм-режима: +1 после умножения
-        // 4) «Эхо удара» даёт отдельное бревно с упавшего соседа (ниже), «Двойная добыча» на него не действует
+        // Бонусы обычной рубки применяются после базовой награды.
+        var special = item.SpecialHarvest;
         int wood = LumberSkills.BaseWood(item);
-        if (upgrades != null && Random.value < upgrades.DoubleChance) wood *= 2;   // «Двойная добыча»
-        if (rhythmActive && cleanCut) wood += GameBalance.RhythmCleanCutLogs;       // «Чистый спил»
+        if (special == null && !item.IsGolden)
+        {
+            if (upgrades != null && Random.value < upgrades.DoubleChance) wood *= 2;
+            if (rhythmActive && cleanCut) wood += GameBalance.RhythmCleanCutLogs;
+        }
         if (rhythmTree != null) rhythmTree.rhythmProgress = 0f;
         int xp = GameBalance.XpPerTree;
         xp += SilverTree.TakeBonusXp(item);   // серебряное дерево: бонусный опыт, звук и тост (0 у обычного)
@@ -1002,7 +1007,7 @@ public partial class PlayerInteraction : MonoBehaviour
         float d = Mathf.Abs(Marker01() - 0.5f);
         int q = d <= GameBalance.RhythmPerfectHalf ? 2 : d <= GameBalance.RhythmGoodHalf ? 1 : 0;
 
-        nextSwingAt = Time.time + GameBalance.RhythmCooldown;
+        nextSwingAt = Time.time + GameBalance.RhythmCooldown / AxeSwingSpeed;
         pendingQuality = q;
         pendingDue = Time.time + Mathf.Clamp(impactDelay, 0f, GameBalance.RhythmCooldown * 0.8f);
         pendingHit = true;
@@ -1058,7 +1063,7 @@ public partial class PlayerInteraction : MonoBehaviour
             comboLabel = combo >= 2 ? "Серия ×" + combo : "В ритм!";
         }
 
-        float cd = GameBalance.RhythmCooldown > 0f ? Mathf.Clamp01((nextSwingAt - Time.time) / GameBalance.RhythmCooldown) : 0f;
+        float cd = GameBalance.RhythmCooldown > 0f ? Mathf.Clamp01((nextSwingAt - Time.time) * AxeSwingSpeed / GameBalance.RhythmCooldown) : 0f;
         h.ShowChopRhythm(Progress, ExpectedWood, comboLabel, WoodFull);
         h.SetRhythm(Marker01(), GameBalance.RhythmGoodHalf, GameBalance.RhythmPerfectHalf, combo, cd);
     }

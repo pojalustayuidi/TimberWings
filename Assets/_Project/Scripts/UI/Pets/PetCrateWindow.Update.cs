@@ -66,7 +66,7 @@ public partial class PetCrateWindow
         Set(priceText, price <= 0 ? "БЕСПЛАТНО" : price.ToString());
 
         // шансы: показываем только редкости с шансом больше нуля, рядом сколько видов в этой редкости
-        float[] odds = GameBalance.PetCrateOdds[(int)crate];
+        float[] odds = PetRoller.OddsFor(crate);
         int row = 0;
         for (int r = 0; r < 4; r++)
         {

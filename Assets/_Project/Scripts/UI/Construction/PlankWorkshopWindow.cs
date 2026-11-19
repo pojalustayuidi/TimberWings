@@ -204,6 +204,8 @@ public class PlankWorkshopWindow : MonoBehaviour
     {
         refreshAt = Time.unscaledTime + 0.1f;
         if (!built || ws == null) return;
+        var story = StoryFlow.Instance;
+        forgeButton.gameObject.SetActive(story != null && story.workshop == ws && story.AxeForgeAvailable);
         if (up == null) up = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance : FindFirstObjectByType<PlayerUpgrades>();
 
         int recipe = ws.LogsPerPlank;
@@ -233,12 +235,12 @@ public class PlankWorkshopWindow : MonoBehaviour
         else if (up != null && !up.IsUnlocked(UpgradeType.SawSpeed))
         {
             Set(upgradeCaption, "Улучшение пилы откроется позже");
-            SetBtn(upgrade, "С " + GameBalance.SawUnlockLevel + "-го уровня", false);
+            SetBtn(upgrade, "С " + up.NextRequiredLevel(UpgradeType.SawSpeed) + "-го уровня", false);
         }
         else
         {
-            float next = up != null ? up.ValueAt(UpgradeType.SawSpeed, lvl + 1) : GameBalance.PlankTime * Mathf.Pow(GameBalance.SawTimeFactor, lvl + 1);   // с учётом талантов
-            int cost = GameBalance.UpgradeCost((int)UpgradeType.SawSpeed, lvl);
+            float next = up != null ? up.ValueAt(UpgradeType.SawSpeed, lvl + 1) : GameBalance.SawSeconds[lvl + 1];   // с учётом талантов
+            int cost = up != null ? up.NextCost(UpgradeType.SawSpeed) : GameBalance.UpgradeCost((int)UpgradeType.SawSpeed, 0);
             Set(upgradeCaption, sec.ToString("0.0") + " с  →  <color=" + HexDone + ">" + next.ToString("0.0") + " с</color>  <size=85%><color=" + HexGold + ">(" + cost + " монет)</color></size>");
             bool can = uw != null && uw.IsUnlocked;
             SetBtn(upgrade, can ? "Прокачать пилу" : "Прокачка закрыта", can);
@@ -258,9 +260,11 @@ public class PlankWorkshopWindow : MonoBehaviour
         string reason = ws.BlockReason;
         if (count > 0)
         {
-            Set(summaryText, "Спишется <color=" + HexGold + ">" + (count * recipe) + "</color> " + UiDraw.Plural(count * recipe, "бревно", "бревна", "бревен")
+            int woodCost = ws.OrderWoodCost(count);
+            int saved = count * recipe - woodCost;
+            Set(summaryText, "Спишется <color=" + HexGold + ">" + woodCost + "</color> " + UiDraw.Plural(woodCost, "бревно", "бревна", "бревен")
                              + " · пила будет работать ~<color=" + HexGold + ">" + PlankWorkshop.FormatTime(count * sec) + "</color>"
-                             + (PlayerSkills.Has(SkillIds.BossSawyer) ? "  ·  <color=" + HexDone + ">шанс " + Mathf.RoundToInt(GameBalance.SkillSawyerChance * 100f) + "% на доску без бревен</color>" : ""));
+                             + (saved > 0 ? "  ·  <color=" + HexDone + ">сэкономим: " + saved + "</color>" : ""));
             SetPlaque(reasonPlaque, "");
             SetBtn(start, "Начать", true);
         }
@@ -349,13 +353,29 @@ public class PlankWorkshopWindow : MonoBehaviour
     }
 
     // значок пилорамы слева от названия (название и «×» делает UiCandy.Window)
+    Button forgeButton;
+
     void BuildHeader()
     {
         var icon = UiCandy.Icon(panel, UiIcon.Sawmill, 44f, "TitleIcon");
         TLC(icon.rectTransform, WinW * 0.5f - 135f, 27, 44, 44);
+        forgeButton = UiKit.MakeButton(panel, "Кузница", UiBtn.Amber, new Vector2(150, 43), 23f, 1f);
+        TLC((RectTransform)forgeButton.transform, 124, 27, 150, 43);
+        forgeButton.navigation = new Navigation { mode = Navigation.Mode.None };
+        forgeButton.onClick.AddListener(OpenForge);
+        UiClickFallback.Register(forgeButton, () => open && openK > .5f, true);
     }
 
     // ------------------------------------------------------------ левая колонка: рецепт и пила
+    void OpenForge()
+    {
+        var story = StoryFlow.Instance;
+        var axes = PlayerInteraction.CurrentAxes;
+        if (!open || story == null || story.workshop != ws || !story.CanUseAxeForge(axes) || !axes.CanEquip) return;
+        Close();
+        AxeWindow.Open(axes, workshop: story);
+    }
+
     void BuildRecipeCard(Transform parent)
     {
         var card = UiKit.MakePanel(parent, new Vector2(LeftW, PanelH), false, 0.6f, "Recipe");

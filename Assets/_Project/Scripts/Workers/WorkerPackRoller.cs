@@ -101,12 +101,15 @@ public static class WorkerPackRoller
         return (WorkerRarity)pick;
     }
 
+    internal static float[] OddsFor(WorkerPackType type) =>
+        TalentEffects.LuckyOdds(WorkerBalance.OddsOf(type), (int)WorkerRarity.Rare);
+
     // Редкость пака. usePity = false отключает гарантии (тест «чистых» шансов).
     // triggered != None, если гарантия реально подняла результат.
     public static WorkerRarity RollRarity(WorkerPackType type, WorkerPackState state, System.Random rng, bool usePity, out PackGuarantee triggered)
     {
         triggered = PackGuarantee.None;
-        float[] odds = WorkerBalance.OddsOf(type);
+        float[] odds = OddsFor(type);
         WorkerRarity natural = Pick(odds, 0, rng, WorkerRarity.Common);
         if (!usePity) return natural;
 

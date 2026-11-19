@@ -4,7 +4,7 @@
 //   Открыть окно прокачки   Ctrl+Shift+U   разблокирует окно (минуя сюжет) и открывает его
 //   +1000 монет             Ctrl+Shift+M
 //   +1 свободное очко       Ctrl+Shift+P
-//   Уровень игрока...       ставит 3 / 5 / 7 / 10 (пила открывается с 3-го, правые таланты с 4-го и 6-го)
+//   Уровень игрока...       ставит 3 / 5 / 7 / 9 / 11 / 15
 //   Всё на максимум / Сбросить прокачку
 //   Открывать при старте    галка: окно само откроется через пару секунд после нажатия Play (+ монеты, очки, 5-й уровень)
 using UnityEditor;
@@ -100,7 +100,9 @@ public static class UpgradeTestTools
     [MenuItem(Root + "Уровень игрока/3", false, 1043)] static void Lvl3() { if (InPlay()) SetLevel(3); }
     [MenuItem(Root + "Уровень игрока/5", false, 1044)] static void Lvl5() { if (InPlay()) SetLevel(5); }
     [MenuItem(Root + "Уровень игрока/7", false, 1045)] static void Lvl7() { if (InPlay()) SetLevel(7); }
-    [MenuItem(Root + "Уровень игрока/10 (максимум)", false, 1046)] static void Lvl10() { if (InPlay()) SetLevel(GameBalance.MaxLevel); }
+    [MenuItem(Root + "Уровень игрока/9", false, 1046)] static void Lvl9() { if (InPlay()) SetLevel(9); }
+    [MenuItem(Root + "Уровень игрока/11", false, 1047)] static void Lvl11() { if (InPlay()) SetLevel(11); }
+    [MenuItem(Root + "Уровень игрока/15 (максимум)", false, 1048)] static void Lvl15() { if (InPlay()) SetLevel(GameBalance.MaxLevel); }
 
     static void SetLevel(int level)
     {
@@ -108,7 +110,8 @@ public static class UpgradeTestTools
         if (st == null) { Debug.LogWarning("[Тест прокачки] PlayerStats не найден."); return; }
         level = Mathf.Clamp(level, 1, GameBalance.MaxLevel);
         st.currentLevel = level;
-        st.currentXP = Mathf.Max(st.currentXP, GameBalance.XpForLevel(level));
+        st.currentXP = GameBalance.XpForLevel(level);
+        PlayerSkills.Refresh();
         st.RefreshUI();
     }
 
@@ -119,7 +122,7 @@ public static class UpgradeTestTools
         if (PlayerUpgrades.Instance != null) PlayerUpgrades.Instance.DebugMaxAll();
     }
 
-    [MenuItem(Root + "Сбросить прокачку и таланты", false, 1048)]
+    [MenuItem(Root + "Сбросить характеристики", false, 1048)]
     static void Reset()
     {
         if (!InPlay()) return;

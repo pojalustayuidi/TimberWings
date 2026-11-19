@@ -122,6 +122,7 @@ public class BuildingController : MonoBehaviour
 
     void OnEnable()
     {
+        kindKnown = false;
         if (!registry.Contains(this)) registry.Add(this);
         BuildingSaveHub.Attach(this);
         // Каждый объект стройки сам подключает обработчик ударов и стадий.
@@ -241,7 +242,7 @@ public class BuildingController : MonoBehaviour
     public int CostTotal { get { EnsureData(); return costs[StepIndex]; } }
     // сколько брёвен уже сдано на ближайший этап
     public int Deposited { get { return deposited; } }
-    public int PlankTotal { get { EnsureData(); return planks[StepIndex]; } }
+    public int PlankTotal { get { EnsureData(); return Mathf.Max(depositedPlanks, TalentEffects.BuildPlanks(planks[StepIndex])); } }
     public int CoinTotal { get { EnsureData(); return coins[StepIndex]; } }
     public int DepositedPlanks { get { return depositedPlanks; } }
     public int DepositedCoins { get { return depositedCoins; } }
@@ -898,22 +899,24 @@ public class BuildingController : MonoBehaviour
     // ---------------------------------------------------------------- сохранение (общий BuildingSaveHub, ключ «buildings»)
     // ID стройки: путь по иерархии + тип. InstanceID не годится: он другой при каждом запуске.
     // Переименование объекта в сцене = новый ID (прогресс этой стройки начнётся заново).
-    internal string saveId;
+    [NonSerialized] internal string saveId;
     // Serialized for Editor-baked build zones; exposed to the separate Editor assembly.
     [SerializeField, HideInInspector] public string legacySaveId;
-    BuildSiteKind kindCache = BuildSiteKind.Other;
-    bool kindKnown, started, restorePending;
+    [NonSerialized] BuildSiteKind kindCache = BuildSiteKind.Other;
+    [NonSerialized] bool kindKnown;
+    bool started, restorePending;
     BuildingSaveEntry restoreEntry;
 
     static readonly string[] SaveCampfireKeys = { "campfire", "костёр", "костер" };
 
-    public string SaveId { get { return saveId != null ? saveId : MakeBaseId(); } }
+    public string SaveId => Application.isPlaying && !string.IsNullOrEmpty(saveId) ? saveId : MakeBaseId();
 
     // что это за стройка (по тем же словам в названии, что использует StoryFlow)
     public BuildSiteKind SiteKind
     {
         get
         {
+            if (!Application.isPlaying) return DetectKind();
             if (!kindKnown) { kindCache = DetectKind(); kindKnown = true; }
             return kindCache;
         }
@@ -921,6 +924,7 @@ public class BuildingController : MonoBehaviour
 
     BuildSiteKind DetectKind()
     {
+        if (GetComponentInParent<RuneForge>(true) != null) return BuildSiteKind.RuneForge;
         string path = StoryFlow.PathOf(this);
         if (StoryFlow.HasAny(path, SaveCampfireKeys)) return BuildSiteKind.Campfire;
         if (StoryFlow.MatchesSite(StoryFlow.Site.Hut, path)) return BuildSiteKind.Hut;
@@ -932,9 +936,11 @@ public class BuildingController : MonoBehaviour
 
     internal string MakeBaseId()
     {
+        var kind = SiteKind;
+        if (kind == BuildSiteKind.RuneForge) return RuneForge.SaveId;
         string path = name;
         for (var p = transform.parent; p != null; p = p.parent) path = p.name + "/" + path;
-        return path + "|" + SiteKind;
+        return path + "|" + kind;
     }
 
     // снимок состояния. Пока сохранённое ещё не применено, отдаём его же: автосохранение не затрёт прогресс дефолтами
@@ -986,7 +992,7 @@ public class BuildingController : MonoBehaviour
 
         // сданное считаем по ПОСЛЕ-шаговым ценам (CostTotal зависит от step)
         deposited = isFinished ? 0 : Mathf.Clamp(e.deposited, 0, CostTotal);
-        depositedPlanks = isFinished ? 0 : Mathf.Clamp(e.depositedPlanks, 0, PlankTotal);
+        depositedPlanks = isFinished ? 0 : Mathf.Clamp(e.depositedPlanks, 0, planks[StepIndex]);
         depositedCoins = isFinished ? 0 : Mathf.Clamp(e.depositedCoins, 0, CoinTotal);
         tutorialFired = e.tutorialFired;
 
@@ -1121,7 +1127,7 @@ public class BuildingController : MonoBehaviour
 }
 
 // ================================================================ сохранение строек
-public enum BuildSiteKind { Other = 0, Campfire = 1, Hut = 2, Market = 3, Tent = 4, Bridge = 5 }
+public enum BuildSiteKind { Other = 0, Campfire = 1, Hut = 2, Market = 3, Tent = 4, Bridge = 5, RuneForge = 6 }
 
 // Запись одной стройки. ДОБАВЛЯТЬ ПОЛЯ ТОЛЬКО С ДЕФОЛТАМИ: старые файлы без них читаются нормально
 [Serializable]

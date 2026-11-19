@@ -13,10 +13,13 @@ public static class PetRoller
 {
     static readonly List<PetData> pool = new List<PetData>();
 
+    internal static float[] OddsFor(CrateType crate) =>
+        TalentEffects.LuckyOdds(GameBalance.PetCrateOdds[(int)crate], (int)PetRarity.Rare);
+
     // Выбирает редкость. Чистая функция: зависит только от таблицы шансов, счётчика и rng.
     public static PetRarity RollRarity(CrateType crate, int pityCounter, Random rng, out int newPity)
     {
-        float[] odds = GameBalance.PetCrateOdds[(int)crate];
+        float[] odds = OddsFor(crate);
         bool forced = pityCounter >= GameBalance.PetGuaranteeEvery - 1;
         int first = forced ? (int)PetRarity.Rare : 0;
 

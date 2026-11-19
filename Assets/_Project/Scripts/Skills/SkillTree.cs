@@ -1,124 +1,107 @@
-// Assets/_Project/Scripts/Skills/SkillTree.cs (НЕ в Editor)
-// Статические данные дерева навыков: 3 ветки × 5 узлов (ярус 1: один узел, ярусы 2 и 3: два взаимоисключающих).
-// Здесь только описание узлов. Очки, покупка, сброс и сохранение: PlayerSkills. Эффекты: задачи 3 и 4 (читают PlayerSkills.Has(id)).
-// Цены, уровни и числа в описаниях берутся из GameBalance: поменял число там, и текст в UI обновится сам.
-//
-// Как добавить узел: новая строка в Build(), новая константа ID в SkillIds, при необходимости числа в GameBalance.
-// Старые сохранения читаются без миграции (неизвестные ID просто игнорируются).
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum SkillBranch { Lumberjack = 0, Carrier = 1, Master = 2 }
+public enum SkillBranch { Lumberjack, Workshop, Camp }
 
 public sealed class SkillNodeDef
 {
     public string Id;
     public SkillBranch Branch;
-    public int Tier;               // 1..3
-    public int Cost;               // очки = GameBalance.SkillTierCost[Tier - 1] (1/2/3)
-    public int RequiredLevel;      // GameBalance.SkillTierLevel[Tier - 1] (2/4/7)
-    public string ExclusiveGroup;  // null или "lumber_t2": из группы можно взять один узел
-    public string Title, Description;
+    public int Tier, Cost, RequiredLevel;
+    public string ExclusiveGroup, Title, Description;
 }
 
-// Строковые ID узлов (чтобы не опечататься в эффектах): PlayerSkills.Has(SkillIds.LumberChain)
 public static class SkillIds
 {
-    public const string LumberChain = "lumber_chain", LumberSturdy = "lumber_sturdy", LumberFastGrow = "lumber_fastgrow",
-                        LumberEcho = "lumber_echo", LumberGolden = "lumber_golden";
-    public const string CarryLight = "carry_light", CarryDash = "carry_dash", CarryBasket = "carry_basket",
-                        CarryFriend = "carry_friend", CarryLegs = "carry_legs";
-    public const string BossTongue = "boss_tongue", BossHoard = "boss_hoard", BossChief = "boss_chief",
-                        BossBulk = "boss_bulk", BossSawyer = "boss_sawyer";
+    // Retained IDs preserve compatible choices and existing effects.
+    public const string CarryDash = "carry_dash", LumberFastGrow = "lumber_fastgrow",
+        CutLayout = "lumber_layout", LumberEcho = "lumber_echo", LumberGolden = "lumber_golden",
+        WideZone = "lumber_wide", BossHoard = "boss_hoard", BossTongue = "boss_tongue",
+        BossSawyer = "boss_sawyer", ForgeDiscount = "workshop_forge", BossBulk = "boss_bulk",
+        Builder = "workshop_builder", Mentor = "camp_mentor", Lucky = "camp_lucky",
+        CarryFriend = "carry_friend", ClerkIncome = "camp_clerk", Crew = "camp_crew", Storage = "camp_storage";
+
+    // IDs understood by legacy gameplay paths. They are no longer offered in the tree.
+    public const string LumberChain = "lumber_chain", LumberSturdy = "lumber_sturdy",
+        CarryLight = "carry_light", CarryBasket = "carry_basket", CarryLegs = "carry_legs", BossChief = "boss_chief";
 }
 
 public static class SkillTree
 {
+    static readonly string[] branchNames = { "Лесоруб", "Мастерская и рынок", "Лагерь и питомцы" };
     static readonly List<SkillNodeDef> all = new List<SkillNodeDef>();
     static readonly Dictionary<string, SkillNodeDef> byId = new Dictionary<string, SkillNodeDef>();
-    static readonly SkillNodeDef[] roots = new SkillNodeDef[3];   // узлы 1-го яруса по веткам
 
-    static SkillTree() { Build(); }
-
-    // все 15 узлов в порядке: ветка, ярус, левый/правый
-    public static IReadOnlyList<SkillNodeDef> All { get { return all; } }
-
-    public static SkillNodeDef Get(string id)
+    static SkillTree()
     {
-        SkillNodeDef d;
-        return !string.IsNullOrEmpty(id) && byId.TryGetValue(id, out d) ? d : null;
+        Add(SkillIds.CarryDash, SkillBranch.Lumberjack, 1, "Ускорение", "Shift: рывок ×2 на 0,4 с. Перезарядка 8 с.");
+        Add(SkillIds.LumberFastGrow, SkillBranch.Lumberjack, 1, "Быстрый рост", "Обычное дерево отрастает на 25% быстрее после полного сбора.");
+        Add(SkillIds.CutLayout, SkillBranch.Lumberjack, 2, "Разметка ствола", "Точный завершающий удар на первом разрезе старого дерева уменьшает второй разрез с 8 до 6 единиц.");
+        Add(SkillIds.LumberEcho, SkillBranch.Lumberjack, 2, "Эхо удара", "При валке зрелого или старого дерева с шансом 15% падает молодой сосед. Из него можно собрать 1 бревно.");
+        Add(SkillIds.LumberGolden, SkillBranch.Lumberjack, 3, "Золотое дерево", "Даёт 8 брёвен после валки. Следующее появляется через 3 минуты после полного сбора.");
+        Add(SkillIds.WideZone, SkillBranch.Lumberjack, 3, "Широкая зона", "На валке и разделке зелёная зона расширяется с 34% до 48% шкалы.");
+        Add(SkillIds.BossHoard, SkillBranch.Workshop, 1, "Запасливый", "Личная пила: +3 места в очереди, +5 мест под готовые доски.");
+        Add(SkillIds.BossTongue, SkillBranch.Workshop, 1, "Базарный день", "Следующая продажа ×1,5. Повторный бонус доступен через 5 минут.");
+        Add(SkillIds.BossSawyer, SkillBranch.Workshop, 2, "Мастер-пильщик", "Каждая шестая доска с личной пилы экономит одно бревно.");
+        Add(SkillIds.ForgeDiscount, SkillBranch.Workshop, 2, "Подмастерье кузнеца", "Зачарование в рунной кузнице требует на 20% меньше монет.");
+        Add(SkillIds.BossBulk, SkillBranch.Workshop, 3, "Оптовик", "Продажа от 50 единиц даёт +10%. У Рико можно отложить партию за несколько заходов.");
+        Add(SkillIds.Builder, SkillBranch.Workshop, 3, "Мастер стройки", "На строительный этап требуется на 10% меньше досок с округлением вверх.");
+        Add(SkillIds.Mentor, SkillBranch.Camp, 1, "Наставник", "Рабочие получают на 20% больше опыта за время работы.");
+        Add(SkillIds.Lucky, SkillBranch.Camp, 1, "Удачливый", "Шанс редкого и выше в клетях и паках растёт на 10% от исходного. 10% превращаются в 11%.");
+        Add(SkillIds.CarryFriend, SkillBranch.Camp, 2, "Хозяин", "Открывает дополнительное активное место для питомца.");
+        Add(SkillIds.ClerkIncome, SkillBranch.Camp, 2, "Доход приказчика", "Назначенные приказчики приносят на 15% больше пассивного дохода.");
+        Add(SkillIds.Crew, SkillBranch.Camp, 3, "Слаженная бригада", "Когда все шесть мест заняты тремя дровосеками и тремя пильщиками, пильщики работают на 15% быстрее.");
+        Add(SkillIds.Storage, SkillBranch.Camp, 3, "Большой склад", "Базовый склад лагеря растёт с 30 до 50 брёвен и с 10 до 20 досок.");
     }
 
-    // узел 1-го яруса ветки: его нужно изучить перед ярусами 2 и 3
-    public static SkillNodeDef Tier1Of(SkillBranch b) { return roots[(int)b]; }
+    public static IReadOnlyList<SkillNodeDef> All => all;
 
-    public static string BranchName(SkillBranch b)
+    public static SkillNodeDef Get(string id) =>
+        !string.IsNullOrEmpty(id) && byId.TryGetValue(id, out var def) ? def : null;
+
+    public static string BranchName(SkillBranch branch) => branchNames[(int)branch];
+
+    internal static bool HasRoot(SkillBranch branch, HashSet<string> owned)
     {
-        switch (b)
-        {
-            case SkillBranch.Lumberjack: return "Лесоруб";
-            case SkillBranch.Carrier: return "Носильщик";
-            default: return "Хозяин";
-        }
+        foreach (var node in all)
+            if (node.Branch == branch && node.Tier == 1 && owned.Contains(node.Id)) return true;
+        return false;
     }
 
-    // ------------------------------------------------------------ данные
-    static string Pct(float v) { return Mathf.RoundToInt(v * 100f) + "%"; }
-    static string Sec(float v) { return v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture); }
-
-    static void Add(string id, SkillBranch branch, int tier, string group, string title, string desc)
+    static void Add(string id, SkillBranch branch, int tier, string title, string description)
     {
-        var d = new SkillNodeDef
+        var node = new SkillNodeDef
         {
-            Id = id, Branch = branch, Tier = tier,
-            Cost = GameBalance.SkillTierCost[tier - 1],
-            RequiredLevel = GameBalance.SkillTierLevel[tier - 1],
-            ExclusiveGroup = group, Title = title, Description = desc
+            Id = id, Branch = branch, Tier = tier, Cost = GameBalance.SkillTierCost[tier - 1],
+            RequiredLevel = 3, ExclusiveGroup = branch + "/" + tier, Title = title, Description = description
         };
-        all.Add(d);
-        byId[id] = d;
-        if (tier == 1) roots[(int)branch] = d;
+        all.Add(node);
+        byId.Add(id, node);
     }
+}
 
-    static void Build()
+internal static class TalentEffects
+{
+    internal static int BuildPlanks(int count) => PlayerSkills.Has(SkillIds.Builder)
+        ? (int)((count * 9L + 9) / 10) : count;
+
+    internal static int EnchantCoins(int baseCoins) => PlayerSkills.Has(SkillIds.ForgeDiscount)
+        ? (int)((baseCoins * 8L + 9) / 10) : baseCoins;
+
+    internal static float[] LuckyOdds(float[] baseOdds, int rareIndex)
     {
-        // ---------- Лесоруб (деревья) ----------
-        Add(SkillIds.LumberChain, SkillBranch.Lumberjack, 1, null, "Серия рубки",
-            "Каждое дерево подряд (пауза не больше " + Sec(GameBalance.SkillChainPause) + " с) даёт +" + Pct(GameBalance.SkillChainBonus)
-            + " к скорости рубки, максимум +" + Pct(GameBalance.SkillChainMax) +
-            ". Разделка последнего дерева поддерживает серию.");
-        Add(SkillIds.LumberSturdy, SkillBranch.Lumberjack, 2, "lumber_t2", "Крепкая древесина",
-            "Дерево даёт " + GameBalance.SkillSturdyWood + " бревна, но растёт на " + Pct(GameBalance.SkillSturdyGrowth - 1f) + " дольше.");
-        Add(SkillIds.LumberFastGrow, SkillBranch.Lumberjack, 2, "lumber_t2", "Быстрый рост",
-            "Деревья растут на " + Pct(1f - GameBalance.SkillFastGrowth) + " быстрее, ближайшее спелое подсвечивается.");
-        Add(SkillIds.LumberEcho, SkillBranch.Lumberjack, 3, "lumber_t3", "Эхо удара",
-            Pct(GameBalance.SkillEchoChance) + " шанс, что соседнее дерево тоже упадёт, +" + GameBalance.SkillEchoBonusWood + " бревно.");
-        Add(SkillIds.LumberGolden, SkillBranch.Lumberjack, 3, "lumber_t3", "Золотое дерево",
-            "Раз в " + Mathf.RoundToInt(GameBalance.SkillGoldenInterval) + " с появляется дерево на " + GameBalance.SkillGoldenWood + " брёвен.");
-
-        // ---------- Носильщик (ноги и груз) ----------
-        Add(SkillIds.CarryLight, SkillBranch.Carrier, 1, null, "Лёгкая поступь",
-            "Груз замедляет бег на " + Pct(GameBalance.SkillCarrySlowdown) + " вместо " + Pct(GameBalance.FullBackpackSlowdown) + ".");
-        Add(SkillIds.CarryDash, SkillBranch.Carrier, 2, "carry_t2", "Рывок",
-            "Shift (на телефоне кнопка): скорость ×" + Sec(GameBalance.SkillDashMul) + " на " + Sec(GameBalance.SkillDashTime) + " с, перезарядка "
-            + Mathf.RoundToInt(GameBalance.SkillDashCooldown) + " с.");
-        Add(SkillIds.CarryBasket, SkillBranch.Carrier, 2, "carry_t2", "Большой короб",
-            "Рюкзак вмещает на " + GameBalance.SkillBasketBonus + " бревна больше.");
-        Add(SkillIds.CarryFriend, SkillBranch.Carrier, 3, "carry_t3", "Верный друг",
-            "Открывает 4-й слот для питомца.");
-        Add(SkillIds.CarryLegs, SkillBranch.Carrier, 3, "carry_t3", "Быстрые ноги",
-            "+" + Pct(GameBalance.SkillLegsBonus) + " к скорости бега.");
-
-        // ---------- Хозяин (деньги, пила, рабочие) ----------
-        Add(SkillIds.BossTongue, SkillBranch.Master, 1, null, "Бойкий язык",
-            "Раз в " + Mathf.RoundToInt(GameBalance.SkillBazaarCooldown / 60f) + " минут «Базарный день»: следующая продажа ×" + Sec(GameBalance.SkillBazaarMul) + ".");
-        Add(SkillIds.BossHoard, SkillBranch.Master, 2, "boss_t2", "Запасливый",
-            "Очередь пилы +" + GameBalance.SkillHoardQueue + ", склад досок +" + GameBalance.SkillHoardOutput + ".");
-        Add(SkillIds.BossChief, SkillBranch.Master, 2, "boss_t2", "Хороший начальник",
-            "Рабочие приносят на " + Pct(GameBalance.SkillChiefBonus) + " больше.");
-        Add(SkillIds.BossBulk, SkillBranch.Master, 3, "boss_t3", "Оптовик",
-            "Продажа от " + GameBalance.SkillBulkMinItems + " предметов за раз даёт +" + Pct(GameBalance.SkillBulkBonus) + ".");
-        Add(SkillIds.BossSawyer, SkillBranch.Master, 3, "boss_t3", "Мастер-пильщик",
-            Pct(GameBalance.SkillSawyerChance) + " шанс получить доску без траты брёвен.");
+        if (!PlayerSkills.Has(SkillIds.Lucky)) return baseOdds;
+        var odds = (float[])baseOdds.Clone();
+        double common = 0, rare = 0;
+        for (int i = 0; i < odds.Length; i++)
+        {
+            if (i < rareIndex) common += Math.Max(0, odds[i]); else rare += Math.Max(0, odds[i]);
+        }
+        if (common <= 0 || rare <= 0) return odds;
+        double moved = Math.Min(common, rare * .10);
+        for (int i = 0; i < odds.Length; i++)
+            odds[i] = (float)(odds[i] * (i < rareIndex ? (common - moved) / common : (rare + moved) / rare));
+        return odds;
     }
 }

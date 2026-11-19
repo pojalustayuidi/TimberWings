@@ -1,15 +1,3 @@
-// Assets/_Project/Scripts/Skills/PlayerSkills.cs (НЕ в Editor)
-// Состояние дерева навыков: очки, покупка, сброс, сохранение. Эффектов здесь нет (их делают задачи 3 и 4).
-// Эффекты читают состояние ТОЛЬКО через PlayerSkills.Has(id) и слушают PlayerSkills.Changed.
-//
-// Очки не хранятся: TotalPoints = min(Level - 1, SkillMaxPoints), считается из PlayerStats. Поэтому при загрузке
-// двойных очков не бывает, а в файле лежат только купленные ID и флаг бесплатного сброса.
-//
-// Это static-класс, а ISaveable нельзя реализовать статикой, поэтому сохранение делает вложенный Saver.
-// Он регистрируется сам (BeforeSceneLoad), живёт всю игру и не зависит от сцены. Порядок с SaveAutoRunner не важен:
-// если Load() был раньше, секция применится прямо в Register(); если позже, её применит сам Load().
-//
-// Старые таланты за монеты удалены, их место занял этот класс. «Бесплатные очки улучшений» (PlayerUpgrades.freePoints на уровнях 3, 5, 7, 9) с очками навыков не связаны.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -28,7 +16,7 @@ public static class PlayerSkills
     public static event Action Changed;
 
     // ------------------------------------------------------------ очки
-    public static int TotalPoints { get { return Mathf.Clamp(PlayerStats.Level - 1, 0, GameBalance.SkillMaxPoints); } }
+    public static int TotalPoints => Mathf.Clamp((PlayerStats.Level - 1) / 2, 0, GameBalance.SkillMaxPoints);
 
     public static int SpentPoints
     {
@@ -69,14 +57,10 @@ public static class PlayerSkills
         int level = PlayerStats.Level;
         if (level < def.RequiredLevel) { reason = "Нужен " + def.RequiredLevel + " уровень"; return false; }
 
-        if (def.Tier > 1)
+        if (def.Tier > 1 && !SkillTree.HasRoot(def.Branch, owned))
         {
-            var root = SkillTree.Tier1Of(def.Branch);
-            if (root == null || !owned.Contains(root.Id))
-            {
-                reason = root != null ? "Сначала изучите «" + root.Title + "»" : "Не изучен навык 1-го яруса";
-                return false;
-            }
+            reason = "Сначала изучите один из двух стартовых талантов ветки";
+            return false;
         }
 
         int free = FreePoints;
@@ -92,11 +76,7 @@ public static class PlayerSkills
         if (owned.Contains(id)) return SkillNodeState.Bought;
         if (def.ExclusiveGroup != null && OwnedInGroup(owned, def.ExclusiveGroup) != null) return SkillNodeState.Blocked;
         if (PlayerStats.Level < def.RequiredLevel) return SkillNodeState.Locked;
-        if (def.Tier > 1)
-        {
-            var root = SkillTree.Tier1Of(def.Branch);
-            if (root == null || !owned.Contains(root.Id)) return SkillNodeState.Locked;
-        }
+        if (def.Tier > 1 && !SkillTree.HasRoot(def.Branch, owned)) return SkillNodeState.Locked;
         return FreePoints < def.Cost ? SkillNodeState.NoPoints : SkillNodeState.Available;
     }
 
@@ -200,11 +180,7 @@ public static class PlayerSkills
 
                 bool ok = level >= d.RequiredLevel && spent + d.Cost <= total;
                 if (ok && d.ExclusiveGroup != null) ok = OwnedInGroup(keep, d.ExclusiveGroup) == null;
-                if (ok && tier > 1)
-                {
-                    var root = SkillTree.Tier1Of(d.Branch);
-                    ok = root != null && keep.Contains(root.Id);
-                }
+                if (ok && tier > 1) ok = SkillTree.HasRoot(d.Branch, keep);
 
                 if (ok) { keep.Add(d.Id); spent += d.Cost; }
                 else removed.Add(d.Id);

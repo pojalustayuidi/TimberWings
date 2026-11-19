@@ -286,7 +286,7 @@ public partial class WorkersWindow
         var packs = m.Packs;
         oTitle.text = "Шансы: " + WorkerText.Pack(t);
         oTitle.color = WorkerUi.PackText(t);
-        var odds = WorkerBalance.OddsOf(t);
+        var odds = WorkerPackRoller.OddsFor(t);
         for (int r = 0; r < 5; r++)
         {
             bool zero = odds[r] <= 0f;

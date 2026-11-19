@@ -257,6 +257,7 @@ public class BuildReveal : MonoBehaviour
         radius = 0f;
         Transform root = null;
         if (b.stages != null) root = b.stages.transform;
+        else if (b.SiteKind == BuildSiteKind.RuneForge && b.finishedBuilding != null) root = b.finishedBuilding.transform;
         else
         {
             var link = b.GetComponent<BuildStageLink>();

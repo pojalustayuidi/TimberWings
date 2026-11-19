@@ -9,7 +9,6 @@ public static partial class LeoAxePose
     public static readonly Vector3 MainGrip = new Vector3(0f, -.046f, 0f);
     public static readonly Vector3 SupportGrip = new Vector3(0f, -.162f, 0f);
     public static readonly Vector3 Edge = new Vector3(0f, .36049f, .24429f);
-    static readonly Vector3 GripToEdge = Edge - MainGrip;
 
     // Relaxed carry. Without it the hand only got a wrist twist (RestWrist) and the axe stuck out
     // of the hip almost horizontally, pointing forward. Now the handle stands up beside the right
@@ -116,12 +115,13 @@ public static partial class LeoAxePose
             Vector3 toward = Vector3.ProjectOnPlane(localBark, Vector3.up).normalized;
             float yaw = Mathf.Clamp(Mathf.Atan2(toward.x, toward.z) * Mathf.Rad2Deg, -45f, 45f);
             angles.y += yaw * aim;
-            Vector3 edgeOffset = Quaternion.Euler(angles) * GripToEdge;
+            Vector3 gripToEdge = rig.EquippedAxeEdge - MainGrip;
+            Vector3 edgeOffset = Quaternion.Euler(angles) * gripToEdge;
             if (aim > 0f)
             {
                 var strike = LeoMotionProfile.Chop(book, book.contact);
-                Vector3 reference = strike.tool + Quaternion.Euler(strike.rotation) * GripToEdge;
-                Vector3 drift = grip + Quaternion.Euler(pose.rotation) * GripToEdge - reference;
+                Vector3 reference = strike.tool + Quaternion.Euler(strike.rotation) * gripToEdge;
+                Vector3 drift = grip + Quaternion.Euler(pose.rotation) * gripToEdge - reference;
                 grip = Vector3.Lerp(grip, localBark - edgeOffset + drift, aim);
             }
             // Keep the broad head of the axe clear of Leo's face before turning in.

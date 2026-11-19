@@ -15,7 +15,7 @@ using UnityEngine;
 
 public static class MapIcons
 {
-    public enum Id { Campfire, Hut, Market, Tent, Bridge, Forest, Board, Dot, Mystery, Discovery, Building, Pets }
+    public enum Id { Campfire, Hut, Market, Tent, Bridge, Forest, Board, Dot, Mystery, Discovery, Building, Pets, StockBell, RuneForge }
 
     static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
@@ -37,6 +37,8 @@ public static class MapIcons
         if (k == "discovery") return Id.Discovery;
         if (k == "building") return Id.Building;
         if (k == "pets") return Id.Pets;
+        if (k == "stockbell") return Id.StockBell;
+        if (k == "runeforge") return Id.RuneForge;
         if (Has(k, "camp", "fire", "костёр", "костер")) return Id.Campfire;
         if (Has(k, "hut", "house", "home", "хиж", "дом")) return Id.Hut;
         if (Has(k, "market", "shop", "stall", "trade", "рын", "лавк")) return Id.Market;
@@ -86,6 +88,8 @@ public static class MapIcons
             case Id.Discovery: return C(0xBE, 0xF1, 0xE0);
             case Id.Building: return C(0xFF, 0xDD, 0xA7);
             case Id.Pets: return C(0xFF, 0xCA, 0xDF);
+            case Id.StockBell: return C(0xFF, 0xE3, 0xA1);
+            case Id.RuneForge: return C(0xFF, 0xD0, 0xA0);
             default: return C(0xE9, 0xEC, 0xFF);            // облако
         }
     }
@@ -235,6 +239,13 @@ public static class MapIcons
         Color lav = C(0x8E, 0x86, 0xEE), lavHi = C(0xC9, 0xC5, 0xFF);
         switch (id)
         {
+            case Id.StockBell:
+                Draw(p, ol,
+                    S(Circle(32, 13, 5), peachLo),
+                    S(Capsule(32, 47, 32, 53, 3.2f), cream),
+                    S(Union(Circle(32, 34, 13), Tri(16, 23, 48, 23, 32, 46)), peachHi),
+                    S(Capsule(15, 22, 49, 22, 4f), lemon));
+                break;
             case Id.Mystery:
                 Draw(p, ol,
                     S(Intersect(ArcRing(32, 39, 12, 4.2f), Above(36)), lavHi),
@@ -253,6 +264,13 @@ public static class MapIcons
                     S(Box(32, 24, 17, 13, 2.5f), creamLo),
                     S(Tri(8, 32, 56, 32, 32, 53), peachHi),
                     S(Box(32, 20, 5, 8, 2), peachLo));
+                break;
+            case Id.RuneForge:
+                Draw(p, ol,
+                    S(Box(31, 18, 14, 3.4f, 1.7f), creamLo),
+                    S(Box(30, 27, 5, 7, 2.0f), creamLo),
+                    S(Union(Box(31, 37, 15, 5, 2.0f), Tri(8, 40, 22, 40, 22, 32)), cream),
+                    S(Union(Capsule(45, 49, 53, 49, 1.8f), Capsule(49, 45, 49, 53, 1.8f)), mintHi));
                 break;
             case Id.Pets:
                 Draw(p, ol,

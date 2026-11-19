@@ -45,24 +45,27 @@ public class UpgradeWindow : MonoBehaviour
     // ------------------------------------------------------------ данные
     static readonly string[] Names =
     {
-        "Сила удара", "Скорость бега", "Вместимость рюкзака", "Двойная добыча", "Выгодный торг", "Скорость пилы"
+        "Сила удара", "Скорость бега", "Вместимость рюкзака", "Двойная добыча", "Выгодный торг", "Ремесло"
     };
 
     static readonly UiIcon[] RowIcons = { UiIcon.Axe, UiIcon.Boot, UiIcon.Backpack, UiIcon.Log, UiIcon.Coin, UiIcon.Saw };
 
     // число из PlayerUpgrades.Calc -> текст
-    static string Fmt(int type, float v)
+    static string Fmt(int type, float v, int level, TalentBonus bonus)
     {
         switch (type)
         {
-            case 0: return ChopPrototypeLog.Enabled
-                ? "×" + Chop03Balance.Power(GameBalance.ChopTime, v, 0f).ToString("0.00")
-                : v.ToString("0.0") + " с";
-            case 1: return (GameBalance.PlayerSpeed * v).ToString("0.0") + " м/с";
+            case 0:
+                var axes = PlayerInteraction.CurrentAxes;
+                float axePower = axes != null ? axes.Equipped.Power : AxeCatalog.Get(AxeId.Old).Power;
+                return "×" + Chop03Balance.Power(axePower, level, bonus.chopMul, 0f).ToString("0.00");
+            case 1:
+                float baseSpeed = PlayerMovement.Instance != null ? PlayerMovement.Instance.BaseRunSpeed : GameBalance.PlayerSpeed;
+                return (baseSpeed * v).ToString("0.00") + " м/с";
             case 2: { int n = Mathf.RoundToInt(v); return n + " " + UiDraw.Plural(n, "бревно", "бревна", "бревен"); }
             case 3: return Mathf.RoundToInt(v * 100f) + "%";
             case 4: return "+" + Mathf.RoundToInt((v - 1f) * 100f) + "%";
-            default: return v.ToString("0.0") + " с";
+            default: return v.ToString("0.0") + " с · очередь " + PlankWorkshop.QueueAt(level);
         }
     }
 
@@ -76,7 +79,7 @@ public class UpgradeWindow : MonoBehaviour
     // ------------------------------------------------------------ размеры (единицы Canvas 1920x1080)
     const float WinW = 1400f, WinH = 900f;                   // окно (рамку и ленту рисует UiCandy.Window)
     const float LeftW = 620f, RightW = 682f, PanelH = 807f;  // рабочая область 1322 x 807 по центру содержимого окна
-    const float RowW = 570f, RowH = 118f, RowGap = 10f, RowTop = 22f;
+    const float RowW = 570f, RowH = 118f, RowGap = 10f, RowTop = 244f;
 
     class Row
     {
@@ -105,7 +108,9 @@ public class UpgradeWindow : MonoBehaviour
     RectTransform panel;              // окно UiCandy.Window (на нём CandyPopIn: его масштаб здесь не трогаем)
     Image hudImg;
     CandyButtonJuice hudJuice;        // «желе» на кнопке HUD: пружина, искры, качается, когда есть что открыть
-    TMP_Text hudText, coinsText, pointsText;
+    TMP_Text hudText, coinsText, pointsText, levelText, traitsText;
+    GameObject traitsPanel;
+    Image xpFill;
     readonly Row[] rows = new Row[6];
     SkillTreeUi skillUi;   // правая панель: дерево навыков
 
@@ -164,16 +169,18 @@ public class UpgradeWindow : MonoBehaviour
     void Hotkeys()
     {
         bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-        for (int i = 0; i < 6; i++)
-            if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
-            {
-                if (shift) UseFreePoint(i); else Buy(i);
-            }
+        for (int row = 0; row < PlayerUpgrades.Tracks.Length; row++)
+        {
+            if (!Input.GetKeyDown(KeyCode.Alpha1 + row) && !Input.GetKeyDown(KeyCode.Keypad1 + row)) continue;
+            int type = (int)PlayerUpgrades.Tracks[row];
+            if (shift) UseFreePoint(type); else Buy(type);
+        }
     }
 
     // ------------------------------------------------------------ действия
     void Toggle()
     {
+        if (!open && MobileInput.ModalOpen) return;
         if (!unlocked) { toastUntil = Time.unscaledTime + 2f; return; }
         SetOpen(!open);
     }
@@ -227,33 +234,36 @@ public class UpgradeWindow : MonoBehaviour
         Set(coinsText, (inv != null ? inv.coinsCount : 0).ToString());
         Set(pointsText, (up != null ? up.freePoints : 0).ToString());
 
+        RefreshCharacter();
         RefreshRows(ok);
         if (skillUi != null) skillUi.Refresh();   // монеты и очки могли измениться
     }
 
     void RefreshRows(bool ok)
     {
-        for (int i = 0; i < 6; i++)
+        for (int row = 0; row < PlayerUpgrades.Tracks.Length; row++)
         {
+            var t = PlayerUpgrades.Tracks[row];
+            int i = (int)t;
             var r = rows[i];
-            var t = (UpgradeType)i;
             int lvl = ok ? up.Level(t) : 0;
             int max = GameBalance.UpgradeMaxLevel[i];
             bool isMax = lvl >= max;
             bool lockedType = ok && !up.IsUnlocked(t);
             bool allowed = Allowed(i);
 
-            Set(r.name, "<color=" + HexDone + ">" + (i + 1) + "</color>  " + Names[i]);
+            Set(r.name, "<color=" + HexDone + ">" + (row + 1) + "</color>  " + Names[i]);
             r.name.color = lockedType ? UiCandy.Muted : UiCandy.Ink;
             // состояние читается по цвету карточки: достигнут максимум мятная, не открыто лавандово-серая
             r.bg.color = UiCandy.TintOf(isMax ? UiTone.Mint : lockedType ? UiTone.Locked : UiTone.Neutral);
 
             float now = ok ? up.ValueAt(t, lvl) : PlayerUpgrades.Calc(t, lvl, TalentBonus.None);
-            string line = Fmt(i, now);
+            var bonus = ok ? up.Bonus : TalentBonus.None;
+            string line = Fmt(i, now, lvl, bonus);
             if (!isMax)
             {
                 float next = ok ? up.ValueAt(t, lvl + 1) : PlayerUpgrades.Calc(t, lvl + 1, TalentBonus.None);
-                line += "  →  <color=" + HexDone + ">" + Fmt(i, next) + "</color>";
+                line += "  →  <color=" + HexDone + ">" + Fmt(i, next, lvl + 1, bonus) + "</color>";
             }
             Set(r.desc, line);
 
@@ -261,22 +271,22 @@ public class UpgradeWindow : MonoBehaviour
             for (int k = 0; k < r.pips.Length; k++) r.pips[k].color = k < lvl ? UiCandy.Mint : UiCandy.TintOf(UiTone.Locked);
 
             // цена и кнопка
-            bool showPrice = !isMax && !lockedType;
+            bool showPrice = !isMax;
             r.priceGo.SetActive(showPrice);
             string label;
             bool canBuy = false;
             if (isMax) label = "Макс";
-            else if (lockedType) label = "С " + GameBalance.SawUnlockLevel + " ур.";
+            else if (lockedType) label = PlayerStats.Level < up.NextRequiredLevel(t)
+                ? "С " + up.NextRequiredLevel(t) + " ур." : "Нужна пила";
             else if (!allowed) label = "Позже";
             else
             {
-                int cost = GameBalance.UpgradeCost(i, lvl);
-                canBuy = ok && inv.coinsCount >= cost;
+                canBuy = ok && up.CanBuy(t);
                 label = "Купить";
             }
             if (showPrice)
             {
-                int cost = GameBalance.UpgradeCost(i, lvl);
+                int cost = ok ? up.NextCost(t) : GameBalance.UpgradeCost(i, 0);
                 bool afford = ok && inv.coinsCount >= cost;
                 Set(r.priceChip.label, cost.ToString());
                 r.priceChip.label.color = afford ? UiCandy.GoldText : UiCandy.Danger;
@@ -297,8 +307,9 @@ public class UpgradeWindow : MonoBehaviour
         float t = Time.unscaledTime;
         float pulse = 0.5f + 0.5f * Mathf.Sin(t * 5f);
 
-        for (int i = 0; i < 6; i++)
+        foreach (var type in PlayerUpgrades.Tracks)
         {
+            int i = (int)type;
             var g = rows[i].glow;
             bool flash = i == flashRow && t < flashUntil;
             bool hl = i == highlight;
@@ -441,7 +452,12 @@ public class UpgradeWindow : MonoBehaviour
         var left = UiKit.MakePanel(body, new Vector2(LeftW, PanelH), false, 0.6f, "Upgrades");
         left.color = UiCandy.TintOf(UiTone.Lavender);
         TL(left.rectTransform, 0, 0, LeftW, PanelH);
-        for (int i = 0; i < 6; i++) rows[i] = BuildRow(i, left.transform);
+        BuildCharacter(left.transform);
+        for (int row = 0; row < PlayerUpgrades.Tracks.Length; row++)
+        {
+            int type = (int)PlayerUpgrades.Tracks[row];
+            rows[type] = BuildRow(type, row, left.transform);
+        }
 
         // справа дерево навыков (SkillTreeUi само строит содержимое в панели 682 x 807, тоже в Candy)
         var right = UiKit.MakePanel(body, new Vector2(RightW, PanelH), false, 0.6f, "Skills");
@@ -454,7 +470,7 @@ public class UpgradeWindow : MonoBehaviour
         var hintBg = UiKit.MakeImage(ov.transform, "HintPill", UiKit.Slot, true, 0.7f);
         hintBg.color = new Color(1f, 1f, 1f, 0.92f);
         Anch(hintBg.rectTransform, Mid, new Vector2(0.5f, 1f), new Vector2(0, -(WinH * 0.5f + 14f)), new Vector2(920, 46));
-        UiKit.MakeLabel(hintBg.transform, "1-6 купить   ·   Shift+1-6 свободное очко   ·   U или Esc закрыть", 22f, UiCandy.Muted, TextAlignmentOptions.Center, false);
+        UiKit.MakeLabel(hintBg.transform, "1–4 купить   ·   Shift+1–4 улучшить за очко   ·   U или Esc закрыть", 22f, UiCandy.Muted, TextAlignmentOptions.Center, false);
 
         ov.gameObject.SetActive(false);
     }
@@ -475,11 +491,55 @@ public class UpgradeWindow : MonoBehaviour
         TLC(axe.rectTransform, WinW * 0.5f - 128f, 27f, 40f, 40f);
     }
 
+    void BuildCharacter(Transform parent)
+    {
+        var sheet = UiKit.MakePanel(parent, new Vector2(RowW, 216), false, .6f, "LeoCard");
+        sheet.color = UiCandy.TintOf(UiTone.Neutral);
+        TL(sheet.rectTransform, (LeftW - RowW) * .5f, 18f, RowW, 208f);
+        levelText = Lbl(sheet.transform, "", 25, UiCandy.Ink, TextAlignmentOptions.Left, true, 20, 11, 526, 32);
+        var xpTrack = UiKit.MakeImage(sheet.transform, "XP", UiKit.Slot, true);
+        xpTrack.color = UiCandy.TintOf(UiTone.Lavender);
+        TL(xpTrack.rectTransform, 22, 51, 526, 16);
+        xpFill = UiKit.MakeImage(xpTrack.transform, "Fill", UiKit.Slot, false);
+        Stretch(xpFill.rectTransform);
+        xpFill.color = UiCandy.Mint;
+        xpFill.type = Image.Type.Filled;
+        xpFill.fillMethod = Image.FillMethod.Horizontal;
+
+        var button = UiKit.MakeButton(sheet.transform, "Характеристики", UiBtn.Amber, new Vector2(212, 43), 20, 1f);
+        TL((RectTransform)button.transform, 20, 76, 212, 43);
+        traitsText = UiKit.MakeLabel(sheet.transform, "", 19, UiCandy.Ink, TextAlignmentOptions.TopLeft, false);
+        TL(traitsText.rectTransform, 20, 127, 528, 65);
+        traitsPanel = traitsText.gameObject;
+        traitsPanel.SetActive(false);
+        button.onClick.AddListener(() => { traitsPanel.SetActive(!traitsPanel.activeSelf); RefreshCharacter(); });
+        UiClickFallback.Register(button, () => open, true);
+    }
+
+    void RefreshCharacter()
+    {
+        if (levelText == null) return;
+        var stats = PlayerStats.Instance;
+        int level = stats != null ? stats.currentLevel : 1;
+        int xp = stats != null ? stats.currentXP : 0;
+        bool max = level >= GameBalance.MaxLevel;
+        int next = GameBalance.XpForLevel(level + 1);
+        Set(levelText, $"Лео · {level} ур.     {(max ? $"{xp:N0} XP · максимум" : $"{xp:N0} / {next:N0} XP")}");
+        xpFill.fillAmount = max ? 1f : Mathf.Clamp01((float)(xp - GameBalance.XpForLevel(level)) / GameBalance.XpToNext(level));
+        if (!traitsPanel.activeSelf || up == null) return;
+        float axePower = PlayerInteraction.CurrentAxes?.Equipped.Power ?? 1f;
+        float power = Chop03Balance.Power(axePower, up.Level(UpgradeType.ChopPower), up.Bonus.chopMul, 0);
+        string running = Fmt((int)UpgradeType.MoveSpeed, up.SpeedMultiplier, up.Level(UpgradeType.MoveSpeed), up.Bonus);
+        int wood = inv != null ? inv.woodCount : 0;
+        Set(traitsText, $"Сила ×{power:0.00}   ·   Бег {running}   ·   Рюкзак {wood}/{up.Capacity}\n" +
+            $"Пила {up.SawTime:0.0} с/доска   ·   Очередь {PlankWorkshop.QueueCap}   ·   Готовые {PlankWorkshop.OutputCap}");
+    }
+
     // ------------------------------------------------------------ левая панель: строка прокачки
-    Row BuildRow(int i, Transform parent)
+    Row BuildRow(int i, int rowIndex, Transform parent)
     {
         var r = new Row();
-        float y = RowTop + i * (RowH + RowGap);
+        float y = RowTop + rowIndex * (RowH + RowGap);
         float x = (LeftW - RowW) * 0.5f;
         const float rowBs = 0.8f;                  // как у UiCandy.Card такой высоты: голубая «юбка» снизу 12 px
         const float skirt = 15f * rowBs;

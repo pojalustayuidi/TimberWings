@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// First-person rig with independent hands, Leo's sleeves and the original axe.
+// First-person rig with independent hands, Leo's sleeves and a separate equipped model.
 internal sealed partial class LeoFirstPersonView
 {
     const int ViewLayer = 2; // Ignore Raycast, as in CAM-01.
@@ -14,7 +14,10 @@ internal sealed partial class LeoFirstPersonView
     Material nailMaterial;
     readonly TrailRenderer stroke;
     float fill, refreshLightingAt;
-    readonly Transform root, axe;
+    readonly Transform root, axe, bakedAxe;
+    readonly Transform[] axeModels = new Transform[AxeCatalog.All.Length];
+    AxeDefinition activeAxe;
+    Vector3 cuttingEdge = new Vector3(0f, .23748f, .28564f);
     readonly Arm right, left;
     readonly Camera camera;
     readonly LeoRig source;
@@ -87,7 +90,27 @@ internal sealed partial class LeoFirstPersonView
         compass = CopyWristCompass(out compassNeedle);
         int beforeAxe = renderers.Count;
         axe = NewTransform("Axe", root);
-        CopyMeshes(source.axeRoot, axe, true);
+        foreach (var definition in AxeCatalog.All)
+        {
+            var model = definition.Model;
+            if (model == null) continue;
+            Transform display = NewTransform(definition.Id.ToString(), axe);
+            var copy = display.gameObject.AddComponent<MeshRenderer>();
+            display.gameObject.AddComponent<MeshFilter>().sharedMesh = model.GetComponent<MeshFilter>().sharedMesh;
+            var materials = model.GetComponent<MeshRenderer>().sharedMaterials;
+            for (int i = 0; i < materials.Length; i++) materials[i] = ViewMaterial(materials[i]);
+            copy.sharedMaterials = materials;
+            copy.shadowCastingMode = ShadowCastingMode.Off;
+            copy.forceRenderingOff = true;
+            renderers.Add(copy);
+            display.gameObject.SetActive(false);
+            axeModels[(int)definition.Id] = display;
+        }
+        if (axeModels[(int)AxeId.Old] == null)
+        {
+            bakedAxe = NewTransform("Original axe", axe);
+            CopyMeshes(source.axeRoot, bakedAxe, true);
+        }
         hasGeometry = renderers.Count > beforeAxe;
         stroke = CreateStroke();
         ReleaseMotion();
@@ -238,7 +261,7 @@ internal sealed partial class LeoFirstPersonView
         var material = Resources.Load<Material>("LeoAnimation/Leo_AxeStroke");
         if (material == null || material.shader == null || !material.shader.isSupported) return null;
         Transform edge = NewTransform("Axe edge stroke", axe);
-        edge.localPosition = CuttingEdge;
+        edge.localPosition = cuttingEdge;
         var trail = edge.gameObject.AddComponent<TrailRenderer>();
         trail.sharedMaterial = material;
         trail.emitting = false;
@@ -253,6 +276,33 @@ internal sealed partial class LeoFirstPersonView
         trail.endColor = new Color(1f, .76f, .48f, 0f);
         renderers.Add(trail);
         return trail;
+    }
+
+    void SetAxe(AxeDefinition definition)
+    {
+        if (activeAxe == definition) return;
+        if (activeAxe != null && axeModels[(int)activeAxe.Id] != null)
+            axeModels[(int)activeAxe.Id].gameObject.SetActive(false);
+        activeAxe = definition;
+
+        var chosen = axeModels[(int)definition.Id] ?? axeModels[(int)AxeId.Old];
+        if (bakedAxe != null) bakedAxe.gameObject.SetActive(chosen == null);
+        // Disable the fallback too when changing from a missing model to an imported one.
+        var old = axeModels[(int)AxeId.Old];
+        if (old != null && old != chosen) old.gameObject.SetActive(false);
+        if (chosen != null)
+        {
+            chosen.gameObject.SetActive(true);
+            cuttingEdge = (definition.Model ?? AxeCatalog.Get(AxeId.Old).Model)
+                .transform.Find("CuttingEdge").localPosition;
+        }
+        else cuttingEdge = new Vector3(0f, .23748f, .28564f);
+
+        if (stroke != null)
+        {
+            stroke.transform.localPosition = cuttingEdge;
+            stroke.Clear();
+        }
     }
 
     static Transform NewTransform(string name, Transform parent)

@@ -24,7 +24,7 @@ public static class SaveSystem
 
     // ключи из таблицы порядка (см. ISaveable); RequestSave с другим ключом даст предупреждение (опечатка)
     static readonly HashSet<string> KnownKeys = new HashSet<string>
-        { "settings", "stats", "inventory", "upgrades", "skills", "workers", "workshop", "pets", "buildings", "story", "intro", "dialogue", "time", "minimap", ChopPrototypeSave.Key };
+        { "settings", "stats", "inventory", "upgrades", "axes", "skills", "workers", "workshop", "pets", "buildings", "story", "intro", "dialogue", "time", "minimap", ChopPrototypeSave.Key };
 
     [Serializable] class SaveSection { public string key; public string json; }
     [Serializable]

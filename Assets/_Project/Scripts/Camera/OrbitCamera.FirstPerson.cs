@@ -279,14 +279,18 @@ public partial class OrbitCamera
         float progress = (Time.unscaledTime - fpTransitionAt) / FpTransition;
         if (fpLive ? progress > .78f : progress < .29f)
         {
-            foreach (Renderer r in fpBody)
-            {
-                if (r == null || r.forceRenderingOff) continue;
-                r.forceRenderingOff = true;
-                fpMaskedBody.Add(r);
-            }
+            foreach (Renderer renderer in fpBody) FpMask(renderer);
+            // Equipment can change while F5 is active, after the initial body snapshot.
+            if (fpRig != null) FpMask(fpRig.EquippedAxeRenderer);
         }
         fpView?.SetRendered(fpShowView && !MobileInput.ModalOpen && Application.isFocused && Time.timeScale > 0f);
+    }
+
+    void FpMask(Renderer renderer)
+    {
+        if (renderer == null || renderer.forceRenderingOff) return;
+        renderer.forceRenderingOff = true;
+        fpMaskedBody.Add(renderer);
     }
 
     void FpAfterRender(ScriptableRenderContext context, Camera rendering)

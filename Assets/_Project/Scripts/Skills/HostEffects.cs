@@ -18,6 +18,7 @@ public sealed class HostEffects : MonoBehaviour, ISaveable
 {
     static HostEffects inst;
 
+    int bulkLogs, bulkPlanks;
     float bazaarLeft;      // секунд до готовности, 0 = готов (сохраняется)
     bool announced;        // «Базарный день наступил» уже показан (не сохраняется)
 
@@ -34,6 +35,36 @@ public sealed class HostEffects : MonoBehaviour, ISaveable
     }
 
     public static float BazaarSecondsLeft { get { return inst != null ? inst.bazaarLeft : 0f; } }
+
+    internal static int BulkCount => inst != null ? inst.bulkLogs + inst.bulkPlanks : 0;
+    internal static int BulkQuote => inst != null ? Pricing.ApplySale(
+        Pricing.Price(SellItem.Log, inst.bulkLogs) + Pricing.Price(SellItem.Plank, inst.bulkPlanks), BulkCount) : 0;
+
+    internal static bool StageBatch(PlayerInventory inventory, int logs, int planks)
+    {
+        if (inst == null || inventory == null || !PlayerSkills.Has(SkillIds.BossBulk) ||
+            logs < 0 || planks < 0 || (long)logs + planks + BulkCount > 100000 || logs + planks == 0) return false;
+        return inventory.RemoveGoods(logs, planks, () =>
+        {
+            inst.bulkLogs += logs;
+            inst.bulkPlanks += planks;
+            SaveSystem.RequestSave("host");
+        });
+    }
+
+    internal static bool SellBatch(PlayerInventory inventory, TradingStall stall)
+    {
+        int total = BulkQuote;
+        if (total <= 0 || inventory == null || stall == null || !stall.Unlocked) return false;
+        int logs = inst.bulkLogs, planks = inst.bulkPlanks;
+        inst.bulkLogs = inst.bulkPlanks = 0;
+        if (BazaarReady) ConsumeBazaar();
+        inventory.AddCoins(total);
+        SaveSystem.RequestSave("host");
+        stall.ReportSold(total, logs, planks);
+        SaveIndicator.ShowToast("Партия продана · +" + total + " монет");
+        return true;
+    }
 
     // продажа состоялась с бонусом: перезарядка
     public static void ConsumeBazaar()
@@ -99,12 +130,13 @@ public sealed class HostEffects : MonoBehaviour, ISaveable
     {
         public int version = 1;
         public float bazaarLeft;
+        public int bulkLogs, bulkPlanks;
     }
 
     public string SaveKey { get { return "host"; } }
     public int LoadOrder { get { return 36; } }
 
-    public string Save() { return JsonUtility.ToJson(new SaveData { bazaarLeft = bazaarLeft }); }
+    public string Save() { return JsonUtility.ToJson(new SaveData { bazaarLeft = bazaarLeft, bulkLogs = bulkLogs, bulkPlanks = bulkPlanks }); }
 
     // Без событий, тостов и RequestSave (правило ISaveable)
     public void Load(string json, int formatVersion)
@@ -116,12 +148,15 @@ public sealed class HostEffects : MonoBehaviour, ISaveable
             catch (Exception e) { Debug.LogWarning("HostEffects: не удалось прочитать сохранение: " + e.Message); }
         }
         if (d == null) { ResetToDefault(); return; }
+        bulkLogs = Mathf.Clamp(d.bulkLogs, 0, 100000);
+        bulkPlanks = Mathf.Clamp(d.bulkPlanks, 0, 100000 - bulkLogs);
         bazaarLeft = Mathf.Clamp(d.bazaarLeft, 0f, GameBalance.SkillBazaarCooldown);
         announced = bazaarLeft <= 0f;
     }
 
     public void ResetToDefault()
     {
+        bulkLogs = bulkPlanks = 0;
         bazaarLeft = 0f;
         announced = false;
     }

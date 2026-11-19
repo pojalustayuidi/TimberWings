@@ -116,7 +116,7 @@ public sealed partial class ChopPrototypeLog
     }
 
     internal static bool IsGround(Collider c) =>
-        c is TerrainCollider || c.tag == "Ground" || c.name == "Ground" ||
+        c is TerrainCollider || c.tag == "Ground" || c.name == "Ground" || c.name == "TW_WORKYARD_PHYSICS" ||
         c.name.StartsWith("Ground_", System.StringComparison.Ordinal);
 
     static bool ClearLanding(ChopPrototypeSave.Layout placement, ResourceItem source)

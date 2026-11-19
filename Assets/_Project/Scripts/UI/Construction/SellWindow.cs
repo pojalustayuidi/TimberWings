@@ -93,6 +93,7 @@ public class SellWindow : MonoBehaviour
     CanvasGroup overlay;
     RectTransform panel;
     TMP_Text summaryText;
+    Btn stageBatch, sellBatch;
     UiCandy.ChipRefs totalChip;
     Plaque reasonPlaque;
     Btn sellSel, sellSurplus, sellAll;
@@ -270,6 +271,20 @@ public class SellWindow : MonoBehaviour
         DoSell(amt);
     }
 
+    void StageSelectedBatch()
+    {
+        if (!open || inv == null) return;
+        int safePlanks = Mathf.Max(0, inv.planksCount - BuildingController.PlanksWanted());
+        if (HostEffects.StageBatch(inv, rows[0].count, Mathf.Min(rows[1].count, safePlanks))) ResetCounts();
+        Refresh();
+    }
+
+    void SellStagedBatch()
+    {
+        if (open) HostEffects.SellBatch(inv, stall);
+        Refresh();
+    }
+
     void DoSell(int[] amt)
     {
         if (stall == null || inv == null) return;
@@ -400,6 +415,16 @@ public class SellWindow : MonoBehaviour
             if (takenQty > 0) reason = "Из них у стройки: " + takenQty + ". Доски придётся делать заново";
         }
 
+        bool canStage = PlayerSkills.Has(SkillIds.BossBulk);
+        int staged = HostEffects.BulkCount;
+        stageBatch.btn.gameObject.SetActive(canStage);
+        sellBatch.btn.gameObject.SetActive(canStage || staged > 0);
+        SetBtn(stageBatch, "Отложить в партию", rows[0].count > 0 ||
+            rows[1].count > 0 && inv != null && inv.planksCount > BuildingController.PlanksWanted());
+        SetBtn(sellBatch, staged >= GameBalance.SkillBulkMinItems || !canStage
+            ? $"Продать {staged} за {HostEffects.BulkQuote}" : $"Партия {staged}/{GameBalance.SkillBulkMinItems}",
+            staged >= GameBalance.SkillBulkMinItems || !canStage && staged > 0);
+
         SetBtn(sellSel, "Продать выбранное", selQty > 0);
         SetBtn(sellSurplus, "Продать лишнее", freeQty > 0);
         SetBtn(sellAll, confirmAll ? "Точно? Продать всё" : "Продать всё", haveQty > 0);
@@ -471,9 +496,19 @@ public class SellWindow : MonoBehaviour
     {
         var icon = UiCandy.Icon(panel, UiIcon.Coin, 44f, "TitleIcon");
         TLC(icon.rectTransform, WinW * 0.5f - 135f, 27, 44, 44);
+        var tools = MakeBtn(panel, "Топоры", UiBtn.Amber, new Vector2(148, 43), 23f, OpenAxes);
+        TLC((RectTransform)tools.btn.transform, 126, 27, 148, 43);
     }
 
     // ------------------------------------------------------------ строки товаров: по карточке на товар
+    void OpenAxes()
+    {
+        var axes = PlayerInteraction.CurrentAxes;
+        if (!open || stall == null || axes == null || !axes.CanEquip || stall.DistanceToPlayer() > stall.Radius) return;
+        Close();
+        AxeWindow.Open(axes, shop: stall);
+    }
+
     void BuildRows(Transform body)
     {
         // шапка колонок: те же x, что у содержимого карточек
@@ -539,6 +574,11 @@ public class SellWindow : MonoBehaviour
         // «Итого» крупным чипом с монетой (ширину подгоняет UiCandy.Chip)
         totalChip = UiCandy.Chip(f, UiIcon.Coin, "", 72f, UiTone.Peach, 400f);
         TL(totalChip.rt, 24, 10, 400, 72);
+
+        stageBatch = MakeBtn(f, "", UiBtn.Amber, new Vector2(275, 58), 23f, StageSelectedBatch);
+        TL(stageBatch.btn.GetComponent<RectTransform>(), 453, 18, 275, 58);
+        sellBatch = MakeBtn(f, "", UiBtn.Green, new Vector2(291, 58), 23f, SellStagedBatch);
+        TL(sellBatch.btn.GetComponent<RectTransform>(), 738, 18, 291, 58);
 
         summaryText = Lbl(f, "", 22f, UiCandy.Muted, TextAlignmentOptions.Left, false, 28, 86, 990, 28);
         reasonPlaque = MakePlaque(f, 24, 118, 1004, 34, 22f);

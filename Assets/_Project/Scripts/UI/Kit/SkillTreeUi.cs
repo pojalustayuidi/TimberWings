@@ -100,7 +100,7 @@ public sealed class SkillTreeUi : MonoBehaviour
     // ------------------------------------------------------------ размеры (единицы Canvas 1920x1080, область 1322 x 807)
     const float W = 682f, H = 807f;
     const float PennW = 66f, PennH = 84f, NodeOff = 48f;           // вымпел (пропорции Banner 50:64) и сдвиг левого и правого узла от оси ветки
-    const float LabelW1 = 200f, LabelW2 = 84f, LabelH = 38f;       // ширина подписи узла (ярус I / ярусы II и III) и её высота (две строки)
+    const float LabelW2 = 92f, LabelH = 38f;       // ширина подписи узла (ярус I / ярусы II и III) и её высота (две строки)
     const float LineT = 6f;                                        // толщина линии связи
     static readonly float[] TierY = { 205f, 356f, 510f };          // центры ярусов
     static readonly float[] ColX = { 114f, 341f, 568f };           // оси веток
@@ -116,7 +116,7 @@ public sealed class SkillTreeUi : MonoBehaviour
     {
         new Color32(0xFF, 0x9A, 0x7A, 255), new Color32(0x73, 0xBD, 0xFF, 255), new Color32(0xFF, 0x8F, 0xBE, 255)
     };
-    static readonly UiIcon[] BranchIcons = { UiIcon.Log, UiIcon.Boot, UiIcon.Coin };
+    static readonly UiIcon[] BranchIcons = { UiIcon.Log, UiIcon.Saw, UiIcon.Paw };
     static readonly string[] TierNames = { "I", "II", "III" };
 
     // иконка каждого узла (набор UiIcon ограничен, подобрано по смыслу)
@@ -124,19 +124,22 @@ public sealed class SkillTreeUi : MonoBehaviour
     {
         switch (id)
         {
-            case SkillIds.LumberChain: return UiIcon.Axe;
-            case SkillIds.LumberSturdy: return UiIcon.Log;
+            case SkillIds.CutLayout: return UiIcon.Log;
+            case SkillIds.WideZone: return UiIcon.Target;
             case SkillIds.LumberFastGrow: return UiIcon.ArrowUp;
             case SkillIds.LumberEcho: return UiIcon.Target;
             case SkillIds.LumberGolden: return UiIcon.Star;
-            case SkillIds.CarryLight: return UiIcon.Boot;
             case SkillIds.CarryDash: return UiIcon.ArrowRight;
-            case SkillIds.CarryBasket: return UiIcon.Backpack;
             case SkillIds.CarryFriend: return UiIcon.Paw;
-            case SkillIds.CarryLegs: return UiIcon.Clock;
             case SkillIds.BossTongue: return UiIcon.Coin;
             case SkillIds.BossHoard: return UiIcon.Box;
-            case SkillIds.BossChief: return UiIcon.Tent;
+            case SkillIds.Builder: return UiIcon.Hammer;
+            case SkillIds.ForgeDiscount: return UiIcon.Flame;
+            case SkillIds.Mentor: return UiIcon.Book;
+            case SkillIds.Lucky: return UiIcon.Star;
+            case SkillIds.ClerkIncome: return UiIcon.Coin;
+            case SkillIds.Crew: return UiIcon.Tent;
+            case SkillIds.Storage: return UiIcon.Box;
             case SkillIds.BossBulk: return UiIcon.Gem;
             case SkillIds.BossSawyer: return UiIcon.Saw;
             default: return UiIcon.Star;
@@ -434,10 +437,9 @@ public sealed class SkillTreeUi : MonoBehaviour
         if (!built) return;
 
         int free = PlayerSkills.FreePoints, total = PlayerSkills.TotalPoints;
-        Set(pointsText, "Очков: <color=#" + (free > 0 ? "2A9573" : "5E6A96") + ">" + free + "</color>");   // есть очки: зелёный, нет: приглушённый индиго
-        int level = PlayerStats.Level;
+        Set(pointsText, "Таланты: <color=#" + (free > 0 ? "2A9573" : "5E6A96") + ">" + free + "</color>");   // есть очки: зелёный, нет: приглушённый индиго
         Set(nextText, total >= GameBalance.SkillMaxPoints ? "Все очки получены (" + total + " из " + GameBalance.SkillMaxPoints + ")"
-                                                         : "Всего " + total + " из " + GameBalance.SkillMaxPoints + ", следующее на " + (level + 1) + "-м уровне");
+                                                         : "Всего " + total + " из " + GameBalance.SkillMaxPoints + ", следующее на " + (3 + total * 2) + "-м уровне");
 
         // кнопка сброса и цена чипом с монетой
         string rr;
@@ -521,7 +523,7 @@ public sealed class SkillTreeUi : MonoBehaviour
         tipIcon.sprite = CandyIcon(IconFor(def.Id));
         tipIcon.color = closed ? new Color(1f, 1f, 1f, 0.5f) : Color.white;
         Set(tipTitle, def.Title);
-        Set(tipSub, SkillTree.BranchName(def.Branch) + ", ярус " + TierNames[def.Tier - 1] + " · с " + def.RequiredLevel + "-го уровня");
+        Set(tipSub, SkillTree.BranchName(def.Branch) + " · ступень " + TierNames[def.Tier - 1]);
         Set(tipDesc, def.Description);
 
         string reason;
@@ -573,7 +575,7 @@ public sealed class SkillTreeUi : MonoBehaviour
         // линии рисуем до узлов, чтобы вымпелы лежали сверху
         for (int b = 0; b < 3; b++) BuildLines(b);
 
-        // узлы: ярус I по центру, ярусы II и III: первый узел группы слева, второй справа
+        // Each tier has two choices, with one pennant on either side of the column.
         var all = SkillTree.All;
         var seen = new Dictionary<int, int>();
         for (int i = 0; i < all.Count; i++)
@@ -581,13 +583,10 @@ public sealed class SkillTreeUi : MonoBehaviour
             var d = all[i];
             int b = (int)d.Branch;
             float cx = ColX[b], cy = TierY[d.Tier - 1];
-            if (d.Tier > 1)
-            {
-                int key = b * 10 + d.Tier, k;
-                seen.TryGetValue(key, out k);
-                seen[key] = k + 1;
-                cx += k == 0 ? -NodeOff : NodeOff;
-            }
+            int key = b * 10 + d.Tier;
+            seen.TryGetValue(key, out int choice);
+            seen[key] = choice + 1;
+            cx += choice == 0 ? -NodeOff : NodeOff;
             nodes.Add(BuildNode(d, cx, cy));
         }
 
@@ -648,30 +647,18 @@ public sealed class SkillTreeUi : MonoBehaviour
     void BuildLines(int b)
     {
         float cx = ColX[b];
-        var root = SkillTree.Tier1Of((SkillBranch)b);
-        string rootId = root != null ? root.Id : null;
-        float half = PennH * 0.5f;
-
-        float label1Bottom = TierY[0] + half + 4f + LabelH;     // низ подписи узла I: отсюда ствол
-        float label2Bottom = TierY[1] + half + 4f + LabelH;     // низ подписей яруса II: отсюда развилка яруса III
-
-        // короткий отрезок от заголовка до вымпела I и ствол между вымпелами яруса II
-        AddLink(rootId, new List<Vector2> { P(cx, 142f), P(cx, TierY[0] - half + 3f) });
-        AddLink(rootId, new List<Vector2> { P(cx, label1Bottom), P(cx, label2Bottom) });
-
-        // развилки: мягкие S-образные кривые от ствола к вымпелам. Кривая загорается, когда изучен сам узел, куда она ведёт
+        float half = PennH * .5f;
         var all = SkillTree.All;
-        for (int tier = 2; tier <= 3; tier++)
+        for (int tier = 1; tier <= 3; tier++)
         {
-            float y0 = tier == 2 ? label1Bottom : label2Bottom;
-            float y1 = TierY[tier - 1] - half + 2f;
-            int k = 0;
-            for (int i = 0; i < all.Count; i++)
+            float top = tier == 1 ? 142f : TierY[tier - 2] + half + 4f + LabelH;
+            float target = TierY[tier - 1] - half + 2f;
+            int side = -1;
+            foreach (var node in all)
             {
-                if ((int)all[i].Branch != b || all[i].Tier != tier) continue;
-                float nx = cx + (k == 0 ? -NodeOff : NodeOff);
-                AddLink(all[i].Id, Fork(cx, y0, nx, y1));
-                k++;
+                if ((int)node.Branch != b || node.Tier != tier) continue;
+                AddLink(node.Id, Fork(cx, top, cx + side * NodeOff, target));
+                side = 1;
             }
         }
     }
@@ -766,7 +753,7 @@ public sealed class SkillTreeUi : MonoBehaviour
 
         // название под вымпелом: до двух строк (колонки узкие)
         n.label = UiKit.MakeLabel(Root, d.Title, 16f, UiCandy.Ink, TextAlignmentOptions.Top, true);
-        TLC(n.label.rectTransform, cx, cy + PennH * 0.5f + 4f + LabelH * 0.5f, d.Tier == 1 ? LabelW1 : LabelW2, LabelH);
+        TLC(n.label.rectTransform, cx, cy + PennH * 0.5f + 4f + LabelH * 0.5f, LabelW2, LabelH);
         n.label.enableAutoSizing = true;
         n.label.fontSizeMin = 11f;
         n.label.fontSizeMax = 16f;

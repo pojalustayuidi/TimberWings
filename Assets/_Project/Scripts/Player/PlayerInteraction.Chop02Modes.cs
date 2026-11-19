@@ -12,16 +12,18 @@ public partial class PlayerInteraction
     internal bool Chop03ImpactThisFrame => chop03ImpactFrame == Time.frameCount;
     internal static bool PreciseChop03Impact => inst != null && inst.Chop03ImpactThisFrame && inst.chop03Accurate;
 
-    float Chop03Speed => Chop03Balance.AnimationSpeed(upgrades != null ? upgrades.Level(UpgradeType.ChopPower) : 0,
-        GameBalance.UpgradeMaxLevel[(int)UpgradeType.ChopPower]);
-    internal float EffectiveChopAnimSpeed => chopAnimSpeed * (IsChop03Working ? Chop03Speed : 1f);
+    internal float AxeSwingSpeed => Chop03Balance.ContactInterval / EquippedAxe.Interval;
+    internal float EffectiveChopAnimSpeed => chopAnimSpeed * AxeSwingSpeed;
 
-    float Chop03Damage(int strikes, bool precise)
+    float CurrentChopPower(int chain)
     {
-        float time = upgrades != null ? upgrades.ChopTime : GameBalance.ChopTime;
-        float power = Chop03Balance.Power(GameBalance.ChopTime, time, LumberSkills.ChainBonus(chainLock));
-        return Chop03Balance.Damage(power, strikes, precise);
+        int rank = upgrades != null ? upgrades.Level(UpgradeType.ChopPower) : 0;
+        float supportTime = upgrades != null ? upgrades.Bonus.chopMul : 1f;
+        return Chop03Balance.Power(EquippedAxe.Power, rank, supportTime, LumberSkills.ChainBonus(chain));
     }
+
+    float Chop03Damage(int strikes, bool precise) =>
+        Chop03Balance.Damage(CurrentChopPower(chainLock), strikes, precise);
 
     void PrepareChop03(bool standing)
     {
@@ -35,7 +37,7 @@ public partial class PlayerInteraction
 
     void ArmChop03Swing(float interval, float recovery)
     {
-        float speed = Chop03Speed;
+        float speed = AxeSwingSpeed;
         chop03Swing.Arm(Time.time, interval / speed, recovery / speed);
         nextHitAt = chop03Swing.ImpactAt;
     }
@@ -90,7 +92,7 @@ public partial class PlayerInteraction
         {
             ReadLeoImpact(tree); // Snapshot the point the axe is reaching before the notch deepens.
             float previous = tree.StandingDamage;
-            Progress = tree.DamageStanding(Chop03Damage(Chop03Balance.StandingHits(tree.Size), precise));
+            Progress = tree.DamageStanding(Chop03Damage(tree.IsGolden ? 3 : Chop03Balance.StandingHits(tree.Size), precise));
             float strength = (precise ? 1.37f : .88f) + Progress * .34f;
             var hits = GetTreeHits(tree);
             if (hits != null) hits.Shake(strength, leoHasImpact ? leoImpact : (Vector3?)null);
@@ -127,7 +129,7 @@ public partial class PlayerInteraction
             leoImpact = target.log.CutContact(target.index, transform.position);
             leoImpactFrame = Time.frameCount;
             leoHasImpact = true;
-            bool opened = target.log.Hit(target.index, Chop03Damage(Chop03Balance.HitsPerCut, precise));
+            bool opened = target.log.Hit(target.index, Chop03Damage(target.log.RequiredCutHits(target.index), precise), precise);
             Progress = target.log.CutProgress(target.index);
             GameEvents.RaiseChopHit();
             FinishChop03Impact(precise);

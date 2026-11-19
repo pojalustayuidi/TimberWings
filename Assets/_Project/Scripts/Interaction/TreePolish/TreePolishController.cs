@@ -212,7 +212,16 @@ public sealed partial class TreePolishController : MonoBehaviour
         int meters = Mathf.Max(0, Mathf.RoundToInt(Vector3.Distance(interaction.transform.position, Focus.transform.position)));
         if (lastResource == Focus.GetInstanceID() && lastBase == all && lastFit == fit && lastState == State && lastDistance == meters) return;
         lastResource = Focus.GetInstanceID(); lastBase = all; lastFit = fit; lastState = State; lastDistance = meters;
-        amount.text = "База: +" + all + " " + UiDraw.Plural(all, "бревно", "бревна", "бревен");
+        var special = Focus.SpecialHarvest;
+        string wood = all + " " + UiDraw.Plural(all, "бревно", "бревна", "брёвен");
+        if (special != null)
+        {
+            amount.text = (special.IsGolden ? "Золотое дерево" : "Рунное дерево") + " · " + wood;
+            amount.color = CandyTag.Ink;
+            detail.text = special.IsGolden ? "Брёвна можно забрать частями" : "Эссенция за полный сбор";
+            return;
+        }
+        amount.text = "База: +" + wood;
         amount.color = fit == 0 ? CandyTag.Danger : CandyTag.Ink;
         if (fit == 0) detail.text = "Рюкзак полон · сдай брёвна";
         else if (fit < all) detail.text = "Влезет " + fit + " из " + all + (State == TreeFocusRules.Kind.Walking ? " · идём" : "");

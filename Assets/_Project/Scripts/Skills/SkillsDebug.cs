@@ -8,7 +8,7 @@ using UnityEngine;
 
 public sealed class SkillsDebug : MonoBehaviour
 {
-    public string nodeId = SkillIds.LumberChain;
+    public string nodeId = SkillIds.CarryDash;
     [Range(1, 10)] public int setLevel = 10;
     public int coinsToAdd = 500;
 

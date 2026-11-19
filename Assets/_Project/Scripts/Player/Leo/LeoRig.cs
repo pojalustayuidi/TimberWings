@@ -33,6 +33,39 @@ public sealed class LeoRig : MonoBehaviour
         : axeHolster.parent != null ? axeHolster.parent.rotation * HolsterLocalRotation : axeHolster.rotation;
     public Transform handGripR,handGripL,axeHolster,axeRoot,hammerRoot,compass,compassNeedle,buildGripL,carryGripL,carryGripR;
     public Transform axeBladeTip,hammerStrike;
+    AxeDefinition axeVisual;
+    GameObject equippedAxeModel;
+    MeshRenderer[] bakedAxeRenderers;
+
+    internal Renderer EquippedAxeRenderer { get; private set; }
+    internal Vector3 EquippedAxeEdge { get; private set; } = LeoAxePose.Edge;
+
+    internal bool SyncAxe(AxeDefinition definition)
+    {
+        if (definition == null || axeRoot == null || axeVisual == definition) return false;
+        axeVisual = definition;
+        if (bakedAxeRenderers == null) bakedAxeRenderers = axeRoot.GetComponentsInChildren<MeshRenderer>(true);
+        if (equippedAxeModel != null)
+        {
+            equippedAxeModel.SetActive(false);
+            Destroy(equippedAxeModel);
+        }
+
+        var model = definition.Model ?? AxeCatalog.Get(AxeId.Old).Model;
+        EquippedAxeRenderer = null;
+        foreach (var renderer in bakedAxeRenderers)
+            if (renderer != null) renderer.enabled = model == null;
+        EquippedAxeEdge = LeoAxePose.Edge;
+        if (model == null) return true;
+
+        equippedAxeModel = Instantiate(model, axeRoot, false);
+        EquippedAxeRenderer = equippedAxeModel.GetComponent<MeshRenderer>();
+        foreach (var child in equippedAxeModel.GetComponentsInChildren<Transform>(true))
+            child.gameObject.layer = axeRoot.gameObject.layer;
+        EquippedAxeEdge = model.transform.Find("CuttingEdge").localPosition;
+        return true;
+    }
+
     [SerializeField,HideInInspector]Transform[] joints;
     [SerializeField,HideInInspector]Vector3[] positions,scales;
     [SerializeField,HideInInspector]Quaternion[] rotations;

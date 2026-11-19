@@ -16,7 +16,8 @@ public class TreeRespawn : MonoBehaviour
     float stumpStartY, stumpDepth;
     ChopPrototypeLog trunk;
     ChopPrototypeSave.Tree saved;
-    bool growthStarted;
+    bool growthStarted, specialTree;
+    bool WaitingForHarvest => saved?.HasWood ?? (trunk != null && trunk.HasWood);
 
     internal static TreeRespawn Begin(ResourceItem item, GameObject stump, Vector3 position, float seconds,
         TreeGrowthVisual growth, ChopPrototypeSave.Tree saved, ChopPrototypeLog trunk)
@@ -32,6 +33,8 @@ public class TreeRespawn : MonoBehaviour
         r.item = item;
         r.growth = growth;
         r.saved = saved;
+        r.specialTree = item.SpecialHarvest != null ||
+            (saved != null ? saved.golden || saved.silver : item.IsGolden || SilverTree.Is(item));
         r.trunk = trunk;
         r.grown = saved != null ? saved.grown : 0f;
         r.age = saved != null ? saved.regrowthAge : 0f;
@@ -58,16 +61,15 @@ public class TreeRespawn : MonoBehaviour
         worldTag = WorldTag.Add(gameObject, true);
         worldTag.offset = offset;
         worldTag.SetFontSize(34f);
-        bool waiting = trunk != null && trunk.HasWood;
-        worldTag.visible = !waiting;
+        worldTag.visible = !WaitingForHarvest;
         Refresh((1f - grown) * TotalSeconds());
     }
 
-    float TotalSeconds() { return Mathf.Max(0.1f, baseSeconds * LumberSkills.GrowthMul); }
+    float TotalSeconds() { return Mathf.Max(0.1f, baseSeconds * (specialTree ? 1f : LumberSkills.GrowthMul)); }
 
     void Update()
     {
-        if (trunk != null && trunk.HasWood)
+        if (WaitingForHarvest)
         {
             if (worldTag != null) worldTag.visible = false;
             return;
@@ -93,7 +95,12 @@ public class TreeRespawn : MonoBehaviour
             ChopPrototypeSave.Finish(saved);
             if (item != null) item.RestoreTransform();
             if (tree != null) tree.SetActive(true);
-            if (item != null) item.PlaySpring();
+            if (item != null)
+            {
+                item.PlaySpring();
+                if (SpecialTreeGroves.Current != null)
+                    SpecialTreeGroves.Current.OnTreeRegrown(item.SpecialHarvest);
+            }
             if (growth != null) growth.Finish();
             if (stump != null) Destroy(stump);
             Destroy(gameObject);

@@ -9,6 +9,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
     public int woodCount = 0;
     public int coinsCount = 0;
     public int planksCount = 0;   // доски (из мастерской), нужны для заказов и моста
+    public int RuneEssence { get; private set; }
 
     [Header("Визуальный рюкзак")]
     public Transform backpackPoint;
@@ -26,6 +27,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         public int wood;
         public int coins;
         public int planks;
+        public int runeEssence;
     }
 
     static PlayerInventory instance;
@@ -47,7 +49,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
 
     public string Save()
     {
-        return JsonUtility.ToJson(new SaveData { wood = woodCount, coins = coinsCount, planks = planksCount });
+        return JsonUtility.ToJson(new SaveData { wood = woodCount, coins = coinsCount, planks = planksCount, runeEssence = RuneEssence });
     }
 
     // Без наград, событий, тостов и RequestSave (правило ISaveable)
@@ -63,6 +65,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
         woodCount = Mathf.Max(0, d.wood);
         coinsCount = Mathf.Max(0, d.coins);
         planksCount = Mathf.Max(0, d.planks);
+        RuneEssence = Mathf.Max(0, d.runeEssence);
         pendingLogs = 0;   // летевшие в HUD брёвна старой игры не вернутся
         RebuildBackpack();
         UpdateUI();
@@ -70,7 +73,7 @@ public class PlayerInventory : MonoBehaviour, ISaveable
 
     public void ResetToDefault()
     {
-        woodCount = 0; coinsCount = 0; planksCount = 0;
+        woodCount = 0; coinsCount = 0; planksCount = 0; RuneEssence = 0;
         pendingLogs = 0;
         RebuildBackpack();
         UpdateUI();
@@ -179,24 +182,51 @@ public class PlayerInventory : MonoBehaviour, ISaveable
     }
 
     // true = брёвна списаны. Раньше метод молча ничего не делал, если брёвен не хватало, и вызывающий код мог выдать товар бесплатно
-    public bool RemoveWood(int amount)
-    {
-        if (amount <= 0 || woodCount < amount) return false;
+    public bool RemoveWood(int amount) => amount > 0 && RemoveGoods(amount, 0);
 
-        woodCount -= amount;
-        for (int i = 0; i < amount; i++)
+    internal bool RemoveGoods(int logs, int planks, System.Action beforeNotify = null)
+    {
+        if (logs < 0 || planks < 0 || woodCount < logs || planksCount < planks) return false;
+        woodCount -= logs;
+        planksCount -= planks;
+        for (int i = 0; i < logs && stackedLogs.Count > 0; i++)
         {
-            if (stackedLogs.Count > 0)
-            {
-                GameObject topLog = stackedLogs[stackedLogs.Count - 1];
-                stackedLogs.RemoveAt(stackedLogs.Count - 1);
-                Destroy(topLog);
-            }
+            int top = stackedLogs.Count - 1;
+            Destroy(stackedLogs[top]);
+            stackedLogs.RemoveAt(top);
         }
+        beforeNotify?.Invoke();
         UpdateUI();
         SaveSystem.RequestSave("inventory");
         return true;
     }
+
+    // Camp and personal mill call this exactly once per newly collected batch.
+    internal CampTakeResult ReceiveProduction(int logs, int planks, System.Action<int, int> commit, int coins = 0)
+    {
+        var stats = GetComponent<PlayerStats>();
+        if (stats == null) stats = PlayerStats.Instance;
+        var goods = new CampTakeResult
+        {
+            logs = Mathf.Clamp(logs, 0, FreeSlots),
+            planks = stats == null ? 0 : Mathf.Clamp(planks, 0, int.MaxValue - planksCount)
+        };
+        if (!goods.Any && coins <= 0) return goods;
+
+        woodCount += goods.logs;
+        planksCount += goods.planks;
+        coinsCount += coins;
+        commit?.Invoke(goods.logs, goods.planks);
+        if (goods.planks > 0)
+            stats.AddXP((int)System.Math.Min(int.MaxValue, (long)goods.planks * GameBalance.XpPerPlank));
+        for (int i = 0; i < goods.logs; i++) SpawnLog();
+        UpdateUI();
+        SaveSystem.RequestSave("inventory");
+        return goods;
+    }
+
+    // The ground-trunk pickup has already reserved a slot and will save both inventory and its remainder.
+    internal void ReceiveRuneEssence(int amount) => RuneEssence += amount;
 
     public void AddPlanks(int amount)
     {
@@ -216,9 +246,20 @@ public class PlayerInventory : MonoBehaviour, ISaveable
 
     public void AddCoins(int amount)
     {
-        coinsCount = Mathf.Max(0, coinsCount + amount);   // в минус уйти нельзя
+        coinsCount = (int)System.Math.Max(0, System.Math.Min(int.MaxValue, (long)coinsCount + amount));
         UpdateUI();
         SaveSystem.RequestSave("inventory");
+    }
+
+    internal bool TrySpend(int coins, int planks = 0, System.Action commit = null)
+    {
+        if (coins < 0 || planks < 0 || coinsCount < coins || planksCount < planks) return false;
+        coinsCount -= coins;
+        planksCount -= planks;
+        commit?.Invoke();
+        UpdateUI();
+        SaveSystem.RequestSave("inventory");
+        return true;
     }
 
     // Любое изменение брёвен, досок или монет (в том числе загрузка сохранения). Подписчики: ObjectiveView (живые счётчики цели).

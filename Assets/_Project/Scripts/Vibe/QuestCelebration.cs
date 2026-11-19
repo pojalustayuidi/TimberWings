@@ -25,7 +25,8 @@ public class QuestCelebration : MonoBehaviour
         { "planks", "Доски готовы" },
         { "market", "Прилавок построен" },
         { "firstSale", "Первая сделка!" },
-        { "tent", "Лагерь разбит" }
+        { "tent", "Лагерь разбит" },
+        { "gunnarAxe", "Топор Гуннара восстановлен" }
     };
 
     readonly Queue<string> queue = new Queue<string>();

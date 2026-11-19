@@ -97,7 +97,7 @@ public sealed class NightBonus : MonoBehaviour
         {
             var tr = list[i];
             if (tr == null || !tr.gameObject.activeInHierarchy) continue;
-            if (tr.IsGolden || tr.IsChopping || SilverTree.Is(tr)) continue;
+            if (tr.SpecialHarvest != null || tr.IsGolden || tr.IsChopping || SilverTree.Is(tr)) continue;
             Vector3 d = tr.transform.position - from;
             d.y = 0f;
             float s = d.sqrMagnitude;

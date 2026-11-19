@@ -26,6 +26,11 @@ internal sealed class ChopPrototypeSave : ISaveable
         public float[] cuts;
         public int[] wood;
         public int xp;
+        public bool golden, silver, layoutDiscount;
+        public int essence;
+        public bool anchored;
+        public Vector3 anchorPosition;
+        public Quaternion anchorRotation;
         public float respawnSeconds, grown, regrowthAge;
 
         public bool HasWood
@@ -72,20 +77,37 @@ internal sealed class ChopPrototypeSave : ISaveable
             return true;
         }
 
-        internal int TakeWood(int section, int received)
+        internal int TakeWood(int section, int received, out int gainedEssence)
         {
+            gainedEssence = 0;
             if (!SectionFree(section) || received <= 0 || received > wood[section])
                 return 0;
             wood[section] -= received;
             int award = xp;
             xp = 0;
+            if (essence > 0 && !HasWood)
+            {
+                gainedEssence = essence;
+                essence = 0;
+            }
             return award;
+        }
+
+        internal void MoveTo(Vector3 position, Quaternion rotation)
+        {
+            if (position == anchorPosition && rotation == anchorRotation) return;
+            Quaternion delta = rotation * Quaternion.Inverse(anchorRotation);
+            layout.center = position + delta * (layout.center - anchorPosition);
+            layout.fallPivot = position + delta * (layout.fallPivot - anchorPosition);
+            layout.rotation = delta * layout.rotation;
+            anchorPosition = position;
+            anchorRotation = rotation;
         }
 
         internal bool Valid()
         {
             if (string.IsNullOrEmpty(id) || cuts == null || cuts.Length > 2 || wood == null ||
-                wood.Length != cuts.Length + 1 || xp < 0 || !(respawnSeconds > 0f) ||
+                wood.Length != cuts.Length + 1 || xp < 0 || essence < 0 || essence > SpecialHarvestTree.RuneEssence || !(respawnSeconds > 0f) ||
                 !(layout.radius > 0f) || !(layout.length > 0f) || !(grown >= 0f && grown < 1f) ||
                 !(regrowthAge >= 0f)) return false;
             foreach (float cut in cuts)
@@ -112,11 +134,39 @@ internal sealed class ChopPrototypeSave : ISaveable
     [Serializable]
     sealed class Data
     {
+        public string goldenStanding;
+        public float goldenCooldown;
+        public int goldenSlot;
         public List<Tree> trees = new List<Tree>();
         public List<Standing> standing = new List<Standing>();
     }
 
     static ChopPrototypeSave instance;
+    string goldenStanding;
+    float goldenCooldown;
+
+    internal static string GoldenStanding => instance?.goldenStanding;
+    internal static float GoldenCooldown => instance != null ? instance.goldenCooldown : 0f;
+
+    internal static void SetGolden(string standingId, float cooldown)
+    {
+        Boot();
+        bool changed = instance.goldenStanding != standingId;
+        instance.goldenStanding = standingId;
+        instance.goldenCooldown = Mathf.Max(0f, cooldown);
+        if (changed) SaveSystem.RequestSave(Key);
+    }
+
+    int goldenSlot;
+
+    internal static int GoldenSlot => instance?.goldenSlot ?? 0;
+
+    internal static void SetGoldenSlot(int slot)
+    {
+        Boot();
+        instance.goldenSlot = slot;
+        SaveSystem.RequestSave(Key);
+    }
     readonly Dictionary<string, Tree> trees = new Dictionary<string, Tree>();
     readonly Dictionary<string, Standing> standing = new Dictionary<string, Standing>();
     readonly HashSet<ResourceItem> sources = new HashSet<ResourceItem>();
@@ -185,6 +235,14 @@ internal sealed class ChopPrototypeSave : ISaveable
             SaveSystem.RequestSave(Key);
     }
 
+    internal static bool HasUncollectedGolden()
+    {
+        if (instance == null) return false;
+        foreach (var tree in instance.trees.Values)
+            if (tree.golden && tree.HasWood) return true;
+        return false;
+    }
+
     internal static void Finish(Tree tree)
     {
         if (instance == null || tree == null ||
@@ -195,6 +253,8 @@ internal sealed class ChopPrototypeSave : ISaveable
 
     public string Save() => JsonUtility.ToJson(new Data
     {
+        goldenStanding = goldenStanding, goldenCooldown = goldenCooldown,
+        goldenSlot = goldenSlot,
         trees = new List<Tree>(trees.Values),
         standing = new List<Standing>(standing.Values)
     });
@@ -202,6 +262,9 @@ internal sealed class ChopPrototypeSave : ISaveable
     public void Load(string json, int formatVersion)
     {
         var data = string.IsNullOrEmpty(json) ? null : JsonUtility.FromJson<Data>(json);
+        goldenStanding = data?.goldenStanding;
+        goldenCooldown = Mathf.Clamp(data?.goldenCooldown ?? 0f, 0f, GameBalance.SkillGoldenInterval);
+        goldenSlot = Mathf.Max(0, data?.goldenSlot ?? 0);
         trees.Clear();
         standing.Clear();
         if (data?.trees != null)
@@ -215,6 +278,9 @@ internal sealed class ChopPrototypeSave : ISaveable
 
     public void ResetToDefault()
     {
+        goldenStanding = null;
+        goldenCooldown = 0f;
+        goldenSlot = 0;
         trees.Clear();
         standing.Clear();
         RestoreSources();

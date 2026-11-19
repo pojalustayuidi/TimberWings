@@ -284,7 +284,7 @@ public partial class WorkersWindow
             }
 
             // шансы видны всегда, до покупки
-            var odds = WorkerBalance.OddsOf(type);
+            var odds = WorkerPackRoller.OddsFor(type);
             for (int r = 0; r < 5; r++)
             {
                 bool zero = odds[r] <= 0f;

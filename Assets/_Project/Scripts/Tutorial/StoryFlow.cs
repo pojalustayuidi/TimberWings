@@ -29,6 +29,8 @@ using UnityEngine;
 [DefaultExecutionOrder(-10)]
 public class StoryFlow : MonoBehaviour, ISaveable
 {
+    const string GunnarAxeChapter = "gunnarAxe";
+
     public enum Site { Hut = 0, Market = 1, Tent = 2, Bridge = 3 }
 
     public static StoryFlow Instance { get; private set; }
@@ -107,6 +109,13 @@ public class StoryFlow : MonoBehaviour, ISaveable
         }
         return false;
     }
+    internal bool AxeForgeAvailable => workshop != null && workshop.unlocked && (tent == null || tent.IsFinished);
+    internal bool GunnarBladeAvailable => (CurrentChapterId == GunnarAxeChapter && TaskAccepted) ||
+        MapChapterCompleted(GunnarAxeChapter);
+
+    internal bool CanUseAxeForge(PlayerAxeEquipment axes) => AxeForgeAvailable && axes != null &&
+        PlayerInteraction.CurrentAxes == axes && workshop.isActiveAndEnabled && workshop.DistanceToPlayer() <= workshop.radius;
+
     public event Action ChaptersFinished;
 
     // ------------------------------------------------------------ главы
@@ -536,6 +545,27 @@ public class StoryFlow : MonoBehaviour, ISaveable
             restoreActive = () => PetsOpen = true
         });
 
+        chapters.Add(new Chapter
+        {
+            id = GunnarAxeChapter, giver = oskarName,
+            skip = () => workshop == null,
+            offer = new[]
+            {
+                L(false, "Нашёл в хижине лезвие Гуннара. Видишь две башни? Он ставил этот знак на своих инструментах."),
+                L(true, "Этим топором он тесал балки для переправы?"),
+                L(false, "Им самым. Возьми лезвие. Горн у верстака давно остыл. Принеси восемь досок и шестьдесят монет, тогда запустим его."),
+                L(false, "Когда горн разгорится, посади лезвие на новую рукоять. Стальной топор тоже смогу выковать, если захочешь.")
+            },
+            report = new[]
+            {
+                L(false, "Вот теперь знак видно. Гуннар этим топором вытесал первую балку. Пойдём, покажу, где будем ставить опоры.")
+            },
+            reminder = "Кузница у верстака. Сначала разожги горн, потом восстанови лезвие.",
+            objective = GunnarAxeObjective,
+            done = () => PlayerInteraction.CurrentAxes != null && PlayerInteraction.CurrentAxes.Has(AxeId.Gunnar),
+            target = () => workshop != null ? workshop.Anchor : null
+        });
+
         // 9. Мост (Оскар, ур. 5): три этапа, цены из GameBalance.Bridge* (через Build Site Data).
         // Обязательная глава: skip всегда false. Нет зоны моста: ошибка в Console, цепочка стоит здесь, а не открывает финал вхолостую.
         // После стройки Лео отправляется к арке. Этапы идут строго по порядку.
@@ -570,7 +600,15 @@ public class StoryFlow : MonoBehaviour, ISaveable
         // Каждая глава: новый блок chapters.Add(...) здесь, реплики пишутся прямо в коде.
     }
 
-    // реплика: hero = true говорит Лео, иначе NPC (его Speaker). Каждая до 120 символов
+    string GunnarAxeObjective()
+    {
+        var axes = PlayerInteraction.CurrentAxes;
+        return axes != null && axes.ForgeRestored
+            ? "Восстанови топор Гуннара в кузнице у верстака"
+            : $"Восстанови кузницу у верстака: {PlayerAxeEquipment.ForgePlanks} досок и {PlayerAxeEquipment.ForgeCoins} монет";
+    }
+
+    // реплика: hero = true говорит Лео, иначе NPC (его Speaker).
     DialogueSequence.Line L(bool hero, string text)
     {
         return new DialogueSequence.Line { speaker = hero ? playerName : "", text = text, pauseAfter = 0.3f };
@@ -1211,10 +1249,9 @@ public class StoryFlow : MonoBehaviour, ISaveable
             w.SetHighlight((int)UpgradeType.Capacity);
         }
 
-        // страховка: монет за 2-й уровень (30) впритык хватает на рюкзак (30). Если что-то потрачено, Мира добавит недостающее
+        // Мира покрывает разницу, если игрок захочет купить первое улучшение за монеты.
         FindRefs();
-        int lvl = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.Level(UpgradeType.Capacity) : 0;
-        int cost = GameBalance.UpgradeCost((int)UpgradeType.Capacity, lvl);
+        int cost = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.NextCost(UpgradeType.Capacity) : 30;
         if (inv != null && inv.coinsCount < cost) inv.AddCoins(cost - inv.coinsCount);
     }
 
@@ -1229,7 +1266,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     {
         int cost = GameBalance.UpgradeCost((int)UpgradeType.Capacity, 0);
         if (upgradeWindow != null && upgradeWindow.IsOpen)
-            return "Улучши рюкзак: <color=#6BCB5A>3</color> или кнопка за " + cost + " монет";
+            return "Улучши рюкзак: <color=#6BCB5A>2</color>, Shift+2 за очко или кнопка за " + cost + " монет";
         return "Открой прокачку: <color=#6BCB5A>U</color> или кнопка справа, и улучши рюкзак";
     }
 

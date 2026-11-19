@@ -1,21 +1,10 @@
-// Assets/_Project/Scripts/Skills/LumberjackEffects.cs (НЕ в Editor)
-// Живая часть ветки «Лесоруб»: золотое дерево (lumber_golden) и сброс состояния при смене навыков, загрузке и новой игре.
-// Создаётся сам (BeforeSceneLoad), живёт всю игру, вешать на сцену ничего не нужно.
-//
-// Золотое дерево: раз в GameBalance.SkillGoldenInterval секунд одно спелое дерево рядом с игроком становится золотым
-// (6 брёвен, свечение, столб света, табличка). Золотое дерево одно за раз: пока оно стоит, таймер не идёт.
-// Срубил: следующее через 90 с. Не срубил: оно ждёт тебя (таймер стоит).
-//
-// Что НЕ сохраняется (по заданию): таймер золотого дерева, само золотое дерево и серия рубки.
-// При Load и новой игре всё это сбрасывается, а срубленные деревья возвращает TreeRespawn.OnSaveLoaded (деревья спелые, как в 11-C).
-// Наград здесь нет вообще, поэтому дублей при Load быть не может.
+// Promotes one eligible tree and restores its identity from the chopping save.
 using UnityEngine;
 
 public sealed class LumberjackEffects : MonoBehaviour
 {
     static LumberjackEffects inst;
 
-    float goldenTimer;          // секунд с момента, как золотого дерева нет (не сохраняется)
     float findPlayerAt;
     Transform player;
 
@@ -60,40 +49,43 @@ public sealed class LumberjackEffects : MonoBehaviour
         if (!PlayerSkills.Has(SkillIds.LumberGolden))
         {
             ClearGolden();
-            goldenTimer = 0f;
+            if (!SaveSystem.IsLoading && !string.IsNullOrEmpty(ChopPrototypeSave.GoldenStanding))
+                ChopPrototypeSave.SetGolden(null, ChopPrototypeSave.GoldenCooldown);
         }
         if (!PlayerSkills.Has(SkillIds.LumberChain)) LumberSkills.ResetChain();
     }
 
-    // Load или новая игра: ни серии, ни золотого дерева, ни таймера
+    // A saved golden tree is reapplied after its source becomes active.
     void ResetAll()
     {
         ClearGolden();
-        goldenTimer = 0f;
         LumberSkills.ResetChain();
     }
 
     void Update()
     {
-        if (SaveSystem.IsLoading) return;
+        if (SaveSystem.IsLoading || SpecialTreeGroves.HasAuthoredGold) return;
         if (!PlayerSkills.Has(SkillIds.LumberGolden)) return;
 
-        if (HasGolden()) return;   // одно золотое дерево за раз, таймер стоит
+        if (ChopPrototypeSave.HasUncollectedGolden()) return;
 
-        goldenTimer += Time.deltaTime;   // в паузе (timeScale 0) не идёт
-        if (goldenTimer < GameBalance.SkillGoldenInterval) return;
+        var standingId = ChopPrototypeSave.GoldenStanding;
+        if (!string.IsNullOrEmpty(standingId))
+        {
+            foreach (var tree in ResourceItem.Active)
+            {
+                if (tree == null || tree.ChopSaveId != standingId) continue;
+                if (!tree.IsGolden) tree.SetGolden(true);
+                return;
+            }
+            // Leave the identity intact while the playable island is loading.
+            if (PlayerMovement.Instance == null || BuildingController.AnyRestorePending) return;
+            ChopPrototypeSave.SetGolden(null, 1f);
+        }
 
-        if (TrySpawnGolden()) goldenTimer = 0f;
-        else goldenTimer = GameBalance.SkillGoldenInterval - 1f;   // нет подходящих деревьев: повтор через секунду
-    }
-
-    // золотое дерево сейчас стоит (спелое, не срубленное)
-    static bool HasGolden()
-    {
-        var list = ResourceItem.Active;
-        for (int i = 0; i < list.Count; i++)
-            if (list[i] != null && list[i].IsGolden) return true;
-        return false;
+        float remaining = ChopPrototypeSave.GoldenCooldown - Time.deltaTime;
+        ChopPrototypeSave.SetGolden(null, remaining);
+        if (remaining <= 0 && !TrySpawnGolden()) ChopPrototypeSave.SetGolden(null, 1f);
     }
 
     static void ClearGolden()
@@ -117,6 +109,7 @@ public sealed class LumberjackEffects : MonoBehaviour
         if (tree == null) return false;
 
         tree.SetGolden(true);
+        ChopPrototypeSave.SetGolden(tree.ChopSaveId, 0f);
         SaveIndicator.ShowToast("Появилось золотое дерево! Оно даёт " + GameBalance.SkillGoldenWood + " брёвен");
         SfxManager.Play("hint", 0.9f, 1.15f);
         return true;
@@ -127,7 +120,7 @@ public sealed class LumberjackEffects : MonoBehaviour
     void DebugGoldenNow()
     {
         if (!PlayerSkills.Has(SkillIds.LumberGolden)) { Debug.Log("LumberjackEffects: навык lumber_golden не изучен."); return; }
-        goldenTimer = GameBalance.SkillGoldenInterval;
+        ChopPrototypeSave.SetGolden(ChopPrototypeSave.GoldenStanding, 0f);
     }
 
     [ContextMenu("Тест: сбросить серию рубки")]

@@ -440,7 +440,7 @@ public partial class PetCrateWindow
         SelectPet(null, null);
 
         var pm = PetManager.Instance;
-        float[] odds = GameBalance.PetCrateOdds[(int)crate];
+        float[] odds = PetRoller.OddsFor(crate);
         float inW = InW - 40f - 16f;
         float left = (inW - (ContCols * ContPitchX - 16f)) * 0.5f;
         float y = 8f;
@@ -583,7 +583,7 @@ public partial class PetCrateWindow
     {
         for (int c = 0; c < 3; c++)
         {
-            float[] odds = GameBalance.PetCrateOdds[c];
+            float[] odds = PetRoller.OddsFor((CrateType)c);
             bool cur = (int)crate == c;
             oddsColBg[c].color = cur ? new Color(1f, 1f, 1f, 1f) : new Color(1f, 1f, 1f, 0.55f);
             for (int r = 0; r < 4; r++)

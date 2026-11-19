@@ -10,6 +10,7 @@ public class PlayerStats : MonoBehaviour, ISaveable
     public int coins = 0;   // копия для просмотра в Inspector, настоящие монеты лежат в PlayerInventory
 
     private PlayerInventory inventory;
+    internal int SavedLevel { get; private set; } = 1;
 
     // Для статических систем (PlayerSkills): текущий уровень без FindObjectOfType
     public static PlayerStats Instance { get; private set; }
@@ -26,7 +27,7 @@ public class PlayerStats : MonoBehaviour, ISaveable
         public int xp = 0;
     }
 
-    void Awake() { Instance = this; SaveSystem.Register(this); }
+    void Awake() { inventory = GetComponent<PlayerInventory>(); Instance = this; SaveSystem.Register(this); }
     void OnDestroy() { SaveSystem.Unregister(this); if (Instance == this) Instance = null; }
 
     public string SaveKey { get { return "stats"; } }
@@ -44,14 +45,17 @@ public class PlayerStats : MonoBehaviour, ISaveable
         var d = JsonUtility.FromJson<SaveData>(json);
         if (d == null) { ResetToDefault(); return; }
 
-        currentLevel = Mathf.Clamp(d.level, 1, GameBalance.MaxLevel);
+        SavedLevel = Mathf.Clamp(d.level, 1, GameBalance.MaxLevel);
         currentXP = Mathf.Max(0, d.xp);
+        currentLevel = 1;
+        while (currentLevel < GameBalance.MaxLevel && currentXP >= XpForLevel(currentLevel + 1))
+            currentLevel++;
         RefreshUI();
     }
 
     public void ResetToDefault()
     {
-        currentLevel = 1;
+        SavedLevel = currentLevel = 1;
         currentXP = 0;
         RefreshUI();
     }
@@ -64,7 +68,7 @@ public class PlayerStats : MonoBehaviour, ISaveable
         PlayerSkills.NotifyStatsReady();   // уровень известен: можно проверить сохранённые навыки
     }
 
-    // Формулы GDD v0.2 живут в GameBalance (50 × L опыта на уровень, 15 × L монет за уровень, максимум 10)
+    // Cumulative experience thresholds and per-level rewards.
     public static int XpForLevel(int n) { return GameBalance.XpForLevel(n); }
     public static int CoinsForLevel(int n) { return GameBalance.CoinsForLevel(n); }
 
@@ -73,28 +77,23 @@ public class PlayerStats : MonoBehaviour, ISaveable
     {
         if (amount <= 0) return;
 
-        currentXP += amount;
+        currentXP = (int)System.Math.Min(int.MaxValue, (long)currentXP + amount);
         if (UIManager.Instance != null) UIManager.Instance.ShowXpGain(amount);
 
-        bool coinsChanged = false;
+        int reward = 0;
 
         // while вместо рекурсии: опыта может хватить сразу на несколько уровней
         while (currentLevel < GameBalance.MaxLevel && currentXP >= XpForLevel(currentLevel + 1))
         {
             currentLevel++;
-            int reward = CoinsForLevel(currentLevel);
-
-            if (inventory != null) inventory.coinsCount += reward;
-            coins = inventory != null ? inventory.coinsCount : coins + reward;
-            coinsChanged = true;
-
-            Debug.Log($"НОВЫЙ УРОВЕНЬ {currentLevel}. Монет получено: {reward}. Всего: {coins}");
+            reward += CoinsForLevel(currentLevel);
             GameEvents.RaiseLevelUp(currentLevel);
         }
 
+        if (inventory != null && reward > 0) inventory.AddCoins(reward);
+        coins = inventory != null ? inventory.coinsCount : coins + reward;
         RefreshUI();
         SaveSystem.RequestSave("stats");
-        if (coinsChanged) SaveSystem.RequestSave("inventory");   // монеты за уровень тоже должны уйти в файл
     }
 
     // Обновляет HUD: полоса показывает опыт внутри текущего уровня

@@ -112,6 +112,7 @@ public static class LumberSkills
     // база бревен с дерева (до «Двойной добычи»)
     public static int BaseWood(ResourceItem tree)
     {
+        if (tree != null && tree.SpecialHarvest != null) return tree.SpecialHarvest.Logs;
         // база зависит от размера дерева (1 / 2 / 4), «Крепкая древесина» добавляет +1 (SkillSturdyWood − WoodPerTree), как раньше у зрелого: 2 -> 3
         int w = tree != null ? tree.Logs : GameBalance.WoodPerTree;
         if (Has(SkillIds.LumberSturdy)) w += GameBalance.SkillSturdyWood - GameBalance.WoodPerTree;
@@ -131,7 +132,7 @@ public static class LumberSkills
         {
             var t = list[i];
             if (t == null || t == exclude || !t.gameObject.activeInHierarchy) continue;
-            if (skipGolden && t.IsGolden) continue;
+            if (t.SpecialHarvest != null || (skipGolden && t.IsGolden)) continue;
             Vector3 d = t.transform.position - from;
             d.y = 0f;
             float s = d.sqrMagnitude;
@@ -141,11 +142,23 @@ public static class LumberSkills
     }
 
     // «Эхо удара»: бросок шанса и поиск соседа. null: навык не изучен, не повезло или рядом нет спелых деревьев
-    public static ResourceItem RollEcho(ResourceItem from)
+    public static ResourceItem RollEcho(ResourceItem from, bool requireProcessing = false)
     {
-        if (from == null || !Has(SkillIds.LumberEcho)) return null;
-        if (Random.value >= GameBalance.SkillEchoChance) return null;
-        return NearestRipe(from.transform.position, GameBalance.SkillEchoRadius, from, true);
+        if (from == null || from.SpecialHarvest != null || from.Size == TreeSize.Young || from.IsGolden || SilverTree.Is(from) ||
+            !Has(SkillIds.LumberEcho) || Random.value >= GameBalance.SkillEchoChance) return null;
+        ResourceItem best = null;
+        float distance = GameBalance.SkillEchoRadius * GameBalance.SkillEchoRadius;
+        foreach (var tree in ResourceItem.Active)
+        {
+            if (tree == null || tree == from || tree.SpecialHarvest != null || tree.Size != TreeSize.Young || tree.IsGolden || SilverTree.Is(tree) ||
+                !tree.respawn || requireProcessing && string.IsNullOrEmpty(tree.ChopSaveId)) continue;
+            Vector3 delta = tree.transform.position - from.transform.position;
+            delta.y = 0f;
+            if (delta.sqrMagnitude >= distance) continue;
+            distance = delta.sqrMagnitude;
+            best = tree;
+        }
+        return best;
     }
 
     // кандидат на золотое дерево: случайное спелое в кольце [MinDist, MaxDist] вокруг игрока, иначе любое спелое
@@ -162,7 +175,7 @@ public static class LumberSkills
         for (int i = 0; i < list.Count; i++)
         {
             var t = list[i];
-            if (t == null || !t.gameObject.activeInHierarchy || t.IsGolden || t.IsChopping) continue;
+            if (t == null || !t.gameObject.activeInHierarchy || t.SpecialHarvest != null || t.IsGolden || t.IsChopping || SilverTree.Is(t) || !t.respawn || string.IsNullOrEmpty(t.ChopSaveId)) continue;
 
             any++;
             if (Random.Range(0, any) == 0) pickAny = t;          // равномерный выбор без выделения памяти
