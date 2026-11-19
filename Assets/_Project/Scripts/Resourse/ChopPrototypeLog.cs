@@ -6,7 +6,8 @@ using UnityEngine.SceneManagement;
 public sealed partial class ChopPrototypeLog : MonoBehaviour
 {
     internal static readonly List<ChopPrototypeLog> Active = new List<ChopPrototypeLog>();
-    internal static bool Enabled { get; private set; }
+    static bool? modeOverride;
+    internal static bool Enabled => modeOverride ?? OrbitCamera.FirstPersonActive;
     internal bool Ready { get; private set; }
     internal bool HasWood => state.HasWood;
     internal int CutCount => state.cuts.Length;
@@ -22,14 +23,14 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     static void ResetStatics()
     {
         Active.Clear();
-        Enabled = false;
+        modeOverride = null;
         if (cutMarkMesh != null) Destroy(cutMarkMesh);
         cutMarkMesh = null;
     }
 
     internal static void Toggle()
     {
-        Enabled = !Enabled;
+        modeOverride = !Enabled;
         SaveIndicator.ShowToast(Enabled
             ? Text("CHOP-03 · зелёная зона", "CHOP-03 · green zone")
             : Text("Обычная рубка · лежащие стволы доступны", "Regular chopping · felled logs remain"));

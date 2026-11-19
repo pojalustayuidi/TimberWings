@@ -55,7 +55,7 @@ public partial class PlayerInteraction
 
         // A blocked step backwards still leaves the axe usable in the current close stance.
         if (inStance) return;
-        chop03Hold = false;
+        CancelChop03Request();
         SaveIndicator.ShowToast(ChopPrototypeLog.Text(
             "Нет свободного подхода · попробуй ближе", "No clear approach · move closer"));
     }
@@ -154,11 +154,11 @@ public partial class PlayerInteraction
         if (chop03Tree != null ? !chop03Tree.isActiveAndEnabled : !chop03Log.Valid)
         {
             CancelChop03Approach();
-            chop03Hold = false;
+            CancelChop03Request();
             return false;
         }
         if (movement != null && movement.IsWalkingTo(chop03WalkSpot)) return true;
-        chop03Hold &= chop03Arrived;
+        if (!chop03Arrived) CancelChop03Request();
         chop03Walking = chop03Arrived = false;
         WalkTarget = null;
         nextPrototypePick = 0f;

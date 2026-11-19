@@ -17,6 +17,7 @@ Shader "Project/TreeToon"
         [Header(Colors)]
         [MainColor] _BaseColor ("Top color (_BaseColor)", Color) = (0.62, 0.86, 0.20, 1)
         _BottomColor ("Bottom color", Color) = (0.07, 0.30, 0.14, 1)
+        [HDR] _EmissionColor ("Emission", Color) = (0, 0, 0, 0)
         _GradMin ("Gradient start height (m)", Float) = 1.6
         _GradMax ("Gradient end height (m)", Float) = 5.4
         _GradPow ("Gradient curve", Range(0.3, 3)) = 1
@@ -67,6 +68,7 @@ Shader "Project/TreeToon"
         CBUFFER_START(UnityPerMaterial)
             float4 _BaseColor;
             float4 _BottomColor;
+            float4 _EmissionColor;
             float _GradMin;
             float _GradMax;
             float _GradPow;
@@ -243,7 +245,7 @@ Shader "Project/TreeToon"
                 rim *= smoothstep(0.45, 0.85, ndl) * shadow;
                 col += _RimColor.rgb * L.color * (rim * _RimStrength);
 
-                col = MixFog(col, i.fog);
+                col = MixFog(col + _EmissionColor.rgb, i.fog);
                 return half4(col, 1.0);
             }
             ENDHLSL

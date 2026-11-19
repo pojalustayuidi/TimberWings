@@ -95,7 +95,7 @@ public partial class HudMinimap : MonoBehaviour
     public RectTransform dayBanner;
     public TMP_Text dayText;
     [Tooltip("Цвет приписки «· Закат» (на светлой табличке нужен приглушённый индиго; при candyPalette ставится из кода)")]
-    public Color phaseColor = new Color32(0xC9, 0xD3, 0xEE, 255);
+    public Color phaseColor = new Color32(0x3C, 0x40, 0x60, 255);
 
     TMP_Text dayLabel;
     int shownDay = -1, shownMinute = -1;
@@ -280,6 +280,7 @@ public partial class HudMinimap : MonoBehaviour
             if (dayBanner != null) dayBanner.gameObject.SetActive(showDay);
             if (!showDay) return;
             dayLabel = dayText;
+            if (dayBanner != null) dayLabel.color = HudPolishRoot.Ink;
             UpdateDayLabel();
             return;
         }
@@ -327,7 +328,9 @@ public partial class HudMinimap : MonoBehaviour
         string phase = DayNightCycle.PhaseName(ph);
         string clock = showClock ? (minute / 60).ToString("00") + ":" + (minute % 60).ToString("00") : "";
         string tail = clock + (clock.Length > 0 && phase.Length > 0 ? " · " : "") + phase;
-        dayLabel.text = "День " + day + (tail.Length > 0 ? "  <size=65%><color=#" + ColorUtility.ToHtmlStringRGB(phaseColor) + ">· " + tail + "</color></size>" : "");
+        Color tailInk = dayBanner != null ? HudPolishRoot.Ink : phaseColor;
+        dayLabel.text = "День " + day +
+            (tail.Length > 0 ? "  <size=82%><color=#" + ColorUtility.ToHtmlStringRGB(tailInk) + ">· " + tail + "</color></size>" : "");
     }
 
     void UpdateTint()

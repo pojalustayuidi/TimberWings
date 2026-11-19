@@ -64,7 +64,7 @@ public partial class PlayerInteraction
         }
     }
 
-    const float FirstPersonTreeClearance = .18f;
+    const float FirstPersonTreeClearance = .27f;
 
     float LeoStopDistance(ResourceItem item)
     {

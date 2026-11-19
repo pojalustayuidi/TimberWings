@@ -4,28 +4,24 @@ internal sealed partial class LeoFirstPersonView
 {
     const float Contact = .62f;
     const float Recovery = .29f;
-    const float StandingWindup = .44f;
-    const float GroundWindup = .42f;
-    static readonly Vector3 RightShoulder = new Vector3(.285f, -.30f, .075f);
-    static readonly Vector3 LeftShoulder = new Vector3(-.285f, -.30f, .075f);
-    static readonly Vector3 SupportGrip = new Vector3(0f, -.183f, 0f);
+    static readonly Vector3 RightShoulder = new Vector3(.27f, -.32f, .075f);
 
     struct Pose
     {
         internal readonly Vector3 grip;
         internal readonly Quaternion tool;
-        internal readonly float support;
+        internal readonly float extension;
 
-        internal Pose(Vector3 grip, Quaternion tool, float support = 0f)
+        internal Pose(Vector3 grip, Quaternion tool, float extension = 0f)
         {
             this.grip = grip;
             this.tool = tool;
-            this.support = support;
+            this.extension = extension;
         }
 
         internal static Pose Blend(Pose a, Pose b, float t) => new Pose(
             Vector3.Lerp(a.grip, b.grip, t), Quaternion.Slerp(a.tool, b.tool, t),
-            Mathf.Lerp(a.support, b.support, t));
+            Mathf.Lerp(a.extension, b.extension, t));
     }
 
     readonly LeoImpactClock clock = new LeoImpactClock();
@@ -39,7 +35,6 @@ internal sealed partial class LeoFirstPersonView
     float forecastDue;
     float equipped, stowPath, carryUntil, cancelAmount;
     float recoveryStart, recoveryEnd, contactRecoil = 1f;
-    float needleAngle;
 
     internal void Hit(PlayerInteraction interaction, bool fell)
     {
@@ -53,9 +48,9 @@ internal sealed partial class LeoFirstPersonView
 
     internal void Suspend()
     {
+        SetVisible(false);
         if (suspended) return;
         ReleaseMotion();
-        SetRendered(false);
     }
 
     void ReleaseMotion()
@@ -98,21 +93,21 @@ internal sealed partial class LeoFirstPersonView
         float phase = ReadPhase(now, due, hit, chopping && interaction.IsProcessingPrototypeLog, swingSpeed);
         bool recovering = now < recoveryEnd;
 
-        // Keep the weapon at real world depth, with fuller arms for the closer viewpoint.
-        float rigScale = Mathf.Max(.01f, Mathf.Abs(source.transform.lossyScale.y) * viewScale * 1.38f);
+        float rigScale = Mathf.Max(.01f, Mathf.Abs(source.transform.lossyScale.y) * viewScale * 1.28f);
         if (root.localScale.y != rigScale) root.localScale = Vector3.one * rigScale;
-        float frame = Mathf.Clamp(Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * .5f) /
-            Mathf.Tan(68f * Mathf.Deg2Rad * .5f), .75f, 1.42f);
-        float reduced = VibeSettings.ReduceEffects ? .46f : 1f;
-        float gait = Mathf.Sin(stride) * move * reduced;
-        float lift = Mathf.Cos(stride * 2f) * move * reduced;
-        float breath = Mathf.Sin(now * 1.7f) * .007f * reduced;
+        if (overlay != null && !Mathf.Approximately(overlay.aspect, camera.aspect))
+            overlay.aspect = camera.aspect;
+        float frame = Mathf.Clamp(camera.aspect / (16f / 9f), .70f, 1.06f);
+        float sway = VibeSettings.ReduceEffects ? .22f : 1f;
+        float gait = Mathf.Sin(stride) * move * sway;
+        float lift = Mathf.Cos(stride * 2f) * move * sway;
+        float breath = Mathf.Sin(now * 1.7f) * .005f * sway;
         var carry = new Pose(
-            new Vector3(Mathf.Lerp(.268f, .25f, run) * frame + gait * .024f,
-                Mathf.Lerp(-.190f, -.215f, run) * frame + breath + lift * Mathf.Lerp(.014f, .022f, run),
-                .432f + (1f - frame) * .065f + gait * Mathf.Lerp(.024f, .050f, run)),
-            Quaternion.Euler(15f + gait * Mathf.Lerp(4f, 8f, run) - run * 12f,
-                -35f + gait * 6f, -35f - run * 15f + lift * 4f));
+            new Vector3(Mathf.Lerp(.240f, .222f, run) * frame + gait * .018f,
+                Mathf.Lerp(-.207f, -.235f, run) + breath + lift * Mathf.Lerp(.010f, .015f, run),
+                .486f + gait * Mathf.Lerp(.017f, .033f, run)),
+            Quaternion.Euler(15f + gait * Mathf.Lerp(3f, 6f, run) - run * 8f,
+                -34f + gait * 4f, -30f - run * 12f + lift * 3f));
         float ready = LeoMotionProfile.Smooth(equipped);
         Pose pose = Equip(carry, ready, stowPath);
         bool swing = hit || phase > 0f;
@@ -147,26 +142,21 @@ internal sealed partial class LeoFirstPersonView
             }
         }
         wasSwinging = swing;
-        Apply(pose, ready, gait, lift, frame, groundStrike && (swing || cancelAmount > 0f));
+        bool visible = ready > .04f;
+        if (!visible)
+        {
+            SetVisible(false);
+            return;
+        }
+        Apply(pose, lift, groundStrike && (swing || cancelAmount > 0f));
+        SetVisible(true);
         UpdateLighting(now);
-        UpdateCompass(dt);
         if (stroke != null)
         {
             bool emit = !VibeSettings.ReduceEffects && ready > .85f && phase > .49f && phase <= Contact;
             if (emit && !stroke.emitting) stroke.Clear();
             stroke.emitting = emit;
         }
-    }
-
-    void UpdateCompass(float dt)
-    {
-        if (compassNeedle == null) return;
-        Vector3 north = compassNeedle.parent.InverseTransformDirection(Vector3.forward);
-        if (north.x * north.x + north.y * north.y < .018f) return;
-        // The brass tip in Leo_Model is authored 57 degrees clockwise from dial up.
-        float angle = Mathf.Atan2(-north.x, north.y) * Mathf.Rad2Deg + 57f;
-        needleAngle = Mathf.LerpAngle(needleAngle, angle, 1f - Mathf.Exp(-12f * dt));
-        compassNeedle.localRotation = Quaternion.AngleAxis(needleAngle, Vector3.forward);
     }
 
     float ReadPhase(float now, float due, bool hit, bool ground, float swingSpeed)
@@ -192,13 +182,13 @@ internal sealed partial class LeoFirstPersonView
             clock.ForgetForecast();
             return 0f;
         }
-        clock.Forecast(now, due, (ground ? GroundWindup : StandingWindup) / swingSpeed);
+        clock.Forecast(now, due, (ground ? Chop03Balance.GroundWindup : Chop03Balance.StandingWindup) / swingSpeed);
         return clock.Phase(now, Contact, recovery, false);
     }
 
     static Pose Equip(Pose carry, float ready, float stow)
     {
-        Vector3 belt = new Vector3(.46f, -.75f, .17f);
+        Vector3 belt = new Vector3(.31f, -.72f, .25f);
         float arc = 4f * ready * (1f - ready);
         Vector3 sweep = Vector3.Lerp(new Vector3(.08f, -.018f, .135f), new Vector3(.145f, -.080f, .060f), stow);
         return new Pose(Vector3.Lerp(belt, carry.grip, ready) + sweep * arc,
@@ -224,7 +214,7 @@ internal sealed partial class LeoFirstPersonView
         if (contactWorld.HasValue)
         {
             // Recover in camera space from the exact world-space point already used by the VFX.
-            Vector3 target = root.InverseTransformPoint(contactWorld.Value);
+            Vector3 target = ProjectContact(contactWorld.Value);
             if (target.z > .075f)
             {
                 edge = target;
@@ -269,93 +259,26 @@ internal sealed partial class LeoFirstPersonView
             rest.tool, 1f - LeoMotionProfile.Smooth((returnT - .22f) / .78f));
     }
 
-    void Apply(Pose pose, float ready, float gait, float lift, float frame, bool lowerSwing)
+    void Apply(Pose pose, float lift, bool lowerSwing)
     {
         Vector3 main = pose.grip;
-        float brace = pose.support;
-        // At the wider tree stance, reach with the shoulders before extending the wrists.
-        float lean = Mathf.Clamp((main.z - .34f) * (lowerSwing ? 1.15f : .96f), 0f, lowerSwing ? .61f : .46f) * brace;
-        float shift = Mathf.Clamp((main.x - .15f) * .27f, -.065f, .067f) * brace;
-        float dip = Mathf.Clamp((-.24f - main.y) * .32f, 0f, .10f) * brace;
-        float rise = Mathf.Clamp((main.y + .12f) * .35f, 0f, .070f) * brace;
-        Vector3 shoulderOffset = new Vector3(shift, rise - dip + lift * .012f, lean);
-        right.upper.localPosition = RightShoulder + shoulderOffset;
-        left.upper.localPosition = LeftShoulder + shoulderOffset;
-        Vector3 rightPole = new Vector3(.53f + shift, -.325f, .135f + lean);
-        Vector3 leftPole = new Vector3(-.53f + shift + .06f * brace, -.328f - .08f * brace, .12f + lean - .155f * brace);
+        float extension = pose.extension;
+        float lean = Mathf.Clamp((main.z - .40f) * 1.04f, 0f, lowerSwing ? .67f : .52f) * extension;
+        float shift = Mathf.Clamp((main.x - .19f) * .35f, -.10f, .07f) * extension;
+        float drop = Mathf.Clamp((-.14f - main.y) * .38f, -.06f, .18f) * extension;
+        right.upper.localPosition = RightShoulder + new Vector3(shift, -drop + lift * .012f, lean);
+        Vector3 pole = right.upper.localPosition + new Vector3(.19f, -.16f, .07f);
         Vector3 shaft = pose.tool * Vector3.up;
-        Vector3 supportOffset = pose.tool * (SupportGrip - LeoAxePose.MainGrip);
-        float clasp = LeoMotionProfile.Smooth(ready / .26f);
-        Quaternion wristR = LeoAxePose.RightWrist(pose.tool);
-        Quaternion wristL = LeoAxePose.RightWrist(pose.tool * Quaternion.AngleAxis(180f, Vector3.up));
-        if (clasp > .001f)
-            wristR = right.GripWrist(root, main, rightPole, wristR, shaft);
-        if (brace > .001f)
-            wristL = left.GripWrist(root, main + supportOffset, leftPole, wristL, shaft);
-
-        Vector3 gripCenter = LeoFirstPersonHandMesh.GripCenter;
-        Vector3 rightOffset = -(wristR * gripCenter);
-        Vector3 leftOffset = supportOffset - wristL * gripCenter;
-
-        // Keep both wrist targets inside arm reach by moving the tool as a whole.
-        // This preserves the spacing of the two grips even near the edge of reach.
-        Vector3 centerR = right.upper.localPosition - rightOffset;
-        Vector3 centerL = left.upper.localPosition - leftOffset;
-        Vector3 fitted = Limit(main, centerR, right.reach);
-        Vector3 fittedBoth = fitted;
-        if (brace > .001f)
-        {
-            for (int i = 0; i < 8; i++)
-                fittedBoth = Limit(Limit(fittedBoth, centerL, left.reach), centerR, right.reach);
-        }
-        if (lowerSwing && brace > .001f)
-        {
-            // As the player bends towards the low log, translate both view
-            // shoulders together within a small range. Arm lengths stay fixed.
-            Vector3 bend = Vector3.ClampMagnitude(main - fittedBoth, .21f) * brace;
-            right.upper.localPosition += bend;
-            left.upper.localPosition += bend;
-            rightPole += bend;
-            leftPole += bend;
-            fitted += bend;
-            fittedBoth += bend;
-        }
-        main = Vector3.Lerp(fitted, fittedBoth, LeoMotionProfile.Smooth(brace));
+        Quaternion wrist = right.GripWrist(root, main, pole, LeoAxePose.RightWrist(pose.tool), shaft);
+        Vector3 gripOffset = wrist * LeoFirstPersonHandMesh.GripCenter;
+        Vector3 fitted = Limit(main, right.upper.localPosition + gripOffset, right.reach);
+        // Lean into the cut without stretching the forearm or letting the palm leave the handle.
+        Vector3 bend = Vector3.ClampMagnitude(main - fitted, lowerSwing ? .31f : .20f) * extension;
+        right.upper.localPosition += bend;
+        main = fitted + bend;
         axe.localRotation = pose.tool;
         axe.localPosition = main - pose.tool * LeoAxePose.MainGrip;
-        // The tool drops below the frame before its renderers are turned off.
-        bool showAxe = ready > .025f;
-        if (axe.gameObject.activeSelf != showAxe) axe.gameObject.SetActive(showAxe);
-
-        Vector3 rightRest = new Vector3(.270f * frame, -.251f * frame + lift * .020f, .407f + gait * .054f);
-        Vector3 leftRest = new Vector3(-.257f * frame, -.240f * frame - lift * .016f - ready * .043f,
-            .416f - gait * .058f);
-        right.Pose(root, Vector3.Lerp(rightRest, main + rightOffset, clasp), rightPole,
-            Quaternion.Slerp(RelaxedWrist(1f, gait), wristR, clasp), clasp);
-        left.Pose(root, Vector3.Lerp(leftRest, main + leftOffset, brace), leftPole,
-            Quaternion.Slerp(RelaxedWrist(-1f, -gait), wristL, brace), brace);
-
-        if (compass != null)
-            PoseCompass();
-    }
-
-    static Quaternion RelaxedWrist(float side, float swing)
-    {
-        // Local -Y runs toward the fingertips and -Z faces the knuckles.
-        Vector3 fingers = new Vector3(-side * .20f, -.24f + swing * .13f, .96f).normalized;
-        Vector3 palm = Vector3.ProjectOnPlane(new Vector3(-side * .36f, -1f, -.06f), fingers);
-        return Quaternion.LookRotation(palm, -fingers);
-    }
-
-    void PoseCompass()
-    {
-        Vector3 upArm = (left.elbow.position - left.wrist.position).normalized;
-        Vector3 face = Vector3.ProjectOnPlane(-left.wrist.forward, upArm);
-        if (face.sqrMagnitude < .01f)
-            face = Vector3.ProjectOnPlane(-left.forearm.forward, upArm);
-        if (face.sqrMagnitude < .0001f) return;
-        compass.SetPositionAndRotation(left.wrist.position + upArm * (.034f * root.lossyScale.y),
-            Quaternion.LookRotation(face, upArm));
+        right.Pose(root, main - gripOffset, pole + bend, wrist, 1f);
     }
 
     static Vector3 Limit(Vector3 value, Vector3 center, float radius) =>

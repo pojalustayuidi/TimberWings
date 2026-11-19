@@ -6,6 +6,7 @@ public partial class ResourceItem
     TreeChopNotch standingVisual;
 
     internal float StandingDamage => standingNotch?.damage ?? 0f;
+    internal int SummerStrikes => standingNotch?.summerStrikes ?? 0;
 
     internal void PrepareStandingNotch(Vector3 contact, Vector3 actor)
     {
@@ -40,9 +41,11 @@ public partial class ResourceItem
         return true;
     }
 
-    internal float DamageStanding(float damage)
+    internal float DamageStanding(float damage, float summerDamage = 0f)
     {
         if (standingNotch == null) return 0f;
+        if (summerDamage > 0f && AxeRunes.AdvanceCycle(ref standingNotch.summerStrikes, AxeRunes.SparkInterval))
+            damage += summerDamage;
         float result = Chop03Balance.Advance(standingNotch.damage, damage);
         // A landing plan can fail after the last contact. Keep a real, nearly
         // finished notch available for another attempt in that case.

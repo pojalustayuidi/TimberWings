@@ -102,7 +102,8 @@ public partial class HudMinimap
         if (dayText != null)
         {
             SetLabelFont(dayText);
-            dayText.color = UiCandy.Ink;
+            dayText.color = HudPolishRoot.Ink;
+            dayText.fontStyle |= FontStyles.Bold;
             dayText.outlineWidth = 0f;
         }
     }

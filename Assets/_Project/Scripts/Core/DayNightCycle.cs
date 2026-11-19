@@ -552,7 +552,9 @@ public class DayNightCycle : MonoBehaviour
         float sunI = (balance ? Mathf.Min(sunMaxIntensity, 1.15f) : sunMaxIntensity) * k;
         sun.intensity = sunI;
         sun.color = SunColor(e, st);
-        if (st != null) sun.shadowStrength = st.sunShadowStrength;
+        float authoredShadows = st != null ? st.sunShadowStrength :
+            LightingRig.Instance != null ? LightingRig.Instance.sunShadowStrength : sun.shadowStrength;
+        sun.shadowStrength = balance ? Mathf.Min(LightingRig.SoftSunShadowStrength, authoredShadows) : authoredShadows;
         bool sunOn = sunI > 0.005f;
         if (sun.enabled != sunOn) sun.enabled = sunOn;
         float yaw = sunYawNoon + DeltaDay(t, 0.5f) * sunYawPerDay;
@@ -585,6 +587,10 @@ public class DayNightCycle : MonoBehaviour
         Color groundAmbient = Mix(ambDayGround, grTw, ambNightGround, wd, wt, wn);
         if (balance)
         {
+            // Warm bounce below the canopy keeps faces readable without lifting the night.
+            float daylight = (wd + .45f * wt) * .14f;
+            equatorAmbient = Color.Lerp(equatorAmbient, new Color(.94f, .79f, .66f), daylight);
+            groundAmbient = Color.Lerp(groundAmbient, new Color(.58f, .48f, .37f), daylight);
             // Чуть приглушённые ночные синие тона: силуэты и руны читаются без «неоновой» подсветки.
             skyAmbient = Color.Lerp(skyAmbient, new Color(0.29f, 0.36f, 0.51f), wn * 0.18f);
             equatorAmbient = Color.Lerp(equatorAmbient, new Color(0.24f, 0.29f, 0.40f), wn * 0.18f);

@@ -148,7 +148,7 @@ public class InteractionHub : MonoBehaviour
         // дерево ближе, чем объект: уступаем E рубке. Исключение: NPC и прилавок (Priority), их E не отдаём
         var prio = best as IPriorityInteractable;
         bool keep = prio != null && prio.Priority;
-        if (!ChopPrototypeLog.Enabled && !OrbitCamera.FirstPersonActive && best != null && !keep &&
+        if (!ChopPrototypeLog.UsesProcessing && !OrbitCamera.FirstPersonActive && best != null && !keep &&
             trees != null && !trees.IsProcessingPrototypeLog && trees.CurrentTarget != null)
         {
             Vector3 td = trees.CurrentTarget.transform.position - me;

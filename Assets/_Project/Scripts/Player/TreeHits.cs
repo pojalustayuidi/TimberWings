@@ -32,26 +32,38 @@ public class TreeHits : MonoBehaviour
     internal void Shake(float strength, Vector3? contact)
     {
         if (shake != null) StopCoroutine(shake);
-        shake = StartCoroutine(ShakeRoutine(strength));
+        Vector3 axis = Vector3.forward;
+        if (contact.HasValue)
+        {
+            Vector3 away = Vector3.ProjectOnPlane(transform.position - contact.Value, Vector3.up);
+            if (away.sqrMagnitude > .0001f)
+            {
+                axis = Vector3.Cross(Vector3.up, away.normalized);
+                if (transform.parent != null) axis = transform.parent.InverseTransformDirection(axis);
+            }
+        }
+        float amplitude = strength * (VibeSettings.ReduceEffects ? .8f : 2.4f);
+        shake = StartCoroutine(ShakeRoutine(amplitude, axis));
         // ImpactFx already receives the same hit via GameEvents.ChopHit and creates
         // pooled wood chips, dust and the impact flash. Avoid a second per-hit system.
         // Keep the old lightweight fallback for isolated test scenes without _Vibe.
         if (ImpactFx.Instance == null) Chips(strength, contact);
     }
 
-    IEnumerator ShakeRoutine(float strength)
+    IEnumerator ShakeRoutine(float amplitude, Vector3 axis)
     {
         const float duration = 0.25f;
         float t = 0f;
         while (t < duration)
         {
             t += Time.deltaTime;
-            float k = 1f - t / duration;
-            float angle = Mathf.Sin(t * 60f) * 5f * strength * k;
-            transform.localRotation = baseRot * Quaternion.Euler(0f, 0f, angle);
+            float k = Mathf.Clamp01(1f - t / duration);
+            float angle = Mathf.Sin(t * 47f) * amplitude * k * k;
+            transform.localRotation = Quaternion.AngleAxis(angle, axis) * baseRot;
             yield return null;
         }
         transform.localRotation = baseRot;
+        shake = null;
     }
 
     // Щепки: маленький взрыв частиц, создаётся из кода, префабы не нужны

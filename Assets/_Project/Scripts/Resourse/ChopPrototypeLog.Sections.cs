@@ -97,7 +97,7 @@ public sealed partial class ChopPrototypeLog
             }
             part.shift = shift;
             part.root.transform.localPosition = new Vector3(0f, bounce, (part.start + part.end) * .5f + shift);
-            bool visible = Ready && (state.wood[i] > 0 || !state.SectionFree(i));
+            bool visible = Ready && (state.HasSectionHarvest(i) || !state.SectionFree(i));
             if (part.root.activeSelf != visible) part.root.SetActive(visible);
         }
         for (int i = 0; i < CutCount; i++)

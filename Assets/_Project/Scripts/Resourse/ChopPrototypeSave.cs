@@ -25,7 +25,8 @@ internal sealed class ChopPrototypeSave : ISaveable
         public Layout layout;
         public float[] cuts;
         public int[] wood;
-        public int xp;
+        public int xp, planks, summerStrikes;
+        public AxeRuneId rewardRune;
         public bool golden, silver, layoutDiscount;
         public int essence;
         public bool anchored;
@@ -41,6 +42,19 @@ internal sealed class ChopPrototypeSave : ISaveable
                     if (count > 0) return true;
                 return false;
             }
+        }
+
+        internal bool HasHarvest => HasWood || planks > 0;
+
+        internal bool HasSectionHarvest(int section) => wood[section] > 0 || section == wood.Length - 1 && planks > 0;
+        internal int PlanksIn(int section) => section == wood.Length - 1 && AllCutsOpen ? planks : 0;
+
+        internal bool LastPickup(int section)
+        {
+            if (!AllCutsOpen || PlanksIn(section) < planks) return false;
+            for (int i = 0; i < wood.Length; i++)
+                if (i != section && wood[i] > 0) return false;
+            return true;
         }
 
         public bool AllCutsOpen
@@ -77,15 +91,17 @@ internal sealed class ChopPrototypeSave : ISaveable
             return true;
         }
 
-        internal int TakeWood(int section, int received, out int gainedEssence)
+        internal int TakeHarvest(int section, int logs, int boards, out int gainedEssence)
         {
             gainedEssence = 0;
-            if (!SectionFree(section) || received <= 0 || received > wood[section])
+            if (!SectionFree(section) || logs < 0 || boards < 0 || logs + boards == 0 ||
+                logs > wood[section] || boards > PlanksIn(section))
                 return 0;
-            wood[section] -= received;
+            wood[section] -= logs;
+            planks -= boards;
             int award = xp;
             xp = 0;
-            if (essence > 0 && !HasWood)
+            if (essence > 0 && !HasHarvest)
             {
                 gainedEssence = essence;
                 essence = 0;
@@ -107,7 +123,9 @@ internal sealed class ChopPrototypeSave : ISaveable
         internal bool Valid()
         {
             if (string.IsNullOrEmpty(id) || cuts == null || cuts.Length > 2 || wood == null ||
-                wood.Length != cuts.Length + 1 || xp < 0 || essence < 0 || essence > SpecialHarvestTree.RuneEssence || !(respawnSeconds > 0f) ||
+                wood.Length != cuts.Length + 1 || xp < 0 || planks < 0 || planks > 2 || !AxeRunes.IsValid(rewardRune) ||
+                summerStrikes < 0 || summerStrikes >= AxeRunes.SparkInterval ||
+                essence < 0 || essence > SpecialHarvestTree.RuneEssence || !(respawnSeconds > 0f) ||
                 !(layout.radius > 0f) || !(layout.length > 0f) || !(grown >= 0f && grown < 1f) ||
                 !(regrowthAge >= 0f)) return false;
             foreach (float cut in cuts)
@@ -124,8 +142,10 @@ internal sealed class ChopPrototypeSave : ISaveable
         public string id;
         public Vector3 localPoint, localOutward;
         public float radius, damage;
+        public int summerStrikes;
 
         internal bool Valid() => !string.IsNullOrEmpty(id) && damage > 0f && damage < 1f &&
+            summerStrikes >= 0 && summerStrikes < AxeRunes.SparkInterval &&
             radius > .02f && radius <= 3f && localPoint.sqrMagnitude < 400f &&
             localOutward.sqrMagnitude > .90f && localOutward.sqrMagnitude < 1.10f &&
             Mathf.Abs(localOutward.y) < .01f;

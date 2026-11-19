@@ -10,7 +10,7 @@ namespace IslandV2
 {
     public static class TWCenterArt
     {
-        internal const int Revision = 2;
+        internal const int Revision = CenterArtState.RaisedGarlandRevision;
         internal const string RootName = "TW_CENTER_ART";
         const string Menu = "Tools/BuilderSim/Локация/Остров v2/CENTER ART/";
         const string AssetFolder = "Assets/_Project/IslandV2/CenterArt";

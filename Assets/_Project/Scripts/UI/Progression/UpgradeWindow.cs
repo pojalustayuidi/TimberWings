@@ -527,7 +527,7 @@ public class UpgradeWindow : MonoBehaviour
         Set(levelText, $"Лео · {level} ур.     {(max ? $"{xp:N0} XP · максимум" : $"{xp:N0} / {next:N0} XP")}");
         xpFill.fillAmount = max ? 1f : Mathf.Clamp01((float)(xp - GameBalance.XpForLevel(level)) / GameBalance.XpToNext(level));
         if (!traitsPanel.activeSelf || up == null) return;
-        float axePower = PlayerInteraction.CurrentAxes?.Equipped.Power ?? 1f;
+        float axePower = PlayerInteraction.CurrentAxes?.EquippedPower ?? 1f;
         float power = Chop03Balance.Power(axePower, up.Level(UpgradeType.ChopPower), up.Bonus.chopMul, 0);
         string running = Fmt((int)UpgradeType.MoveSpeed, up.SpeedMultiplier, up.Level(UpgradeType.MoveSpeed), up.Bonus);
         int wood = inv != null ? inv.woodCount : 0;

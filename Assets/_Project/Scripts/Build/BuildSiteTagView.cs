@@ -125,6 +125,9 @@ public partial class BuildSiteTagView : MonoBehaviour
     // метка в «тонком» виде: подробности вынесены в окно стройки
     bool Compact { get { return compact && bc != null && bc.UseWindow; } }
 
+    Vector3 TagPoint => transform.position + offset +
+        (bc != null && bc.SiteKind == BuildSiteKind.Campfire ? Vector3.up * .40f : Vector3.zero);
+
     // ================================================================ жизненный цикл
     void Awake()
     {
@@ -184,7 +187,7 @@ public partial class BuildSiteTagView : MonoBehaviour
         var r = (RectTransform)go.transform;
         r.sizeDelta = new Vector2(400f, 400f);
         r.localScale = Vector3.one * worldScale;
-        r.position = transform.position + offset;
+        r.position = TagPoint;
         host = r;
         return r;
     }
@@ -306,7 +309,7 @@ public partial class BuildSiteTagView : MonoBehaviour
         lastCamPos = ct.position; lastCamRot = ct.rotation;
         stillT = camMoved ? 0f : stillT + dt;
 
-        Vector3 wp = transform.position + offset;
+        Vector3 wp = TagPoint;
         Vector3 sp;
         if (!CameraFollow.TryWorldToScreenStable(wp, out sp)) sp = cam.WorldToScreenPoint(wp);
         bool front = sp.z > 0.1f;
@@ -343,7 +346,7 @@ public partial class BuildSiteTagView : MonoBehaviour
         // мировая метка: стоит над зданием, один раз повернулась к камере и больше не вращается и не двигается
         if (worldSpace && host != null)
         {
-            host.position = transform.position + offset;
+            host.position = wp;
             host.localScale = Vector3.one * worldScale * Mathf.Clamp(dist / Mathf.Max(1f, readableDistance), 0.8f, 2.2f);
 
             // Положение жёстко в мире. Поворот к камере: стоим, пока камера не ушла за порог, потом плавно довернуться.

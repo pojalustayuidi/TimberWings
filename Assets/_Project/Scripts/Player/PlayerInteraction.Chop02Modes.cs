@@ -7,6 +7,7 @@ public partial class PlayerInteraction
     bool chop03Accurate;
     int chop03ImpactFrame = -1;
     bool chop03Standing;
+    float chop03ReadyAt;
 
     internal bool IsChop03Working => IsChopping && (chop03Standing || IsProcessingPrototypeLog);
     internal bool Chop03ImpactThisFrame => chop03ImpactFrame == Time.frameCount;
@@ -38,7 +39,8 @@ public partial class PlayerInteraction
     void ArmChop03Swing(float interval, float recovery)
     {
         float speed = AxeSwingSpeed;
-        chop03Swing.Arm(Time.time, interval / speed, recovery / speed);
+        float now = Time.time;
+        chop03Swing.Arm(now, Mathf.Max(interval / speed, chop03ReadyAt - now), recovery / speed);
         nextHitAt = chop03Swing.ImpactAt;
     }
 
@@ -71,8 +73,10 @@ public partial class PlayerInteraction
         if (!chop03Swing.Due(Time.time)) return false;
 
         precise = ChopBonus && chop03Swing.Precise;
+        chop03FirstHitPending = false;
         chop03Accurate = precise;
         chop03ImpactFrame = Time.frameCount;
+        chop03ReadyAt = Time.time + EquippedAxe.Interval;
         ArmChop03Swing(Chop03Balance.ContactInterval, Chop03Balance.Recovery);
         return true;
     }
@@ -159,6 +163,6 @@ public partial class PlayerInteraction
             ? ChopPrototypeLog.Text("Пробел в зелёной зоне — сильнее", "Space in green — stronger hit")
             : null;
         Chop02Feedback.Show(point, instruction, progress, meter,
-            meter ? chop03Swing.Marker(Time.time) : 0f, chop03Swing.Attempted, chop03Swing.Precise);
+            meter ? chop03Swing.Marker(Time.time) : 0f, chop03Swing.Attempted, chop03Swing.Precise, working: true);
     }
 }

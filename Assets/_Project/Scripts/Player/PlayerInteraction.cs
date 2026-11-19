@@ -72,7 +72,7 @@ public partial class PlayerInteraction : MonoBehaviour
     static bool rhythmChopSetting = GameBalance.RhythmChopDefault;
     public static bool RhythmChop
     {
-        get => rhythmChopSetting && !ChopPrototypeLog.Enabled;
+        get => rhythmChopSetting && !ChopPrototypeLog.UsesProcessing;
         set => rhythmChopSetting = value;
     }
     const string RhythmPref = "chop_rhythm";
@@ -188,6 +188,7 @@ public partial class PlayerInteraction : MonoBehaviour
     internal static PlayerAxeEquipment CurrentAxes => inst != null ? inst.Axes : null;
     internal PlayerAxeEquipment Axes { get; private set; }
     internal AxeDefinition EquippedAxe => Axes != null ? Axes.Equipped : AxeCatalog.Get(AxeId.Old);
+    AxeRuneId ActiveRune => Axes != null ? Axes.ActiveRune : AxeRuneId.None;
 
     public float GatherTime
     {
@@ -810,8 +811,9 @@ public partial class PlayerInteraction : MonoBehaviour
         // ---- сколько бревен (порядок описан в LumberSkills) ----
         // Бонусы обычной рубки применяются после базовой награды.
         var special = item.SpecialHarvest;
+        bool ordinary = IsOrdinaryRuneTree(item);
         int wood = LumberSkills.BaseWood(item);
-        if (special == null && !item.IsGolden)
+        if (special == null && !item.IsGolden && !(ordinary && ActiveRune == AxeRuneId.GunnarStrike))
         {
             if (upgrades != null && Random.value < upgrades.DoubleChance) wood *= 2;
             if (rhythmActive && cleanCut) wood += GameBalance.RhythmCleanCutLogs;
@@ -824,7 +826,7 @@ public partial class PlayerInteraction : MonoBehaviour
         LumberSkills.RegisterFelled(chainLock);        // «Серия рубки»: это дерево продлило серию
         if (prototype)
         {
-            FellPrototype(item, layout, wood, xp, wasGolden);
+            FellPrototype(item, layout, wood, xp, wasGolden, ordinary);
             return;
         }
 

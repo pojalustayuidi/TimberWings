@@ -5,23 +5,25 @@ using UnityEngine.UI;
 using static UiLayout;
 
 [DefaultExecutionOrder(50)]
-internal sealed class AxeWindow : MonoBehaviour
+internal sealed partial class AxeWindow : MonoBehaviour
 {
     const int PreviewLayer = 5;
     static AxeWindow current;
     PlayerAxeEquipment equipment;
     TradingStall merchant;
     StoryFlow forge;
+    RuneForgeInspection table;
     AxeId selected;
     bool open;
     int openedFrame;
-    GameObject panel, previewStage;
+    GameObject panel, axeView, previewStage;
     Transform previewPivot;
     GameObject previewModel;
     RenderTexture previewTexture;
     RawImage previewImage;
     TMP_Text title, details, stats, status, purchaseLabel, repairLabel, wallet;
-    Button equipOrBuy, repair;
+    Button equipOrBuy, repair, forgeRunes, sawMode;
+    TMP_Text sawModeLabel;
     readonly Button[] tabs = new Button[AxeCatalog.All.Length];
     readonly TMP_Text[] tabLabels = new TMP_Text[AxeCatalog.All.Length];
     bool dragging;
@@ -29,11 +31,12 @@ internal sealed class AxeWindow : MonoBehaviour
     Vector2 previousPointer;
     float yaw, pitch;
 
-    internal static void Open(PlayerAxeEquipment axes, TradingStall shop = null, StoryFlow workshop = null)
+    internal static void Open(PlayerAxeEquipment axes, TradingStall shop = null, StoryFlow workshop = null,
+        RuneForgeInspection table = null)
     {
         if (axes == null || !axes.CanEquip || MobileInput.ModalOpen) return;
         if (current == null) current = new GameObject("Axe equipment window").AddComponent<AxeWindow>();
-        current.Show(axes, shop, workshop);
+        current.Show(axes, shop, workshop, table);
     }
 
     void Awake()
@@ -56,18 +59,26 @@ internal sealed class AxeWindow : MonoBehaviour
         }
     }
 
-    void Show(PlayerAxeEquipment axes, TradingStall shop, StoryFlow workshop)
+    void Show(PlayerAxeEquipment axes, TradingStall shop, StoryFlow workshop, RuneForgeInspection station)
     {
         if (panel == null) Build();
         equipment = axes;
         merchant = shop;
         forge = workshop;
+        table = station;
         open = true;
         openedFrame = Time.frameCount;
         panel.SetActive(true);
+        if (runeView != null) runeView.SetActive(false);
+        axeView.SetActive(true);
         previewStage.SetActive(true);
-        Select(shop != null ? AxeId.Iron : workshop != null && axes.Has(AxeId.Steel) && workshop.GunnarBladeAvailable
-            ? AxeId.Gunnar : workshop != null ? AxeId.Steel : axes.Equipped.Id);
+        AxeId opening = axes.Equipped.Id;
+        if (shop != null) opening = AxeId.Iron;
+        else if (table != null || forge != null)
+            opening = forge != null && forge.GunnarBladeAvailable && !axes.Has(AxeId.Gunnar)
+                ? AxeId.Gunnar : AxeId.Steel;
+        Select(opening);
+        if (table != null && axes.PendingRuneOffer != null) ShowRunes();
     }
 
     void Close()
@@ -85,7 +96,7 @@ internal sealed class AxeWindow : MonoBehaviour
         if (equipment == null || !equipment.CanEquip ||
             (merchant != null && (!merchant.Unlocked || !merchant.isActiveAndEnabled ||
                 merchant.DistanceToPlayer() > merchant.Radius)) ||
-            (forge != null && !forge.CanUseAxeForge(equipment)))
+            (table != null ? !table.CanUse(equipment) : forge != null && !forge.CanUseAxeForge(equipment)))
         {
             Close();
             return;
@@ -97,9 +108,12 @@ internal sealed class AxeWindow : MonoBehaviour
             Close();
             return;
         }
-        if (Input.GetKeyDown(KeyCode.LeftArrow)) Select((AxeId)(((int)selected + tabs.Length - 1) % tabs.Length));
-        if (Input.GetKeyDown(KeyCode.RightArrow)) Select((AxeId)(((int)selected + 1) % tabs.Length));
-        RotatePreview();
+        if (axeView.activeSelf)
+        {
+            if (Input.GetKeyDown(KeyCode.LeftArrow)) Select((AxeId)(((int)selected + tabs.Length - 1) % tabs.Length));
+            if (Input.GetKeyDown(KeyCode.RightArrow)) Select((AxeId)(((int)selected + 1) % tabs.Length));
+            RotatePreview();
+        }
         if (Time.unscaledTime >= refreshAt) Refresh();
     }
 
@@ -119,8 +133,8 @@ internal sealed class AxeWindow : MonoBehaviour
         if (model != null)
         {
             previewModel = Instantiate(model, previewPivot, false);
-            var mesh = model.GetComponent<MeshFilter>().sharedMesh;
-            previewModel.transform.localPosition = -mesh.bounds.center;
+            var mesh = model.GetComponent<MeshFilter>();
+            if (mesh != null && mesh.sharedMesh != null) previewModel.transform.localPosition = -mesh.sharedMesh.bounds.center;
             foreach (Transform child in previewModel.GetComponentsInChildren<Transform>(true))
                 child.gameObject.layer = PreviewLayer;
         }
@@ -152,9 +166,9 @@ internal sealed class AxeWindow : MonoBehaviour
         }
         else if (selected == AxeId.Gunnar)
         {
-            if (equipment.TryRestoreGunnar(forge)) SaveIndicator.ShowToast("Топор Гуннара восстановлен");
+            if (equipment.TryRestoreGunnar(forge, table)) SaveIndicator.ShowToast("Топор Гуннара восстановлен");
         }
-        else if (equipment.TryBuy(selected, merchant, forge))
+        else if (equipment.TryBuy(selected, merchant, forge, table))
         {
             SaveIndicator.ShowToast("Экипирован: " + AxeCatalog.Get(selected).Name);
         }
@@ -170,21 +184,27 @@ internal sealed class AxeWindow : MonoBehaviour
     void Refresh()
     {
         refreshAt = Time.unscaledTime + .15f;
+        if (runeView != null && runeView.activeSelf)
+        {
+            RefreshRunes();
+            return;
+        }
         var definition = AxeCatalog.Get(selected);
+        AxeRuneId rune = equipment.RuneFor(selected);
         Set(title, definition.Name);
-        Set(details, definition.Description);
-        Set(stats, $"Сила ×{Number(definition.Power)}     ·     {Number(definition.Interval)} с между ударами");
+        Set(details, rune == AxeRuneId.None ? definition.Description : AxeRunes.Get(rune).Effect);
+        float power = definition.Power + (rune == AxeRuneId.SharpEdge ? AxeRunes.EdgePower : 0f);
+        Set(stats, $"Сила ×{Number(power)}     ·     {Number(PlayerAxeEquipment.SwingInterval(definition, rune))} с между ударами");
         bool owned = equipment.Has(selected);
         bool equipped = equipment.Equipped.Id == selected;
-        bool selling = selected == AxeId.Iron && merchant != null || selected == AxeId.Steel && forge != null;
+        bool selling = selected == AxeId.Iron && merchant != null || selected == AxeId.Steel && (table != null || forge != null);
         bool restoring = selected == AxeId.Gunnar && forge != null && forge.GunnarBladeAvailable;
         var inventory = equipment.GetComponent<PlayerInventory>();
-        string walletText = inventory != null && (merchant != null || forge != null)
+        string walletText = inventory != null && (merchant != null || forge != null || table != null)
             ? $"{inventory.coinsCount} монет    ·    {inventory.planksCount} досок" : "ЛКМ и перетащи, чтобы повернуть";
-        if (forge != null && equipment.ForgeRestored && PlayerSkills.Has(SkillIds.ForgeDiscount))
-            walletText += $"    ·    Цена зачарования при открытии: {AxeCatalog.EnchantmentCoinCost(40)} / {AxeCatalog.EnchantmentCoinCost(100)} монет";
+        if (table != null && inventory != null) walletText += $"    ·    {inventory.RuneEssence} эссенции";
         Set(wallet, walletText);
-        Set(status, owned ? equipped ? "В руках у Лео" : "В коллекции"
+        Set(status, owned ? rune != AxeRuneId.None ? AxeRunes.Get(rune).Name : equipped ? "В руках у Лео" : "В коллекции"
             : restoring ? "Лезвие получено от Оскара" : definition.Source);
 
         equipOrBuy.gameObject.SetActive(owned || selling || restoring);
@@ -204,8 +224,11 @@ internal sealed class AxeWindow : MonoBehaviour
             equipOrBuy.interactable = equipment.CanBuy(selected);
         }
 
-        repair.gameObject.SetActive(forge != null && !equipment.ForgeRestored);
+        repair.gameObject.SetActive(table == null && forge != null && !equipment.ForgeRestored);
         repair.interactable = equipment.CanRestoreForge;
+        forgeRunes.gameObject.SetActive(table != null);
+        sawMode.gameObject.SetActive(equipped && rune == AxeRuneId.RunicSaw);
+        Set(sawModeLabel, equipment.BoardsMode ? ForgeText("Режим · доски", "Mode · boards") : ForgeText("Режим · брёвна", "Mode · logs"));
         for (int i = 0; i < tabs.Length; i++)
         {
             var id = (AxeId)i;
@@ -245,6 +268,7 @@ internal sealed class AxeWindow : MonoBehaviour
             panel = veil.gameObject;
 
             var win = UiCandy.Window(veil.transform, new Vector2(1090, 646), "ТОПОРЫ ЛЕО", Close);
+            axeView = win.root.gameObject;
             Prepare(win.close);
             var content = win.content;
             string[] names = { "Старый", "Железный", "Стальной", "Гуннара" };
@@ -274,6 +298,14 @@ internal sealed class AxeWindow : MonoBehaviour
                 UiBtn.Amber, 514, 440, 484, 60, RestoreForge);
             repairLabel = repair.GetComponentInChildren<TMP_Text>();
             AutoSize(repairLabel, 18, 25);
+            forgeRunes = MakeButton(content, "Руны", UiBtn.Amber, 514, 440, 232, 60, ShowRunes);
+            sawMode = MakeButton(content, "", UiBtn.Gray, 756, 440, 242, 60, () =>
+            {
+                equipment.TrySwitchBoardsMode();
+                Refresh();
+            });
+            sawModeLabel = sawMode.GetComponentInChildren<TMP_Text>();
+            AutoSize(sawModeLabel, 17, 25);
             wallet = Lbl(content, "", 22, UiCandy.Muted, TextAlignmentOptions.Left, false, 12, 505, 970, 32);
         }
     }

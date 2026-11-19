@@ -82,14 +82,17 @@ public class SacredVibe : MonoBehaviour
     }
 
     Glow gRunes, gGem, gBody;
-    ParticleSystem mainPs, accentPs;
+    ParticleSystem mainPs, accentPs, petLeaves;
     MaterialPropertyBlock mpb;
+    Mesh sleeperRing;
+    float pettedAt = -10f;
     float phase, nextCheck, nextGlow, flash, spinKick, gemAngle;
     bool near = true;
     Transform cam;
 
     static readonly int BaseId = Shader.PropertyToID("_BaseColor");
     static readonly int BottomId = Shader.PropertyToID("_BottomColor");
+    static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
 
     void Start()
     {
@@ -97,7 +100,13 @@ public class SacredVibe : MonoBehaviour
         gRunes = Prepare(runes, runeMaterialIndex);
         gGem = Prepare(gemRenderer, gemMaterialIndex);
         gBody = Prepare(glowRenderer, glowMaterialIndex);
+        if (kind == SacredKind.Sleeper) DressSleeperRing();
         BuildParticles();
+    }
+
+    void OnDestroy()
+    {
+        if (sleeperRing != null) Destroy(sleeperRing);
     }
 
     void Update()
@@ -111,14 +120,21 @@ public class SacredVibe : MonoBehaviour
         if (!near) return;
 
         float t = Time.time;
+        float pat = 0f;
+        if (!VibeSettings.ReduceEffects && kind == SacredKind.Sleeper)
+        {
+            float age = Mathf.Clamp01((t - pettedAt) / .68f);
+            pat = Mathf.Sin(age * Mathf.PI) * (1f - age);
+        }
 
         if (visual != null)
         {
             float sw = VibeSettings.ReduceEffects ? 0f : swayDeg;
-            visual.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.7f + phase) * sw, 0f, Mathf.Sin(t * 0.53f + phase * 1.7f) * sw);
+            visual.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.7f + phase) * sw + pat * 2.4f,
+                0f, Mathf.Sin(t * 0.53f + phase * 1.7f) * sw);
             if (breathe > 0f)
             {
-                float k = 1f + Mathf.Sin(t * 0.9f + phase) * breathe;
+                float k = 1f + Mathf.Sin(t * 0.9f + phase) * breathe + pat * .026f;
                 visual.localScale = new Vector3(1f + (k - 1f) * 0.5f, k, 1f + (k - 1f) * 0.5f);
             }
         }
@@ -138,7 +154,8 @@ public class SacredVibe : MonoBehaviour
             float dark = Mathf.Clamp01(DayNightCycle.Night01 + DayNightCycle.Twilight01 * 0.6f);
             float breath = 0.5f + 0.5f * Mathf.Sin(t * 1.3f + phase);
             float k = Mathf.Lerp(0.72f, 1.15f, breath) * (1f + 0.55f * dark) + flash * 1.4f;
-            Apply(gRunes, k);
+            float emission = kind == SacredKind.Sleeper ? .10f + dark * .12f + flash * .38f : 0f;
+            Apply(gRunes, k, emission);
             Apply(gGem, k * 1.1f);
             float kb = Mathf.Lerp(0.85f, 1.2f, 0.5f + 0.5f * Mathf.Sin(t * 1.9f + phase * 2f)) * (1f + 0.5f * dark) + flash;
             Apply(gBody, kb);
@@ -149,9 +166,67 @@ public class SacredVibe : MonoBehaviour
     public void Burst()
     {
         flash = 1f;
-        spinKick = 360f;
-        if (mainPs != null) mainPs.Emit(kind == SacredKind.Blossom ? 26 : 18);
-        if (accentPs != null) accentPs.Emit(4);
+        bool reduced = VibeSettings.ReduceEffects;
+        spinKick = reduced ? 0f : 240f;
+        if (mainPs != null) mainPs.Emit(reduced ? 7 : kind == SacredKind.Blossom ? 26 : 18);
+        if (accentPs != null) accentPs.Emit(reduced ? 2 : 4);
+        if (petLeaves == null) return;
+
+        pettedAt = Time.time;
+        var player = PlayerMovement.Instance;
+        Vector3 outward = player != null ? Vector3.ProjectOnPlane(player.transform.position - transform.position, Vector3.up) : transform.forward;
+        float trunk = TryGetComponent<CapsuleCollider>(out var capsule) ? capsule.radius : .8f;
+        petLeaves.transform.localPosition = Vector3.up * 1.55f +
+            transform.InverseTransformDirection(outward.normalized) * (trunk + .15f);
+        petLeaves.Emit(reduced ? 3 : 9);
+    }
+
+    void DressSleeperRing()
+    {
+        if (runes == null || !runes.TryGetComponent<MeshFilter>(out var filter)) return;
+        var source = filter.sharedMesh;
+        const int blockVertices = 36;
+        const int stones = 10;
+        if (source == null || !source.isReadable || source.name != "Sacred_Mark" ||
+            source.vertexCount != blockVertices * (stones * 2 + stones / 2)) return;
+        Vector3[] vertices = source.vertices;
+        int firstVertex = 0;
+        for (int i = 0; i < stones; i++)
+        {
+            // The baked mesh stores each slab followed by its rune and the optional outer pebble.
+            float angle = (i + .5f) / stones * Mathf.PI * 2f;
+            Slope(angle, 2.7f, .05f, blockVertices * 2, i);
+            if (i % 2 == 0) Slope(angle + .17f, 3.25f, .03f, blockVertices, i + 1);
+        }
+        sleeperRing = Instantiate(source);
+        sleeperRing.name = "Sleeper rune stones";
+        sleeperRing.vertices = vertices;
+        sleeperRing.RecalculateNormals();
+        sleeperRing.RecalculateBounds();
+        filter.sharedMesh = sleeperRing;
+
+        const int stoneMaterial = 0;
+        var stoneGlow = Prepare(runes, stoneMaterial);
+        if (!stoneGlow.ok) return;
+        stoneGlow.top = Color.Lerp(stoneGlow.top, new Color(.47f, .55f, .34f), .46f);
+        stoneGlow.bottom = Color.Lerp(stoneGlow.bottom, new Color(.21f, .29f, .17f), .39f);
+        Apply(stoneGlow, 1f);
+
+        void Slope(float angle, float radius, float baseHeight, int count, int variation)
+        {
+            Vector3 radial = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 center = radial * radius + Vector3.up * baseHeight;
+            int end = firstVertex + count;
+            for (; firstVertex < end; firstVertex++)
+            {
+                Vector3 point = vertices[firstVertex];
+                float taper = Mathf.InverseLerp(baseHeight, baseHeight + .07f, point.y);
+                Vector3 flat = Vector3.ProjectOnPlane(point - center, Vector3.up);
+                point -= flat * (taper * (.20f + .04f * (variation % 4)));
+                point.y += (Vector3.Dot(flat, radial) * -.22f + .024f * Mathf.Sin(variation * 2.4f)) * taper;
+                vertices[firstVertex] = point;
+            }
+        }
     }
 
     bool IsNear()
@@ -181,13 +256,14 @@ public class SacredVibe : MonoBehaviour
         return g;
     }
 
-    void Apply(Glow g, float k)
+    void Apply(Glow g, float k, float emission = 0f)
     {
         if (!g.ok || g.r == null) return;
         if (mpb == null) mpb = new MaterialPropertyBlock();
         g.r.GetPropertyBlock(mpb, g.idx);
         mpb.SetColor(BaseId, new Color(g.top.r * k, g.top.g * k, g.top.b * k, 1f));
         if (g.hasBottom) mpb.SetColor(BottomId, new Color(g.bottom.r * k, g.bottom.g * k, g.bottom.b * k, 1f));
+        if (emission > 0f) mpb.SetColor(EmissionId, g.top * emission);
         g.r.SetPropertyBlock(mpb, g.idx);
     }
 
@@ -245,6 +321,9 @@ public class SacredVibe : MonoBehaviour
                     new Color(0.70f, 1f, 0.85f, 0.9f), new Color(0.85f, 1f, 0.95f, 0.9f), -0.012f, 40, crownRadius, false, 0.45f, 0.3f, false, false);
                 accentPs = Make("Leaves", new Vector3(0f, crownHeight, 0f), leaf, 8f, 12f, 0f, 0f, 0.20f, 0.34f,
                     new Color(0.55f, 0.85f, 0.40f, 0.95f), new Color(0.86f, 0.92f, 0.45f, 0.95f), 0.06f, 20, crownRadius * 0.9f, true, 1.0f, 0.25f, false, true);
+                petLeaves = Make("Pet leaves", Vector3.up * 1.55f, leaf, .5f, .85f, .22f, .48f, .075f, .14f,
+                    new Color(.78f, .95f, .65f, .93f), new Color(.91f, .93f, .51f, .95f),
+                    -.025f, 16, .24f, false, .26f, .48f, true, false);
                 break;
         }
         ApplyRates();

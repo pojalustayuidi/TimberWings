@@ -462,7 +462,7 @@ public partial class ResourceItem : MonoBehaviour
             // Передаём время роста БЕЗ навыков: множитель «Лесоруба» TreeRespawn применяет сам и каждый кадр (сброс навыка действует сразу)
             float seconds = state != null ? state.respawnSeconds : RespawnDelay();
             bool falling = state != null && !restoring;
-            ChopPrototypeLog trunk = state != null && state.HasWood
+            ChopPrototypeLog trunk = state != null && state.HasHarvest
                 ? ChopPrototypeLog.Create(this, state, falling)
                 : null;
 

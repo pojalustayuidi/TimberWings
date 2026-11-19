@@ -66,7 +66,7 @@ namespace IslandV2
             earth = earth.linear; earth.a = alpha;
             // The existing island shader blends RGB with its original ground
             // by vertex alpha. No transparent quad, PNG or blend-state override.
-            return earth;
+            return CenterArtState.WornEarth(earth, p);
         }
 
         static List<Vector3> Clip(List<Vector3> polygon, Vector2 a, Vector2 b)

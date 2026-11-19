@@ -431,7 +431,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
 
         // первый заход: под целью короткая инструкция про бонус (Пробел в зелёной зоне), пока игрок его не освоил
         bool teach = chopTrips == 0 && PlayerInteraction.BonusTeaching;
-        bool stagedChop = ChopPrototypeLog.Enabled;
+        bool stagedChop = ChopPrototypeLog.UsesProcessing;
         int key = Mathf.Min(carried, chopTarget) * 100 + chopTarget + (teach ? 100000 : 0) +
             (stagedChop ? 200000 : 0);
         if (key != lastChopKey)

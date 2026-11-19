@@ -84,7 +84,7 @@ public class InteractionHint : MonoBehaviour
     void Update()
     {
         if (worldTag == null) return;
-        if (ChopPrototypeLog.Enabled)
+        if (ChopPrototypeLog.UsesProcessing)
         {
             worldTag.visible = false;
             placed = false;

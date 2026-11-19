@@ -5,6 +5,7 @@ public sealed class RuneForge : MonoBehaviour
 {
     public const string SaveId = "tw.rune-forge.workyard";
     public const string Title = "Рунная кузница";
+    internal static RuneForge Active { get; private set; }
 
     [Header("Стройка и условия открытия")]
     public BuildingController build;
@@ -25,8 +26,12 @@ public sealed class RuneForge : MonoBehaviour
     public bool IsRestored => build != null && build.IsFinished;
     public bool CanInspect => isActiveAndEnabled && build != null && !build.IsBuilding && !build.IsRevealing;
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatic() => Active = null;
+
     void OnEnable()
     {
+        Active = this;
         if (build != null) build.StageBuilt += RefreshVisuals;
         if (hut != null) hut.Finished += RefreshAccess;
         if (workyard != null) workyard.Finished += RefreshAccess;
@@ -37,6 +42,7 @@ public sealed class RuneForge : MonoBehaviour
 
     void OnDisable()
     {
+        if (Active == this) Active = null;
         if (build != null) build.StageBuilt -= RefreshVisuals;
         if (hut != null) hut.Finished -= RefreshAccess;
         if (workyard != null) workyard.Finished -= RefreshAccess;
@@ -44,7 +50,13 @@ public sealed class RuneForge : MonoBehaviour
     }
 
     // The work frame follows the active construction timer, including pauses and resumed work.
-    void LateUpdate() => RefreshVisuals();
+    void LateUpdate()
+    {
+        var axes = PlayerInteraction.CurrentAxes;
+        if (build != null && !build.IsFinished && axes != null && axes.HasLegacyForgeRestoration &&
+            build.RestorePaidRuneForge()) axes.FinishLegacyForgeMigration();
+        RefreshVisuals();
+    }
 
     void RefreshAccess()
     {

@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-internal sealed class PlayerAxeEquipment : MonoBehaviour, ISaveable
+internal sealed partial class PlayerAxeEquipment : MonoBehaviour, ISaveable
 {
     const string Key = "axes";
     const int OldAxe = 1 << (int)AxeId.Old;
@@ -15,15 +15,18 @@ internal sealed class PlayerAxeEquipment : MonoBehaviour, ISaveable
     {
         public int owned, equipped;
         public bool forgeRestored;
+        public PlayerRuneLoadout runes;
     }
 
     int owned = OldAxe;
     AxeId equipped;
+    bool legacyForgeRestored;
     PlayerInventory inventory;
     PlayerInteraction interaction;
 
     internal AxeDefinition Equipped => AxeCatalog.Get(equipped);
-    internal bool ForgeRestored { get; private set; }
+    internal bool ForgeRestored => RuneForge.Active != null ? RuneForge.Active.IsRestored : legacyForgeRestored;
+    internal bool HasLegacyForgeRestoration => legacyForgeRestored;
     internal bool Has(AxeId id) => AxeCatalog.IsValid(id) && (owned & (1 << (int)id)) != 0;
     internal bool CanEquip => interaction != null && !interaction.IsChopping && !WaterSwim.Swimming &&
         !SaveSystem.IsLoading && !StoryInspection.Active && !BuildWorkPose.MovementLocked &&
@@ -53,37 +56,45 @@ internal sealed class PlayerAxeEquipment : MonoBehaviour, ISaveable
         (id == AxeId.Iron || id == AxeId.Steel && ForgeRestored) &&
         inventory.coinsCount >= AxeCatalog.Get(id).Price;
 
-    internal bool TryBuy(AxeId id, TradingStall stall, StoryFlow story)
+    internal bool TryBuy(AxeId id, TradingStall stall, StoryFlow story, RuneForgeInspection table = null)
     {
         if (!CanBuy(id)) return false;
         if (id == AxeId.Iron && (stall == null || !stall.isActiveAndEnabled ||
             !stall.Unlocked || stall.Inventory != inventory || stall.DistanceToPlayer() > stall.Radius)) return false;
-        if (id == AxeId.Steel && (story == null || !story.CanUseAxeForge(this))) return false;
+        if (id == AxeId.Steel && !CanUseForge(story, table)) return false;
 
         // Commit ownership before inventory listeners refresh the shop or request a save.
-        Obtain(id);
-        inventory.TrySpend(AxeCatalog.Get(id).Price);
-        return true;
+        return inventory.TrySpend(AxeCatalog.Get(id).Price, commit: () => Obtain(id));
     }
 
-    internal bool CanRestoreForge => CanEquip && !ForgeRestored && inventory != null &&
+    internal bool CanRestoreForge => CanEquip && RuneForge.Active == null && !legacyForgeRestored && inventory != null &&
         inventory.planksCount >= ForgePlanks && inventory.coinsCount >= ForgeCoins;
 
     internal bool TryRestoreForge(StoryFlow story)
     {
         if (!CanRestoreForge || story == null || !story.CanUseAxeForge(this)) return false;
-        ForgeRestored = true;
-        inventory.TrySpend(ForgeCoins, ForgePlanks);
-        SaveSystem.RequestSave(Key);
+        return inventory.TrySpend(ForgeCoins, ForgePlanks, () =>
+        {
+            legacyForgeRestored = true;
+            SaveSystem.RequestSave(Key);
+        });
+    }
+
+    internal bool TryRestoreGunnar(StoryFlow story, RuneForgeInspection table = null)
+    {
+        if (!CanEquip || !ForgeRestored || Has(AxeId.Gunnar) || story == null ||
+            !story.GunnarBladeAvailable || !CanUseForge(story, table)) return false;
+        Obtain(AxeId.Gunnar);
         return true;
     }
 
-    internal bool TryRestoreGunnar(StoryFlow story)
+    bool CanUseForge(StoryFlow story, RuneForgeInspection table) => table != null ? table.CanUse(this) :
+        RuneForge.Active == null && story != null && story.CanUseAxeForge(this);
+
+    internal void FinishLegacyForgeMigration()
     {
-        if (!CanEquip || !ForgeRestored || Has(AxeId.Gunnar) || story == null ||
-            !story.GunnarBladeAvailable || !story.CanUseAxeForge(this)) return false;
-        Obtain(AxeId.Gunnar);
-        return true;
+        legacyForgeRestored = false;
+        SaveSystem.RequestSave(Key);
     }
 
     void Obtain(AxeId id)
@@ -100,7 +111,8 @@ internal sealed class PlayerAxeEquipment : MonoBehaviour, ISaveable
     {
         owned = owned,
         equipped = (int)equipped,
-        forgeRestored = ForgeRestored
+        forgeRestored = legacyForgeRestored,
+        runes = runes
     });
 
     public void Load(string json, int formatVersion)
@@ -118,13 +130,16 @@ internal sealed class PlayerAxeEquipment : MonoBehaviour, ISaveable
         }
         owned = (data.owned & ValidAxes) | OldAxe;
         equipped = Has((AxeId)data.equipped) ? (AxeId)data.equipped : AxeId.Old;
-        ForgeRestored = data.forgeRestored || Has(AxeId.Steel) || Has(AxeId.Gunnar);
+        legacyForgeRestored = data.forgeRestored || data.runes == null && (Has(AxeId.Steel) || Has(AxeId.Gunnar));
+        runes = data.runes ?? new PlayerRuneLoadout();
+        runes.Normalize(Has);
     }
 
     public void ResetToDefault()
     {
         owned = OldAxe;
         equipped = AxeId.Old;
-        ForgeRestored = false;
+        legacyForgeRestored = false;
+        runes = new PlayerRuneLoadout();
     }
 }

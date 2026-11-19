@@ -318,9 +318,8 @@ public class BuildingController : MonoBehaviour
         get
         {
             var v = GetComponent<BuildSiteTagView>();
-            if (v != null && !string.IsNullOrEmpty(v.buildingName)) return v.buildingName;
-            if (data != null && !string.IsNullOrEmpty(data.buildingName)) return data.buildingName;
-            return name;
+            if (v != null && !IsTechnicalTitle(v.buildingName)) return v.buildingName;
+            return DefaultBuildingTitle();
         }
     }
 
@@ -538,9 +537,28 @@ public class BuildingController : MonoBehaviour
     void EnsureSiteTag()
     {
         if (GetComponent<BuildSiteTagView>() != null) return;   // метка работает только на одном объекте с контроллером (она берёт bc через GetComponent), метка на родителе не считается
-        var view = gameObject.AddComponent<BuildSiteTagView>();
-        string raw = (data != null && !string.IsNullOrEmpty(data.buildingName)) ? data.buildingName : gameObject.name;
-        view.buildingName = RuTitle(raw);
+        string caption = DefaultBuildingTitle();
+        gameObject.AddComponent<BuildSiteTagView>().buildingName = caption;
+    }
+
+    static bool IsTechnicalTitle(string value) =>
+        string.IsNullOrWhiteSpace(value) || string.Equals(value, "BuildZone", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "DropZone", StringComparison.OrdinalIgnoreCase);
+
+    string DefaultBuildingTitle()
+    {
+        if (data != null && !IsTechnicalTitle(data.buildingName)) return RuTitle(data.buildingName);
+        if (!IsTechnicalTitle(name)) return RuTitle(name);
+        return SiteKind switch
+        {
+            BuildSiteKind.Campfire => GameLanguage.English ? "Campfire" : "Костёр",
+            BuildSiteKind.Tent => GameLanguage.English ? "Tent" : "Палатка",
+            BuildSiteKind.Hut => GameLanguage.English ? "Lumberjack hut" : "Хижина дровосека",
+            BuildSiteKind.Market => GameLanguage.English ? "Market stall" : "Прилавок",
+            BuildSiteKind.Bridge => GameLanguage.English ? "Bridge" : "Мост",
+            BuildSiteKind.RuneForge => GameLanguage.English ? "Rune forge" : "Кузница",
+            _ => GameLanguage.English ? "Building site" : "Зона стройки"
+        };
     }
 
     // английские имена объектов («Campfire») показываем по-русски

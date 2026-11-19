@@ -86,7 +86,7 @@ internal static class LeoChopContact
     {
         point = default;
         if (item == null || leo == null || !item.gameObject.activeInHierarchy) return false;
-        if (ChopPrototypeLog.Enabled && item.TryGetStandingContact(out point)) return true;
+        if (ChopPrototypeLog.Supports(item) && item.TryGetStandingContact(out point)) return true;
         Bind(item);
         if (SameInputs(item, leo, height))
         {

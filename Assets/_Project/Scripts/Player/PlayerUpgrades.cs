@@ -49,7 +49,8 @@ public class PlayerUpgrades : MonoBehaviour, ISaveable
         }
     }
 
-    public float ValueAt(UpgradeType type, int rank) => Calc(type, rank, bonus);
+    public float ValueAt(UpgradeType type, int rank) => Calc(type, rank, bonus) +
+        (type == UpgradeType.Capacity ? PlayerInteraction.CurrentAxes?.RuneCapacity ?? 0 : 0);
     float Current(UpgradeType type) => ValueAt(type, Level(type));
     public float ChopTime => Current(UpgradeType.ChopPower);
     public float SpeedMultiplier => Current(UpgradeType.MoveSpeed);

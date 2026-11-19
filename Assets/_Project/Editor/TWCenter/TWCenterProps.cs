@@ -178,7 +178,7 @@ namespace IslandV2
             for (int i = 1; i <= segments; i++)
             {
                 float t = (float)i / segments;
-                Vector3 p = Vector3.Lerp(a, b, t) + Vector3.down * (0.28f * 4f * t * (1f - t));
+                Vector3 p = Vector3.Lerp(a, b, t) + Vector3.down * ((.28f - CenterArtState.GarlandLift) * 4f * t * (1f - t));
                 wire.Part("Rope").Cyl(previous, p, 0.016f, 0.016f, White, 5); previous = p;
                 if (i % 2 != 0 || i == segments) continue;
                 Vector3 centre = p + Vector3.down * 0.11f;

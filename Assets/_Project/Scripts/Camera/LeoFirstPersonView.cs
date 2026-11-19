@@ -1,16 +1,23 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
-// First-person rig with independent hands, Leo's sleeves and a separate equipped model.
+// Leo's close-up arm and equipped axe, rendered separately from the world when URP supports stacking.
 internal sealed partial class LeoFirstPersonView
 {
-    const int ViewLayer = 2; // Ignore Raycast, as in CAM-01.
+    // Layer 30 is unused by the shipped scenes. A named layer takes precedence when configured.
+    const int DefaultViewLayer = 30;
+    const float ViewFov = 55f;
     const string BaseColor = "_BaseColor";
     const string EmissionColor = "_EmissionColor";
     readonly List<Renderer> renderers = new List<Renderer>(72);
     readonly Dictionary<Material, Material> litMaterials = new Dictionary<Material, Material>();
-    readonly Transform compass, compassNeedle;
+    readonly List<Camera> stack;
+    readonly Camera overlay;
+    readonly UniversalAdditionalCameraData overlayData;
+    readonly List<ScriptableRendererFeature> pausedOcclusion = new List<ScriptableRendererFeature>(1);
+    readonly int layer;
     Material nailMaterial;
     readonly TrailRenderer stroke;
     float fill, refreshLightingAt;
@@ -18,11 +25,11 @@ internal sealed partial class LeoFirstPersonView
     readonly Transform[] axeModels = new Transform[AxeCatalog.All.Length];
     AxeDefinition activeAxe;
     Vector3 cuttingEdge = new Vector3(0f, .23748f, .28564f);
-    readonly Arm right, left;
+    readonly Arm right;
     readonly Camera camera;
     readonly LeoRig source;
     readonly bool hasGeometry;
-    bool rendered;
+    bool visible, rendered;
 
     sealed class Arm
     {
@@ -68,9 +75,8 @@ internal sealed partial class LeoFirstPersonView
 
     internal static LeoFirstPersonView Create(Camera camera, LeoRig source)
     {
-        if (source.upperArmL == null || source.elbowL == null || source.forearmTwistL == null ||
-            source.handL == null || source.upperArmR == null || source.elbowR == null ||
-            source.forearmTwistR == null || source.handR == null || source.axeRoot == null)
+        if (source.upperArmR == null || source.elbowR == null || source.forearmTwistR == null ||
+            source.handR == null || source.axeRoot == null)
             return null;
         LeoFirstPersonHandMesh shape = LeoFirstPersonHandMesh.Load();
         if (shape == null) return null;
@@ -84,10 +90,36 @@ internal sealed partial class LeoFirstPersonView
     {
         this.camera = camera;
         this.source = source;
+        int namedLayer = LayerMask.NameToLayer("Viewmodel");
+        layer = namedLayer >= 0 ? namedLayer : DefaultViewLayer;
+        if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset &&
+            camera.TryGetComponent<UniversalAdditionalCameraData>(out var cameraData) &&
+            cameraData.renderType == CameraRenderType.Base && cameraData.scriptableRenderer is UniversalRenderer)
+            stack = cameraData.cameraStack;
+
+        if (stack != null)
+        {
+            var cameraRoot = NewTransform("Leo Viewmodel Camera", camera.transform);
+            cameraRoot.gameObject.SetActive(false);
+            overlay = cameraRoot.gameObject.AddComponent<Camera>();
+            overlay.enabled = false;
+            overlay.fieldOfView = ViewFov;
+            overlay.nearClipPlane = .025f;
+            overlay.farClipPlane = 6f;
+            overlay.useOcclusionCulling = false;
+            overlay.cullingMask = 1 << layer;
+            overlayData = overlay.GetUniversalAdditionalCameraData();
+            overlayData.renderType = CameraRenderType.Overlay; // The overlay clears depth before drawing the arm.
+            overlayData.renderShadows = false;
+            overlayData.renderPostProcessing = false;
+            overlayData.requiresDepthOption = CameraOverrideOption.Off;
+            overlayData.requiresColorOption = CameraOverrideOption.Off;
+            stack.Add(overlay);
+            cameraRoot.gameObject.SetActive(true);
+        }
+
         root = NewTransform("Leo First Person (HideFromMap)", camera.transform);
-        right = CopyArm(source.upperArmR, source.elbowR, source.forearmTwistR, source.handR, shape, false);
-        left = CopyArm(source.upperArmL, source.elbowL, source.forearmTwistL, source.handL, shape, true);
-        compass = CopyWristCompass(out compassNeedle);
+        right = CopyArm(source.upperArmR, source.elbowR, source.forearmTwistR, source.handR, shape);
         int beforeAxe = renderers.Count;
         axe = NewTransform("Axe", root);
         foreach (var definition in AxeCatalog.All)
@@ -117,7 +149,7 @@ internal sealed partial class LeoFirstPersonView
     }
 
     Arm CopyArm(Transform upper, Transform elbow, Transform twist, Transform wrist,
-        LeoFirstPersonHandMesh shape, bool leftHand)
+        LeoFirstPersonHandMesh shape)
     {
         var arm = new Arm();
         arm.upper = CopyBone(upper, root, false);
@@ -148,14 +180,14 @@ internal sealed partial class LeoFirstPersonView
         }
 
         arm.hand = arm.wrist.gameObject.AddComponent<SkinnedMeshRenderer>();
-        arm.hand.sharedMesh = shape.Create(leftHand, arm.forearm.worldToLocalMatrix * arm.wrist.localToWorldMatrix);
+        arm.hand.sharedMesh = shape.Create(arm.forearm.worldToLocalMatrix * arm.wrist.localToWorldMatrix);
         arm.hand.bones = new[] { arm.wrist, arm.forearm };
         arm.hand.rootBone = arm.wrist;
         arm.hand.localBounds = arm.hand.sharedMesh.bounds;
         arm.hand.sharedMaterials = new[] { skin, nailMaterial != null ? nailMaterial : skin };
         arm.hand.updateWhenOffscreen = true;
         arm.hand.shadowCastingMode = ShadowCastingMode.Off;
-        arm.hand.receiveShadows = true;
+        arm.hand.receiveShadows = overlay == null;
         arm.hand.forceRenderingOff = true;
         renderers.Add(arm.hand);
         return arm;
@@ -194,37 +226,12 @@ internal sealed partial class LeoFirstPersonView
                     materials[i] = ViewMaterial(materials[i]);
                 renderer.sharedMaterials = materials;
                 renderer.shadowCastingMode = ShadowCastingMode.Off;
-                renderer.receiveShadows = true;
+                renderer.receiveShadows = overlay == null;
                 renderer.forceRenderingOff = true;
                 renderers.Add(renderer);
             }
             if (descendants) CopyMeshes(child, copy, true);
         }
-    }
-
-    Transform CopyWristCompass(out Transform needle)
-    {
-        needle = null;
-        if (source.compass == null) return null;
-        Transform model = NewTransform("Leo's wrist compass", root);
-        CopyMeshes(source.compass, model, true);
-        needle = source.compassNeedle != null ? model.Find(source.compassNeedle.name) : null;
-        int parts = model.childCount;
-        Transform face = NewTransform("Compass face", model);
-        face.localPosition = Vector3.forward * .024f;
-        face.localScale = Vector3.one * .55f;
-        for (int i = parts - 1; i >= 0; i--)
-        {
-            Transform part = model.GetChild(i);
-            if (part.name.EndsWith("__LeatherDark", System.StringComparison.Ordinal) ||
-                part.name.EndsWith("__LeatherEdge", System.StringComparison.Ordinal))
-            {
-                part.localScale = new Vector3(1.12f, .70f, 1.12f);
-                part.localPosition *= .70f;
-            }
-            else part.SetParent(face, false);
-        }
-        return model;
     }
 
     Material ViewMaterial(Material original)
@@ -242,7 +249,7 @@ internal sealed partial class LeoFirstPersonView
     {
         if (now < refreshLightingAt) return;
         refreshLightingAt = now + .2f;
-        float wanted = Mathf.Lerp(.028f, .20f, DayNightCycle.Night01);
+        float wanted = Mathf.Lerp(.052f, .19f, DayNightCycle.Night01);
         if (Mathf.Abs(wanted - fill) < .003f) return;
         fill = wanted;
         foreach (var pair in litMaterials)
@@ -305,29 +312,82 @@ internal sealed partial class LeoFirstPersonView
         }
     }
 
-    static Transform NewTransform(string name, Transform parent)
+    Transform NewTransform(string name, Transform parent)
     {
-        var part = new GameObject(name) { layer = ViewLayer };
+        var part = new GameObject(name) { layer = layer };
         part.transform.SetParent(parent, false);
         return part.transform;
+    }
+
+    internal void SetVisible(bool show)
+    {
+        if (visible == show) return;
+        visible = show;
+        if (overlay != null) overlay.enabled = visible;
+        if (visible) return;
+        SetRendered(false);
+        if (stroke != null)
+        {
+            stroke.emitting = false;
+            stroke.Clear();
+        }
+    }
+
+    internal bool RendersIn(Camera rendering) => visible && rendering == (overlay != null ? overlay : camera);
+
+    Vector3 ProjectContact(Vector3 point)
+    {
+        if (overlay == null) return root.InverseTransformPoint(point);
+        Vector3 viewport = camera.WorldToViewportPoint(point);
+        return root.InverseTransformPoint(overlay.ViewportToWorldPoint(viewport));
     }
 
     internal void SetRendered(bool show)
     {
         if (rendered == show) return;
         rendered = show;
+        if (show) PauseOverlayOcclusion();
+        else
+        {
+            foreach (var feature in pausedOcclusion)
+                if (feature != null) feature.SetActive(true);
+            pausedOcclusion.Clear();
+        }
         foreach (var renderer in renderers)
             if (renderer != null) renderer.forceRenderingOff = !show;
     }
 
+    void PauseOverlayOcclusion()
+    {
+        // The world camera already ran SSAO. The overlay draws only the arm
+        // and clears depth; another full-screen AO pass would use that new depth.
+        if (overlayData == null || GraphicsSettings.currentRenderPipeline is not UniversalRenderPipelineAsset pipeline) return;
+        var data = pipeline.rendererDataList;
+        for (int i = 0; i < data.Length; i++)
+        {
+            if (data[i] == null || pipeline.GetRenderer(i) != overlayData.scriptableRenderer) continue;
+            foreach (var feature in data[i].rendererFeatures)
+            {
+                if (feature is not ScreenSpaceAmbientOcclusion || !feature.isActive) continue;
+                feature.SetActive(false);
+                pausedOcclusion.Add(feature);
+            }
+            break;
+        }
+    }
+
     internal void Dispose()
     {
-        SetRendered(false);
+        SetVisible(false);
+        if (overlay != null)
+        {
+            stack.Remove(overlay);
+            Object.Destroy(overlay.gameObject);
+        }
         foreach (Material material in litMaterials.Values)
             if (material != null) Object.Destroy(material);
         litMaterials.Clear();
         if (nailMaterial != null) Object.Destroy(nailMaterial);
-        if (left.hand != null) Object.Destroy(left.hand.sharedMesh);
         if (right.hand != null) Object.Destroy(right.hand.sharedMesh);
         if (root != null)
         {

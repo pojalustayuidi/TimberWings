@@ -39,6 +39,7 @@ public class LightingRig : MonoBehaviour
     public Color sunColor = new Color(1f, 0.843f, 0.627f);  // #FFD7A0
     public float sunIntensity = 1.25f;
     [Range(0f, 1f)] public float sunShadowStrength = 0.8f;
+    internal const float SoftSunShadowStrength = .68f;
     [Tooltip("Дальность теней = радиус острова × это число (потом × множитель качества)")]
     public float shadowDistanceFactor = 1.6f;
     public float shadowDistanceMin = 40f;
@@ -128,7 +129,7 @@ public class LightingRig : MonoBehaviour
     Bloom gradeBloom, capBloom;
     Vignette vignette;
     ColorAdjustments colorAdj;
-    Tonemapping tonemap;
+    Tonemapping tonemap, capTonemap;
 
     readonly Dictionary<Light, LightShadows> authored = new Dictionary<Light, LightShadows>();
     readonly List<Light> dead = new List<Light>();
@@ -198,7 +199,7 @@ public class LightingRig : MonoBehaviour
         colorAdj = gradeProfile.Add<ColorAdjustments>(false);
         tonemap = gradeProfile.Add<Tonemapping>(false);
 
-        // Tonemapping тот же Neutral, что в «Vibe Forest»: режим не интерполируется, иначе в лесу картинка щёлкнет
+        // Neutral is the fallback grade. The shared balanced look overrides it for both the island and the forest.
         tonemap.mode.Override(TonemappingMode.Neutral);
 
         colorAdj.postExposure.Override(0.10f);
@@ -213,9 +214,11 @@ public class LightingRig : MonoBehaviour
         gradeBloom.tint.Override(new Color(1f, 0.92f, 0.80f));
         gradeBloom.highQualityFiltering.Override(false);   // телефон
 
-        // «потолок» только про Bloom: на Низком вес 1 и интенсивность 0 поверх всех, в том числе лесного грейда
+        // Share the bloom limit and tonemapping across the day, night and forest volumes.
         capVolume = MakeVolume("Island Light Cap", capPriority, out capProfile);
         capBloom = capProfile.Add<Bloom>(false);
+        capTonemap = capProfile.Add<Tonemapping>(false);
+        capTonemap.mode.value = TonemappingMode.ACES;
         capBloom.intensity.Override(0f);
         capVolume.weight = 0f;
     }
@@ -267,7 +270,8 @@ public class LightingRig : MonoBehaviour
             sun.color = cs != null ? cs.sunNoon : sunColor;
             float authoredIntensity = cs != null ? cs.sunMaxIntensity : sunIntensity;
             sun.intensity = balancedLook ? Mathf.Min(1.15f, authoredIntensity) : authoredIntensity;
-            sun.shadowStrength = cs != null ? cs.sunShadowStrength : sunShadowStrength;
+            float authoredShadows = cs != null ? cs.sunShadowStrength : sunShadowStrength;
+            sun.shadowStrength = balancedLook ? Mathf.Min(SoftSunShadowStrength, authoredShadows) : authoredShadows;
             if (controlSunTransform) sun.transform.rotation = Quaternion.Euler(sunPitch, sunYaw, 0f);
         }
 
@@ -365,6 +369,7 @@ public class LightingRig : MonoBehaviour
 
     void ApplyVolume(Preset p)
     {
+        capTonemap.mode.overrideState = balancedLook;
         // Вся магия 3.4 остаётся видимой, но крупный bloom больше не съедает силуэты и текст.
         float limit = GameSettings.LightQuality == LightQualityLevel.High ? 0.30f : 0.21f;
         gradeBloom.intensity.Override(balancedLook ? Mathf.Min(p.bloom, limit) : p.bloom);

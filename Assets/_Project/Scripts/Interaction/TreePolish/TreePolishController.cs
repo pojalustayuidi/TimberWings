@@ -109,7 +109,7 @@ public sealed partial class TreePolishController : MonoBehaviour
         ResourceItem target = null; var kind = TreeFocusRules.Kind.None;
         if (!busy)
         {
-            bool canPoint = (ChopPrototypeLog.Enabled || !InteractionHub.OwnsInput) && !overUI;
+            bool canPoint = (ChopPrototypeLog.UsesProcessing || !InteractionHub.OwnsInput) && !overUI;
             Vector3 me = interaction.transform.position;
             bool walking = Valid(interaction.WalkTarget) && TreeFocusRules.InRange(me, interaction.WalkTarget.transform.position, walkingHighlightDistance);
             bool hovering = canPoint && Valid(interaction.HoverItem) && TreeFocusRules.InRange(me, interaction.HoverItem.transform.position, interaction.hoverHighlightDistance);
@@ -152,10 +152,10 @@ public sealed partial class TreePolishController : MonoBehaviour
         }
         if (now >= nextLesson) { nextLesson = now + .5f; FindLessons(); }
         DrawLessons(busy);
-        if (!ChopPrototypeLog.Enabled && now >= nextHint) { nextHint = now + .1f; UpdateCard(); }
+        if (!ChopPrototypeLog.UsesProcessing && now >= nextHint) { nextHint = now + .1f; UpdateCard(); }
         if (card != null)
         {
-            bool visible = !ChopPrototypeLog.Enabled && !busy && showPreview &&
+            bool visible = !ChopPrototypeLog.UsesProcessing && !busy && showPreview &&
                 Focus != null && State != TreeFocusRules.Kind.Chopping;
             var p = Focus != null ? cam.WorldToViewportPoint(Focus.transform.position + Vector3.up) : Vector3.zero;
             visible &= p.z > 0 && p.x > -.1f && p.x < 1.1f && p.y > -.1f && p.y < 1.1f;

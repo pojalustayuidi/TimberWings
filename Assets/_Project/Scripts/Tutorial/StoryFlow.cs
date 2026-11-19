@@ -109,7 +109,8 @@ public class StoryFlow : MonoBehaviour, ISaveable
         }
         return false;
     }
-    internal bool AxeForgeAvailable => workshop != null && workshop.unlocked && (tent == null || tent.IsFinished);
+    internal bool AxeForgeAvailable => RuneForge.Active == null && workshop != null && workshop.unlocked &&
+        (tent == null || tent.IsFinished);
     internal bool GunnarBladeAvailable => (CurrentChapterId == GunnarAxeChapter && TaskAccepted) ||
         MapChapterCompleted(GunnarAxeChapter);
 
@@ -548,7 +549,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         chapters.Add(new Chapter
         {
             id = GunnarAxeChapter, giver = oskarName,
-            skip = () => workshop == null,
+            skip = () => workshop == null && RuneForge.Active == null,
             offer = new[]
             {
                 L(false, "Нашёл в хижине лезвие Гуннара. Видишь две башни? Он ставил этот знак на своих инструментах."),
@@ -560,10 +561,10 @@ public class StoryFlow : MonoBehaviour, ISaveable
             {
                 L(false, "Вот теперь знак видно. Гуннар этим топором вытесал первую балку. Пойдём, покажу, где будем ставить опоры.")
             },
-            reminder = "Кузница у верстака. Сначала разожги горн, потом восстанови лезвие.",
+            reminder = "Кузница у рабочего двора. Сначала разожги горн, потом восстанови лезвие.",
             objective = GunnarAxeObjective,
             done = () => PlayerInteraction.CurrentAxes != null && PlayerInteraction.CurrentAxes.Has(AxeId.Gunnar),
-            target = () => workshop != null ? workshop.Anchor : null
+            target = GunnarAxeTarget
         });
 
         // 9. Мост (Оскар, ур. 5): три этапа, цены из GameBalance.Bridge* (через Build Site Data).
@@ -604,8 +605,15 @@ public class StoryFlow : MonoBehaviour, ISaveable
     {
         var axes = PlayerInteraction.CurrentAxes;
         return axes != null && axes.ForgeRestored
-            ? "Восстанови топор Гуннара в кузнице у верстака"
-            : $"Восстанови кузницу у верстака: {PlayerAxeEquipment.ForgePlanks} досок и {PlayerAxeEquipment.ForgeCoins} монет";
+            ? "Восстанови топор Гуннара в кузнице"
+            : $"Восстанови кузницу у рабочего двора · {PlayerAxeEquipment.ForgePlanks} досок и {PlayerAxeEquipment.ForgeCoins} монет";
+    }
+
+    Transform GunnarAxeTarget()
+    {
+        var forge = RuneForge.Active;
+        if (forge != null && forge.build != null) return forge.IsRestored ? forge.interior : forge.build.transform;
+        return workshop != null ? workshop.Anchor : null;
     }
 
     // реплика: hero = true говорит Лео, иначе NPC (его Speaker).

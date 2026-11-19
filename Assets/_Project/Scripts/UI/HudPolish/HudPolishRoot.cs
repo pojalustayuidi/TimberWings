@@ -52,7 +52,7 @@ public sealed class HudPolishRoot : MonoBehaviour
     float noticeUntil, tooltipAt, nextPhase;
     HudPolishButton tipOwner;
     string tipTitle, tipBody;
-    bool safeRegistered;
+    bool safeRegistered, firstPersonDock;
     public static HudPolishRoot Instance { get { return instance != null && instance.isActiveAndEnabled ? instance : null; } }
     public static SkinSet Skin { get { var p = Instance; return p != null && p.skin.chip != null ? p.skin : null; } }
     public static bool Reduced { get { return VibeSettings.ReduceEffects || (Instance != null && Instance.effects <= 0.01f); } }
@@ -90,6 +90,7 @@ public sealed class HudPolishRoot : MonoBehaviour
         if (canvas == null) return;
         var cr = canvas.transform as RectTransform;
         if (screenW != Screen.width || screenH != Screen.height || lastSafe != Screen.safeArea ||
+            firstPersonDock != OrbitCamera.FirstPersonActive ||
             (cr != null && (lastCanvas - cr.rect.size).sqrMagnitude > 1f)) Reflow();
         if (!safeRegistered && HudSafeAreaRegistry.Instance != null)
         {
@@ -200,6 +201,7 @@ public sealed class HudPolishRoot : MonoBehaviour
         if (canvas == null) return;
         var cr = canvas.transform as RectTransform; if (cr == null) return;
         screenW = Screen.width; screenH = Screen.height; lastSafe = Screen.safeArea; lastCanvas = cr.rect.size;
+        firstPersonDock = OrbitCamera.FirstPersonActive;
         float scale = Mathf.Max(0.01f, canvas.scaleFactor);
         float left = lastSafe.xMin / scale + 34f, right = (Screen.width - lastSafe.xMax) / scale + 34f;
         float top = (Screen.height - lastSafe.yMax) / scale + 34f, bottom = lastSafe.yMin / scale + 42f;
@@ -219,7 +221,13 @@ public sealed class HudPolishRoot : MonoBehaviour
             minimap.localScale = Vector3.one * (lastCanvas.x < 1280f ? .78f : 1f);
         }
         Anchor(action, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, bottom + 10f), new Vector2(390, 94));
-        if (tooltip != null) Anchor(tooltip.transform as RectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-right, bottom + 122), new Vector2(362, 96));
+        if (tooltip != null)
+        {
+            Vector2 corner = firstPersonDock ? Vector2.zero : Vector2.right;
+            float height = firstPersonDock ? 172f : 122f;
+            Anchor(tooltip.transform as RectTransform, corner, corner,
+                new Vector2(firstPersonDock ? left : -right, bottom + height), new Vector2(362, 96));
+        }
         if (levelNotice != null) Anchor(levelNotice.transform as RectTransform, Vector2.one, Vector2.one, new Vector2(-right, -top - 116), new Vector2(356, 42));
         foreach (var d in docks) if (d.rect != null) DockNow(d.rect, d.slot);
     }
@@ -228,6 +236,17 @@ public sealed class HudPolishRoot : MonoBehaviour
         var c = r.GetComponentInParent<Canvas>(); float scale = c != null ? Mathf.Max(.01f, c.scaleFactor) : 1f;
         float right = (Screen.width - Screen.safeArea.xMax) / scale + 34f;
         float bottom = Screen.safeArea.yMin / scale + 42f;
+        if (OrbitCamera.FirstPersonActive)
+        {
+            float left = Screen.safeArea.xMin / scale + 34f;
+            float available = Screen.safeArea.width / scale * .5f - left - 211f;
+            bool narrow = available < 386f;
+            float upgradeWidth = narrow ? Mathf.Clamp(available, 156f, 216f) : 216f;
+            float xLeft = left + (slot > 0 && !narrow ? upgradeWidth + 12f : 0f) + (slot == 2 ? 86f : 0f);
+            float y = bottom + (narrow && slot > 0 ? 86f : 0f);
+            Anchor(r, Vector2.zero, Vector2.zero, new Vector2(xLeft, y), new Vector2(slot == 0 ? upgradeWidth : 76f, 76f));
+            return;
+        }
         float x = slot == 0 ? right : right + 300f + 16f + (slot - 1) * 108f;
         Anchor(r, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-x, bottom), new Vector2(slot == 0 ? 300f : 92f, 92f));
     }

@@ -3,6 +3,7 @@
 // Раньше таблички стояли по фиксированным координатам (HudKitBuilder: DayTopY, HintGap), и на другом разрешении/масштабе
 // плашка зоны перекрывала «День N», а «Карта» налезала на табличку. Теперь каждая следующая прижимается к нижней кромке
 // предыдущей по её фактическому положению на экране (мировые углы RectTransform), при любом Canvas Scaler и аспекте.
+using TMPro;
 using UnityEngine;
 
 public partial class HudMinimap
@@ -20,14 +21,23 @@ public partial class HudMinimap
 
     void LateUpdate()
     {
-        if (!autoStackHud || zoneBanner == null) return;
-        RectTransform prev = zoneBanner;
-        if (dayBanner != null && dayBanner.gameObject.activeInHierarchy) { PlaceBelow(prev, dayBanner); prev = dayBanner; }
+        if (zoneBanner == null) return;
         if (mapHint == null)
         {
             var host = dayBanner != null ? dayBanner.parent : zoneBanner.parent;
             if (host != null) mapHint = host.Find(mapHintName) as RectTransform;
+            if (mapHint != null)
+            {
+                foreach (var caption in mapHint.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    caption.color = HudPolishRoot.Ink;
+                    caption.fontStyle |= FontStyles.Bold;
+                }
+            }
         }
+        if (!autoStackHud) return;
+        RectTransform prev = zoneBanner;
+        if (dayBanner != null && dayBanner.gameObject.activeInHierarchy) { PlaceBelow(prev, dayBanner); prev = dayBanner; }
         if (mapHint != null && mapHint.gameObject.activeInHierarchy) PlaceBelow(prev, mapHint);
     }
 

@@ -17,7 +17,7 @@ internal sealed class Chop02Feedback : MonoBehaviour
     TextMeshProUGUI prompt;
     Vector3 point;
     string label;
-    bool wanted, meter, attempted, precise;
+    bool wanted, meter, attempted, precise, working;
     float progress, marker, pulseUntil;
     float cardWidth, cardHeight;
 
@@ -25,7 +25,7 @@ internal sealed class Chop02Feedback : MonoBehaviour
     static void ResetInstance() => instance = null;
 
     internal static void Show(Vector3 at, string text, float progress = -1f, bool meter = false,
-        float marker = 0f, bool attempted = false, bool precise = false)
+        float marker = 0f, bool attempted = false, bool precise = false, bool working = false)
     {
         if (instance == null)
         {
@@ -40,6 +40,7 @@ internal sealed class Chop02Feedback : MonoBehaviour
         display.marker = marker;
         display.attempted = attempted;
         display.precise = precise;
+        display.working = working;
         display.ApplyLabel(text);
     }
 
@@ -114,13 +115,14 @@ internal sealed class Chop02Feedback : MonoBehaviour
         Rect safe = Screen.safeArea;
         bool inView = screen.z > .08f && screen.x >= safe.xMin && screen.x <= safe.xMax &&
             screen.y >= safe.yMin && screen.y <= safe.yMax;
-        bool show = wanted && inView;
+        bool fixedCard = working && OrbitCamera.FirstPersonActive;
+        bool show = wanted && (inView || fixedCard);
         float alpha = VibeSettings.ReduceEffects
             ? (show ? 1f : 0f)
             : Mathf.MoveTowards(group.alpha, show ? 1f : 0f, Time.unscaledDeltaTime * (show ? 10f : 8f));
         group.alpha = alpha;
         canvas.enabled = alpha > .005f;
-        if (!canvas.enabled || !inView) return;
+        if (!canvas.enabled || !inView && !fixedCard) return;
 
         ApplyLayout();
         float scale = Mathf.Clamp(Mathf.Min(safe.width / 1280f, safe.height / 720f), .78f, 1.48f);
@@ -128,9 +130,12 @@ internal sealed class Chop02Feedback : MonoBehaviour
         float halfHeight = cardHeight * scale * .5f;
         float side = screen.x > safe.center.x + safe.width * .19f ? -1f : 1f;
         card.localScale = Vector3.one * scale;
+        Vector2 anchor = fixedCard
+            ? safe.center - new Vector2(0f, 105f * scale)
+            : new Vector2(screen.x + side * 34f * scale, screen.y + (31f + cardHeight * .5f) * scale);
         card.anchoredPosition = new Vector2(
-            Mathf.Clamp(screen.x + side * 34f * scale, safe.xMin + halfWidth + 8f, safe.xMax - halfWidth - 8f),
-            Mathf.Clamp(screen.y + (31f + cardHeight * .5f) * scale, safe.yMin + halfHeight + 8f, safe.yMax - halfHeight - 8f));
+            Mathf.Clamp(anchor.x, safe.xMin + halfWidth + 8f, safe.xMax - halfWidth - 8f),
+            Mathf.Clamp(anchor.y, safe.yMin + halfHeight + 8f, safe.yMax - halfHeight - 8f));
 
         if (progress >= 0f)
         {
@@ -151,8 +156,8 @@ internal sealed class Chop02Feedback : MonoBehaviour
     {
         bool withText = !string.IsNullOrEmpty(label);
         bool withProgress = progress >= 0f;
-        float width = withText ? Mathf.Clamp(prompt.preferredWidth + 28f, 126f, 345f) : 136f;
-        float height = 14f + (withText ? 22f : 0f) + (withProgress ? 8f : 0f) + (meter ? 13f : 0f);
+        float width = withText ? Mathf.Clamp(prompt.preferredWidth + 28f, 148f, 345f) : 148f;
+        float height = 14f + (withText ? 22f : 0f) + (withProgress ? 8f : 0f) + (meter ? 16f : 0f);
         if (Mathf.Approximately(width, cardWidth) && Mathf.Approximately(height, cardHeight)) return;
         cardWidth = width;
         cardHeight = height;
@@ -173,8 +178,8 @@ internal sealed class Chop02Feedback : MonoBehaviour
         if (meter)
         {
             float span = width - 24f;
-            Place(timingTrack, span, 5f, y - 7f);
-            Place(zone.rectTransform, span * 2f * Chop03Balance.GreenHalfWidth, 5f, 0f);
+            Place(timingTrack, span, 7f, y - 8f);
+            Place(zone.rectTransform, span * 2f * Chop03Balance.GreenHalfWidth, 7f, 0f);
         }
     }
 

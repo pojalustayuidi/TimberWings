@@ -25,15 +25,15 @@ internal sealed class LeoFirstPersonHandMesh
         return null;
     }
 
-    internal Mesh Create(bool left, Matrix4x4 forearmBind)
+    internal Mesh Create(Matrix4x4 forearmBind)
     {
-        Vector3[] open = Decode(relaxed, left);
-        Vector3[] closed = Decode(gripped, left);
-        var mesh = new Mesh { name = left ? "Leo left hand (First Person)" : "Leo right hand (First Person)" };
+        Vector3[] open = Decode(relaxed);
+        Vector3[] closed = Decode(gripped);
+        var mesh = new Mesh { name = "Leo right hand (First Person)" };
         mesh.vertices = closed;
         mesh.subMeshCount = 2;
-        mesh.SetTriangles(Indices(skin, left), 0, false);
-        mesh.SetTriangles(Indices(nails, left), 1, false);
+        mesh.SetTriangles(skin, 0, false);
+        mesh.SetTriangles(nails, 1, false);
         mesh.RecalculateNormals();
         Vector3[] gripNormals = mesh.normals;
         mesh.vertices = open;
@@ -67,21 +67,11 @@ internal sealed class LeoFirstPersonHandMesh
         return mesh;
     }
 
-    static Vector3[] Decode(float[] values, bool left)
+    static Vector3[] Decode(float[] values)
     {
         var positions = new Vector3[values.Length / 3];
-        float mirror = left ? -1f : 1f;
         for (int i = 0; i < positions.Length; i++)
-            positions[i] = new Vector3(values[i * 3] * mirror, values[i * 3 + 1], values[i * 3 + 2]);
+            positions[i] = new Vector3(values[i * 3], values[i * 3 + 1], values[i * 3 + 2]);
         return positions;
-    }
-
-    static int[] Indices(int[] triangles, bool left)
-    {
-        if (!left) return triangles;
-        var reversed = (int[])triangles.Clone();
-        for (int i = 0; i < reversed.Length; i += 3)
-            (reversed[i], reversed[i + 2]) = (reversed[i + 2], reversed[i]);
-        return reversed;
     }
 }

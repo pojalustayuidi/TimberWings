@@ -17,7 +17,7 @@ public class TreeRespawn : MonoBehaviour
     ChopPrototypeLog trunk;
     ChopPrototypeSave.Tree saved;
     bool growthStarted, specialTree;
-    bool WaitingForHarvest => saved?.HasWood ?? (trunk != null && trunk.HasWood);
+    bool WaitingForHarvest => saved?.HasHarvest ?? (trunk != null && trunk.HasHarvest);
 
     internal static TreeRespawn Begin(ResourceItem item, GameObject stump, Vector3 position, float seconds,
         TreeGrowthVisual growth, ChopPrototypeSave.Tree saved, ChopPrototypeLog trunk)

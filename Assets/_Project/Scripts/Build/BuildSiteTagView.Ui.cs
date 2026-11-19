@@ -142,7 +142,7 @@ public partial class BuildSiteTagView
         segRoot = stageRow;
         stageCaption = Txt(rt, "StageCaption", 21f, Dim, false);
         stageCaption.richText = true;
-        stageCaption.enableWordWrapping = false;
+        stageCaption.textWrappingMode = TextWrappingModes.Normal;
         Size(stageCaption.rectTransform, PanelW, -1f);
 
         // --- тонкая линия под шапкой
@@ -184,8 +184,9 @@ public partial class BuildSiteTagView
         hbg.sprite = UiKit.Slot; hbg.type = Image.Type.Sliced; hbg.pixelsPerUnitMultiplier = 1f / 0.6f; hbg.raycastTarget = false;
         Size(hintRow, PanelW, -1f);
         hint = Txt(hintRow, "Hint", 23f, CandyTag.Ink, false);
-        hint.enableWordWrapping = true;
-        Size(hint.rectTransform, PanelW - 28f, -1f);
+        hint.textWrappingMode = TextWrappingModes.Normal;
+        var hintSize = Size(hint.rectTransform, PanelW - 28f, -1f);
+        hintSize.minHeight = 28f;
         doneText = Txt(rt, "Done", 34f, Good, true);
         doneText.text = "ГОТОВО";
     }
@@ -343,7 +344,8 @@ public partial class BuildSiteTagView
         bool done = state == State.Done, locked = state == State.Locked, building = state == State.InProgress;
 
         bool upgrade = staged && bc != null && bc.TutorialFired && !done && !locked;
-        title.text = upgrade ? buildingName + " <size=65%><color=#5E6A96>улучшение</color></size>" : buildingName;
+        string caption = bc != null ? bc.BuildingTitle : buildingName;
+        title.text = upgrade ? caption + " <size=65%><color=#5E6A96>улучшение</color></size>" : caption;
         title.color = locked ? Dim : CandyTag.Ink;
 
         // стадии: пройденные зелёные с галочкой, следующая янтарная и пульсирует, будущие тусклые

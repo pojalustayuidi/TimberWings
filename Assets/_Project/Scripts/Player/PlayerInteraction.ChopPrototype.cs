@@ -33,13 +33,16 @@ public partial class PlayerInteraction
     float nextPrototypePick, nextPickupScan;
     LogTarget nearestPickup;
     bool mouseOnFallenTrunk, emittingPrototypeFall, chop03PointerBlocked;
-    bool chop03Hold;
+    bool chop03Requested, chop03FirstHitPending;
     int pickupLabelWood = -1;
     bool pickupLabelEnglish;
     string pickupLabel;
 
     public bool IsProcessingPrototypeLog => IsChopping && processing.log != null;
     internal bool PrototypeReticleActive { get; private set; }
+    internal bool AimingAtCut => aimedLog.Valid && aimedLog.cut;
+    internal bool AimingAtWood => aimedLog.Valid && !aimedLog.cut && AtPickup(aimedLog);
+    internal LandmarkTree AimedLandmark { get; private set; }
     internal static bool PrototypeFellingEvent => inst != null && inst.emittingPrototypeFall;
 
     bool PrototypeInputAllowed => !MobileInput.ModalOpen && !DialogueBusy() && !StoryInspection.Active &&
@@ -116,12 +119,13 @@ public partial class PlayerInteraction
         return first;
     }
 
-    float TreeApproachRange => Mathf.Min(walkRangeClick, OrbitCamera.FirstPersonActive ? 11f : 18f);
+    float TreeApproachRange => Mathf.Min(walkRangeClick, OrbitCamera.FirstPersonActive ? CutApproachRange : 18f);
 
     void PickChop03Targets(bool overUi)
     {
         aimedTree = null;
         aimedLog = default;
+        AimedLandmark = null;
         mouseOnFallenTrunk = false;
         var cam = Camera.main;
         if (cam == null || !MouseActive() || overUi) return;
@@ -147,6 +151,8 @@ public partial class PlayerInteraction
         }
 
         ResourceItem item = hit != null ? hit.GetComponentInParent<ResourceItem>() : null;
+        if (firstPerson && item == null && hit != null)
+            AimedLandmark = hit.GetComponentInParent<LandmarkTree>();
         // The solid ray has priority. The top-down camera can also select through the existing crown trigger.
         if (item == null && !firstPerson)
         {
@@ -178,6 +184,9 @@ public partial class PlayerInteraction
         Vector3 towardActor = Vector3.ProjectOnPlane(transform.position - tree.transform.position, Vector3.up).normalized;
         return tree.transform.position + towardActor * tree.TrunkRadius + Vector3.up * (tree.Size == TreeSize.Young ? .75f : 1.03f);
     }
+
+    Vector3 StandingSwingPoint(ResourceItem tree) =>
+        OrbitCamera.TryReadFirstPersonBark(tree, out var contact) ? contact : TreePromptPoint(tree);
 
     float LogFeetHeight => logActorCapsule != null ? logActorCapsule.bounds.min.y : transform.position.y;
     float ActorRadius => logActorCapsule != null
@@ -265,14 +274,14 @@ public partial class PlayerInteraction
         SetFocusedCut(cut);
         if (cut.Valid)
         {
-            string label = InCutStance(cut) ? ChopPrototypeLog.Text("ЛКМ — Разделать", "LMB — Cut")
+            string label = InCutStance(cut) ? ChopPrototypeLog.Text("ЛКМ — Ударить по разрезу", "LMB — Strike the cut")
                 : ChopPrototypeLog.Text("ЛКМ — Подойти к разрезу", "LMB — Approach the cut");
             Chop02Feedback.Show(cut.Point(transform.position), label, cut.log.CutProgress(cut.index));
         }
         else if (pickup.Valid) ShowPickup(pickup);
         else if (aimedTree != null)
         {
-            string label = InTreeStance(aimedTree) ? ChopPrototypeLog.Text("ЛКМ — Рубить", "LMB — Chop")
+            string label = InTreeStance(aimedTree) ? ChopPrototypeLog.Text("ЛКМ — Ударить", "LMB — Strike")
                 : ChopPrototypeLog.Text("ЛКМ — Подойти к дереву", "LMB — Approach the tree");
             float damage = aimedTree.StandingDamage;
             Chop02Feedback.Show(TreePromptPoint(aimedTree), label, damage > 0f ? damage : -1f);
@@ -312,15 +321,18 @@ public partial class PlayerInteraction
         var cam = Camera.main;
         if (cam == null) return false;
         Vector3 view = cam.WorldToViewportPoint(contact);
-        return view.z > .12f && view.x > -.08f && view.x < 1.08f && view.y > -.25f && view.y < 1.18f;
+        return view.z > .12f && view.x > -.04f && view.x < 1.04f && view.y > -.06f && view.y < 1.06f;
     }
+
+    void CancelChop03Request() => chop03Requested = chop03FirstHitPending = false;
 
     void ResetPrototypeInput()
     {
         CancelChop03Approach();
-        chop03Hold = false;
+        CancelChop03Request();
         chop03Tree = aimedTree = HoverItem = null;
         chop03Log = aimedLog = nearestPickup = default;
+        AimedLandmark = null;
         nextPrototypePick = nextPickupScan = 0f;
         PrototypeReticleActive = mouseOnFallenTrunk = chop03PointerBlocked = false;
         StopPrototypeWork();
@@ -331,7 +343,9 @@ public partial class PlayerInteraction
     bool TickChop03()
     {
         bool enabled = ChopPrototypeLog.Enabled;
-        if (!enabled && SpecialTreeGroves.Current == null && ChopPrototypeLog.Active.Count == 0 && !IsChop03Working && !chop03Walking)
+        bool firstPerson = OrbitCamera.FirstPersonActive;
+        if (!enabled && !firstPerson && SpecialTreeGroves.Current == null && ChopPrototypeLog.Active.Count == 0 &&
+            !IsChop03Working && !chop03Walking)
         {
             if (PrototypeReticleActive || mouseOnFallenTrunk || !ReferenceEquals(nearestPickup.log, null))
                 ResetPrototypeInput();
@@ -352,7 +366,7 @@ public partial class PlayerInteraction
 
         bool click = Input.GetMouseButtonDown(0);
         bool held = Input.GetMouseButton(0);
-        if (!held) chop03Hold = false;
+        if (!held && !chop03FirstHitPending) chop03Requested = false;
         bool moving = Mathf.Abs(MobileInput.Horizontal) > .01f || Mathf.Abs(MobileInput.Vertical) > .01f;
         bool action = Input.GetKeyDown(KeyCode.E);
         if (click || Time.unscaledTime >= nextPrototypePick)
@@ -361,26 +375,32 @@ public partial class PlayerInteraction
             nextPrototypePick = Time.unscaledTime + PickInterval;
             PickChop03Targets(chop03PointerBlocked);
         }
-        if (enabled) HoverItem = aimedTree;
+        if (enabled && (!firstPerson || aimedTree != null || mouseOnFallenTrunk)) HoverItem = aimedTree;
         PrototypeReticleActive = aimedLog.Valid || aimedTree != null;
-        if (moving || InteractionHub.ActionConsumedThisFrame)
+        if (moving || InteractionHub.ActionConsumedThisFrame || firstPerson && !MouseActive())
         {
             CancelChop03Approach();
-            chop03Hold = false;
+            CancelChop03Request();
             chop03Tree = null;
             chop03Log = default;
             StopPrototypeWork();
         }
-        else if (click && !chop03PointerBlocked && (enabled || aimedTree != null || aimedLog.Valid && aimedLog.cut))
+        else if (click && !chop03PointerBlocked)
         {
-            CancelChop03Approach();
-            StopPrototypeWork();
-            StopChop();
-            ClearChopTargets();
-            chop03Tree = aimedTree;
-            chop03Log = aimedLog.Valid && aimedLog.cut ? aimedLog : default;
-            chop03Hold = chop03Tree != null || chop03Log.Valid;
-            if (chop03Hold) TryStartChop03Approach();
+            LogTarget cut = AimingAtCut ? aimedLog : default;
+            bool same = chop03Requested && (aimedTree != null ? chop03Tree == aimedTree : cut.Valid && chop03Log.Same(cut));
+            if (!same && (chop03Requested || aimedTree != null || cut.Valid))
+            {
+                CancelChop03Approach();
+                StopPrototypeWork();
+                StopChop();
+                ClearChopTargets();
+                chop03Tree = aimedTree;
+                chop03Log = cut;
+                chop03Requested = aimedTree != null || cut.Valid;
+                chop03FirstHitPending = chop03Requested;
+                if (chop03Requested) TryStartChop03Approach();
+            }
         }
 
         if (TickChop03Approach())
@@ -390,10 +410,10 @@ public partial class PlayerInteraction
             return true;
         }
 
-        if (chop03Hold && !chop03PointerBlocked && MouseActive())
+        if (chop03Requested && !chop03PointerBlocked && MouseActive())
         {
             if (chop03Tree != null && chop03Tree.isActiveAndEnabled && InTreeStance(chop03Tree) &&
-                Chop03ContactInView(TreePromptPoint(chop03Tree)))
+                Chop03ContactInView(StandingSwingPoint(chop03Tree)))
             {
                 SetFocusedCut(default);
                 TickChop03Standing(chop03Tree);
@@ -407,6 +427,7 @@ public partial class PlayerInteraction
                 return true;
             }
         }
+        CancelChop03Request();
         StopPrototypeWork();
 
         LogTarget pickup = default;
@@ -432,12 +453,13 @@ public partial class PlayerInteraction
             }
         }
 
-        if (enabled)
+        bool prototypeOwnsChop = enabled && (!firstPerson || aimedTree != null || mouseOnFallenTrunk);
+        if (prototypeOwnsChop)
         {
             StopChop();
             ClearChopTargets();
         }
         ShowChop03Target(pickup);
-        return enabled || (click && aimedTree != null && !chop03PointerBlocked && !moving);
+        return prototypeOwnsChop || (click && aimedTree != null && !chop03PointerBlocked && !moving);
     }
 }

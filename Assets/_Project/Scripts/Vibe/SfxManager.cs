@@ -88,6 +88,9 @@ public class SfxManager : MonoBehaviour
     Vector3 lastPos;
     bool hasPos;
     float stepDist;
+    CapsuleCollider stepBody;
+    Renderer campEarth;
+    readonly RaycastHit[] stepHits = new RaycastHit[12];
 
     readonly HashSet<BuildingController> hooked = new HashSet<BuildingController>();
     float hookAt;
@@ -161,10 +164,10 @@ public class SfxManager : MonoBehaviour
     // удар топора приходит из PlayerInteraction (по таймеру или по событию из анимации), поэтому звук всегда в такт кадру удара
     void OnChopHit()
     {
-        if (PlayerInteraction.PreciseChop03Impact)
-            PlayInternal("thock", 1.02f, UnityEngine.Random.Range(.80f, .89f));
-        else
-            PlayInternal("thock", .95f, UnityEngine.Random.Range(.92f, 1.08f));
+        bool precise = PlayerInteraction.PreciseChop03Impact;
+        bool ground = pi != null && pi.IsProcessingPrototypeLog;
+        float pitch = UnityEngine.Random.Range(.90f, precise ? .98f : ground ? 1.02f : 1.10f);
+        PlayInternal("thock", precise ? 1.02f : ground ? .82f : .95f, pitch);
     }
     void OnTreeChopped()
     {
@@ -189,7 +192,16 @@ public class SfxManager : MonoBehaviour
             if (Time.unscaledTime >= findAt)
             {
                 findAt = Time.unscaledTime + 1f;
-                if (pm == null) pm = PlayerMovement.Instance;
+                if (pm == null)
+                {
+                    pm = PlayerMovement.Instance;
+                    stepBody = pm != null ? pm.GetComponent<CapsuleCollider>() : null;
+                    var center = pm != null ? FindFirstObjectByType<CenterArtState>() : null;
+                    var earth = center != null ? center.transform.Find("Organic_Earth_Clearing") : null;
+                    campEarth = earth != null ? earth.GetComponent<Renderer>() : null;
+                    stepDist = 0f;
+                    hasPos = false;
+                }
                 if (pm != null)
                 {
                     if (pi == null) pi = pm.GetComponent<PlayerInteraction>();
@@ -212,13 +224,45 @@ public class SfxManager : MonoBehaviour
         d.y = 0f;
         lastPos = p;
         float m = d.magnitude;
-        if (m / dt > 14f) return;                   // телепорт, а не шаг
+        if (m / dt > 14f || WaterSwim.Swimming || CampSleep.Sleeping ||
+            (IslandEdgeGuard.Instance != null && IslandEdgeGuard.Instance.IsFalling))
+        {
+            stepDist = 0f;
+            return;
+        }
         stepDist += m;
         if (stepDist >= 1.25f)
         {
             stepDist -= 1.25f;
-            PlayInternal("step", 0.5f, UnityEngine.Random.Range(0.85f, 1.15f));
+            PlayFootstep(p);
         }
+    }
+
+    void PlayFootstep(Vector3 position)
+    {
+        position.y = (stepBody != null ? stepBody.bounds.min.y : position.y) + .20f;
+        Collider surface = null;
+        float distance = float.PositiveInfinity;
+        int count = Physics.RaycastNonAlloc(position, Vector3.down, stepHits, .52f, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+        {
+            var hit = stepHits[i];
+            if (hit.collider == null || hit.collider.transform.IsChildOf(pm.transform) || hit.distance >= distance) continue;
+            surface = hit.collider;
+            distance = hit.distance;
+        }
+        if (surface == null) return;
+
+        bool sand = surface.name.IndexOf("sand", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (!sand && campEarth != null && campEarth.enabled && campEarth.gameObject.activeInHierarchy && ChopPrototypeLog.IsGround(surface))
+        {
+            Bounds bounds = campEarth.bounds;
+            Vector3 delta = position - bounds.center;
+            float x = delta.x / Mathf.Max(.1f, bounds.extents.x);
+            float z = delta.z / Mathf.Max(.1f, bounds.extents.z);
+            sand = x * x + z * z < .93f;
+        }
+        PlayInternal(sand ? "stepSand" : "step", .5f, UnityEngine.Random.Range(.91f, 1.10f));
     }
 
     void TickInventory()
@@ -466,6 +510,18 @@ public class SfxManager : MonoBehaviour
                     lp += 0.2f * (VibeSynth.Noise() - lp);
                     return lp * VibeSynth.Env(t, 0.003f, 0.025f) + VibeSynth.Sin(70f, t) * VibeSynth.Env(t, 0.002f, 0.03f) * 0.5f;
                 }, 0.5f);
+            }
+            case "stepSand":
+            {
+                float lp = 0f;
+                return VibeSynth.Make("stepSand", .15f, t =>
+                {
+                    lp += .34f * (VibeSynth.Noise() - lp);
+                    float grain = .65f + .35f * VibeSynth.Sin(37f, t);
+                    float scuff = lp * grain * VibeSynth.Env(t, .006f, .042f);
+                    float heel = .15f * VibeSynth.Sin(92f, t) * VibeSynth.Env(t, .002f, .021f);
+                    return scuff + heel;
+                }, .48f);
             }
             case "grow":    // дерево выросло: мягкий восходящий «пуф» и шорох листвы
             {

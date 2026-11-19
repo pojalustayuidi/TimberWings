@@ -7,12 +7,12 @@ public partial class OrbitCamera
     [Header("First Person")]
     public KeyCode firstPersonKey = KeyCode.F5;
     public KeyCode firstPersonAxeKey = KeyCode.R;
-    [Range(55f, 95f)] public float firstPersonFov = 68f;
-    [Tooltip("Fallback eye height when the player has no Leo rig.")]
-    [Range(.7f, 2.4f)] public float firstPersonEyeHeight = 1.65f;
+    [Range(55f, 95f)] public float firstPersonFov = 78f;
+    [Tooltip("Eye height above the feet when the player has no Leo rig.")]
+    [Range(.7f, 2.4f)] public float firstPersonEyeHeight = 1.62f;
     [Tooltip("Adds height above Leo’s baked eye position without moving the collision body.")]
-    [Range(0f, .35f)] public float firstPersonEyeLift = .21f;
-    [Tooltip("Scale multiplier for Leo’s first-person arms and axe.")]
+    [Range(0f, .35f)] public float firstPersonEyeLift = .12f;
+    [Tooltip("Scale multiplier for Leo’s first-person arm and axe.")]
     [Range(.4f, 2f)] public float firstPersonToolScale = 1f;
 
     const string FpBobKey = "tw_cam_first_person_bob";
@@ -35,7 +35,7 @@ public partial class OrbitCamera
 
     bool fpRequested, fpLive, fpCarryAxe, fpShowView, fpExiting, fpKeepPitch;
     float fpPitch, fpPitchGoal, fpYawGoal, fpNear, fpTransitionAt, fpFromFov;
-    float fpEyeHeight, fpEyeY, fpSpeed, fpStride, fpBobWeight;
+    float fpEyeHeight, fpEyeY, fpSpeed, fpStride, fpBobWeight, fpKick;
     Vector3 fpFromPosition;
     Quaternion fpFromRotation;
     Camera fpCamera, fpRendering;
@@ -53,7 +53,8 @@ public partial class OrbitCamera
         BuildWorkPose.HasWork(player) || BuildingController.AnyRevealing || CameraVibe.RevealActive ||
         CameraVibe.RevealShown > .01f || DialoguePreferences.ConversationOwnsCamera ||
         DialogueManager.IsBusy || DialogueSequence.AnyPlaying || StoryInspection.Active ||
-        LeoCelebration.IsPlaying || ArrivalIntroSequence.Active || EndingSequence.Active || WaterSwim.Swimming;
+        LeoCelebration.IsPlaying || ArrivalIntroSequence.Active || EndingSequence.Active || WaterSwim.Swimming ||
+        CampSleep.Sleeping || (IslandEdgeGuard.Instance != null && IslandEdgeGuard.Instance.IsFalling);
 
     void FpToggle()
     {
@@ -105,14 +106,14 @@ public partial class OrbitCamera
             FpCaptureTransition();
             fpLive = true;
             fpNear = cam.nearClipPlane;
-            cam.nearClipPlane = .025f;
+            cam.nearClipPlane = .04f;
             if (!fpKeepPitch)
                 fpPitch = Mathf.Clamp(Mathf.DeltaAngle(0f, cam.transform.eulerAngles.x) * .3f, -9f, 9f);
             fpPitchGoal = fpPitch;
             fpKeepPitch = true;
             fpYawGoal = yaw;
             fpEyeY = player.transform.position.y + fpEyeHeight;
-            fpSpeed = fpStride = fpBobWeight = 0f;
+            fpSpeed = fpStride = fpBobWeight = fpKick = 0f;
             ClearTreePeek();
             treePeekBlend = 0f;
             resumeLookAt = Time.unscaledTime + lookResumeDelay;
@@ -154,6 +155,7 @@ public partial class OrbitCamera
         {
             fpEyeY = wantedY;
             fpView?.Suspend();
+            fpKick = 0f;
             fpTransitionAt = Time.unscaledTime - FpTransition;
             transition = 1f;
         }
@@ -172,7 +174,9 @@ public partial class OrbitCamera
         float wantedBob = !modal && !chopping && !VibeSettings.ReduceEffects && FirstPersonHeadBob ? move : 0f;
         fpBobWeight = Mathf.MoveTowards(fpBobWeight, wantedBob, dt * 9f);
         float bob = Mathf.Cos(fpStride * 2f) * Mathf.Lerp(.0035f, .010f, run) * fpBobWeight;
-        Quaternion rotation = Quaternion.Euler(fpPitch, yaw, 0f);
+        if (modal || VibeSettings.ReduceEffects) fpKick = 0f;
+        Quaternion rotation = Quaternion.Euler(fpPitch - fpKick, yaw, 0f);
+        fpKick *= Mathf.Exp(-27f * dt);
         Vector3 eye = new Vector3(origin.x, fpEyeY + bob, origin.z);
         cam.orthographic = false;
         cam.fieldOfView = Mathf.Lerp(fpFromFov, firstPersonFov, transition);
@@ -190,7 +194,7 @@ public partial class OrbitCamera
         snapPending = false;
 
         fpShowView = !modal && transition > .94f;
-        if (fpView != null && fpRig != null && fpShowView)
+        if (fpView != null && fpShowView)
             fpView.Step(interaction, fpCarryAxe, dt, fpStride, move, run, firstPersonToolScale);
         else
             fpView?.Suspend();
@@ -252,15 +256,16 @@ public partial class OrbitCamera
         fpBody.RemoveAll(r => !(r is MeshRenderer) && !(r is SkinnedMeshRenderer));
 
         var capsule = player.GetComponent<CapsuleCollider>();
-        fpEyeHeight = capsule != null ? Mathf.Max(.55f,
-            capsule.bounds.max.y - player.transform.position.y - .10f) : firstPersonEyeHeight;
+        float feet = capsule != null && capsule.enabled ? capsule.bounds.min.y : player.transform.position.y;
+        float eyeHeight = firstPersonEyeHeight;
         if (fpRig != null && fpRig.eyeL != null && fpRig.eyeR != null)
         {
             // Read the baked eyes in the rig's rest pose, independent of breathing and blinking.
             Vector3 eye = (FpRestPoint(fpRig.eyeL) + FpRestPoint(fpRig.eyeR)) * .5f;
-            fpEyeHeight = Mathf.Clamp(fpRig.transform.TransformPoint(eye).y - player.transform.position.y + firstPersonEyeLift,
-                .55f, firstPersonEyeHeight + .30f);
+            eyeHeight = Mathf.Clamp(fpRig.transform.TransformPoint(eye).y - feet + firstPersonEyeLift,
+                firstPersonEyeHeight - .12f, firstPersonEyeHeight + .12f);
         }
+        fpEyeHeight = feet + eyeHeight - player.transform.position.y;
         lastPlayerPos = player.transform.position;
     }
 
@@ -274,7 +279,11 @@ public partial class OrbitCamera
 
     void FpBeforeRender(ScriptableRenderContext context, Camera rendering)
     {
-        if ((!fpLive && !fpExiting) || rendering != fpCamera || FpCinematic) return;
+        if ((!fpLive && !fpExiting) || FpCinematic) return;
+        if (fpLive && fpShowView && fpView != null && fpView.RendersIn(rendering) &&
+            !MobileInput.ModalOpen && Application.isFocused && Time.timeScale > 0f)
+            fpView.SetRendered(true);
+        if (rendering != fpCamera) return;
         fpRendering = rendering;
         float progress = (Time.unscaledTime - fpTransitionAt) / FpTransition;
         if (fpLive ? progress > .78f : progress < .29f)
@@ -283,7 +292,6 @@ public partial class OrbitCamera
             // Equipment can change while F5 is active, after the initial body snapshot.
             if (fpRig != null) FpMask(fpRig.EquippedAxeRenderer);
         }
-        fpView?.SetRendered(fpShowView && !MobileInput.ModalOpen && Application.isFocused && Time.timeScale > 0f);
     }
 
     void FpMask(Renderer renderer)
@@ -296,6 +304,7 @@ public partial class OrbitCamera
     void FpAfterRender(ScriptableRenderContext context, Camera rendering)
     {
         if (rendering == fpRendering) FpRestoreRenderers();
+        else if (fpView != null && fpView.RendersIn(rendering)) fpView.SetRendered(false);
     }
 
     void FpRestoreRenderers()
@@ -310,15 +319,22 @@ public partial class OrbitCamera
     internal static bool TryReadFirstPersonBark(ResourceItem item, out Vector3 point)
     {
         point = default;
-        if (!FirstPersonActive || instance.fpView == null || instance.fpRig == null || !instance.fpShowView ||
-            instance.FpCinematic) return false;
+        if (item == null || !FirstPersonActive || instance.fpRig == null || instance.FpCinematic) return false;
+        if (item.TryGetStandingContact(out point)) return true;
         Transform view = instance.fpCamera.transform;
         float slope = view.forward.y / Mathf.Max(.38f, Vector3.ProjectOnPlane(view.forward, Vector3.up).magnitude);
-        float height = view.position.y + Mathf.Clamp(slope * .66f - .085f, -.49f, .19f);
+        float depth = Mathf.Max(.30f, Vector3.ProjectOnPlane(item.transform.position - view.position, Vector3.up).magnitude - item.TrunkRadius);
+        float height = view.position.y + Mathf.Clamp(slope * depth - .15f, -.67f, .10f);
         return LeoChopContact.TryPointAtHeight(item, instance.fpRig.transform, height, out point);
     }
 
-    void FpOnImpact() => fpView?.Hit(interaction, false);
+    void FpOnImpact()
+    {
+        fpView?.Hit(interaction, false);
+        if (!fpShowView || FpCinematic || VibeSettings.ReduceEffects) return;
+        fpKick = PlayerInteraction.PreciseChop03Impact ? .66f : .39f;
+    }
+
     void FpOnFelled() => fpView?.Hit(interaction, true);
 
     void FpLeave(bool resetRequest)
