@@ -321,7 +321,7 @@ public class ObjectiveView : MonoBehaviour
         stageTxt.gameObject.SetActive(showStage);
         if (showStage)
         {
-            string st = "Стадия " + d.stage + " из " + d.stageCount + (string.IsNullOrEmpty(d.stageName) ? "" : " · " + d.stageName);
+            string st = ChapterOneText.Pick("Стадия ", "Stage ") + d.stage + ChapterOneText.Pick(" из ", " of ") + d.stageCount + (string.IsNullOrEmpty(d.stageName) ? "" : " · " + d.stageName);
             stageTxt.text = st;
             SetTop(stageTxt.rectTransform, y, w, StageH);
             y += StageH;

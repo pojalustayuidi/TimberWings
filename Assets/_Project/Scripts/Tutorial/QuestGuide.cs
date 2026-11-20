@@ -205,7 +205,7 @@ public class QuestGuide : MonoBehaviour
         bool onScreen = OnScreen(tgt);
         if (toastMain == null) BuildToast();
         toastMain.text = CandyTag.Readable(Advice(tgt, dist));   // зелёные «E» в совете становятся тёмно-зелёными, читаемыми на светлом
-        toastSub.text = "Цель: " + Mathf.RoundToInt(dist) + " м" + (onScreen ? "" : ", " + Side(tgt)) + "   ·   " + helpKey + ": показать путь";
+        toastSub.text = ChapterOneText.Pick("Цель: ", "Target: ") + Mathf.RoundToInt(dist) + ChapterOneText.Pick(" м", " m") + (onScreen ? "" : ", " + Side(tgt)) + "   ·   " + helpKey + ChapterOneText.Pick(": показать путь", ": show trail");
         toastUntil = Time.unscaledTime + (withTrail ? 7f : 6f);
         SfxManager.Play("hint", 0.7f);
     }
@@ -235,8 +235,38 @@ public class QuestGuide : MonoBehaviour
     }
 
     // совет под тип цели: что это и что с ним делать прямо сейчас
+    string EnglishAdvice(Transform target, float distance)
+    {
+        var speaker = target.GetComponentInParent<Speaker>();
+        var key = MobileInput.ActionKey.ToString();
+        if (speaker != null)
+        {
+            string name = ChapterOneText.SpeakerName(speaker.displayName);
+            return distance < 4f ? $"Press {key} to talk to {name}." : $"Follow the gold marker to {name}.";
+        }
+        if (target.GetComponentInParent<SupplyPoint>() != null)
+            return $"Press {key} at the campfire stockpile to store logs.";
+        if (target.GetComponentInParent<PlankWorkshop>() != null)
+            return $"Press {key} at the saw. Load logs, then collect the finished planks.";
+        var building = target.GetComponentInParent<BuildingController>();
+        if (building != null)
+        {
+            if (building.IsLocked) return "Finish the current task to unlock this site.";
+            return distance < 5f ? $"Press {key} here and deliver the required resources." : "Follow the gold marker to the build site.";
+        }
+        if (target.GetComponentInParent<ResourceItem>() != null)
+        {
+            if (pack != null && pack.IsFull) return "Your pack is full. Store or sell logs to make room.";
+            return ChopPrototypeLog.UsesProcessing ? "Follow the gold marker. Use the left mouse button to chop."
+                : $"Follow the gold marker to a tree. Use {key} to chop.";
+        }
+        return $"Follow the gold marker. Press {helpKey} to show the trail.";
+    }
+
     string Advice(Transform t, float dist)
     {
+        if (GameLanguage.English) return EnglishAdvice(t, dist);
+
         var sp = t.GetComponentInParent<Speaker>();
         if (sp != null)
             return dist < 4f ? "Ты рядом с " + sp.displayName + ": нажми <color=#6BCB5A>E</color>, чтобы поговорить"
@@ -262,9 +292,6 @@ public class QuestGuide : MonoBehaviour
         if (tree != null)
         {
             if (pack != null && pack.IsFull) return "Рюкзак полон: сначала сдай брёвна, потом руби дальше";
-            if (ChopPrototypeLog.Supports(tree))
-                return ChopPrototypeLog.Text("ЛКМ · руби дерево и разделывай ствол. E · собери древесину",
-                    "LMB · chop the tree and cut the trunk. E · collect wood");
             return dist < 3f ? (PlayerInteraction.RhythmChop ? "Нажми <color=#6BCB5A>E</color> у дерева и бей <color=#6BCB5A>E</color>, когда маркер в зелёной зоне" : "Удерживай <color=#6BCB5A>E</color> у дерева, пока не заполнится полоска")
                              : (PlayerInteraction.RhythmChop ? "Подойди к дереву с золотой меткой и нажми <color=#6BCB5A>E</color>" : "Подойди к дереву с золотой меткой и удерживай <color=#6BCB5A>E</color>");
         }
@@ -455,7 +482,7 @@ public class QuestGuide : MonoBehaviour
         {
             subAt = Time.unscaledTime + 0.33f;
             float dist = FlatDist(lastTarget);
-            toastSub.text = "Цель: " + Mathf.RoundToInt(dist) + " м" + (OnScreen(lastTarget) ? "" : ", " + Side(lastTarget)) + "   ·   " + helpKey + ": показать путь";
+            toastSub.text = ChapterOneText.Pick("Цель: ", "Target: ") + Mathf.RoundToInt(dist) + ChapterOneText.Pick(" м", " m") + (OnScreen(lastTarget) ? "" : ", " + Side(lastTarget)) + "   ·   " + helpKey + ChapterOneText.Pick(": показать путь", ": show trail");
         }
     }
 }

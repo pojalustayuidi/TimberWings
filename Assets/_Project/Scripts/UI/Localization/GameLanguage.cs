@@ -1,6 +1,4 @@
-// TimberWings Settings — Variant A: Russian/English UI foundation.
-// Localization covers SettingsMenu (Variant A), MainMenuStub and SaveSummary.
-// Other game screens/dialogues must opt in by using GameLanguage.T(...).
+// Shared Russian/English preference for menus, Chapter I objectives, and dialogue playback.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -18,6 +16,7 @@ public static class GameLanguage
             int next = Mathf.Clamp(value, 0, 1);
             if (Index == next) return;
             PlayerPrefs.SetInt(PrefKey, next);
+            PlayerPrefs.Save();
             var handler = Changed;
             if (handler != null) handler();
         }
@@ -33,13 +32,11 @@ public static class GameLanguage
         { "Лесное", "Forest" },
         { "Сохранение по таймеру", "Timed autosave" },
         { "Редкие реплики героя", "Occasional hero comments" },
-        { "Язык переводит настройки и главное меню.", "Language applies to Settings and Main Menu." },
+        { "Язык переводит настройки и главное меню.", "Language sets the menus and Chapter I subtitles and voices." },
         { "Прогресс сохраняется и при важных событиях.", "Important game events are saved independently." },
         { "FPS в настройках", "FPS in Settings" },
         { "Анимация открытия окна", "Animate window opening" },
         { "Размер окна настроек", "Settings window size" },
-        { "Масштаб игрового HUD", "Gameplay HUD scale" },
-        { "Тайминг рубки", "Chop timing" },
         { "Затемнение за меню", "Menu backdrop dimming" },
         { "Масштаб влияет только на окно настроек.", "Scaling only affects the Settings window." },
         { "Быстрые советы", "Quick tips" },
@@ -58,7 +55,7 @@ public static class GameLanguage
         { "Показывать FPS", "Show FPS in settings" },
         { "Меньше тряски и эффектов", "Reduce effects" },
         { "Редкие реплики персонажей", "Character comments" },
-        { "Выбор языка изменяет настройки и главное меню.", "Language changes Settings and Main Menu text." },
+        { "Выбор языка изменяет настройки и главное меню.", "Language sets the menus and Chapter I subtitles and voices." },
         { "Качество света", "Lighting quality" },
         { "Низкое", "Low" },
         { "Среднее", "Medium" },
@@ -135,6 +132,6 @@ public static class GameLanguage
     {
         if (!English || string.IsNullOrEmpty(russian)) return russian;
         string translated;
-        return EnglishText.TryGetValue(russian, out translated) ? translated : russian;
+        return EnglishText.TryGetValue(russian, out translated) ? translated : ChapterOneText.TranslateLegacy(russian);
     }
 }

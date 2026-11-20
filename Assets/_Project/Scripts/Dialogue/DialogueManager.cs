@@ -34,7 +34,8 @@ public partial class DialogueManager : MonoBehaviour
         public Action onDone;
         public float dur;
         public StoryInspection inspection;
-        public bool reading;
+        public ChapterOneText.Cue chapterCue;
+        public bool reading, ambient, silentCue;
     }
 
     static DialogueManager inst;
@@ -64,9 +65,9 @@ public partial class DialogueManager : MonoBehaviour
         set { PlayerPrefs.SetInt(PrefSubs, value ? 1 : 0); }
     }
 
-    public static bool IsBusy { get { return inst != null && (inst.cur != null || inst.queue.Count > 0); } }
+    public static bool IsBusy { get { return inst != null && ((inst.cur != null && !inst.cur.ambient) || inst.queue.Count > 0); } }
     // Also exposes the active speaker of short NPC barks (which do not use a DialogueSequence).
-    public static Speaker CurrentSpeaker { get { return inst != null && inst.cur != null ? inst.cur.who : null; } }
+    public static Speaker CurrentSpeaker { get { return inst != null && inst.cur != null && !inst.cur.ambient ? inst.cur.who : null; } }
 
     [Header("Настройки")]
     public KeyCode skipKey = KeyCode.E;
@@ -92,6 +93,16 @@ public partial class DialogueManager : MonoBehaviour
     public static void SayAs(string speakerName, string text, AudioClip clip = null, Action onDone = null)
     {
         Say(Speaker.Find(speakerName), text, clip, onDone, speakerName);
+    }
+
+    internal static bool TryChapterCue(ChapterOneText.Cue cue)
+    {
+        var manager = Instance;
+        if (cue == null || manager == null || manager.cur != null || manager.queue.Count != 0 ||
+            DialogueSequence.AnyPlaying || StoryInspection.Active) return false;
+        var speaker = VoiceId.SpeakerKey(cue.speaker) == "leo" ? null : Speaker.Find(cue.speaker);
+        manager.Enqueue(speaker, cue.ru, null, null, cue.speaker, ambient: true);
+        return true;
     }
 
     internal static void SayInspection(StoryInspection owner, Speaker who, string text, Action done,
@@ -140,7 +151,7 @@ public partial class DialogueManager : MonoBehaviour
     bool typedDone;
     DialogueSpeechMode speechAtLine;
     bool HistoryOpen { get { return presentation != null && presentation.HistoryOpen; } }
-    bool AutoLine { get { return (cur != null && cur.inspection != null) || DialoguePreferences.AutoAdvance || !DialogueSequence.AnyPlaying; } }
+    bool AutoLine { get { return (cur != null && (cur.inspection != null || cur.ambient)) || DialoguePreferences.AutoAdvance || !DialogueSequence.AnyPlaying; } }
 
     // пропуск и подсказка
     bool pressing;
@@ -153,30 +164,36 @@ public partial class DialogueManager : MonoBehaviour
     CandySpring pop;   // пружина появления пузыря
 
     // ------------------------------------------------------------ очередь
-    void Enqueue(Speaker who, string text, AudioClip clip, Action onDone, string displayName, StoryInspection inspection = null, float readingTime = 0f)
+    void Enqueue(Speaker who, string text, AudioClip clip, Action onDone, string displayName, StoryInspection inspection = null, float readingTime = 0f, bool ambient = false)
     {
         if (string.IsNullOrEmpty(text)) { if (onDone != null) onDone(); return; }
+        if (!ambient && cur != null && cur.ambient) Finish(true);
         // нет своего клипа: ищем файл озвучки по id реплики (Resources/Voice), иначе будет бормотание
         string name = displayName ?? (who != null ? who.displayName : "");
+        var chapterCue = ChapterOneText.Find(name, text);
         var library = DialogueAudioLibrary.Current;
         var recorded = readingTime > 0f ? null : VoiceBank.Find(name, text);
-        if (clip == null || (library != null && library.replaceLegacyVoices)) clip = recorded;
+        if (GameLanguage.English || chapterCue != null || clip == null || (library != null && library.replaceLegacyVoices)) clip = recorded;
         // голоса выключены ползунком: реплика идёт по тексту, без ожидания длины невидимой озвучки
         if (!GameAudio.UseRecordedVoices || GameAudio.VoiceLevel <= 0.001f) clip = null;
-        if (inspection == null && text.Length > maxChars)
+        if (inspection == null && chapterCue == null && text.Length > maxChars)
         {
             Debug.LogWarning("Dialogue: реплика длиннее " + maxChars + " символов, обрезана: " + text);
             text = text.Substring(0, maxChars - 1) + "…";
         }
 
+        int textLength = Mathf.Max(text.Length, ChapterOneText.Subtitle(name, text).Length);
         float dur = clip != null
             ? Mathf.Max(4f, clip.length + 0.5f)
-            : (presentation != null ? Mathf.Clamp(1.4f + text.Length / 17f, 3.6f, 9f) : Mathf.Clamp(3.2f + text.Length * 0.02f, 4f, 5f));   // 4-5 секунд
+            : (presentation != null ? Mathf.Clamp(1.4f + textLength / 17f, 3.6f, 9f) : Mathf.Clamp(3.2f + textLength * 0.02f, 4f, 5f));   // 4-5 секунд
 
         if (inspection != null)
-            dur = readingTime > 0f ? readingTime : clip != null ? clip.length + .08f : Mathf.Clamp(1.4f + text.Length / 24f, 2.7f, 5.0f);
-        queue.Enqueue(new Req { who = who, displayName = name, text = text, clip = clip, onDone = onDone, dur = dur,
-            inspection = inspection, reading = readingTime > 0f });
+            dur = readingTime > 0f ? readingTime : clip != null ? clip.length + .08f : Mathf.Clamp(1.4f + textLength / 24f, 2.7f, 5.0f);
+        var request = new Req { who = who, displayName = name, text = text, clip = clip, onDone = onDone, dur = dur,
+            inspection = inspection, reading = readingTime > 0f, ambient = ambient,
+            chapterCue = chapterCue, silentCue = chapterCue != null && string.IsNullOrEmpty(ChapterOneText.AudioPath(chapterCue)) };
+        if (ambient) Begin(request);
+        else queue.Enqueue(request);
     }
 
     // запасной голос для реплик без Speaker (раньше такая озвучка молча пропадала)
@@ -200,7 +217,14 @@ public partial class DialogueManager : MonoBehaviour
     void Begin(Req r)
     {
         cur = r;
-        inspectionSubtitle = r.inspection != null;
+        if (r.chapterCue != null)
+        {
+            r.silentCue = string.IsNullOrEmpty(ChapterOneText.AudioPath(r.chapterCue));
+            r.clip = !r.reading && GameAudio.UseRecordedVoices && GameAudio.VoiceLevel > .001f
+                ? VoiceBank.Find(r.displayName, r.text) : null;
+            if (r.clip != null) r.dur = Mathf.Max(r.dur, r.clip.length + .4f);
+        }
+        inspectionSubtitle = r.inspection != null || r.ambient;
         readingSubtitle = r.reading;
         if (inspectionSubtitle) shown = 0f;
         PlayerThoughtController.CancelActive();
@@ -211,29 +235,42 @@ public partial class DialogueManager : MonoBehaviour
 
         // подсказка: первые реплики в игре с полным текстом, потом короткая «E: дальше»
         int seen = PlayerPrefs.GetInt(PrefHintLines, 0);
-        hintFull = seen < fullHintLines;
+        hintFull = !r.ambient && seen < fullHintLines;
         if (hintFull) PlayerPrefs.SetInt(PrefHintLines, seen + 1);
         hintTxt.text = HintText(hintFull);
 
-        string who = r.displayName;
+        ApplyLocalizedText(r);
+        if (babble != null && !r.reading && !r.silentCue) babble.BeginLine(r.displayName, r.clip != null);
+
+        Speaker.StopAllVoices(r.who);
+        if (orphanVoice != null && r.who != null) orphanVoice.Stop();
+        if (r.who != null) r.who.PlayVoice(r.clip);
+        else PlayOrphanVoice(r.clip);
+        PlaceBubble();
+    }
+
+    void ApplyLocalizedText(Req r)
+    {
+        string who = ChapterOneText.SpeakerName(r.displayName);
+        string displayed = ChapterOneText.Subtitle(r.displayName, r.text);
         Color col = r.who != null ? r.who.nameColor : Color.white;
 
         // ----- пузырь
-        bodyTxt.text = r.text;
-        total = r.text.Length;
+        bodyTxt.text = displayed;
+        total = displayed.Length;
         bodyTxt.maxVisibleCharacters = 0;
         softDirty = false;
         float topPad = ApplySpeaker(who, col);   // лента с именем, отступы текста
 
         float w = bubbleWidth;
-        Vector2 pref = bodyTxt.GetPreferredValues(r.text, w - 56f, 0f);
+        Vector2 pref = bodyTxt.GetPreferredValues(displayed, w - 56f, 0f);
         float h = topPad + pref.y + BottomPad + HintH + 4f;
         bubbleRt.sizeDelta = new Vector2(w, h + TailH);
         pop = new CandySpring(0.72f);            // пузырь выскакивает пружиной
 
         // ----- субтитры
         string hex = ColorUtility.ToHtmlStringRGB(NameInk(col));
-        string line = !inspectionSubtitle && who.Length > 0 ? "<color=#" + hex + "><b>" + who + ":</b></color> " + r.text : r.text;
+        string line = !inspectionSubtitle && who.Length > 0 ? "<color=#" + hex + "><b>" + who + ":</b></color> " + displayed : displayed;
         if (subTxt != null)
         {
             subTxt.text = line;
@@ -243,14 +280,26 @@ public partial class DialogueManager : MonoBehaviour
             Vector2 sp = subTxt.GetPreferredValues(line, width, 0f);
             subRt.sizeDelta = new Vector2(Mathf.Min(width + 76f, sp.x + 76f), sp.y + SubPadTop + SubPadBottom);
         }
-        if (presentation != null && !inspectionSubtitle) presentation.SetLine(who, r.text, col);
-        if (babble != null && !r.reading) babble.BeginLine(who, r.clip != null);
+        if (presentation != null && !inspectionSubtitle) presentation.SetLine(r.displayName, displayed, col);
+    }
 
-        Speaker.StopAllVoices(r.who);                 // хвост предыдущей реплики не должен накладываться на новую
-        if (orphanVoice != null && r.who != null) orphanVoice.Stop();
-        if (r.who != null) r.who.PlayVoice(r.clip);
-        else PlayOrphanVoice(r.clip);                 // говорящего не нашли (SayAs с неизвестным именем): озвучка всё равно звучит
-        PlaceBubble();
+    void OnEnable() => GameLanguage.Changed += RefreshLanguage;
+    void OnDisable() => GameLanguage.Changed -= RefreshLanguage;
+
+    void RefreshLanguage()
+    {
+        if (cur == null) return;
+        float progress = total > 0 ? Mathf.Clamp01(typed / total) : 1f;
+        ApplyLocalizedText(cur);
+        typed = total * progress;
+        blipShown = (int)typed;
+        bodyTxt.maxVisibleCharacters = blipShown;
+        hintTxt.text = HintText(hintFull);
+        if (cur.chapterCue != null)
+        {
+            cur.silentCue = string.IsNullOrEmpty(ChapterOneText.AudioPath(cur.chapterCue));
+            RefreshSpeech();
+        }
     }
 
     void Finish(bool skipped)
@@ -270,6 +319,8 @@ public partial class DialogueManager : MonoBehaviour
         float dt = Time.unscaledDeltaTime;
         if (babble != null) babble.SetPaused(HistoryOpen || Time.timeScale <= 0f);
 
+        if (cur != null && cur.ambient && (DialogueSequence.AnyPlaying || StoryInspection.Active ||
+            BuildingController.AnyRevealing || EndingSequence.Active || MobileInput.ModalOpen || Time.timeScale <= 0f)) Finish(true);
         bool pausedInspection = Time.timeScale <= 0f && StoryInspection.Active;
         if (cur == null)
         {
@@ -291,10 +342,10 @@ public partial class DialogueManager : MonoBehaviour
                     // бормотание вместо озвучки (GDD 12.3): звук на новые буквы, если у реплики нет своего клипа
                     while (blipShown < vis)
                     {
-                        if (cur.clip == null && !cur.reading)
+                        if (cur.clip == null && !cur.reading && !cur.silentCue)
                         {
-                            if (babble != null) babble.Letter(cur.text, blipShown);
-                            else SfxManager.Blip(cur.displayName, cur.text, blipShown);
+                            if (babble != null) babble.Letter(bodyTxt.text, blipShown);
+                            else SfxManager.Blip(cur.displayName, bodyTxt.text, blipShown);
                         }
                         blipShown++;
                     }
@@ -304,7 +355,7 @@ public partial class DialogueManager : MonoBehaviour
             }
             SoftType();
 
-            if (cur.inspection == null) HandleInput(dt);
+            if (cur.inspection == null && !cur.ambient) HandleInput(dt);
             if (cur != null && !HistoryOpen && AutoLine && t >= cur.dur) Finish(false);
         }
 
@@ -321,15 +372,16 @@ public partial class DialogueManager : MonoBehaviour
         if (inspectionHint != null && inspectionHint.gameObject.activeSelf != showInspectionHint)
         {
             if (showInspectionHint)
-                inspectionHint.text = MobileInput.OnScreenControls ? "Удерживай кнопку для пропуска" :
-                    "Удерживай " + MobileInput.ActionKey + " для пропуска";
+                inspectionHint.text = ChapterOneText.Pick("Удерживай ", "Hold ") +
+                    (MobileInput.OnScreenControls ? ChapterOneText.Pick("кнопку", "the button") : MobileInput.ActionKey.ToString()) +
+                    ChapterOneText.Pick(" для пропуска", " to skip");
             inspectionHint.gameObject.SetActive(showInspectionHint);
         }
         pop.Step(want ? 1f : 0.9f, 260f, 15f, Mathf.Min(dt, 0.05f));
         bubbleRt.localScale = VibeSettings.ReduceEffects ? Vector3.one : Vector3.one * pop.x * (1f - 0.035f * holdProgress);
 
         // подсказка проявляется, когда реплику уже можно пропустить; кольцо удержания следует за прогрессом
-        float wantHint = cur != null && showSkipHint && t > minShowBeforeSkip ? 1f : 0f;
+        float wantHint = cur != null && !cur.ambient && showSkipHint && t > minShowBeforeSkip ? 1f : 0f;
         hintAlpha = Mathf.MoveTowards(hintAlpha, wantHint, dt / 0.25f);
         hintGroup.alpha = hintAlpha;
         holdRing.fillAmount = holdProgress;
@@ -345,7 +397,7 @@ public partial class DialogueManager : MonoBehaviour
 
         if (cur != null) PlaceBubble();
         if (presentation != null)
-            presentation.Tick(cur != null && cur.inspection == null, typedDone, cur != null && cur.inspection == null && t > minShowBeforeSkip,
+            presentation.Tick(cur != null && !cur.ambient && cur.inspection == null, typedDone, cur != null && !cur.ambient && cur.inspection == null && t > minShowBeforeSkip,
                 (cur != null && (cur.who != null ? cur.who.IsSpeaking : orphanVoice != null && orphanVoice.isPlaying && GameAudio.UseRecordedVoices && GameAudio.VoiceLevel > .001f)) || (babble != null && babble.Speaking));
     }
 
@@ -386,7 +438,7 @@ public partial class DialogueManager : MonoBehaviour
     void AdvanceLine()
     {
         if (HistoryOpen) { presentation.CloseHistory(); return; }
-        if (cur == null || cur.inspection != null || t <= minShowBeforeSkip) return;
+        if (cur == null || cur.ambient || cur.inspection != null || t <= minShowBeforeSkip) return;
         if (!typedDone)
         {
             bodyTxt.maxVisibleCharacters = total;
@@ -401,7 +453,9 @@ public partial class DialogueManager : MonoBehaviour
     {
         speechAtLine = GameAudio.Speech;
         Speaker.StopAllVoices(null); if (orphanVoice != null) orphanVoice.Stop();
-        if (cur == null || cur.reading) return;
+        if (cur == null) return;
+        if (babble != null) babble.EndLine();
+        if (cur.reading || cur.silentCue) { cur.clip = null; return; }
         cur.clip = GameAudio.UseRecordedVoices && GameAudio.VoiceLevel > .001f ? VoiceBank.Find(cur.displayName,cur.text) : null;
         if (cur.clip != null)
         {
@@ -413,9 +467,11 @@ public partial class DialogueManager : MonoBehaviour
 
     string HintText(bool full)
     {
-        string key = MobileInput.OnScreenControls ? "кнопка" : MobileInput.ActionKey.ToString();
+        string key = MobileInput.OnScreenControls ? ChapterOneText.Pick("кнопка", "button") : MobileInput.ActionKey.ToString();
         if (key.StartsWith("Alpha")) key = key.Substring(5);
         string k = "<color=#2A9573><b>" + key + "</b></color>";
+        if (GameLanguage.English)
+            return full ? k + " next   ·   hold " + k + " to skip the conversation" : k + " next   ·   hold to skip";
         return full ? k + " дальше   ·   удерживай " + k + ", чтобы пропустить разговор" : k + " дальше   ·   удерживай, чтобы пропустить";
     }
 

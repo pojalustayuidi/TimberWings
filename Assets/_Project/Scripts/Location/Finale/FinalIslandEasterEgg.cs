@@ -4,7 +4,7 @@ public sealed class FinalIslandEasterEgg : MonoBehaviour, IInteractable
 {
     public Transform Anchor => transform;
     public Vector3 PromptPoint => transform.position + Vector3.up * 1.05f;
-    public string Prompt => "рассмотреть зарубку";
+    public string Prompt => GameLanguage.T("рассмотреть зарубку");
     public float Radius => 1.45f;
     public bool CanInteract
     {

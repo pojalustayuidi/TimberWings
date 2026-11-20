@@ -36,6 +36,9 @@ public static class VoiceBank
         Record(id, speakerDisplayName, text);
 #endif
         if (!Enabled) return null;
+        var chapterCue = ChapterOneText.Find(speakerDisplayName, text);
+        if (chapterCue != null) return ChapterOneText.Audio(chapterCue);
+        if (GameLanguage.English) return null;
         // Проверяем записи 2.1 ПЕРЕД старой AudioLibrary: в старых проектах
         // replaceLegacyVoices=true, поэтому обычный fallback Resources/Voice
         // для новых строк был бы недоступен.

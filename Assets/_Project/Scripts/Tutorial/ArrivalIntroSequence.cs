@@ -128,14 +128,15 @@ public sealed class ArrivalIntroSequence : MonoBehaviour
         CameraFollow.SnapToTarget();
         ResolveScenicDirection();
         BuildSubtitle();
-        voiceClip = Resources.Load<AudioClip>(VoiceResource);
+        var arrival = ChapterOneText.Find("twv3_s00_01");
+        voiceClip = arrival != null ? ChapterOneText.Audio(arrival) : Resources.Load<AudioClip>(VoiceResource);
         if (voiceClip == null)
             Debug.LogWarning("ArrivalIntroSequence: не найден Assets/Resources/Intro/Leo_Intro_Arrival.wav. Субтитры останутся.");
         voiceSource = gameObject.AddComponent<AudioSource>();
         voiceSource.playOnAwake = false;
         voiceSource.loop = false;
         voiceSource.spatialBlend = 0f;
-        voiceSource.volume = Mathf.Clamp01(GameAudio.SfxLevel * 0.95f);
+        voiceSource.volume = Mathf.Clamp01(GameAudio.VoiceLevel * .95f);
         voiceSource.clip = voiceClip;
         float length = voiceClip != null ? Mathf.Max(1f, voiceClip.length) : FallbackVoiceLength;
         sentenceEnds = VoiceAt + length;
@@ -155,13 +156,13 @@ public sealed class ArrivalIntroSequence : MonoBehaviour
             if (!voiceStarted && t >= VoiceAt)
             {
                 voiceStarted = true;
-                if (voiceClip != null) voiceSource.Play();
+                if (voiceClip != null && GameAudio.UseRecordedVoices) voiceSource.Play();
             }
             if (subtitleGroup != null)
             {
                 float intro = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(VoiceAt - 0.1f, VoiceAt + 0.3f, t));
                 float outro = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(sentenceEnds - 0.2f, sentenceEnds + 0.35f, t));
-                subtitleGroup.alpha = intro * outro;
+                subtitleGroup.alpha = DialogueManager.SubtitlesEnabled ? intro * outro : 0f;
             }
             yield return null;
         }
@@ -263,7 +264,11 @@ public sealed class ArrivalIntroSequence : MonoBehaviour
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = new Vector2(1250f, 95f);
         subtitle = labelGO.GetComponent<TextMeshProUGUI>();
-        subtitle.text = "Лео: Эй!.. Здесь вообще кто-нибудь есть?";
+        var cue = ChapterOneText.Find("twv3_s00_01");
+        if (cue != null) ChapterOneVoice.Mark(cue.id);
+        subtitle.text = cue != null
+            ? ChapterOneText.SpeakerName(cue.speaker) + ": " + ChapterOneText.Subtitle(cue.speaker, cue.ru)
+            : "Лео: Эй!.. Здесь вообще кто-нибудь есть?";
         subtitle.fontSize = 32f;
         subtitle.alignment = TextAlignmentOptions.Center;
         subtitle.color = new Color(1f,.96f,.87f,1f);

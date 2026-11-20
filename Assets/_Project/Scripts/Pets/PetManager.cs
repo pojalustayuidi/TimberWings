@@ -171,17 +171,6 @@ public class PetManager : MonoBehaviour, ISaveable
         RaiseChanged();
     }
 
-    // первая бесплатная клеть всегда даёт Обычного (если Обычных в базе нет, любого)
-    PetData PickFreePet()
-    {
-        if (database == null || database.pets == null) return null;
-        var list = new List<PetData>();
-        database.CollectByRarity(PetRarity.Common, list);
-        if (list.Count == 0)
-            for (int i = 0; i < database.pets.Count; i++) if (database.pets[i] != null) list.Add(database.pets[i]);
-        return list.Count > 0 ? list[rng.Next(list.Count)] : null;
-    }
-
     // ------------------------------------------------------------ клети
     // Можно ли открыть сейчас (причина в why). Проверка без побочных эффектов
     public bool CanOpen(CrateType crate, out PetOpenResult why)
@@ -204,26 +193,21 @@ public class PetManager : MonoBehaviour, ISaveable
 
         bool free = crate == CrateType.Forest && freeCratePending;
         int price = Price(crate);
-        int before = inv.coinsCount;
-        inv.AddCoins(-price);
-        if (before - inv.coinsCount != price)      // списание проверяем по факту
-        {
-            if (before - inv.coinsCount > 0) inv.AddCoins(before - inv.coinsCount);
-            return PetOpenResult.NoCoins;
-        }
+        int pityNew = pity[(int)crate];
+        var data = PetRoller.Roll(database, crate, free ? 0 : pityNew, rng, out pityNew);
+        if (data == null) return PetOpenResult.NoDatabase;
 
-        int pityNew = pity[(int)crate];            // бесплатная клеть счётчик гарантии не трогает
-        PetData data = free ? PickFreePet() : PetRoller.Roll(database, crate, pity[(int)crate], rng, out pityNew);
-        if (data == null)
+        bool duplicate = owned.Exists(pet => pet.data == data);
+        PetInstance reward = null;
+        if (!inv.TrySpend(price, commit: () =>
         {
-            inv.AddCoins(price);                   // база пустая: возвращаем монеты
-            return PetOpenResult.NoDatabase;
-        }
-
-        pity[(int)crate] = pityNew;
-        if (free) { freeCratePending = false; freeCrateUsed = true; }
-        result = AddInstance(data);
+            if (!free) pity[(int)crate] = pityNew;
+            if (free) { freeCratePending = false; freeCrateUsed = true; }
+            reward = AddInstance(data);
+        })) return PetOpenResult.NoCoins;
+        result = reward;
         SaveSystem.RequestSave("pets");
+        StoryFlow.Instance?.ChapterOnePetRolled(crate, result, free, duplicate);
         if (Opened != null) Opened(result);
         RaiseChanged();
         return PetOpenResult.Ok;
@@ -386,6 +370,7 @@ public class PetManager : MonoBehaviour, ISaveable
         tmpFodder.Clear();
         keeper.stars = Mathf.Min(GameBalance.PetStarMax, keeper.stars + 1);
         Commit();
+        ChapterOneVoice.Queue("twv3_r05", ChapterOneVoice.Priority.Reward, .65f, 75f);
         return keeper.uid;
     }
 

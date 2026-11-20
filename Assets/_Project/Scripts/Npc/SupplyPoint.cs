@@ -1,6 +1,6 @@
 // Assets/_Project/Scripts/Npc/SupplyPoint.cs (НЕ в Editor)
-// «Отдай бревна NPC»: E у Миры забирает бревна из рюкзака, за каждое игрок получает опыт.
-// Добавляется на Миру сам (StoryFlow, глава «Припасы»), вручную вешать не нужно.
+// «Сложи брёвна»: E у костра забирает бревна из рюкзака, за каждое игрок получает опыт.
+// Добавляется у костра (StoryFlow, глава «Припасы»), вручную вешать не нужно.
 //   Begin(нужно, опыт за бревно)  открывает приём
 //   delivered                     сколько уже отдано
 // Если в рюкзаке пусто, объект не мешает: E достаётся рубке и разговору.
@@ -38,7 +38,7 @@ public class SupplyPoint : MonoBehaviour, IInteractable, IPriorityInteractable
     public Vector3 PromptPoint { get { return own != null ? own.BubblePoint + Vector3.up * 0.5f : transform.position + new Vector3(0f, 2.9f, 0f); } }
     public float Radius { get { return radius; } }
     public bool Priority { get { return true; } }
-    public string Prompt { get { return "отдать бревна"; } }
+    public string Prompt { get { return GameLanguage.T("сложить брёвна"); } }
 
     public bool CanInteract
     {
@@ -68,9 +68,11 @@ public class SupplyPoint : MonoBehaviour, IInteractable, IPriorityInteractable
         int n = Mathf.Min(inv.woodCount, need - delivered);
         inv.RemoveWood(n);
         delivered += n;
+        StoryFlow.Instance?.ChapterOneStockpiled(this);
 
         if (RewardPopups.Instance != null)
-            RewardPopups.Instance.ShowText(PromptPoint, "Отдано " + n + " " + UiDraw.Plural(n, "бревно", "бревна", "бревен"), popupColor, 46f);
+            RewardPopups.Instance.ShowText(PromptPoint, GameLanguage.English ? $"Stored {n} {(n == 1 ? "log" : "logs")}" : "Сложено " + n + " " + UiDraw.Plural(n, "бревно", "бревна", "бревен"), popupColor, 46f);
         if (stats != null && xpPerLog > 0) stats.AddXP(n * xpPerLog);
+        SaveSystem.RequestSave("story");
     }
 }

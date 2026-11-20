@@ -20,6 +20,7 @@ public partial class HudMinimap
         eventsOn = true;
         GameEvents.QuestDone += OnQuestDone;
         MapPoi.Inspected += OnPoiInspected;
+        GameLanguage.Changed += OnChapterMapLanguage;
         GameEvents.BuildRevealFinished += OnRevealFinished;
         GameEvents.BuildingRestored += OnRestored;
         GameEvents.TimeOfDayChanged += OnPhaseChanged;
@@ -34,6 +35,7 @@ public partial class HudMinimap
         eventsOn = false;
         GameEvents.QuestDone -= OnQuestDone;
         MapPoi.Inspected -= OnPoiInspected;
+        GameLanguage.Changed -= OnChapterMapLanguage;
         GameEvents.BuildRevealFinished -= OnRevealFinished;
         GameEvents.BuildingRestored -= OnRestored;
         GameEvents.TimeOfDayChanged -= OnPhaseChanged;
@@ -65,6 +67,8 @@ public partial class HudMinimap
     }
 
     static bool IsMissingBuilding(BuildingController b) => b == null;
+
+    void OnChapterMapLanguage() { rescanPending = true; }
 
     void OnQuestDone(string id) { rescanPending = true; }
 

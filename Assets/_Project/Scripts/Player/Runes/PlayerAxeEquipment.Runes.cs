@@ -57,6 +57,12 @@ internal sealed partial class PlayerAxeEquipment
         if (rune != AxeRuneId.None) runes.sockets[(int)offer.axe] = rune;
         runes.pending = null;
         SaveRuneSelection();
+        if (rune != AxeRuneId.None)
+        {
+            bool rare = offer.tier == ForgeTier.Master && DialoguePreferences.PlayerComments && !ChapterOneVoice.Heard("twv3_r04");
+            ChapterOneVoice.Queue(rare ? "twv3_r04" : "twv3_s13_04",
+                rare ? ChapterOneVoice.Priority.Reward : ChapterOneVoice.Priority.Lesson, .6f, 80f);
+        }
         return true;
     }
 

@@ -1,11 +1,5 @@
-// Assets/_Project/Scripts/Pets/PetCrateSite.cs (НЕ в Editor)
-// Клеть питомцев в мире: E открывает окно PetCrateWindow. Модель строит Editor-инструмент PetCrateBuilder
-// (Tools > BuilderSim > Питомцы > Поставить клети в локации).
-//   - Лесная клеть (лагерь у палатки) появляется с главы StoryFlow «Звери-помощники» (без StoryFlow: по уровню);
-//   - Небесная клеть (у моста) появляется, когда мост достроен (PetManager.UnlockSkyCrate) или с 7-го уровня;
-//   - до этого клеть спрятана (скрыт объект Visual) и недоступна по E; при появлении она «выскакивает» с отскоком;
-//   - первое E на Лесной клети: Лео читает записку Гуннара, потом открывается окно;
-//   - пока окно открыто, крышка клети откидывается, а изнутри разгорается свет.
+// The Forest Crate is introduced by the story. River and Sky sites can be discovered before
+// their opening level. The reveal window still checks availability, price and the real reward.
 using UnityEngine;
 
 public class PetCrateSite : MonoBehaviour, IInteractable, IPriorityInteractable
@@ -37,7 +31,7 @@ public class PetCrateSite : MonoBehaviour, IInteractable, IPriorityInteractable
         "«Заказ №14. Звери-помощники. Ворчать бесплатно, кормить по расписанию.»"
     };
 
-    bool noteRead, noteBusy;
+    bool noteBusy;
     bool shown;
     bool mine;            // это окно открыто именно с этой клети
     float pollAt;
@@ -47,7 +41,7 @@ public class PetCrateSite : MonoBehaviour, IInteractable, IPriorityInteractable
     // ------------------------------------------------------------ IInteractable
     public Transform Anchor { get { return transform; } }
     public Vector3 PromptPoint { get { return transform.position + promptOffset; } }
-    public string Prompt { get { return prompt; } }
+    public string Prompt { get { return GameLanguage.T(prompt); } }
     public float Radius { get { return radius; } }
     public bool Priority { get { return true; } }
 
@@ -68,17 +62,21 @@ public class PetCrateSite : MonoBehaviour, IInteractable, IPriorityInteractable
 
     public bool CanInteract
     {
-        get { return Available && !noteBusy && !PetCrateWindow.IsOpen && !DialogueManager.IsBusy && !DialogueSequence.AnyPlaying; }
+        get { return (Available || crate != CrateType.Forest && PetManager.Instance != null) && !noteBusy && !PetCrateWindow.IsOpen && !DialogueManager.IsBusy && !DialogueSequence.AnyPlaying; }
     }
 
     public void Interact()
     {
         if (!CanInteract) return;
-        if (!noteRead && noteLines != null && noteLines.Length > 0)
+        if (crate == CrateType.Forest && !DialogueSeen.Has("chapter1/forest-note") && noteLines != null && noteLines.Length > 0)
         {
-            noteRead = true;
+            DialogueSeen.Mark("chapter1/forest-note");
             noteBusy = true;
-            SayNote(0);
+            ChapterOneVoice.SpeakSequence(() =>
+            {
+                noteBusy = false;
+                if (this != null && isActiveAndEnabled) OpenWindow();
+            }, "twv3_s11_note_01", "twv3_s11_02");
             return;
         }
         OpenWindow();
@@ -90,18 +88,6 @@ public class PetCrateSite : MonoBehaviour, IInteractable, IPriorityInteractable
         PetCrateWindow.Open(crate);
     }
 
-    // реплики по одной; удержание E (пропуск разговора) обрывает записку, окно всё равно откроется
-    void SayNote(int i)
-    {
-        if (i >= noteLines.Length || DialogueManager.SkipAllRequested)
-        {
-            noteBusy = false;
-            OpenWindow();
-            return;
-        }
-        DialogueManager.SayAs(noteSpeaker, noteLines[i], null, () => SayNote(i + 1));
-    }
-
     // ------------------------------------------------------------ жизненный цикл
     void OnEnable()
     {
@@ -110,6 +96,31 @@ public class PetCrateSite : MonoBehaviour, IInteractable, IPriorityInteractable
     }
 
     void OnDisable() { Interactables.Unregister(this); }
+
+    void DiscoverNearby()
+    {
+        string key = "chapter1/crate/" + crate;
+        if (DialogueSeen.Has(key) || SaveSystem.IsLoading) return;
+        var actor = PlayerMovement.Instance;
+        if (actor == null) return;
+        var delta = actor.transform.position - transform.position;
+        if (Mathf.Abs(delta.y) > 3f || delta.sqrMagnitude > 36f) return;
+        DialogueSeen.Mark(key);
+        var poi = GetComponent<MapPoi>();
+        if (poi != null) DialogueSeen.Mark("inspection/" + MapPoi.GetInspectionId(transform, poi.inspectionId));
+        MapPoi.ReportInspection(transform);
+        if (crate == CrateType.Sky && !IsPondSite()) return;
+        ChapterOneVoice.Queue(crate == CrateType.River ? "twv3_s11_04" : "twv3_s11_05",
+            ChapterOneVoice.Priority.Lesson, stillRelevant: () => this != null && actor != null &&
+                (actor.transform.position - transform.position).sqrMagnitude < 100f);
+    }
+
+    internal bool IsPondSite()
+    {
+        var pond = FindFirstObjectByType<PondLife>();
+        if (pond != null && (pond.transform.position - transform.position).sqrMagnitude < 36f * 36f) return true;
+        return StoryFlow.HasAny(StoryFlow.PathOf(transform), new[] { "pond", "пруд" });
+    }
 
     void Awake()
     {
@@ -132,7 +143,9 @@ public class PetCrateSite : MonoBehaviour, IInteractable, IPriorityInteractable
         if (Time.unscaledTime >= pollAt)
         {
             pollAt = Time.unscaledTime + 0.25f;
-            bool want = Available;
+            bool want = Available || crate != CrateType.Forest && PetManager.Instance != null;
+            if (want && crate != CrateType.Forest && StoryFlow.Instance != null)
+                DiscoverNearby();
             if (want != shown)
             {
                 shown = want;

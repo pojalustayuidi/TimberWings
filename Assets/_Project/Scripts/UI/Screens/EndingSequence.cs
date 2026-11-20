@@ -212,7 +212,7 @@ public partial class EndingSequence : MonoBehaviour
             int n = (int)(Time.unscaledTime * 1.6f) % 4;
             string dots = new string('.', n);
             string rest = new string('.', 3 - n);
-            string s = ToBeContinued + dots + (rest.Length > 0 ? "<alpha=#00>" + rest + "</alpha>" : "");
+            string s = GameLanguage.T(ToBeContinued) + dots + (rest.Length > 0 ? "<alpha=#00>" + rest + "</alpha>" : "");
             if (finalLabel.text != s) finalLabel.text = s;
         }
 
@@ -231,7 +231,7 @@ public partial class EndingSequence : MonoBehaviour
         else yield return FadeBg(0f, 1f, 1.5f);
         emberRate = reduceFx ? 1.5f : 5f;
 
-        StartPad();
+        if (padSrc == null || !padSrc.isPlaying) StartPad();
 
         if (!filmPlayed && !skip)
         {
@@ -383,7 +383,7 @@ public partial class EndingSequence : MonoBehaviour
             yield return null;
         }
 
-        var sub = NewText(textRoot, ToBeContinued + "...", 64f, Soft, new Vector2(0f, -150f), 1500f, false);
+        var sub = NewText(textRoot, GameLanguage.T(ToBeContinued) + "...", 64f, Soft, new Vector2(0f, -150f), 1500f, false);
         PlayBell(0.75f);
         yield return Fly(sub, 1.1f, 30f, 1.25f);
 
@@ -402,7 +402,13 @@ public partial class EndingSequence : MonoBehaviour
 
     IEnumerator Credits()
     {
-        var t = UiKit.MakeLabel(textRoot, Fix(CreditsText), 44f, Color.white, TextAlignmentOptions.Top, true);
+        string credits = GameLanguage.English
+            ? "<size=34><color=#F2B134>GAME</color></size>\nTIMBERWINGS\n\n" +
+              "<size=34><color=#F2B134>CREATED BY</color></size>\nEgor Komarov · Group 241-339\n" +
+              "Moscow Polytechnic University\nInformation Systems and Technologies\n\n" +
+              "Unity 6\n\nThank you for crossing the bridge."
+            : Fix(CreditsText);
+        var t = UiKit.MakeLabel(textRoot, credits, 44f, Color.white, TextAlignmentOptions.Top, true);
         StyleOutline(t);
         t.richText = true;
         t.lineSpacing = 12f;
@@ -410,7 +416,7 @@ public partial class EndingSequence : MonoBehaviour
         live.Add(t);
 
         const float W = 1400f;
-        Vector2 pref = t.GetPreferredValues(Fix(CreditsText), W, 0f);
+        Vector2 pref = t.GetPreferredValues(credits, W, 0f);
         var rt = t.rectTransform;
         Anch(rt, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(W, pref.y));
 
@@ -445,7 +451,7 @@ public partial class EndingSequence : MonoBehaviour
         glowTarget = 0.16f;
         emberRate = reduceFx ? 2f : 7f;
 
-        finalLabel = NewText(textRoot, ToBeContinued + "...", 92f, Color.white, new Vector2(0f, 70f), 1800f, true);
+        finalLabel = NewText(textRoot, GameLanguage.T(ToBeContinued) + "...", 92f, Color.white, new Vector2(0f, 70f), 1800f, true);
         finalLabel.richText = true;
         var year = NewText(textRoot, GameTitle + "  -  2026", 38f, Dim, new Vector2(0f, -35f), 1200f, false);
         finalShown = true;                                  // с этого момента ввод паузы не слушаем
@@ -744,6 +750,7 @@ public partial class EndingSequence : MonoBehaviour
     // заменяет символы, которых нет в шрифте HUD (иначе вместо них квадраты)
     string Fix(string s)
     {
+        if (GameLanguage.English) return GameLanguage.T(s);
         if (font == null || string.IsNullOrEmpty(s)) return s;
         s = Rep(s, 'ё', "е");
         s = Rep(s, 'Ё', "Е");

@@ -9,11 +9,11 @@ using UnityEngine;
 public class InteractionHint : MonoBehaviour
 {
     [Header("Подсказка")]
-    public string text = "Зажми <color=#6BCB5A>{key}</color>, чтобы рубить";   // режим «зажми E»; {key} подставится сам
-    public string textRhythm = "Нажми <color=#6BCB5A>{key}</color>, чтобы рубить";   // ритм-рубка (по умолчанию)
+    public string text = ChapterOneText.Pick("Зажми <color=#6BCB5A>{key}</color>, чтобы рубить", "Hold <color=#6BCB5A>{key}</color> to chop");   // режим «зажми E»; {key} подставится сам
+    public string textRhythm = ChapterOneText.Pick("Нажми <color=#6BCB5A>{key}</color>, чтобы рубить", "Press <color=#6BCB5A>{key}</color> to chop");   // ритм-рубка (по умолчанию)
     [Tooltip("Вторая строка в режиме «зажми E», пока игрок не освоил бонус (см. GameBalance.ChopBonusTeachHits)")]
     public string textBonusLine = "<size=70%><color=#AEB9D6>и жми</color> <color=#F2A93B>ПРОБЕЛ</color> <color=#AEB9D6>в зелёной зоне</color></size>";
-    public string fullText = "<color=#FF8A7A>Рюкзак полон</color>";
+    public string fullText = ChapterOneText.Pick("<color=#FF8A7A>Рюкзак полон</color>", "<color=#FF8A7A>Pack full</color>");
     public Vector3 offset = new Vector3(0f, 3.5f, 0f);
 
     [Header("Запасной поиск (если на игроке нет PlayerInteraction)")]
@@ -62,7 +62,7 @@ public class InteractionHint : MonoBehaviour
         string k = Key.ToString();
         if (k.StartsWith("Alpha")) k = k.Substring(5);
         // на ПК рубить можно и мышью (PlayerInteraction.mouseChop): в подсказке «E / ЛКМ»
-        if (interaction != null && interaction.mouseChop && !Application.isMobilePlatform && Input.mousePresent) k += " / ЛКМ";
+        if (interaction != null && interaction.mouseChop && !Application.isMobilePlatform && Input.mousePresent) k += ChapterOneText.Pick(" / ЛКМ", " / LMB");
         return s.Replace("{key}", k);
     }
 

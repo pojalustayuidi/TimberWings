@@ -158,8 +158,8 @@ public partial class EndingSequence
             Anch(gem.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f),
                 Vector2.zero, new Vector2(57f, 57f));
 
-            CreditLine(card, "ГЛАВА II · ПОД ЗЕМЛЁЙ", 68f, 24f, 34f, UiCandy.Muted, true, 3f);
-            CreditLine(card, ToBeContinued + "…", 144f, 61f, 94f, UiCandy.Ink, true);
+            CreditLine(card, ChapterOneText.Text("chapter.02.title", "Глава II — Под землёй").ToUpperInvariant(), 68f, 24f, 34f, UiCandy.Muted, true, 3f);
+            CreditLine(card, GameLanguage.T(ToBeContinued) + "…", 144f, 61f, 94f, UiCandy.Ink, true);
             CreditLine(card, GameTitle + "  ·  2026", 212f, 26f, 39f, UiCandy.Muted, false, 2f);
 
             var divider = UiKit.MakeImage(card, "Divider", UiDraw.Pill);

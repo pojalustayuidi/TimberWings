@@ -77,7 +77,7 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
         UpdateSections();
         if (effects)
         {
-            SfxManager.Timber("trunkLand", .84f, 1f, transform.position);
+            SfxManager.Play("trunkLand", .68f, 1f);
             ImpactFx.PlayLogDebris(transform.position - Vector3.up * state.layout.radius * .7f, true);
         }
     }
@@ -85,7 +85,6 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     void Update()
     {
         if (!Ready) return;
-        UpdateStrikeResponse();
         bool moved = false;
         for (int i = 0; i < separation.Length; i++)
         {
@@ -120,7 +119,6 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
     internal bool Hit(int cut, float damage, bool precise)
     {
         if (!Ready || !state.AdvanceCut(cut, damage)) return false;
-        ReactToStrike(cut, precise);
         RebuildSection(cut);
         RebuildSection(cut + 1);
         UpdateCutAnchor(cut);
@@ -141,7 +139,8 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
         if (focusCut == cut) FocusCut(-1);
         StyleCut(cut);
         ImpactFx.PlayLogDebris(point, true);
-        SfxManager.Timber("logSplit", .75f, 1f, point, "woodCrack");
+        SfxManager.Play("woodCrack", .64f, 1.12f);
+        ChapterOneVoice.Queue("twv3_s04_03", ChapterOneVoice.Priority.Lesson, .35f, 6f);
         return true;
     }
 
@@ -240,9 +239,12 @@ public sealed partial class ChopPrototypeLog : MonoBehaviour
 
         if (essenceTaken > 0)
         {
-            SfxManager.Timber("essencePickup", .64f, fallback: "silver");
             SaveIndicator.ShowToast(Text("Рунная эссенция", "Rune essence") + $" +{essenceTaken} · {inventory.RuneEssence}");
+            ChapterOneVoice.Queue("twv3_s13_03", ChapterOneVoice.Priority.Lesson);
         }
+        if (inventory.FreeSlots <= 0)
+            ChapterOneVoice.Queue("twv3_s04_05", ChapterOneVoice.Priority.Lesson, .25f, 7f,
+                () => inventory != null && inventory.FreeSlots <= 0);
         if (boardsTaken > 0)
             SaveIndicator.ShowToast(Text("Доски", "Boards") + $" +{boardsTaken}");
 

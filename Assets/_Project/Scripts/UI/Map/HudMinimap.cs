@@ -454,6 +454,13 @@ public partial class HudMinimap : MonoBehaviour
         AddBuildingPins(sites);
         CloudyAddWorkyardPoi();
         AddDiscoveryPins(used);
+        foreach (var crate in FindObjectsByType<PetCrateSite>(FindObjectsSortMode.None))
+        {
+            if (used.Contains(crate.transform)) continue;
+            bool discovered = crate.crate == CrateType.Forest ? story != null && story.PetsOpen :
+                DialogueSeen.Has("chapter1/crate/" + crate.crate);
+            if (discovered) Add(crate.transform, DiscoveryKind, PetText.Crate(crate.crate), completed: true, inspection: true);
+        }
         CloudyAddPortalPoi();
         SyncFogZones();
         BuildZoneLayer();
@@ -494,7 +501,7 @@ public partial class HudMinimap : MonoBehaviour
         m.gameObject.name = "Marker_" + p.label; m.gameObject.SetActive(true); m.localScale = Vector3.one * (big ? 1.25f : 1f);
         var icon = m.Find("Icon"); if (icon != null) { var im = icon.GetComponent<Image>(); if (im != null) { Sprite sp = codeIcons || p.kind.icon == null ? MapIcons.Get(MapIcons.Guess(p.kind.key)) : p.kind.icon; if (sp != null) { im.sprite = sp; im.color = Color.white; im.preserveAspect = true; } } }
         var pin = m.Find("Pin"); if (pin != null) { var im = pin.GetComponent<Image>(); if (im != null) im.color = p.kind.tint; }
-        var lb = m.Find("Label"); if (lb != null) { lb.gameObject.SetActive(big); var tx = lb.GetComponent<TMP_Text>(); if (tx != null) tx.text = p.label; }
+        var lb = m.Find("Label"); if (lb != null) { lb.gameObject.SetActive(big); var tx = lb.GetComponent<TMP_Text>(); if (tx != null) tx.text = GameLanguage.T(p.label); }
         if (candyStyle) CandyMarker(m, p, big);
         CloudyStyleMarker(m, p, big);
         foreach (var graphic in m.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
@@ -691,7 +698,7 @@ public partial class HudMinimap : MonoBehaviour
                     float distance = delta.magnitude / Mathf.Max(0.5f, pin.kind.zoneRadius);
                     if (distance >= best) continue;
                     best = distance;
-                    title = pin.label;
+                    title = GameLanguage.T(pin.label);
                 }
             }
             if (title != zoneNow || zone != currentZone)

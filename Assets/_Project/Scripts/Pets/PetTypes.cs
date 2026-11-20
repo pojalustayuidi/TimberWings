@@ -18,10 +18,10 @@ public static class PetText
     {
         switch (r)
         {
-            case PetRarity.Common: return "Обычный";
-            case PetRarity.Uncommon: return "Необычный";
-            case PetRarity.Rare: return "Редкий";
-            default: return "Легендарный";
+            case PetRarity.Common: return GameLanguage.T("Обычный");
+            case PetRarity.Uncommon: return GameLanguage.T("Необычный");
+            case PetRarity.Rare: return GameLanguage.T("Редкий");
+            default: return GameLanguage.T("Легендарный");
         }
     }
 
@@ -29,9 +29,9 @@ public static class PetText
     {
         switch (c)
         {
-            case CrateType.Forest: return "Лесная клеть";
-            case CrateType.River: return "Речная клеть";
-            default: return "Небесная клеть";
+            case CrateType.Forest: return GameLanguage.T("Лесная клеть");
+            case CrateType.River: return GameLanguage.T("Речная клеть");
+            default: return GameLanguage.T("Небесная клеть");
         }
     }
 
@@ -39,13 +39,13 @@ public static class PetText
     {
         switch (s)
         {
-            case PetStat.ChopPower: return "Скорость рубки";
-            case PetStat.MoveSpeed: return "Скорость бега";
-            case PetStat.Capacity: return "Вместимость рюкзака";
-            case PetStat.DoubleYield: return "Двойная добыча";
-            case PetStat.Haggle: return "Цена продажи";
-            case PetStat.SawSpeed: return "Скорость пилы";
-            default: return "Доход рабочих";
+            case PetStat.ChopPower: return GameLanguage.T("Скорость рубки");
+            case PetStat.MoveSpeed: return GameLanguage.T("Скорость бега");
+            case PetStat.Capacity: return GameLanguage.T("Вместимость рюкзака");
+            case PetStat.DoubleYield: return GameLanguage.T("Двойная добыча");
+            case PetStat.Haggle: return GameLanguage.T("Цена продажи");
+            case PetStat.SawSpeed: return GameLanguage.T("Скорость пилы");
+            default: return GameLanguage.T("Доход рабочих");
         }
     }
 }

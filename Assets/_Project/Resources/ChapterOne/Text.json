@@ -1,0 +1,2927 @@
+{
+  "lines": [
+    {
+      "id": "twv3_s00_01",
+      "speaker": "Лео",
+      "ru": "Эй!.. Здесь вообще кто-нибудь есть?",
+      "en": "Hey! Is anybody here?",
+      "audio": "Intro/Leo_Intro_Arrival",
+      "audioEn": "ChapterOne/en-US/twv3_s00_01"
+    },
+    {
+      "id": "twv3_s00_02",
+      "speaker": "Лео",
+      "ru": "Дядя? ...Никого. Ладно, осмотрюсь.",
+      "en": "Uncle? Nobody here. Guess I'll look around.",
+      "audio": "Voice21/leo_5c45e50c",
+      "audioEn": "ChapterOne/en-US/twv3_s00_02"
+    },
+    {
+      "id": "twv3_s01_01",
+      "speaker": "Мира",
+      "ru": "О, новенький! Ты ведь племянник Гуннара? Лео, да?",
+      "en": "Oh, hello! You're Gunnar's nephew, aren't you? Leo?",
+      "audio": "Voice21/mira_92f5be5a",
+      "audioEn": "ChapterOne/en-US/twv3_s01_01"
+    },
+    {
+      "id": "twv3_s01_02",
+      "speaker": "Лео",
+      "ru": "Да. Он писал, что нужна помощь. Где он?",
+      "en": "Yeah. He wrote that he needed a hand. Where is he?",
+      "audio": "Voice21/leo_c65a1bf5",
+      "audioEn": "ChapterOne/en-US/twv3_s01_02"
+    },
+    {
+      "id": "twv3_s01_03",
+      "speaker": "Мира",
+      "ru": "Пропал три дня назад. А мост к его мастерской шторм разнёс в щепки.",
+      "en": "He's been missing for three days. The storm tore the bridge to his workshop apart.",
+      "audio": "Voice21/mira_31b23902",
+      "audioEn": "ChapterOne/en-US/twv3_s01_03"
+    },
+    {
+      "id": "twv3_s01_04",
+      "speaker": "Лео",
+      "ru": "Значит, будем строить новый. С чего начать?",
+      "en": "Then we'll rebuild it. Where do I start?",
+      "audio": "Voice21/leo_71d1450a",
+      "audioEn": "ChapterOne/en-US/twv3_s01_04"
+    },
+    {
+      "id": "twv3_s01_05",
+      "speaker": "Мира",
+      "ru": "С огня. Нарубай дров и разожги костёр на каменном круге. Там сердце лагеря.",
+      "en": "Start with a fire. Chop some wood and light it in the stone ring. It's the heart of the camp.",
+      "audio": "Voice21/mira_8f03fcfd",
+      "audioEn": "ChapterOne/en-US/twv3_s01_05"
+    },
+    {
+      "id": "twv3_s01_06",
+      "speaker": "Лео",
+      "ru": "Дрова так дрова. Топор при мне, берусь.",
+      "en": "Firewood it is. I've got my axe. I'll get to it.",
+      "audio": "Voice21/leo_29da6c4d",
+      "audioEn": "ChapterOne/en-US/twv3_s01_06"
+    },
+    {
+      "id": "twv3_s01_07",
+      "speaker": "Лео",
+      "ru": "Три дня… Где же ты, дядя?",
+      "en": "Three days... Where are you, Uncle?",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s01_07"
+    },
+    {
+      "id": "twv3_s02_01",
+      "speaker": "Лео",
+      "ru": "Ну что ж… посмотрим, помнят ли руки, как держать топор.",
+      "en": "All right... Let's see if I remember how to swing this thing.",
+      "audio": "ChapterOne/ru/twv3_s02_01",
+      "audioEn": "ChapterOne/en-US/twv3_s02_01"
+    },
+    {
+      "id": "twv3_s02_02",
+      "speaker": "Лео",
+      "ru": "Вот так. Если поймать момент, дерево поддаётся быстрее.",
+      "en": "That's better. Get the timing right and the blade goes deeper.",
+      "audio": "ChapterOne/ru/twv3_s02_02",
+      "audioEn": "ChapterOne/en-US/twv3_s02_02"
+    },
+    {
+      "id": "twv3_s02_03",
+      "speaker": "Лео",
+      "ru": "Тороплюсь. Надо поймать ритм.",
+      "en": "I'm rushing it. Got to find the rhythm.",
+      "audio": "ChapterOne/ru/twv3_s02_03",
+      "audioEn": "ChapterOne/en-US/twv3_s02_03"
+    },
+    {
+      "id": "twv3_s02_04",
+      "speaker": "Лео",
+      "ru": "Ух! Ладно, теперь главное — забрать древесину.",
+      "en": "Whoa. All right, time to haul the wood.",
+      "audio": "ChapterOne/ru/twv3_s02_04",
+      "audioEn": ""
+    },
+    {
+      "id": "twv3_s03_01",
+      "speaker": "Лео",
+      "ru": "Огонь есть. Теперь нужен запас древесины. Восемь брёвен… справлюсь.",
+      "en": "Fire's going. Better set some logs aside for later.",
+      "audio": "ChapterOne/ru/twv3_s03_01",
+      "audioEn": ""
+    },
+    {
+      "id": "twv3_s03_02",
+      "speaker": "Лео",
+      "ru": "Вот и запас. Теперь стоит заглянуть к хижине.",
+      "en": "That should do for the wood. Time to look in on the hut.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s03_02"
+    },
+    {
+      "id": "twv3_s03_03",
+      "speaker": "Лео",
+      "ru": "Можно складывать здесь. Хорошо — не придётся таскать всё разом.",
+      "en": "I can leave the logs here. Good. I don't have to carry them all at once.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s03_03"
+    },
+    {
+      "id": "twv3_s03_04",
+      "speaker": "Мира",
+      "ru": "Горит! Впервые за три дня в лагере тепло.",
+      "en": "It's lit! First time in three days this camp has felt warm.",
+      "audio": "Voice21/mira_1fa5ec5d",
+      "audioEn": "ChapterOne/en-US/twv3_s03_04"
+    },
+    {
+      "id": "twv3_s03_05",
+      "speaker": "Мира",
+      "ru": "Теперь бы сделать запас. Сложи брёвна у огня, пригодятся на холода.",
+      "en": "Let's set some wood aside, too. Stack the logs by the fire. We'll need them when it gets cold.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s03_05"
+    },
+    {
+      "id": "twv3_s04_01",
+      "speaker": "Лео",
+      "ru": "Целиком такую махину не унести. Надо разделить на части.",
+      "en": "No way I'm carrying that in one piece. I'll cut it up.",
+      "audio": "ChapterOne/ru/twv3_s04_01",
+      "audioEn": "ChapterOne/en-US/twv3_s04_01"
+    },
+    {
+      "id": "twv3_s04_02",
+      "speaker": "Лео",
+      "ru": "Ага, вот зарубка. Значит, здесь и разрубать.",
+      "en": "There's the notch. That's where I'll make the cut.",
+      "audio": "ChapterOne/ru/twv3_s04_02",
+      "audioEn": "ChapterOne/en-US/twv3_s04_02"
+    },
+    {
+      "id": "twv3_s04_03",
+      "speaker": "Лео",
+      "ru": "Пошло! Теперь этот кусок можно забрать.",
+      "en": "There we go. I can carry that piece now.",
+      "audio": "ChapterOne/ru/twv3_s04_03",
+      "audioEn": "ChapterOne/en-US/twv3_s04_03"
+    },
+    {
+      "id": "twv3_s04_05",
+      "speaker": "Лео",
+      "ru": "Всё, больше не влезет. Остальное заберу следующим заходом.",
+      "en": "That's all I can carry. I'll come back for the rest.",
+      "audio": "ChapterOne/ru/twv3_s04_05",
+      "audioEn": "ChapterOne/en-US/twv3_s04_05"
+    },
+    {
+      "id": "twv3_s05_01",
+      "speaker": "Лео",
+      "ru": "Кажется, стал опытнее. Надо посмотреть, что теперь можно улучшить.",
+      "en": "I'm getting the hang of this. Let's see what I can improve.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s05_01"
+    },
+    {
+      "id": "twv3_s05_03",
+      "speaker": "Мира",
+      "ru": "Второй уровень! Вот теперь можно говорить о настоящем деле.",
+      "en": "Look at you. You're already getting the hang of things here.",
+      "audio": "Voice21/mira_dd0ecab5",
+      "audioEn": "ChapterOne/en-US/twv3_s05_03"
+    },
+    {
+      "id": "twv3_s05_04",
+      "speaker": "Лео",
+      "ru": "Надеюсь, речь про рюкзак. У меня плечи уже знают каждое дерево.",
+      "en": "Tell that to my shoulders. They remember every tree.",
+      "audio": "Voice21/leo_f17d352b",
+      "audioEn": "ChapterOne/en-US/twv3_s05_04"
+    },
+    {
+      "id": "twv3_s05_05",
+      "speaker": "Мира",
+      "ru": "К Оскару, он у хижины, где брёвна лежат. Друг Гуннара, доски делать умеет.",
+      "en": "Oskar's by the hut, near the log pile. He's an old friend of Gunnar's. He can show you how the saw works.",
+      "audio": "Voice21/mira_993371e7",
+      "audioEn": "ChapterOne/en-US/twv3_s05_05"
+    },
+    {
+      "id": "twv3_s06_intro_01",
+      "speaker": "Оскар",
+      "ru": "Гуннаров племянник? Вылитый дядя, даже хмуришься так же.",
+      "en": "Gunnar's nephew? You've got his face. Even the same scowl.",
+      "audio": "Voice21/oskar_73225232",
+      "audioEn": "ChapterOne/en-US/twv3_s06_intro_01"
+    },
+    {
+      "id": "twv3_s06_intro_02",
+      "speaker": "Лео",
+      "ru": "Вы Оскар? Покажете, как делать доски?",
+      "en": "You're Oskar, right? I could use a hand learning to make planks.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s06_intro_02"
+    },
+    {
+      "id": "twv3_s06_intro_03",
+      "speaker": "Оскар",
+      "ru": "Научу. Но пила стоит в хижине, а крыша там как решето. Сначала чиним.",
+      "en": "I can show you. Saw's in the hut, but the roof leaks like a sieve. We'll fix that first.",
+      "audio": "Voice21/oskar_51b467dd",
+      "audioEn": "ChapterOne/en-US/twv3_s06_intro_03"
+    },
+    {
+      "id": "twv3_s06_intro_04",
+      "speaker": "Лео",
+      "ru": "Понял. Несу брёвна.",
+      "en": "Got it. I'll bring some logs.",
+      "audio": "Voice21/leo_20fd1eac",
+      "audioEn": "ChapterOne/en-US/twv3_s06_intro_04"
+    },
+    {
+      "id": "twv3_s06_01",
+      "speaker": "Лео",
+      "ru": "Крыша на месте. Теперь можно и за доски взяться.",
+      "en": "Roof's on. Time to make some planks.",
+      "audio": "ChapterOne/ru/twv3_s06_01",
+      "audioEn": "ChapterOne/en-US/twv3_s06_01"
+    },
+    {
+      "id": "twv3_s06_repair_01",
+      "speaker": "Оскар",
+      "ru": "Стоит и не скрипит! Гуннар бы кивнул.",
+      "en": "Solid. Doesn't even creak. Gunnar would've approved.",
+      "audio": "Voice21/oskar_814f5d20",
+      "audioEn": "ChapterOne/en-US/twv3_s06_repair_01"
+    },
+    {
+      "id": "twv3_s07_oskar_01",
+      "speaker": "Оскар",
+      "ru": "Работает. Клади брёвна на верстак, потом забирай доски. Два бревна дают одну.",
+      "en": "Load the logs on the bench. Once the saw's done, pick up the planks.",
+      "audio": "Voice21/oskar_60c47dca",
+      "audioEn": "ChapterOne/en-US/twv3_s07_oskar_01"
+    },
+    {
+      "id": "twv3_s07_oskar_02",
+      "speaker": "Оскар",
+      "ru": "Мира без них лавку не поставит. Шести ей хватит для начала.",
+      "en": "Mira needs planks for a stall. Stack them at the building site when they're ready.",
+      "audio": "Voice21/oskar_56f2fdb8",
+      "audioEn": "ChapterOne/en-US/twv3_s07_oskar_02"
+    },
+    {
+      "id": "twv3_s07_01",
+      "speaker": "Лео",
+      "ru": "Два бревна — одна доска. Ладно, теперь понятно.",
+      "en": "First plank. Okay, I see how it works now.",
+      "audio": "ChapterOne/ru/twv3_s07_01",
+      "audioEn": "ChapterOne/en-US/twv3_s07_01"
+    },
+    {
+      "id": "twv3_s07_02",
+      "speaker": "Лео",
+      "ru": "Доски готовы. Теперь можно заняться прилавком.",
+      "en": "Planks are ready. Now we can put up the stall.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s07_02"
+    },
+    {
+      "id": "twv3_s07_mira_01",
+      "speaker": "Мира",
+      "ru": "Доски! Настоящие! Ну-ка, дай посмотреть.",
+      "en": "Planks! Real ones. Let me see.",
+      "audio": "Voice21/mira_3a993d0e",
+      "audioEn": "ChapterOne/en-US/twv3_s07_mira_01"
+    },
+    {
+      "id": "twv3_s07_03",
+      "speaker": "Лео",
+      "ru": "Прилавок на месте. Надо познакомиться с местным торговцем.",
+      "en": "Stall's up. I ought to meet the merchant.",
+      "audio": "ChapterOne/ru/twv3_s07_03",
+      "audioEn": "ChapterOne/en-US/twv3_s07_03"
+    },
+    {
+      "id": "twv3_s08_intro_01",
+      "speaker": "Рико",
+      "ru": "О! Племянник Гуннара! Я Рико. Добро пожаловать в самую честную лавку этого берега.",
+      "en": "Ah, Gunnar's nephew! I'm Rico. Welcome to the most honest shop on this shore.",
+      "audio": "Voice21/rico_d0aab7b6",
+      "audioEn": "ChapterOne/en-US/twv3_s08_intro_01"
+    },
+    {
+      "id": "twv3_s08_intro_02",
+      "speaker": "Лео",
+      "ru": "Единственную лавку этого берега?",
+      "en": "The only shop on this shore?",
+      "audio": "Voice21/leo_2cf7bc99",
+      "audioEn": "ChapterOne/en-US/twv3_s08_intro_02"
+    },
+    {
+      "id": "twv3_s08_01",
+      "speaker": "Рико",
+      "ru": "Пока единственную. Лишнее продавай, нужное оставляй. Сколько получишь — видно до сделки.",
+      "en": "The only one so far. Sell what you can spare and keep what you need. You'll see the price before you sell.",
+      "audio": "ChapterOne/ru/twv3_s08_01",
+      "audioEn": "ChapterOne/en-US/twv3_s08_01"
+    },
+    {
+      "id": "twv3_s08_02",
+      "speaker": "Лео",
+      "ru": "Убедительно. Только на стройку мне ещё много чего надо.",
+      "en": "Fair enough. I've still got a lot of building to do.",
+      "audio": "ChapterOne/ru/twv3_s08_02",
+      "audioEn": "ChapterOne/en-US/twv3_s08_02"
+    },
+    {
+      "id": "twv3_s08_03",
+      "speaker": "Рико",
+      "ru": "Железный топор не обещает чудес. Но на крепком дереве разницу почувствуешь.",
+      "en": "An iron axe won't work miracles. But you'll feel the difference on a stubborn tree.",
+      "audio": "ChapterOne/ru/twv3_s08_03",
+      "audioEn": "ChapterOne/en-US/twv3_s08_03"
+    },
+    {
+      "id": "twv3_s08_04",
+      "speaker": "Лео",
+      "ru": "Ну вот. Теперь у нас хоть что-то есть на мост.",
+      "en": "Well, that's a start. A few coins toward the bridge.",
+      "audio": "ChapterOne/ru/twv3_s08_04",
+      "audioEn": "ChapterOne/en-US/twv3_s08_04"
+    },
+    {
+      "id": "twv3_s09_01",
+      "speaker": "Лео",
+      "ru": "Теперь можно выбрать, что развивать дальше. Лес, мастерская или лагерь…",
+      "en": "Now I get to choose what to work on. The forest, the workshop, or the camp...",
+      "audio": "ChapterOne/ru/twv3_s09_01",
+      "audioEn": "ChapterOne/en-US/twv3_s09_01"
+    },
+    {
+      "id": "twv3_s10_intro_01",
+      "speaker": "Оскар",
+      "ru": "Разбрелись. Починим артель — будет где работать и хранить доски.",
+      "en": "Everyone scattered after the storm. Get the crew tent back up and they'll have somewhere to work and store planks.",
+      "audio": "Voice21/oskar_9473469c",
+      "audioEn": "ChapterOne/en-US/twv3_s10_intro_01"
+    },
+    {
+      "id": "twv3_s10_intro_02",
+      "speaker": "Лео",
+      "ru": "Значит, мы не просто строим лагерь. Мы собираем людей обратно.",
+      "en": "We're giving people a reason to come back.",
+      "audio": "Voice21/leo_41b7f586",
+      "audioEn": "ChapterOne/en-US/twv3_s10_intro_02"
+    },
+    {
+      "id": "twv3_s10_01",
+      "speaker": "Лео",
+      "ru": "Рабочих здесь не хватает. Палатку бы привести в порядок — тогда можно будет позвать помощь.",
+      "en": "It's quiet without a crew. If I fix the tent, maybe some of them will come back.",
+      "audio": "ChapterOne/ru/twv3_s10_01",
+      "audioEn": "ChapterOne/en-US/twv3_s10_01"
+    },
+    {
+      "id": "twv3_s10_02",
+      "speaker": "Оскар",
+      "ru": "Приказчик занимается монетами, дровосек — брёвнами, пильщик — досками. И следи за складом.",
+      "en": "The clerk brings in coins, the lumberjack cuts logs, and the sawyer makes planks. Keep an eye on storage.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s10_02"
+    },
+    {
+      "id": "twv3_s10_03",
+      "speaker": "Лео",
+      "ru": "Вот теперь лагерь не замирает, когда я ухожу в лес.",
+      "en": "Now camp can keep going while I'm out in the woods.",
+      "audio": "ChapterOne/ru/twv3_s10_03",
+      "audioEn": "ChapterOne/en-US/twv3_s10_03"
+    },
+    {
+      "id": "twv3_s11_oskar_01",
+      "speaker": "Оскар",
+      "ru": "Гуннар оставил у артели лесную клеть. Первую можно открыть бесплатно.",
+      "en": "Gunnar left a Forest Crate by the crew tent. The first one is free to open.",
+      "audio": "Voice21/oskar_8138523a",
+      "audioEn": "ChapterOne/en-US/twv3_s11_oskar_01"
+    },
+    {
+      "id": "twv3_s11_note_01",
+      "speaker": "Лео",
+      "ru": "На клети записка от Гуннара.",
+      "en": "There's a note from Gunnar on the crate.",
+      "audio": "Voice21/leo_5b064543",
+      "audioEn": "ChapterOne/en-US/twv3_s11_note_01"
+    },
+    {
+      "id": "twv3_s11_02",
+      "speaker": "Лео",
+      "ru": "Первую клеть оставляю тебе. Кого встретишь — с тем и отправишься в путь. Гуннар.",
+      "en": "This first crate is for you. Whoever you find inside, take them along. Gunnar.",
+      "audio": "ChapterOne/ru/twv3_s11_02",
+      "audioEn": "ChapterOne/en-US/twv3_s11_02"
+    },
+    {
+      "id": "twv3_s11_03",
+      "speaker": "Лео",
+      "ru": "Ну привет. Похоже, теперь мы команда.",
+      "en": "Well, hello there. Looks like we're a team now.",
+      "audio": "ChapterOne/ru/twv3_s11_03",
+      "audioEn": "ChapterOne/en-US/twv3_s11_03"
+    },
+    {
+      "id": "twv3_s11_04",
+      "speaker": "Лео",
+      "ru": "Ещё одна клеть. Интересно, что в ней?",
+      "en": "Another crate. Wonder what's inside.",
+      "audio": "ChapterOne/ru/twv3_s11_04",
+      "audioEn": "ChapterOne/en-US/twv3_s11_04"
+    },
+    {
+      "id": "twv3_s11_05",
+      "speaker": "Лео",
+      "ru": "Клеть у самого пруда… Даже здесь дядя что-то устроил.",
+      "en": "A crate by the pond... Uncle, you really got everywhere.",
+      "audio": "ChapterOne/ru/twv3_s11_05",
+      "audioEn": "ChapterOne/en-US/twv3_s11_05"
+    },
+    {
+      "id": "twv3_s11_06",
+      "speaker": "Оскар",
+      "ru": "Речную ищи по тропе к водопаду. Небесную — у пруда. Остальное поймёшь, когда подрастёшь в ремесле.",
+      "en": "Follow the trail to the waterfall for the River Crate. The Sky Crate's by the pond. They'll open up as you gain experience.",
+      "audio": "ChapterOne/ru/twv3_s11_06",
+      "audioEn": "ChapterOne/en-US/twv3_s11_06"
+    },
+    {
+      "id": "twv3_s11_07",
+      "speaker": "Лео",
+      "ru": "Знакомый спутник… Может, получится сделать его сильнее.",
+      "en": "A familiar face. Maybe I can help you get a little stronger.",
+      "audio": "ChapterOne/ru/twv3_s11_07",
+      "audioEn": "ChapterOne/en-US/twv3_s11_07"
+    },
+    {
+      "id": "twv3_s12_01",
+      "speaker": "Оскар",
+      "ru": "Вот где Гуннар правил топоры. После шторма горн остыл, а навес едва держится.",
+      "en": "Gunnar used to sharpen axes here. The storm put the fire out, and the roof's barely holding on.",
+      "audio": "ChapterOne/ru/twv3_s12_01",
+      "audioEn": "ChapterOne/en-US/twv3_s12_01"
+    },
+    {
+      "id": "twv3_s12_02",
+      "speaker": "Лео",
+      "ru": "Давайте восстановим. Я не хочу, чтобы от его дела остались одни обломки.",
+      "en": "Let's get it working again. I don't want this to be all that's left of his work.",
+      "audio": "ChapterOne/ru/twv3_s12_02",
+      "audioEn": "ChapterOne/en-US/twv3_s12_02"
+    },
+    {
+      "id": "twv3_s12_03",
+      "speaker": "Оскар",
+      "ru": "Гуннар бы из этих обломков ещё мастерскую собрал. Смета у верстака.",
+      "en": "Gunnar would've built another workshop out of this lot. The materials list is by the bench.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s12_03"
+    },
+    {
+      "id": "twv3_s12_04",
+      "speaker": "Лео",
+      "ru": "Огонь снова горит. Надо попробовать, на что способна эта кузница.",
+      "en": "Fire's burning again. Let's see what this forge can do.",
+      "audio": "ChapterOne/ru/twv3_s12_04",
+      "audioEn": "ChapterOne/en-US/twv3_s12_04"
+    },
+    {
+      "id": "twv3_s12_05",
+      "speaker": "Оскар",
+      "ru": "Теперь сможешь заказать более крепкий топор. А если найдёшь подходящую эссенцию — и руну наложим.",
+      "en": "You can order a sturdier axe now. Find some essence and we can put a rune on it, too.",
+      "audio": "ChapterOne/ru/twv3_s12_05",
+      "audioEn": "ChapterOne/en-US/twv3_s12_05"
+    },
+    {
+      "id": "twv3_s13_01",
+      "speaker": "Оскар",
+      "ru": "Гуннар искал в Мистическом лесу деревья со светлыми прожилками. Говорил, что они прячут силу в древесине.",
+      "en": "Gunnar used to look for trees with glowing veins in the Mystic Forest. Said there was some kind of power in the wood.",
+      "audio": "ChapterOne/ru/twv3_s13_01",
+      "audioEn": "ChapterOne/en-US/twv3_s13_01"
+    },
+    {
+      "id": "twv3_s13_02",
+      "speaker": "Лео",
+      "ru": "Свет прямо из коры. Значит, Оскар не преувеличивал.",
+      "en": "It's glowing right through the bark. What's in there?",
+      "audio": "ChapterOne/ru/twv3_s13_02",
+      "audioEn": "ChapterOne/en-US/twv3_s13_02"
+    },
+    {
+      "id": "twv3_s13_03",
+      "speaker": "Лео",
+      "ru": "Так вот что внутри… Надо отнести к горну.",
+      "en": "So that's what was inside... I'll take it to the forge.",
+      "audio": "ChapterOne/ru/twv3_s13_03",
+      "audioEn": "ChapterOne/en-US/twv3_s13_03"
+    },
+    {
+      "id": "twv3_s13_04",
+      "speaker": "Лео",
+      "ru": "Лезвие будто изменилось. Посмотрим, как оно работает.",
+      "en": "Even the blade looks different. Let's see how it cuts.",
+      "audio": "ChapterOne/ru/twv3_s13_04",
+      "audioEn": "ChapterOne/en-US/twv3_s13_04"
+    },
+    {
+      "id": "twv3_s14_01",
+      "speaker": "Оскар",
+      "ru": "Перед самым штормом Гуннар оставил у меня лезвие. Сказал, заберёт утром. Но за ним так и не пришёл.",
+      "en": "Gunnar left this blade with me just before the storm. Said he'd be back in the morning. He never came for it.",
+      "audio": "ChapterOne/ru/twv3_s14_01",
+      "audioEn": "ChapterOne/en-US/twv3_s14_01"
+    },
+    {
+      "id": "twv3_s14_02",
+      "speaker": "Лео",
+      "ru": "Он собирался вернуться утром… Что же тогда случилось?",
+      "en": "He was coming back in the morning... What happened to him?",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s14_02"
+    },
+    {
+      "id": "twv3_s14_03",
+      "speaker": "Оскар",
+      "ru": "Давай подгоним новую рукоять. А ты взгляни на метку на стали.",
+      "en": "Let's fit it with a new handle. Take a look at the mark on the steel while we're here.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s14_03"
+    },
+    {
+      "id": "twv3_s14_04a",
+      "speaker": "Лео",
+      "ru": "Три короткие засечки… Я уже встречал такие. Дядя, что же ты задумал?",
+      "en": "Three little marks... I've seen those before. What were you up to, Uncle?",
+      "audio": "ChapterOne/ru/twv3_s14_04a",
+      "audioEn": "ChapterOne/en-US/twv3_s14_04a"
+    },
+    {
+      "id": "twv3_s14_04b",
+      "speaker": "Лео",
+      "ru": "Три короткие засечки… Не похоже на украшение.",
+      "en": "Three little marks... I wonder what they mean.",
+      "audio": "ChapterOne/ru/twv3_s14_04b",
+      "audioEn": "ChapterOne/en-US/twv3_s14_04b"
+    },
+    {
+      "id": "twv3_s14_05",
+      "speaker": "Оскар",
+      "ru": "Этот знак я у него видел. А вот что он означает — так и не спросил.",
+      "en": "I've seen him use that mark. Never got around to asking what it meant.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s14_05"
+    },
+    {
+      "id": "twv3_s14_06",
+      "speaker": "Лео",
+      "ru": "Может, ответ на той стороне. Вот туда я и пойду.",
+      "en": "Maybe the answer's on the far side. That's where I'm headed.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_s14_06"
+    },
+    {
+      "id": "twv3_s15_intro_01",
+      "speaker": "Оскар",
+      "ru": "Опоры, настил, тросы. Материалы и монеты указаны на каждом этапе. А дальше — сами увидим.",
+      "en": "Supports, deck, then cables and railings. Each stage has its own materials list. We'll see what's across when it's done.",
+      "audio": "Voice21/oskar_eb94e6b4",
+      "audioEn": "ChapterOne/en-US/twv3_s15_intro_01"
+    },
+    {
+      "id": "twv3_s15_01",
+      "speaker": "Лео",
+      "ru": "Не стану больше ждать. Если там есть хоть один след, я до него доберусь.",
+      "en": "I've waited long enough. If he left a clue across there, I'm going to find it.",
+      "audio": "ChapterOne/ru/twv3_s15_01",
+      "audioEn": "ChapterOne/en-US/twv3_s15_01"
+    },
+    {
+      "id": "twv3_s15_done_01",
+      "speaker": "Лео",
+      "ru": "Первая часть готова. Уже похоже на мост, который выдержит шторм.",
+      "en": "Supports are in. Looks like this one could take a storm.",
+      "audio": "Voice21/leo_ca7a3286",
+      "audioEn": "ChapterOne/en-US/twv3_s15_done_01"
+    },
+    {
+      "id": "twv3_s15_02",
+      "speaker": "Лео",
+      "ru": "Настил готов. Осталось сделать переправу надёжной.",
+      "en": "Deck's down. Now to make the crossing safe.",
+      "audio": "ChapterOne/ru/twv3_s15_02",
+      "audioEn": "ChapterOne/en-US/twv3_s15_02"
+    },
+    {
+      "id": "twv3_s15_alt_02",
+      "speaker": "Лео",
+      "ru": "Осталось совсем немного. Дядя, надеюсь, ты там.",
+      "en": "Almost there. I hope you're still out there, Uncle.",
+      "audio": "Voice21/leo_b7a222e3",
+      "audioEn": "ChapterOne/en-US/twv3_s15_alt_02"
+    },
+    {
+      "id": "twv3_s15_done_03",
+      "speaker": "Лео",
+      "ru": "Ну вот, дядя. Дорогу я тебе вернул. Осталось понять, куда ты ушёл.",
+      "en": "Your bridge is back, Uncle. Now I've got to find out where you went.",
+      "audio": "Voice21/leo_89935244",
+      "audioEn": "ChapterOne/en-US/twv3_s15_done_03"
+    },
+    {
+      "id": "twv3_s16_arrive_01",
+      "speaker": "Лео",
+      "ru": "Значит, вот куда ты уходил... Но где же ты сам?",
+      "en": "So this is where you used to come... Where are you now?",
+      "audio": "Voice21/leo_b59ece18",
+      "audioEn": "ChapterOne/en-US/twv3_s16_arrive_01"
+    },
+    {
+      "id": "twv3_s16_01a",
+      "speaker": "Лео",
+      "ru": "Та же метка, что на лезвии. Дядя, ты и здесь её поставил?",
+      "en": "Same mark as on the blade. Did you leave this one too, Uncle?",
+      "audio": "ChapterOne/ru/twv3_s16_01a",
+      "audioEn": "ChapterOne/en-US/twv3_s16_01a"
+    },
+    {
+      "id": "twv3_s16_01b",
+      "speaker": "Лео",
+      "ru": "Три засечки… Значит, ты действительно был здесь.",
+      "en": "Three little marks... Were you here too, Uncle?",
+      "audio": "ChapterOne/ru/twv3_s16_01b",
+      "audioEn": "ChapterOne/en-US/twv3_s16_01b"
+    },
+    {
+      "id": "twv3_s16_activate_01",
+      "speaker": "Лео",
+      "ru": "Что это?..",
+      "en": "What's that?",
+      "audio": "Voice21/leo_154fa4a8",
+      "audioEn": "ChapterOne/en-US/twv3_s16_activate_01"
+    },
+    {
+      "id": "twv3_s16_gunnar_01",
+      "speaker": "Дядя Гуннар",
+      "ru": "Лео... Если ты слышишь меня, значит, мост снова стоит.",
+      "en": "Leo... If you're hearing this, the bridge is standing again.",
+      "audio": "Voice21/gunnar_4368fdd4",
+      "audioEn": "ChapterOne/en-US/twv3_s16_gunnar_01"
+    },
+    {
+      "id": "twv3_s16_gunnar_02",
+      "speaker": "Дядя Гуннар",
+      "ru": "Я знал, что ты справишься. Но то, что я нашёл, гораздо больше нашего острова.",
+      "en": "I knew you could do it. What I found is bigger than our island.",
+      "audio": "Voice21/gunnar_fb58fc32",
+      "audioEn": "ChapterOne/en-US/twv3_s16_gunnar_02"
+    },
+    {
+      "id": "twv3_s16_gunnar_03",
+      "speaker": "Дядя Гуннар",
+      "ru": "Если решишь идти дальше... помни: лес всегда подскажет дорогу.",
+      "en": "If you decide to go on... remember, the forest will always show you the way.",
+      "audio": "Voice21/gunnar_df896b40",
+      "audioEn": "ChapterOne/en-US/twv3_s16_gunnar_03"
+    },
+    {
+      "id": "twv3_s16_leave_01",
+      "speaker": "Лео",
+      "ru": "Ну что, дядя... Похоже, теперь моя очередь.",
+      "en": "Well, Uncle... Looks like it's my turn.",
+      "audio": "Voice21/leo_196a6880",
+      "audioEn": "ChapterOne/en-US/twv3_s16_leave_01"
+    },
+    {
+      "id": "twv3_e01_01",
+      "speaker": "Лео",
+      "ru": "Нож дяди… Три зарубки на рукояти. Зачем он их оставил?",
+      "en": "Uncle's knife... Three cuts in the handle. Why'd he put them there?",
+      "audio": "ChapterOne/ru/twv3_e01_01",
+      "audioEn": "ChapterOne/en-US/twv3_e01_01"
+    },
+    {
+      "id": "twv3_e01_02",
+      "speaker": "Лео",
+      "ru": "Тот же знак. Это уже не совпадение.",
+      "en": "Uncle's knife... The same three marks. That can't be a coincidence.",
+      "audio": "ChapterOne/ru/twv3_e01_02",
+      "audioEn": "ChapterOne/en-US/twv3_e01_02"
+    },
+    {
+      "id": "twv3_e02_01",
+      "speaker": "Лео",
+      "ru": "Лента зацепилась за ветку. А на ткани… три одинаковые полоски.",
+      "en": "A ribbon, caught on the branch. And there are three stripes in the cloth.",
+      "audio": "ChapterOne/ru/twv3_e02_01",
+      "audioEn": "ChapterOne/en-US/twv3_e02_01"
+    },
+    {
+      "id": "twv3_e02_02",
+      "speaker": "Лео",
+      "ru": "Та же метка, что на рукояти ножа.",
+      "en": "Three stripes in the cloth. That's the same mark as on the knife.",
+      "audio": "ChapterOne/ru/twv3_e02_02",
+      "audioEn": "ChapterOne/en-US/twv3_e02_02"
+    },
+    {
+      "id": "twv3_e03_01",
+      "speaker": "Лео",
+      "ru": "Надпись почти стёрлась. Но эти три черты ещё можно разобрать.",
+      "en": "The writing's almost worn away. These three marks are still clear, though.",
+      "audio": "ChapterOne/ru/twv3_e03_01",
+      "audioEn": "ChapterOne/en-US/twv3_e03_01"
+    },
+    {
+      "id": "twv3_e04_01",
+      "speaker": "Лео",
+      "ru": "Нож, лента, камень… Везде три засечки. Значит, это не случайность.",
+      "en": "The knife, the ribbon, the stone... Three marks on each. That can't be by chance.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_e04_01"
+    },
+    {
+      "id": "twv3_e05_01",
+      "speaker": "Лео",
+      "ru": "Сколько же ему лет? Корни будто держат весь этот остров.",
+      "en": "How old are you? Looks like your roots are holding the whole island together.",
+      "audio": "ChapterOne/ru/twv3_e05_01",
+      "audioEn": "ChapterOne/en-US/twv3_e05_01"
+    },
+    {
+      "id": "twv3_e05_02",
+      "speaker": "Лео",
+      "ru": "Не похоже на обычные метки. Лучше запомнить узор.",
+      "en": "These marks are different. I'd better remember the pattern.",
+      "audio": "ChapterOne/ru/twv3_e05_02",
+      "audioEn": "ChapterOne/en-US/twv3_e05_02"
+    },
+    {
+      "id": "twv3_e05_03",
+      "speaker": "Лео",
+      "ru": "Скамья посреди леса. Интересно, кто сюда приходил?",
+      "en": "A bench all the way out here. Wonder who used to sit here.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_e05_03"
+    },
+    {
+      "id": "twv3_e05_04",
+      "speaker": "Лео",
+      "ru": "Вот она… С тропы её почти не видно. Как будто её и не хотели показывать.",
+      "en": "You can barely see this one from the trail. Almost like someone wanted to keep it to themselves.",
+      "audio": "ChapterOne/ru/twv3_e05_04",
+      "audioEn": "ChapterOne/en-US/twv3_e05_04"
+    },
+    {
+      "id": "twv3_e05_05",
+      "speaker": "Лео",
+      "ru": "Ни ветерка. А верёвки всё равно поскрипывают.",
+      "en": "There's no wind. Why are the ropes still creaking?",
+      "audio": "ChapterOne/ru/twv3_e05_05",
+      "audioEn": "ChapterOne/en-US/twv3_e05_05"
+    },
+    {
+      "id": "twv3_e05_06",
+      "speaker": "Лео",
+      "ru": "Доска старая. А зарубка на ней будто совсем свежая.",
+      "en": "Old wood. That cut looks like it was made yesterday.",
+      "audio": "ChapterOne/ru/twv3_e05_06",
+      "audioEn": "ChapterOne/en-US/twv3_e05_06"
+    },
+    {
+      "id": "twv3_e05_07",
+      "speaker": "Лео",
+      "ru": "Его почерк. Значит, это место для него что-то значило.",
+      "en": "That's Gunnar's handwriting. This place must've meant something to him.",
+      "audio": "ChapterOne/ru/twv3_e05_07",
+      "audioEn": "ChapterOne/en-US/twv3_e05_07"
+    },
+    {
+      "id": "twv3_e05_08",
+      "speaker": "Лео",
+      "ru": "Он и здесь оставил три черты…",
+      "en": "Three little marks, right here on the bench.",
+      "audio": "ChapterOne/ru/twv3_e05_08",
+      "audioEn": "ChapterOne/en-US/twv3_e05_08"
+    },
+    {
+      "id": "twv3_e06_01",
+      "speaker": "Лео",
+      "ru": "Слышно водопад… Должно быть, тропа идёт к нему.",
+      "en": "I can hear the waterfall. This trail must lead to it.",
+      "audio": "ChapterOne/ru/twv3_e06_01",
+      "audioEn": "ChapterOne/en-US/twv3_e06_01"
+    },
+    {
+      "id": "twv3_e06_02",
+      "speaker": "Лео",
+      "ru": "Здесь вода такая тихая, что отражает весь лес.",
+      "en": "The water's so still. You can see the whole forest in it.",
+      "audio": "ChapterOne/ru/twv3_e06_02",
+      "audioEn": "ChapterOne/en-US/twv3_e06_02"
+    },
+    {
+      "id": "twv3_e06_03",
+      "speaker": "Лео",
+      "ru": "Срез потемнел, а следы вокруг будто свежие.",
+      "en": "The cut's dark with age. Those tracks look fresh, though.",
+      "audio": "ChapterOne/ru/twv3_e06_03",
+      "audioEn": "ChapterOne/en-US/twv3_e06_03"
+    },
+    {
+      "id": "twv3_e06_04",
+      "speaker": "Лео",
+      "ru": "Стрелка из меди. Интересно, куда она указывает?",
+      "en": "An arrow made of copper. Where is it pointing?",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_e06_04"
+    },
+    {
+      "id": "twv3_e06_05",
+      "speaker": "Лео",
+      "ru": "Вот такую бы к месту рубки. Рюкзак уже не справляется.",
+      "en": "A cart like this would save my shoulders a few trips.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_e06_05"
+    },
+    {
+      "id": "twv3_e06_06",
+      "speaker": "Лео",
+      "ru": "Ну привет. Ты здесь давно хозяйничаешь?",
+      "en": "Well, hello. You in charge around here?",
+      "audio": "",
+      "audioEn": ""
+    },
+    {
+      "id": "twv3_e06_07",
+      "speaker": "Лео",
+      "ru": "Три зарубки с внутренней стороны перил. Кто-то оставил их надолго.",
+      "en": "Three cuts on the inside of the rail. Someone meant for them to last.",
+      "audio": "",
+      "audioEn": ""
+    },
+    {
+      "id": "twv3_e06_08",
+      "speaker": "Лео",
+      "ru": "Три засечки на медной бирке. Куда же ты ушёл, дядя?",
+      "en": "Three cuts on a copper tag. Where did you go from here, Uncle?",
+      "audio": "",
+      "audioEn": ""
+    },
+    {
+      "id": "twv3_h01_01",
+      "speaker": "Мира",
+      "ru": "Знаешь, со дня шторма здесь было непривычно тихо. Даже Оскар почти не ворчал.",
+      "en": "It's been so quiet since the storm. Even Oskar barely grumbled.",
+      "audio": "ChapterOne/ru/twv3_h01_01",
+      "audioEn": "ChapterOne/en-US/twv3_h01_01"
+    },
+    {
+      "id": "twv3_h01_02",
+      "speaker": "Лео",
+      "ru": "Это хуже, чем если бы ворчал?",
+      "en": "Is that worse than hearing him grumble?",
+      "audio": "ChapterOne/ru/twv3_h01_02",
+      "audioEn": "ChapterOne/en-US/twv3_h01_02"
+    },
+    {
+      "id": "twv3_h01_03",
+      "speaker": "Мира",
+      "ru": "Гораздо. А сейчас снова слышно пилу. Значит, не всё потеряно.",
+      "en": "Much worse. It's good to hear the saw running again. That's a good sign.",
+      "audio": "ChapterOne/ru/twv3_h01_03",
+      "audioEn": "ChapterOne/en-US/twv3_h01_03"
+    },
+    {
+      "id": "twv3_h01_04",
+      "speaker": "Лео",
+      "ru": "Тогда пусть привыкает. Дел ещё хватает.",
+      "en": "Then he'd better get used to it. We've still got plenty to do.",
+      "audio": "ChapterOne/ru/twv3_h01_04",
+      "audioEn": "ChapterOne/en-US/twv3_h01_04"
+    },
+    {
+      "id": "twv3_h02_01",
+      "speaker": "Лео",
+      "ru": "С чего у Гуннара всё началось? С этой мастерской?",
+      "en": "Is this where it all started for Gunnar? Here in the workshop?",
+      "audio": "ChapterOne/ru/twv3_h02_01",
+      "audioEn": "ChapterOne/en-US/twv3_h02_01"
+    },
+    {
+      "id": "twv3_h02_02",
+      "speaker": "Оскар",
+      "ru": "С неё. Потом на каждом клочке бумаги рисовал крылья. Будто уже видел их готовыми.",
+      "en": "Right here. Then he started drawing wings on every scrap of paper. Like he could already see them finished.",
+      "audio": "Voice21/oskar_8d901f57",
+      "audioEn": "ChapterOne/en-US/twv3_h02_02"
+    },
+    {
+      "id": "twv3_h02_03",
+      "speaker": "Лео",
+      "ru": "Крылья? Он хотел построить что-то, что летает?",
+      "en": "Wings? Was he trying to build something that could fly?",
+      "audio": "ChapterOne/ru/twv3_h02_03",
+      "audioEn": "ChapterOne/en-US/twv3_h02_03"
+    },
+    {
+      "id": "twv3_h02_04",
+      "speaker": "Оскар",
+      "ru": "Там были ещё круги и странные отметки. Я просил объяснить — он только улыбался.",
+      "en": "There were circles and odd little marks, too. I asked what they meant. He just smiled.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_h02_04"
+    },
+    {
+      "id": "twv3_h03_01",
+      "speaker": "Лео",
+      "ru": "Дядя у тебя часто покупал?",
+      "en": "Did my uncle buy much from you?",
+      "audio": "ChapterOne/ru/twv3_h03_01",
+      "audioEn": "ChapterOne/en-US/twv3_h03_01"
+    },
+    {
+      "id": "twv3_h03_02",
+      "speaker": "Рико",
+      "ru": "Чаще спрашивал. То про прочную сталь, то про медь, то про старые тропы. Бизнесмен из него был так себе.",
+      "en": "Mostly he asked questions. Good steel, copper, old trails. He wasn't much of a businessman.",
+      "audio": "ChapterOne/ru/twv3_h03_02",
+      "audioEn": "ChapterOne/en-US/twv3_h03_02"
+    },
+    {
+      "id": "twv3_h03_03",
+      "speaker": "Лео",
+      "ru": "А перед штормом?",
+      "en": "What about before the storm?",
+      "audio": "ChapterOne/ru/twv3_h03_03",
+      "audioEn": "ChapterOne/en-US/twv3_h03_03"
+    },
+    {
+      "id": "twv3_h03_04",
+      "speaker": "Рико",
+      "ru": "Не видел. Он обещал показать свои рисунки, когда вернётся… Так и не показал.",
+      "en": "Didn't see him. He said he'd show me his drawings when he got back... I never saw them.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_h03_04"
+    },
+    {
+      "id": "twv3_r01",
+      "speaker": "Лео",
+      "ru": "Ого… Такого спутника я ещё не встречал.",
+      "en": "Whoa... I've never had a partner like you.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_r01"
+    },
+    {
+      "id": "twv3_r02",
+      "speaker": "Лео",
+      "ru": "Огонёк Гуннара?.. Даже не верится.",
+      "en": "Gunnar's Wisp? I can hardly believe it.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_r02"
+    },
+    {
+      "id": "twv3_r03",
+      "speaker": "Лео",
+      "ru": "Вот это мастер… С таким помощником дело пойдёт.",
+      "en": "Now that's a master. We'll get a lot done with you here.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_r03"
+    },
+    {
+      "id": "twv3_r04",
+      "speaker": "Лео",
+      "ru": "А вот это интересно… Надо испытать топор.",
+      "en": "Now that's worth trying out. Let's see what this axe can do.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_r04"
+    },
+    {
+      "id": "twv3_r05",
+      "speaker": "Лео",
+      "ru": "Ну вот. Теперь мы сработаемся ещё лучше.",
+      "en": "Look at us. We're getting better at this together.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_r05"
+    },
+    {
+      "id": "twv3_r06",
+      "speaker": "Лео",
+      "ru": "Да ты уже настоящий мастер. Хорошая работа.",
+      "en": "You're a master now. You've earned it.",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_r06"
+    },
+    {
+      "id": "twv3_r07",
+      "speaker": "Лео",
+      "ru": "Ого, вот это прибавка!",
+      "en": "Whoa, that's quite a haul!",
+      "audio": "",
+      "audioEn": "ChapterOne/en-US/twv3_r07"
+    },
+    {
+      "id": "twv3_amb_01",
+      "speaker": "Лео",
+      "ru": "Вот это удар!",
+      "en": "Now that's a hit.",
+      "audio": "ChapterOne/ru/twv3_amb_01",
+      "audioEn": "ChapterOne/en-US/twv3_amb_01"
+    },
+    {
+      "id": "twv3_amb_02",
+      "speaker": "Лео",
+      "ru": "Ровно легло.",
+      "en": "Landed nice and straight.",
+      "audio": "ChapterOne/ru/twv3_amb_02",
+      "audioEn": "ChapterOne/en-US/twv3_amb_02"
+    },
+    {
+      "id": "twv3_amb_03",
+      "speaker": "Лео",
+      "ru": "Да уж… этот был крепкий.",
+      "en": "Yeah... that one put up a fight.",
+      "audio": "ChapterOne/ru/twv3_amb_03",
+      "audioEn": "ChapterOne/en-US/twv3_amb_03"
+    },
+    {
+      "id": "twv3_amb_05",
+      "speaker": "Лео",
+      "ru": "И всё-таки здесь красиво.",
+      "en": "Still... it is beautiful up here.",
+      "audio": "ChapterOne/ru/twv3_amb_05",
+      "audioEn": "ChapterOne/en-US/twv3_amb_05"
+    },
+    {
+      "id": "twv3_c01_01",
+      "speaker": "Рассказчик",
+      "ru": "Лес был лишь началом.",
+      "en": "The forest was only the beginning.",
+      "audio": "Voice21/finale_intro_narrator_01",
+      "audioEn": "ChapterOne/en-US/twv3_c01_01"
+    },
+    {
+      "id": "twv3_c02_01",
+      "speaker": "Рассказчик",
+      "ru": "След обрывается здесь.",
+      "en": "The trail ends here.",
+      "audio": "Voice21/finale_middle_narrator_01",
+      "audioEn": "ChapterOne/en-US/twv3_c02_01"
+    },
+    {
+      "id": "twv3_c03_01",
+      "speaker": "Лео",
+      "ru": "Похоже, я здесь не первый...",
+      "en": "Someone's been down here before me.",
+      "audio": "Voice21/finale_outro_leo_01",
+      "audioEn": "ChapterOne/en-US/twv3_c03_01"
+    }
+  ],
+  "ui": [
+    {
+      "id": "chapter.01.title",
+      "en": "Chapter I — The Lumberjack",
+      "ru": "Глава I — Лесоруб"
+    },
+    {
+      "id": "chapter.01.complete",
+      "en": "Chapter I complete",
+      "ru": "Глава I пройдена"
+    },
+    {
+      "id": "chapter.02.title",
+      "en": "Chapter II — Underground",
+      "ru": "Глава II — Под землёй"
+    },
+    {
+      "id": "speaker.leo",
+      "en": "Leo",
+      "ru": ""
+    },
+    {
+      "id": "speaker.mira",
+      "en": "Mira",
+      "ru": ""
+    },
+    {
+      "id": "speaker.oskar",
+      "en": "Oskar",
+      "ru": ""
+    },
+    {
+      "id": "speaker.rico",
+      "en": "Rico",
+      "ru": ""
+    },
+    {
+      "id": "speaker.gunnar",
+      "en": "Gunnar",
+      "ru": ""
+    },
+    {
+      "id": "speaker.narrator",
+      "en": "Narrator",
+      "ru": ""
+    },
+    {
+      "id": "location.camp",
+      "en": "Camp",
+      "ru": ""
+    },
+    {
+      "id": "location.campfire",
+      "en": "Campfire",
+      "ru": ""
+    },
+    {
+      "id": "location.hut",
+      "en": "Hut",
+      "ru": ""
+    },
+    {
+      "id": "location.workshop",
+      "en": "Workshop",
+      "ru": ""
+    },
+    {
+      "id": "location.market",
+      "en": "Market Stall",
+      "ru": ""
+    },
+    {
+      "id": "location.crew_tent",
+      "en": "Crew Tent",
+      "ru": ""
+    },
+    {
+      "id": "location.forge",
+      "en": "Forge",
+      "ru": ""
+    },
+    {
+      "id": "location.mystic_forest",
+      "en": "Mystic Forest",
+      "ru": ""
+    },
+    {
+      "id": "location.river_trail",
+      "en": "River Trail",
+      "ru": ""
+    },
+    {
+      "id": "location.waterfall",
+      "en": "Waterfall",
+      "ru": ""
+    },
+    {
+      "id": "location.pond",
+      "en": "Pond",
+      "ru": ""
+    },
+    {
+      "id": "location.far_island",
+      "en": "Far Island",
+      "ru": ""
+    },
+    {
+      "id": "location.gunnars_arch",
+      "en": "Gunnar's Arch",
+      "ru": ""
+    },
+    {
+      "id": "item.log",
+      "en": "Log",
+      "ru": ""
+    },
+    {
+      "id": "item.logs",
+      "en": "Logs",
+      "ru": ""
+    },
+    {
+      "id": "item.plank",
+      "en": "Plank",
+      "ru": ""
+    },
+    {
+      "id": "item.planks",
+      "en": "Planks",
+      "ru": ""
+    },
+    {
+      "id": "item.coins",
+      "en": "Coins",
+      "ru": ""
+    },
+    {
+      "id": "item.essence",
+      "en": "Essence",
+      "ru": ""
+    },
+    {
+      "id": "item.gunnars_blade",
+      "en": "Gunnar's Blade",
+      "ru": ""
+    },
+    {
+      "id": "item.gunnars_axe",
+      "en": "Gunnar's Axe",
+      "ru": ""
+    },
+    {
+      "id": "pet.crate.forest",
+      "en": "Forest Crate",
+      "ru": ""
+    },
+    {
+      "id": "pet.crate.river",
+      "en": "River Crate",
+      "ru": ""
+    },
+    {
+      "id": "pet.crate.sky",
+      "en": "Sky Crate",
+      "ru": ""
+    },
+    {
+      "id": "pet.chicken",
+      "en": "Chicken",
+      "ru": ""
+    },
+    {
+      "id": "pet.sheep",
+      "en": "Sheep",
+      "ru": ""
+    },
+    {
+      "id": "pet.pig",
+      "en": "Pig",
+      "ru": ""
+    },
+    {
+      "id": "pet.hedgehog",
+      "en": "Hedgehog",
+      "ru": ""
+    },
+    {
+      "id": "pet.master_beaver",
+      "en": "Master Beaver",
+      "ru": ""
+    },
+    {
+      "id": "pet.river_beaver",
+      "en": "River Beaver",
+      "ru": ""
+    },
+    {
+      "id": "pet.duck",
+      "en": "Duck",
+      "ru": ""
+    },
+    {
+      "id": "pet.otter",
+      "en": "Otter",
+      "ru": ""
+    },
+    {
+      "id": "pet.frog",
+      "en": "Frog",
+      "ru": ""
+    },
+    {
+      "id": "pet.hawk",
+      "en": "Hawk",
+      "ru": ""
+    },
+    {
+      "id": "pet.raven",
+      "en": "Raven",
+      "ru": ""
+    },
+    {
+      "id": "pet.firefly",
+      "en": "Firefly",
+      "ru": ""
+    },
+    {
+      "id": "pet.deer",
+      "en": "Deer",
+      "ru": ""
+    },
+    {
+      "id": "pet.gunnars_wisp",
+      "en": "Gunnar's Wisp",
+      "ru": ""
+    },
+    {
+      "id": "pet.rarity.common",
+      "en": "Common",
+      "ru": ""
+    },
+    {
+      "id": "pet.rarity.rare",
+      "en": "Rare",
+      "ru": ""
+    },
+    {
+      "id": "pet.rarity.legendary",
+      "en": "Legendary",
+      "ru": ""
+    },
+    {
+      "id": "pet.rarity.mythic",
+      "en": "Mythic",
+      "ru": ""
+    },
+    {
+      "id": "pet.open_first_free",
+      "en": "Open your first Forest Crate for free.",
+      "ru": ""
+    },
+    {
+      "id": "pet.open_cost",
+      "en": "Open for {price} coins",
+      "ru": ""
+    },
+    {
+      "id": "pet.open_level",
+      "en": "Unlocks at level {level}",
+      "ru": ""
+    },
+    {
+      "id": "pet.random_notice",
+      "en": "This crate contains one random pet.",
+      "ru": ""
+    },
+    {
+      "id": "pet.discovered",
+      "en": "Crate discovered",
+      "ru": ""
+    },
+    {
+      "id": "pet.reward",
+      "en": "New companion",
+      "ru": ""
+    },
+    {
+      "id": "pet.duplicate",
+      "en": "Companion already in your collection",
+      "ru": ""
+    },
+    {
+      "id": "pet.star_upgrade",
+      "en": "Companion star earned",
+      "ru": ""
+    },
+    {
+      "id": "worker.crew",
+      "en": "Work Crew",
+      "ru": ""
+    },
+    {
+      "id": "worker.role.clerk",
+      "en": "Clerk",
+      "ru": ""
+    },
+    {
+      "id": "worker.role.lumberjack",
+      "en": "Lumberjack",
+      "ru": ""
+    },
+    {
+      "id": "worker.role.sawyer",
+      "en": "Sawyer",
+      "ru": ""
+    },
+    {
+      "id": "worker.assign",
+      "en": "Assign a job",
+      "ru": ""
+    },
+    {
+      "id": "worker.slots",
+      "en": "Workers assigned: {assigned}/{capacity}",
+      "ru": ""
+    },
+    {
+      "id": "worker.role_limit",
+      "en": "Up to {limit} workers per role.",
+      "ru": ""
+    },
+    {
+      "id": "worker.storage_full",
+      "en": "Storage is full.",
+      "ru": ""
+    },
+    {
+      "id": "worker.promotion",
+      "en": "Profession level {level} reached",
+      "ru": ""
+    },
+    {
+      "id": "forge.rune_tree",
+      "en": "Rune Tree",
+      "ru": ""
+    },
+    {
+      "id": "forge.rune_stones",
+      "en": "Rune Stones",
+      "ru": ""
+    },
+    {
+      "id": "forge.engravings",
+      "en": "Rune Engravings",
+      "ru": ""
+    },
+    {
+      "id": "forge.apply_rune",
+      "en": "Engrave this axe",
+      "ru": ""
+    },
+    {
+      "id": "forge.replace_rune",
+      "en": "This will replace the current rune.",
+      "ru": ""
+    },
+    {
+      "id": "forge.rune_applied",
+      "en": "Rune applied",
+      "ru": ""
+    },
+    {
+      "id": "forge.essence_cost",
+      "en": "{amount} Essence",
+      "ru": ""
+    },
+    {
+      "id": "trade.sell",
+      "en": "Sell",
+      "ru": ""
+    },
+    {
+      "id": "trade.sell_total",
+      "en": "You'll receive {coins} coins",
+      "ru": ""
+    },
+    {
+      "id": "trade.sale_done",
+      "en": "Sold for {coins} coins",
+      "ru": ""
+    },
+    {
+      "id": "action.inspect",
+      "en": "Inspect",
+      "ru": ""
+    },
+    {
+      "id": "action.read",
+      "en": "Read",
+      "ru": ""
+    },
+    {
+      "id": "action.open",
+      "en": "Open",
+      "ru": ""
+    },
+    {
+      "id": "action.talk",
+      "en": "Talk",
+      "ru": ""
+    },
+    {
+      "id": "action.activate",
+      "en": "Activate",
+      "ru": ""
+    },
+    {
+      "id": "action.ask_gunnar",
+      "en": "Ask about Gunnar",
+      "ru": ""
+    },
+    {
+      "id": "action.ask_next",
+      "en": "What should I do next?",
+      "ru": ""
+    },
+    {
+      "id": "action.ask_crates",
+      "en": "Ask where to find the crates",
+      "ru": ""
+    },
+    {
+      "id": "action.leave",
+      "en": "Leave",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.chop.swing",
+      "en": "Hold {swing} to swing the axe.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.chop.timing",
+      "en": "Use {timing} in the green zone for a stronger hit.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.chop.take",
+      "en": "Use {interact} to collect the wood.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.split.choose",
+      "en": "Choose a cut mark on the trunk.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.split.cut",
+      "en": "Finish the cut to separate a section.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.split.collect",
+      "en": "Pick up the section with {interact}.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.split.remaining",
+      "en": "You can come back for the wood you leave behind.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.stockpile.deposit",
+      "en": "Leave logs at the stockpile by the campfire.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.stockpile.progress",
+      "en": "Logs stored: {current}/{required}",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.upgrade.awarded",
+      "en": "Free upgrade earned",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.upgrade.use",
+      "en": "Open Upgrades with {upgrades}. Spend your upgrade now or save it for later.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.upgrade.per_level",
+      "en": "Each new level earns one free upgrade.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.talent.awarded",
+      "en": "Talent Point earned",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.talent.use",
+      "en": "Pick a talent now or save the point for later.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.talent.interval",
+      "en": "Earn another Talent Point every {levels} levels.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.saw.recipe",
+      "en": "{logs} logs per plank",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.saw.input",
+      "en": "Load logs onto the saw bench.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.saw.output",
+      "en": "Collect the finished planks.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.forge.apply",
+      "en": "Choose an axe and review the Essence cost before engraving.",
+      "ru": ""
+    },
+    {
+      "id": "tutorial.bridge.locked",
+      "en": "Finish the bridge before crossing.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s00.title",
+      "en": "An Empty Shore",
+      "ru": ""
+    },
+    {
+      "id": "quest.s00.objective",
+      "en": "Find someone in camp.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s01.title",
+      "en": "Start with a Fire",
+      "ru": ""
+    },
+    {
+      "id": "quest.s01.objective",
+      "en": "Talk to Mira about Gunnar.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s01.next",
+      "en": "Chop some wood for the campfire.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s02.title",
+      "en": "The First Tree",
+      "ru": ""
+    },
+    {
+      "id": "quest.s02.objective",
+      "en": "Fell a tree and collect the wood.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s03.title",
+      "en": "Keep the Fire Going",
+      "ru": ""
+    },
+    {
+      "id": "quest.s03.light",
+      "en": "Light the campfire in the stone ring.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s03.stockpile",
+      "en": "Store {required} logs by the campfire.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s04.title",
+      "en": "Too Big to Carry",
+      "ru": ""
+    },
+    {
+      "id": "quest.s04.objective",
+      "en": "Split the fallen trunk and collect a section.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s05.title",
+      "en": "Getting the Hang of It",
+      "ru": ""
+    },
+    {
+      "id": "quest.s05.reach",
+      "en": "Reach level {level}.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s05.objective",
+      "en": "Open Upgrades to see what you can improve.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s05.next",
+      "en": "Find Oskar by the hut.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s06.title",
+      "en": "The Leaky Hut",
+      "ru": ""
+    },
+    {
+      "id": "quest.s06.meet",
+      "en": "Talk to Oskar at the hut.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s06.objective",
+      "en": "Repair the hut.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s06.walls",
+      "en": "Repair the walls.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s06.roof",
+      "en": "Fix the roof.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s07.title",
+      "en": "Planks for a Stall",
+      "ru": ""
+    },
+    {
+      "id": "quest.s07.craft",
+      "en": "Make {required} planks at the saw.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s07.build",
+      "en": "Build the Market Stall.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s08.title",
+      "en": "The First Sale",
+      "ru": ""
+    },
+    {
+      "id": "quest.s08.meet",
+      "en": "Meet Rico at the Market Stall.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s08.sell",
+      "en": "Make your first sale.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s09.title",
+      "en": "Find Your Way",
+      "ru": ""
+    },
+    {
+      "id": "quest.s09.objective",
+      "en": "Explore the talent branches.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s09.forest",
+      "en": "Forest",
+      "ru": ""
+    },
+    {
+      "id": "quest.s09.workshop",
+      "en": "Workshop",
+      "ru": ""
+    },
+    {
+      "id": "quest.s09.camp",
+      "en": "Camp",
+      "ru": ""
+    },
+    {
+      "id": "quest.s10.title",
+      "en": "Bring Back the Crew",
+      "ru": ""
+    },
+    {
+      "id": "quest.s10.repair",
+      "en": "Repair the Crew Tent.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s10.hire",
+      "en": "Assign your first worker.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s11.title",
+      "en": "A First Companion",
+      "ru": ""
+    },
+    {
+      "id": "quest.s11.objective",
+      "en": "Open the free Forest Crate by the Crew Tent.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s12.title",
+      "en": "Light the Forge",
+      "ru": ""
+    },
+    {
+      "id": "quest.s12.meet",
+      "en": "Meet Oskar at the forge.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s12.objective",
+      "en": "Restore Gunnar's forge.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s13.title",
+      "en": "Light Beneath the Bark",
+      "ru": ""
+    },
+    {
+      "id": "quest.s13.find",
+      "en": "Find a Rune Tree in the Mystic Forest.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s13.essence",
+      "en": "Collect Essence from a Rune Tree.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s13.engrave",
+      "en": "Engrave your first rune at the forge.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s14.title",
+      "en": "Gunnar's Blade",
+      "ru": ""
+    },
+    {
+      "id": "quest.s14.objective",
+      "en": "Examine the mark on Gunnar's blade.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s14.restore",
+      "en": "Fit a new handle to Gunnar's blade at the forge.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s15.title",
+      "en": "Across the Gap",
+      "ru": ""
+    },
+    {
+      "id": "quest.s15.reach",
+      "en": "Reach level {level} to start work on the bridge.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s15.supports",
+      "en": "Build the supports.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s15.deck",
+      "en": "Lay the deck.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s15.railings",
+      "en": "Add the cables and railings.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s15.build_progress",
+      "en": "Materials delivered: {current}/{required}",
+      "ru": ""
+    },
+    {
+      "id": "quest.s16.title",
+      "en": "Gunnar's Arch",
+      "ru": ""
+    },
+    {
+      "id": "quest.s16.cross",
+      "en": "Cross the bridge to the far island.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s16.arch",
+      "en": "Examine the marked stone at the arch.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s16.activate",
+      "en": "Activate the stone beneath the arch.",
+      "ru": ""
+    },
+    {
+      "id": "quest.s16.enter",
+      "en": "Step through the portal.",
+      "ru": ""
+    },
+    {
+      "id": "inspection.knife.title",
+      "en": "Gunnar's Old Knife",
+      "ru": ""
+    },
+    {
+      "id": "inspection.ribbon.title",
+      "en": "Torn Ribbon",
+      "ru": ""
+    },
+    {
+      "id": "inspection.witness_stone.title",
+      "en": "Witness Stone",
+      "ru": ""
+    },
+    {
+      "id": "inspection.great_cedar.title",
+      "en": "Great Cedar",
+      "ru": ""
+    },
+    {
+      "id": "inspection.rune_stones.title",
+      "en": "Rune Stones",
+      "ru": ""
+    },
+    {
+      "id": "inspection.bench.title",
+      "en": "Forest Bench",
+      "ru": ""
+    },
+    {
+      "id": "inspection.hidden_bench.title",
+      "en": "Hidden Seventh Bench",
+      "ru": ""
+    },
+    {
+      "id": "inspection.swing.title",
+      "en": "Swing",
+      "ru": ""
+    },
+    {
+      "id": "inspection.board.title",
+      "en": "Old Board",
+      "ru": ""
+    },
+    {
+      "id": "inspection.gunnars_sign.title",
+      "en": "Gunnar's Sign",
+      "ru": ""
+    },
+    {
+      "id": "inspection.bench_notches.title",
+      "en": "Marks on the Bench",
+      "ru": ""
+    },
+    {
+      "id": "inspection.river_trail.title",
+      "en": "River Trail",
+      "ru": ""
+    },
+    {
+      "id": "inspection.pond.title",
+      "en": "Pond",
+      "ru": ""
+    },
+    {
+      "id": "inspection.old_stump.title",
+      "en": "Old Stump",
+      "ru": ""
+    },
+    {
+      "id": "inspection.copper_arrow.title",
+      "en": "Copper Arrow",
+      "ru": ""
+    },
+    {
+      "id": "inspection.cart.title",
+      "en": "Cart",
+      "ru": ""
+    },
+    {
+      "id": "inspection.duck.title",
+      "en": "Duck",
+      "ru": ""
+    },
+    {
+      "id": "inspection.bridge_rail.title",
+      "en": "Marks on the Railing",
+      "ru": ""
+    },
+    {
+      "id": "inspection.copper_tag.title",
+      "en": "Copper Tag",
+      "ru": ""
+    },
+    {
+      "id": "journal.s01",
+      "en": "The storm took the bridge. Mira says Uncle's been gone three days. First, we'll get a fire going.",
+      "ru": "Шторм снёс мост. Мира говорит, дяди нет уже три дня. Для начала разведём огонь."
+    },
+    {
+      "id": "journal.s03",
+      "en": "There's a fire in camp again, and we've got wood set aside.",
+      "ru": "В лагере снова горит костёр, и дрова сложены про запас."
+    },
+    {
+      "id": "journal.s06",
+      "en": "Oskar knew Gunnar well. If we fix the hut, he can show me how to make planks.",
+      "ru": "Оскар хорошо знал Гуннара. Починим хижину, и он покажет, как пилить доски."
+    },
+    {
+      "id": "journal.s07",
+      "en": "We have a working saw and a stall. This place is starting to feel like a camp again.",
+      "ru": "У нас есть рабочая пила и прилавок. Лагерь снова оживает."
+    },
+    {
+      "id": "journal.s10",
+      "en": "We've got a crew again. Camp can keep working while I'm in the forest.",
+      "ru": "Артель снова в сборе. Теперь работа идёт и без меня, пока я в лесу."
+    },
+    {
+      "id": "journal.s11",
+      "en": "Gunnar left a crate by the crew tent. I found a new companion inside.",
+      "ru": "Гуннар оставил клеть у палатки. Внутри нашёлся новый напарник."
+    },
+    {
+      "id": "journal.s12",
+      "en": "The fire's back in Gunnar's forge. His workbench still has traces of what he was making.",
+      "ru": "В кузнице Гуннара снова горит огонь. На верстаке видны следы его работы."
+    },
+    {
+      "id": "journal.s14",
+      "en": "Gunnar meant to pick up his blade the morning after he left it with Oskar. Three little marks are still on the steel.",
+      "ru": "Гуннар собирался забрать лезвие на следующее утро. На стали остались три засечки."
+    },
+    {
+      "id": "journal.s15",
+      "en": "The bridge is finished. The road to the far island is open. I'm going to see what he left there.",
+      "ru": "Мост готов. Дорога на дальний остров открыта. Пойду сам."
+    },
+    {
+      "id": "journal.e01",
+      "en": "Three little cuts in the handle of Gunnar's old knife.",
+      "ru": "Три зарубки на рукояти старого ножа Гуннара."
+    },
+    {
+      "id": "journal.e02",
+      "en": "The torn ribbon in the branch has three matching stripes.",
+      "ru": "На оборванной ленте, зацепившейся за ветку, видны три полоски."
+    },
+    {
+      "id": "journal.e03",
+      "en": "The words on the stone have worn away. Three marks are still clear.",
+      "ru": "Надпись на камне стёрлась, а три черты ещё можно разобрать."
+    },
+    {
+      "id": "journal.e04.title",
+      "en": "The Same Hand",
+      "ru": "Один почерк"
+    },
+    {
+      "id": "journal.e04.body",
+      "en": "Knife, ribbon, stone. All three carry the same pattern. What was it for?",
+      "ru": "Нож, лента, камень. На всех один узор. Для чего?"
+    },
+    {
+      "id": "journal.e04.arch",
+      "en": "The same pattern is here at the arch. Whoever left those marks wanted them to last.",
+      "ru": "На арке тот же знак. Тот, кто его оставил, хотел, чтобы он сохранился."
+    },
+    {
+      "id": "journal.copper_tag",
+      "en": "A copper tag beyond the bridge carries three cuts. I wonder what Gunnar was doing here.",
+      "ru": "На медной бирке за мостом три зарубки. Интересно, чем Гуннар тут занимался."
+    },
+    {
+      "id": "journal.s16",
+      "en": "I heard Gunnar's voice at the arch. He found something beyond our island. I'm going after him.",
+      "ru": "У арки я услышал голос Гуннара. Он нашёл что-то за пределами острова. Иду за ним."
+    },
+    {
+      "id": "outro.skip",
+      "en": "Skip cinematic",
+      "ru": ""
+    },
+    {
+      "id": "outro.credits",
+      "en": "Credits",
+      "ru": ""
+    }
+  ],
+  "legacy": [
+    {
+      "ru": "Бревна",
+      "en": "Logs"
+    },
+    {
+      "ru": "Брёвна",
+      "en": "Logs"
+    },
+    {
+      "ru": "Доски",
+      "en": "Planks"
+    },
+    {
+      "ru": "Монеты",
+      "en": "Coins"
+    },
+    {
+      "ru": "Эссенция",
+      "en": "Essence"
+    },
+    {
+      "ru": "Рунная эссенция",
+      "en": "Rune Essence"
+    },
+    {
+      "ru": "Лео",
+      "en": "Leo"
+    },
+    {
+      "ru": "Мира",
+      "en": "Mira"
+    },
+    {
+      "ru": "Оскар",
+      "en": "Oskar"
+    },
+    {
+      "ru": "Рико",
+      "en": "Rico"
+    },
+    {
+      "ru": "Торговец",
+      "en": "Merchant"
+    },
+    {
+      "ru": "Дядя Гуннар",
+      "en": "Gunnar"
+    },
+    {
+      "ru": "Гуннар",
+      "en": "Gunnar"
+    },
+    {
+      "ru": "Рассказчик",
+      "en": "Narrator"
+    },
+    {
+      "ru": "Лес",
+      "en": "Forest"
+    },
+    {
+      "ru": "Лагерь",
+      "en": "Camp"
+    },
+    {
+      "ru": "Хижина",
+      "en": "Hut"
+    },
+    {
+      "ru": "Палатка",
+      "en": "Crew Tent"
+    },
+    {
+      "ru": "Артель",
+      "en": "Work Crew"
+    },
+    {
+      "ru": "Палатка артели",
+      "en": "Crew Tent"
+    },
+    {
+      "ru": "Прилавок",
+      "en": "Market Stall"
+    },
+    {
+      "ru": "Костёр",
+      "en": "Campfire"
+    },
+    {
+      "ru": "Костер",
+      "en": "Campfire"
+    },
+    {
+      "ru": "Пилорама",
+      "en": "Saw"
+    },
+    {
+      "ru": "Мост",
+      "en": "Bridge"
+    },
+    {
+      "ru": "Опоры",
+      "en": "Supports"
+    },
+    {
+      "ru": "Настил",
+      "en": "Deck"
+    },
+    {
+      "ru": "Тросы и перила",
+      "en": "Cables and Railings"
+    },
+    {
+      "ru": "Стены",
+      "en": "Walls"
+    },
+    {
+      "ru": "Крыша",
+      "en": "Roof"
+    },
+    {
+      "ru": "Мистический лес",
+      "en": "Mystic Forest"
+    },
+    {
+      "ru": "Пруд",
+      "en": "Pond"
+    },
+    {
+      "ru": "Водопад",
+      "en": "Waterfall"
+    },
+    {
+      "ru": "Дальний остров",
+      "en": "Far Island"
+    },
+    {
+      "ru": "Арка Гуннара",
+      "en": "Gunnar's Arch"
+    },
+    {
+      "ru": "Рунная кузница",
+      "en": "Rune Forge"
+    },
+    {
+      "ru": "Кузница",
+      "en": "Forge"
+    },
+    {
+      "ru": "Лезвие Гуннара",
+      "en": "Gunnar's Blade"
+    },
+    {
+      "ru": "Топор Гуннара",
+      "en": "Gunnar's Axe"
+    },
+    {
+      "ru": "Способности",
+      "en": "Abilities"
+    },
+    {
+      "ru": "Обычный",
+      "en": "Common"
+    },
+    {
+      "ru": "Необычный",
+      "en": "Uncommon"
+    },
+    {
+      "ru": "Редкий",
+      "en": "Rare"
+    },
+    {
+      "ru": "Легендарный",
+      "en": "Legendary"
+    },
+    {
+      "ru": "Мифический",
+      "en": "Mythic"
+    },
+    {
+      "ru": "Лесная клеть",
+      "en": "Forest Crate"
+    },
+    {
+      "ru": "Речная клеть",
+      "en": "River Crate"
+    },
+    {
+      "ru": "Небесная клеть",
+      "en": "Sky Crate"
+    },
+    {
+      "ru": "Курица",
+      "en": "Chicken"
+    },
+    {
+      "ru": "Овца",
+      "en": "Sheep"
+    },
+    {
+      "ru": "Свинья",
+      "en": "Pig"
+    },
+    {
+      "ru": "Ёж",
+      "en": "Hedgehog"
+    },
+    {
+      "ru": "Кот",
+      "en": "Cat"
+    },
+    {
+      "ru": "Собака",
+      "en": "Dog"
+    },
+    {
+      "ru": "Енот",
+      "en": "Raccoon"
+    },
+    {
+      "ru": "Волк",
+      "en": "Wolf"
+    },
+    {
+      "ru": "Лошадь",
+      "en": "Horse"
+    },
+    {
+      "ru": "Утка",
+      "en": "Duck"
+    },
+    {
+      "ru": "Скорость рубки",
+      "en": "Chopping speed"
+    },
+    {
+      "ru": "Скорость бега",
+      "en": "Running speed"
+    },
+    {
+      "ru": "Вместимость рюкзака",
+      "en": "Pack capacity"
+    },
+    {
+      "ru": "Двойная добыча",
+      "en": "Double harvest"
+    },
+    {
+      "ru": "Цена продажи",
+      "en": "Sale price"
+    },
+    {
+      "ru": "Скорость пилы",
+      "en": "Saw speed"
+    },
+    {
+      "ru": "Доход рабочих",
+      "en": "Worker income"
+    },
+    {
+      "ru": "Приказчик",
+      "en": "Clerk"
+    },
+    {
+      "ru": "Дровосек",
+      "en": "Lumberjack"
+    },
+    {
+      "ru": "Пильщик",
+      "en": "Sawyer"
+    },
+    {
+      "ru": "монеты",
+      "en": "coins"
+    },
+    {
+      "ru": "бревна",
+      "en": "logs"
+    },
+    {
+      "ru": "доски",
+      "en": "planks"
+    },
+    {
+      "ru": "Рабочие",
+      "en": "Workers"
+    },
+    {
+      "ru": "Питомцы",
+      "en": "Pets"
+    },
+    {
+      "ru": "Питомец",
+      "en": "Pet"
+    },
+    {
+      "ru": "Профессия",
+      "en": "Profession"
+    },
+    {
+      "ru": "Таланты",
+      "en": "Talents"
+    },
+    {
+      "ru": "Улучшения",
+      "en": "Upgrades"
+    },
+    {
+      "ru": "Прокачка",
+      "en": "Upgrades"
+    },
+    {
+      "ru": "ПРОКАЧКА",
+      "en": "UPGRADES"
+    },
+    {
+      "ru": "Прокачка · U",
+      "en": "Upgrades · U"
+    },
+    {
+      "ru": "Прокачка\n<size=60%>закрыто</size>",
+      "en": "Upgrades\n<size=60%>locked</size>"
+    },
+    {
+      "ru": "Откроется по сюжету",
+      "en": "Unlocks with story progress"
+    },
+    {
+      "ru": "Улучшения за монеты и свободные очки уровня",
+      "en": "Spend coins or free upgrade points"
+    },
+    {
+      "ru": "Сила удара",
+      "en": "Axe power"
+    },
+    {
+      "ru": "Выгодный торг",
+      "en": "Better prices"
+    },
+    {
+      "ru": "Ремесло",
+      "en": "Craftsmanship"
+    },
+    {
+      "ru": "Позже",
+      "en": "Later"
+    },
+    {
+      "ru": "Купить",
+      "en": "Buy"
+    },
+    {
+      "ru": "Продать",
+      "en": "Sell"
+    },
+    {
+      "ru": "Склад",
+      "en": "Storage"
+    },
+    {
+      "ru": "Забрать",
+      "en": "Collect"
+    },
+    {
+      "ru": "Открыть",
+      "en": "Open"
+    },
+    {
+      "ru": "Сохранить",
+      "en": "Save"
+    },
+    {
+      "ru": "Мастерская",
+      "en": "Workshop"
+    },
+    {
+      "ru": "Характеристики",
+      "en": "Stats"
+    },
+    {
+      "ru": "Назначить",
+      "en": "Assign"
+    },
+    {
+      "ru": "Макс",
+      "en": "Max"
+    },
+    {
+      "ru": "Нужна пила",
+      "en": "Saw required"
+    },
+    {
+      "ru": "Осмотрено",
+      "en": "Inspected"
+    },
+    {
+      "ru": "Осмотреть",
+      "en": "Inspect"
+    },
+    {
+      "ru": "Старый нож Гуннара",
+      "en": "Gunnar's Old Knife"
+    },
+    {
+      "ru": "Оборванная лента",
+      "en": "Torn Ribbon"
+    },
+    {
+      "ru": "Дощечка у скамьи",
+      "en": "Old Board"
+    },
+    {
+      "ru": "Зарубка Гуннара",
+      "en": "Gunnar's Mark"
+    },
+    {
+      "ru": "Зарубки на скамье",
+      "en": "Marks on the Bench"
+    },
+    {
+      "ru": "Камень-свидетель",
+      "en": "Witness Stone"
+    },
+    {
+      "ru": "Медная стрелка",
+      "en": "Copper Arrow"
+    },
+    {
+      "ru": "Большой кедр",
+      "en": "Great Cedar"
+    },
+    {
+      "ru": "Рунные камни",
+      "en": "Rune Stones"
+    },
+    {
+      "ru": "Седьмая скамья",
+      "en": "Hidden Seventh Bench"
+    },
+    {
+      "ru": "Лесная скамья",
+      "en": "Forest Bench"
+    },
+    {
+      "ru": "Качели",
+      "en": "Swing"
+    },
+    {
+      "ru": "Старый пень",
+      "en": "Old Stump"
+    },
+    {
+      "ru": "Опознай следы",
+      "en": "Examine the tracks"
+    },
+    {
+      "ru": "Тележка",
+      "en": "Cart"
+    },
+    {
+      "ru": "рассмотреть зарубку",
+      "en": "examine the mark"
+    },
+    {
+      "ru": "осмотреть кузницу",
+      "en": "inspect the forge"
+    },
+    {
+      "ru": "открыть кузницу",
+      "en": "open the forge"
+    },
+    {
+      "ru": "активировать камень",
+      "en": "activate the stone"
+    },
+    {
+      "ru": "открыть клеть",
+      "en": "open the crate"
+    },
+    {
+      "ru": "сложить брёвна",
+      "en": "store logs"
+    },
+    {
+      "ru": "торговать",
+      "en": "trade"
+    },
+    {
+      "ru": "поговорить",
+      "en": "talk"
+    },
+    {
+      "ru": "Осмотрись: иди с помощью <color=#6BCB5A>WASD</color>",
+      "en": "Look around. Move with <color=#6BCB5A>WASD</color>."
+    },
+    {
+      "ru": "Подойди к Мире",
+      "en": "Approach Mira."
+    },
+    {
+      "ru": "Поговори с Мирой: <color=#6BCB5A>E</color>",
+      "en": "Talk to Mira. Press <color=#6BCB5A>E</color>."
+    },
+    {
+      "ru": "Поговори с {0}: <color=#6BCB5A>E</color>",
+      "en": "Talk to {0}. Press <color=#6BCB5A>E</color>."
+    },
+    {
+      "ru": "Поговори с Оскаром у хижины",
+      "en": "Talk to Oskar at the hut."
+    },
+    {
+      "ru": "Познакомься с Рико у прилавка",
+      "en": "Meet Rico at the Market Stall."
+    },
+    {
+      "ru": "Подойди к прилавку",
+      "en": "Approach the Market Stall."
+    },
+    {
+      "ru": "Нарубить дров: {0}/{1}",
+      "en": "Chop firewood · {0}/{1}"
+    },
+    {
+      "ru": "Нужно ещё дров: {0}/{1}",
+      "en": "More firewood needed · {0}/{1}"
+    },
+    {
+      "ru": "Нарубить дров",
+      "en": "Chop firewood"
+    },
+    {
+      "ru": "Нужно ещё дров",
+      "en": "Collect more firewood"
+    },
+    {
+      "ru": "Сдай дрова на костёр",
+      "en": "Deliver wood to the campfire"
+    },
+    {
+      "ru": "Сдай дрова на костёр: {0}/{1}",
+      "en": "Deliver wood to the campfire · {0}/{1}"
+    },
+    {
+      "ru": "Отнеси дрова на каменный круг и разожги костёр",
+      "en": "Take the wood to the stone ring and light the campfire."
+    },
+    {
+      "ru": "Сначала стены, потом крыша. Материалы указаны на стройке.",
+      "en": "Walls first, then the roof. Check the materials at the build site."
+    },
+    {
+      "ru": "Перейди мост: записка Гуннара у арки на дальнем острове",
+      "en": "Cross the bridge and find Gunnar's note by the arch."
+    },
+    {
+      "ru": "Подойди к мосту: под перилами записка",
+      "en": "Look for the note beneath the bridge railing."
+    },
+    {
+      "ru": "Записка Гуннара…",
+      "en": "Gunnar's note…"
+    },
+    {
+      "ru": "На камне под аркой лежит записка. Почерк дяди Гуннара.",
+      "en": "There's a note on the stone beneath the arch. It's Gunnar's handwriting."
+    },
+    {
+      "ru": "«Лео. Раз читаешь это, мост снова стоит, а ты не побоялся топора.»",
+      "en": "Leo. If you're reading this, the bridge is standing again. Looks like you took to the axe."
+    },
+    {
+      "ru": "«Я ушёл за кедром для большой работы. Вернусь, когда лес позволит.»",
+      "en": "I've gone to find cedar for a big job. I'll be back when the forest lets me."
+    },
+    {
+      "ru": "«Лагерь не бросай. Ты справишься лучше, чем думаешь. Гуннар.»",
+      "en": "Look after the camp. You'll do better than you think. Gunnar."
+    },
+    {
+      "ru": "Он жив. И он в меня верит. Значит, рубим дальше.",
+      "en": "He's alive. And he believes in me. I'd better get back to work."
+    },
+    {
+      "ru": "Голос рядом",
+      "en": "A nearby voice"
+    },
+    {
+      "ru": "Торговец у реки",
+      "en": "Riverside merchant"
+    },
+    {
+      "ru": "Разговор в лагере",
+      "en": "Camp conversation"
+    },
+    {
+      "ru": "Авто: вкл",
+      "en": "Auto: on"
+    },
+    {
+      "ru": "Авто: выкл",
+      "en": "Auto: off"
+    },
+    {
+      "ru": "К разговору",
+      "en": "Back to conversation"
+    },
+    {
+      "ru": "Показать текст",
+      "en": "Show text"
+    },
+    {
+      "ru": "Дальше",
+      "en": "Next"
+    },
+    {
+      "ru": "Готово",
+      "en": "Done"
+    },
+    {
+      "ru": "Пропустить",
+      "en": "Skip"
+    },
+    {
+      "ru": "Диалог",
+      "en": "Dialogue"
+    },
+    {
+      "ru": "История",
+      "en": "History"
+    },
+    {
+      "ru": "Разговор пропущен",
+      "en": "Conversation skipped"
+    },
+    {
+      "ru": "Открыть улучшения",
+      "en": "Open upgrades"
+    },
+    {
+      "ru": "Строить",
+      "en": "Build"
+    },
+    {
+      "ru": "Материалы",
+      "en": "Materials"
+    },
+    {
+      "ru": "Требуется",
+      "en": "Required"
+    },
+    {
+      "ru": "Сдано",
+      "en": "Stored"
+    },
+    {
+      "ru": "В рюкзаке",
+      "en": "In pack"
+    },
+    {
+      "ru": "Закрыто",
+      "en": "Locked"
+    },
+    {
+      "ru": "Рюкзак полон",
+      "en": "Pack full"
+    },
+    {
+      "ru": "Главное меню",
+      "en": "Main Menu"
+    },
+    {
+      "ru": "Вернуться в игру",
+      "en": "Return to game"
+    },
+    {
+      "ru": "Начать заново",
+      "en": "Start over"
+    },
+    {
+      "ru": "ПРОДОЛЖЕНИЕ СЛЕДУЕТ",
+      "en": "TO BE CONTINUED"
+    },
+    {
+      "ru": "МОСТ СТОИТ.",
+      "en": "THE BRIDGE IS STANDING."
+    },
+    {
+      "ru": "Шторм разнёс его в щепки.\nЛагерь собрал его заново.",
+      "en": "The storm tore it apart.\nThe camp built it again."
+    },
+    {
+      "ru": "Но за рекой — тишина.\nНи дыма над мастерской. Ни стука топора.",
+      "en": "Beyond the river, all is quiet.\nNo smoke from the workshop. No sound of an axe."
+    },
+    {
+      "ru": "А в кронах кедров что-то скрипнуло,\nбудто раскрылись огромные крылья.",
+      "en": "Something creaked in the cedar canopy,\nlike great wings unfolding."
+    },
+    {
+      "ru": "На дальнем острове — записка.\nПочерк Гуннара.",
+      "en": "A note on the far island.\nGunnar's handwriting."
+    },
+    {
+      "ru": "Рождён в лесу, но не растёт.",
+      "en": "Born in the woods, it does not grow."
+    },
+    {
+      "ru": "Есть крылья, но не птица.",
+      "en": "It wears a pair of wings."
+    },
+    {
+      "ru": "Он ждёт, когда ветер придёт,",
+      "en": "It waits for the wind to rise"
+    },
+    {
+      "ru": "и небо ему приснится.",
+      "en": "and dreams of what the open sky may bring."
+    },
+    {
+      "ru": "— Гуннар",
+      "en": "— Gunnar"
+    },
+    {
+      "ru": "Что строит Гуннар за рекой?",
+      "en": "What is Gunnar building across the river?"
+    },
+    {
+      "ru": "Пробел — дальше,  удерживайте Esc — пропустить",
+      "en": "Space to continue · hold Esc to skip"
+    },
+    {
+      "ru": "Пробел или клик — пропустить ролик  ·  удерживайте Esc — к финалу",
+      "en": "Space or click to skip the film · hold Esc for the ending"
+    },
+    {
+      "ru": "Спасибо, что дошли до конца моста.",
+      "en": "Thank you for crossing the bridge."
+    },
+    {
+      "ru": "Лес помнит всех, кто взялся за топор.",
+      "en": "The forest remembers everyone who took up an axe."
+    },
+    {
+      "ru": "Топоры",
+      "en": "Axes"
+    },
+    {
+      "ru": "Товар",
+      "en": "Item"
+    },
+    {
+      "ru": "Сколько продать",
+      "en": "Quantity to sell"
+    },
+    {
+      "ru": "Цена за шт.",
+      "en": "Unit price"
+    },
+    {
+      "ru": "МАКС",
+      "en": "MAX"
+    },
+    {
+      "ru": "Продать выбранное",
+      "en": "Sell selected"
+    },
+    {
+      "ru": "Продать лишнее",
+      "en": "Sell surplus"
+    },
+    {
+      "ru": "Продать всё",
+      "en": "Sell all"
+    },
+    {
+      "ru": "Таинственное место",
+      "en": "Mystery spot"
+    },
+    {
+      "ru": "След Гуннара",
+      "en": "Gunnar's Trail"
+    },
+    {
+      "ru": "Знак Гуннара",
+      "en": "Gunnar's Mark"
+    },
+    {
+      "ru": "Старый Стапель",
+      "en": "Old Landing"
+    },
+    {
+      "ru": "Лагерь у палатки",
+      "en": "Crew Camp"
+    },
+    {
+      "ru": "Пробел или клик ускоряет титры · удерживайте Esc для пропуска",
+      "en": "Space or click to speed up credits · hold Esc to skip"
+    },
+    {
+      "ru": "Комаров Егор",
+      "en": "Egor Komarov"
+    },
+    {
+      "ru": "группа 241-339",
+      "en": "Group 241-339"
+    },
+    {
+      "ru": "Московский политехнический университет",
+      "en": "Moscow Polytechnic University"
+    },
+    {
+      "ru": "Информационные системы и технологии",
+      "en": "Information Systems and Technologies"
+    }
+  ]
+}

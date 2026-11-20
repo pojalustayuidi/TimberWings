@@ -505,8 +505,11 @@ public class SellWindow : MonoBehaviour
     {
         var axes = PlayerInteraction.CurrentAxes;
         if (!open || stall == null || axes == null || !axes.CanEquip || stall.DistanceToPlayer() > stall.Radius) return;
+        var shop = stall;
         Close();
-        AxeWindow.Open(axes, shop: stall);
+        AxeWindow.Open(axes, shop: shop);
+        ChapterOneVoice.Queue("twv3_s08_03", lifetime: 80f,
+            stillRelevant: () => shop != null && shop.DistanceToPlayer() <= shop.Radius + 1f);
     }
 
     void BuildRows(Transform body)

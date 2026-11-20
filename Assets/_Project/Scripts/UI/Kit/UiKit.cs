@@ -184,6 +184,7 @@ public static partial class UiKit
         var f = ResolveFont(font);
         if (f != null) tx.font = f;
         tx.text = text;
+        ChapterOneLabel.Bind(tx, text);
         tx.fontSize = size;
         tx.color = color;
         tx.alignment = align;

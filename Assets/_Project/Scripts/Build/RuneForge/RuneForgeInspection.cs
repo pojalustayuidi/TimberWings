@@ -8,7 +8,7 @@ public sealed class RuneForgeInspection : MonoBehaviour, IInteractable, IPriorit
 
     public Transform Anchor => transform;
     public Vector3 PromptPoint => transform.position + Vector3.up * (inside ? 1.05f : 1.35f);
-    public string Prompt => inside ? ChopPrototypeLog.Text("открыть кузницу", "open the forge") : "осмотреть кузницу";
+    public string Prompt => inside ? ChopPrototypeLog.Text("открыть кузницу", "open the forge") : GameLanguage.T("осмотреть кузницу");
     public float Radius => inside ? 1.35f : 1.5f;
     public bool Priority => true;
     public bool CanInteract => forge != null && forge.CanInspect && forge.IsRestored == inside;
@@ -36,9 +36,11 @@ public sealed class RuneForgeInspection : MonoBehaviour, IInteractable, IPriorit
         }
         string message;
         if (forge.build.IsLocked)
-            message = "Горн погас после шторма. К ремонту можно приступить, когда будут готовы хижина и рабочий двор.";
+            message = ChapterOneText.Pick("Горн погас после шторма. Сначала восстанови хижину и рабочий двор.", "The fire went out in the storm. Restore the hut and workyard first.");
         else
-            message = $"На верстаке осталась смета Гуннара: {forge.build.PlankTotal} досок и {forge.build.CoinTotal} монет.";
+            message = GameLanguage.English
+                ? $"Gunnar's materials list calls for {forge.build.PlankTotal} planks and {forge.build.CoinTotal} coins."
+                : $"На верстаке осталась смета Гуннара: {forge.build.PlankTotal} досок и {forge.build.CoinTotal} монет.";
         SaveIndicator.ShowToast(message);
     }
 }

@@ -58,14 +58,14 @@ public sealed class DialoguePolishView : MonoBehaviour
         var book = library != null ? library : DialogueAudioLibrary.Current;
         var actor = book != null ? book.Actor(who) : null;
         Color color = actor != null ? actor.tint : Color.Lerp(fallback, Color.white, .6f);
-        speakerName.text = lastSpeaker;
+        speakerName.text = ChapterOneText.SpeakerName(lastSpeaker);
         speakerName.color = CandyTag.Ink;
-        role.text = actor != null ? actor.role : who == RicoMerchant.DisplayName ? "Торговец у реки" : "Голос рядом";
+        role.text = GameLanguage.T(actor != null ? actor.role : who == RicoMerchant.DisplayName ? "Торговец у реки" : "Голос рядом");
         avatarBack.color = color;
-        monogram.text = lastSpeaker.Substring(0, 1).ToUpperInvariant();
+        monogram.text = speakerName.text.Substring(0, 1).ToUpperInvariant();
         emblem.sprite = actor != null ? actor.emblem : null;
         emblem.enabled = emblem.sprite != null;
-        topic.text = string.IsNullOrEmpty(DialogueSequence.ActiveTitle) ? "РАЗГОВОР В ЛАГЕРЕ" : DialogueSequence.ActiveTitle.ToUpperInvariant();
+        topic.text = GameLanguage.T(string.IsNullOrEmpty(DialogueSequence.ActiveTitle) ? "Разговор в лагере" : DialogueSequence.ActiveTitle).ToUpperInvariant();
         Layout();
     }
     public void Layout()
@@ -83,12 +83,14 @@ public sealed class DialoguePolishView : MonoBehaviour
         panel.anchoredPosition = new Vector2(center, lastSafe.yMin / scale + 46f);
         panel.sizeDelta = new Vector2(width, height);
         topic.gameObject.SetActive(width >= 940f);
-        hint.text = width < 940f ? (MobileInput.OnScreenControls ? "Кнопка: дальше" : MobileInput.ActionKey + ": дальше") : MobileInput.OnScreenControls ? "Кнопка: дальше · удержание: пропуск" : MobileInput.ActionKey + ": дальше · удержание: пропуск";
+        if (GameLanguage.English)
+            hint.text = (MobileInput.OnScreenControls ? "Button" : MobileInput.ActionKey.ToString()) + (width < 940f ? " to continue" : " to continue · hold to skip");
+        else hint.text = width < 940f ? (MobileInput.OnScreenControls ? "Кнопка: дальше" : MobileInput.ActionKey + ": дальше") : MobileInput.OnScreenControls ? "Кнопка: дальше · удержание: пропуск" : MobileInput.ActionKey + ": дальше · удержание: пропуск";
     }
     public void Tick(bool hasLine, bool typedDone, bool canAdvance, bool talking)
     {
         if (!hasLine) CloseHistory();
-        if (autoLabel != null) autoLabel.text = DialoguePreferences.AutoAdvance ? "Авто: вкл" : "Авто: выкл";
+        if (autoLabel != null) autoLabel.text = GameLanguage.T(DialoguePreferences.AutoAdvance ? "Авто: вкл" : "Авто: выкл");
         if (historyButton != null) historyButton.interactable = hasLine;
         if (canvas != null && (lastSize != ((RectTransform)canvas.transform).rect.size || lastSafe != Screen.safeArea)) Layout();
         group.blocksRaycasts = hasLine; group.interactable = hasLine;
@@ -100,7 +102,7 @@ public sealed class DialoguePolishView : MonoBehaviour
             lastHistory = HistoryOpen;
             lastLine = line; lastCount = count; lastTyped = typedDone;
             progress.text = count > 1 ? Mathf.Clamp(line, 1, count) + " / " + count : "";
-            nextLabel.text = HistoryOpen ? "К разговору" : !typedDone ? "Показать текст" : count > 0 && line >= count ? "Готово" : "Дальше";
+            nextLabel.text = GameLanguage.T(HistoryOpen ? "К разговору" : !typedDone ? "Показать текст" : count > 0 && line >= count ? "Готово" : "Дальше");
             skipButton.gameObject.SetActive(count > 1);
         }
         if (!registered && HudSafeAreaRegistry.Instance != null)
@@ -122,11 +124,11 @@ public sealed class DialoguePolishView : MonoBehaviour
         foreach (var entry in DialogueLog.Entries)
         {
             if (text.Length > 0) text.Append("\n\n");
-            if (!string.IsNullOrEmpty(entry.speaker)) text.Append("<b>").Append(entry.speaker).Append(":</b> ");
-            text.Append(entry.text);
-            if (entry.skipped) text.Append(" <color=#6B728F>(пропущено)</color>");
+            if (!string.IsNullOrEmpty(entry.speaker)) text.Append("<b>").Append(ChapterOneText.SpeakerName(entry.speaker)).Append(":</b> ");
+            text.Append(ChapterOneText.Subtitle(entry.speaker, entry.text));
+            if (entry.skipped) text.Append(ChapterOneText.Pick(" <color=#6B728F>(пропущено)</color>", " <color=#6B728F>(skipped)</color>"));
         }
-        historyText.text = text.Length > 0 ? text.ToString() : "Здесь появятся реплики разговора.";
+        historyText.text = text.Length > 0 ? text.ToString()  : ChapterOneText.Pick("Здесь появятся реплики разговора.", "Conversation lines will appear here.");
         historyRoot.gameObject.SetActive(true);
         Canvas.ForceUpdateCanvases();
         if (historyScroll != null) historyScroll.verticalNormalizedPosition = 0;

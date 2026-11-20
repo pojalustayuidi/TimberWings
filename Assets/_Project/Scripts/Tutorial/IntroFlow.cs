@@ -162,12 +162,16 @@ public class IntroFlow : MonoBehaviour, ISaveable
 
             case Step.Chop:
                 // костёр уже достроен (сигнал мог не дойти): не ждём дрова, идём к Мире
-                if (CampfireBuilt()) { SetStep(Step.ReturnToMira); break; }
+                if (CampfireBuilt()) { CompleteCampfire(); break; }
                 if (Time.unscaledTime >= treeScanAt)
                 {
                     treeScanAt = Time.unscaledTime + 1f;
                     QuestEdgeArrow.Target = NearestTree();
                 }
+                var tree = QuestEdgeArrow.Target;
+                if (tree != null && Flat(player.position - tree.position) < 4.5f)
+                    ChapterOneVoice.Queue("twv3_s02_01", ChapterOneVoice.Priority.Lesson, .05f, 3f,
+                        () => step == Step.Chop && !ChapterOneVoice.Heard("twv3_s02_04"));
                 UpdateChopObjective();
                 break;
 
@@ -175,19 +179,11 @@ public class IntroFlow : MonoBehaviour, ISaveable
                 if (Time.unscaledTime >= campScanAt)
                 {
                     campScanAt = Time.unscaledTime + 0.25f;
-                    if (CampfireBuilt()) { SetStep(Step.ReturnToMira); break; }
+                    if (CampfireBuilt()) { CompleteCampfire(); break; }
                     UpdateCampfireObjective();
                 }
                 break;
 
-            case Step.ReturnToMira:
-                if (Flat(player.position - miraTalk.transform.position) <= miraTalk.radius) SetStep(Step.Talk2);
-                break;
-
-            case Step.Talk2:
-                if (!miraTalk.IsPlaying && Flat(player.position - miraTalk.transform.position) > miraTalk.radius * 1.6f)
-                    SetStep(Step.ReturnToMira);
-                break;
         }
     }
 
@@ -303,11 +299,10 @@ public class IntroFlow : MonoBehaviour, ISaveable
     {
         // если Мира не найдена, разговорные шаги пропускаем
         if ((s == Step.GoToMira || s == Step.Talk) && miraTalk == null) s = Step.Chop;
-        if ((s == Step.ReturnToMira || s == Step.Talk2) && miraTalk == null) s = Step.Done;
+        if (s == Step.ReturnToMira || s == Step.Talk2) s = Step.Done; // old save values
 
         step = s;
-        if (s == Step.ReturnToMira || s == Step.Talk2) miraSilenced = false;
-        if (s == Step.ReturnToMira || s == Step.Talk2 || s == Step.Done) campfireDone = true;
+        if (s == Step.Done) campfireDone = true;
         if (s == Step.Move || s == Step.GoToMira || s == Step.Talk) GateOn(); else GateOff();
         SetMiraOpen(!(s == Step.Move || s == Step.GoToMira));
         keys.Show(s == Step.Move);
@@ -318,6 +313,10 @@ public class IntroFlow : MonoBehaviour, ISaveable
             case Step.Move:
                 Objective(moveText);
                 QuestEdgeArrow.Target = null;
+                if (!restoring && !ArrivalIntroSequence.Active && !ChapterOneVoice.Heard("twv3_s00_01"))
+                    ChapterOneVoice.Queue("twv3_s00_02", delay: .85f, lifetime: 5f,
+                        stillRelevant: () => (step == Step.Move || step == Step.GoToMira) && !ArrivalIntroSequence.Active &&
+                            !ChapterOneVoice.Heard("twv3_s00_01"));
                 break;
             case Step.GoToMira:
                 Objective(goText);
@@ -339,16 +338,6 @@ public class IntroFlow : MonoBehaviour, ISaveable
                 QuestEdgeArrow.Target = campfirePoint;
                 lastCampKey = -1;
                 campScanAt = 0f;
-                break;
-            case Step.ReturnToMira:
-                Objective(returnText);
-                QuestEdgeArrow.Target = miraTalk.transform;
-                // Мира снова доступна по E, но теперь говорит про костёр
-                if (scriptedDialogue) miraTalk.SetLines(RewardLines(), true); else miraTalk.Rearm();
-                break;
-            case Step.Talk2:
-                Objective(talkText);
-                QuestEdgeArrow.Target = miraTalk.transform;
                 break;
             case Step.Done:
                 Objective("");
@@ -378,7 +367,11 @@ public class IntroFlow : MonoBehaviour, ISaveable
             ResolveCampfire();
             if (campfireBuild != null && src != campfireBuild) return;
         }
-        if (step == Step.Campfire || step == Step.Chop) SetStep(Step.ReturnToMira);   // без Миры ReturnToMira сам станет Done
+        if (step == Step.Campfire || step == Step.Chop)
+        {
+            SetStep(Step.Done);
+            StoryFlow.Instance?.ChapterOneCampfireLit();
+        }
     }
 
     public void Skip() { SetStep(Step.Done); }
@@ -388,8 +381,10 @@ public class IntroFlow : MonoBehaviour, ISaveable
     {
         if (!started || seq == null || seq != miraTalk) return;
         // первый разговор засчитывается только на шаге Talk: сюда игрок попадает, лишь пройдя WASD и дойдя до Миры
-        if (step == Step.Talk) { chopTrips = 0; SetStep(Step.Chop); }
-        else if (step == Step.ReturnToMira || step == Step.Talk2) SetStep(Step.Done);
+        if (step != Step.Talk) return;
+        chopTrips = 0;
+        SetStep(Step.Chop);
+        ChapterOneVoice.Queue("twv3_s01_07", ChapterOneVoice.Priority.Lesson, .35f, 5f);
     }
 
     void OnTree()
@@ -440,19 +435,20 @@ public class IntroFlow : MonoBehaviour, ISaveable
             string hint = stagedChop ? ChopPrototypeLog.Text(
                 "ЛКМ — рубить и разделывать. E — забрать древесину",
                 "LMB — chop and cut. E — pick up wood") :
-                "Зажми <color=#6BCB5A>E</color>, а когда маркер в зелёной зоне, жми <color=#F2A93B>ПРОБЕЛ</color>: дерево упадёт быстрее";
+                ChapterOneText.Format("tutorial.chop.timing", "Нажми {timing} в зелёной зоне для сильного удара.",
+                    ("timing", "<color=#F2A93B>" + ChapterOneText.Pick("ПРОБЕЛ", "SPACE") + "</color>"));
             if (useObjectiveWidget && UIManager.Instance != null)
             {
                 // живой счётчик: число берётся из PlayerInventory каждый кадр, цель пересобирается только при смене формы
                 int target = chopTarget;
-                var d = new ObjectiveData(chopTrips > 0 ? chopMoreTitle : chopTitle);
-                d.Req(UiIcon.Log, logsName, target, () => inv != null ? inv.woodCount : 0);
+                var d = new ObjectiveData(GameLanguage.T(chopTrips > 0 ? chopMoreTitle : chopTitle));
+                d.Req(UiIcon.Log, GameLanguage.T(logsName), target, () => inv != null ? inv.woodCount : 0);
                 if (teach || stagedChop) d.footer = hint;
                 UIManager.Instance.SetObjective(d);
             }
             else
             {
-                string fmt = chopTrips > 0 ? chopMoreText : chopLogsText;
+                string fmt = GameLanguage.T(chopTrips > 0 ? chopMoreText : chopLogsText);
                 string msg = string.Format(fmt, Mathf.Min(carried, chopTarget), chopTarget);
                 if (teach || stagedChop) msg += "\n<size=70%>" + hint + "</size>";
                 Objective(msg);
@@ -462,41 +458,8 @@ public class IntroFlow : MonoBehaviour, ISaveable
         if (carried >= chopTarget || full) SetStep(Step.Campfire);
     }
 
-    // ------------------------------------------------------------ сюжетные разговоры
-    // Реплика с speaker "" говорит сама Мира (её Speaker), остальные берут имя героя.
-    DialogueSequence.Line L(bool hero, string text)
-    {
-        return new DialogueSequence.Line { speaker = hero ? playerName : "", text = text, pauseAfter = 0.3f };
-    }
-
-    // Разговор 1: знакомство и задание «построить костёр» (каждая реплика до 120 символов)
-    DialogueSequence.Line[] TaskLines()
-    {
-        return DialogueStorybook.Lines("intro_task", playerName, new[]
-        {
-            L(false, "О, новенький! Ты ведь племянник Гуннара? Лео, да?"),
-            L(true,  "Да. Он писал, что нужна помощь. Где он?"),
-            L(false, "Пропал три дня назад. А мост к его мастерской шторм разнёс в щепки."),
-            L(true,  "Значит, будем строить новый. С чего начать?"),
-            L(false, "С огня. Нарубай дров и разожги костёр на каменном круге. Там сердце лагеря."),
-            L(true,  "Дрова так дрова. Топор при мне, берусь."),
-            L(false, "Вот это разговор! Принесёшь дров, поговорим дальше.")
-        });
-    }
-
-    // Разговор 2: костёр достроен (обе стадии). Мира даёт следующее задание (8 брёвен, глава «Припасы» в StoryFlow)
-    DialogueSequence.Line[] RewardLines()
-    {
-        return DialogueStorybook.Lines("intro_reward", playerName, new[]
-        {
-            L(false, "Горит! Впервые за три дня в лагере тепло."),
-            L(true,  "Дядя бы гордился... Что дальше?"),
-            L(false, "Теперь про запас. Принеси мне восемь брёвен, пригодятся на холода."),
-            L(true,  "Восемь? Рюкзак вмещает только четыре."),
-            L(false, "Значит, два рейса. За труд подкину опыта на новый уровень, а там покажу прокачку."),
-            L(true,  "Договорились. Две ходки.")
-        });
-    }
+    DialogueSequence.Line[] TaskLines() => ChapterOneText.Lines(
+        "twv3_s01_01", "twv3_s01_02", "twv3_s01_03", "twv3_s01_04", "twv3_s01_05", "twv3_s01_06");
 
     // ------------------------------------------------------------ прогресс костра в панели цели
     void UpdateCampfireObjective()
@@ -578,12 +541,12 @@ public class IntroFlow : MonoBehaviour, ISaveable
         {
             var b = campfireBuild;
             int total = b.CostTotal;
-            var d = new ObjectiveData(campfireProgressTitle);
-            d.Req(UiIcon.Log, logsName, total, () => b.Deposited,
-                  () => b.Deposited >= total ? null : "в рюкзаке " + (inv != null ? inv.woodCount : 0) + " · сдано " + b.Deposited + "/" + total);
+            var d = new ObjectiveData(GameLanguage.T(campfireProgressTitle));
+            d.Req(UiIcon.Log, GameLanguage.T(logsName), total, () => b.Deposited,
+                  () => b.Deposited >= total ? null : ChapterOneText.Pick("в рюкзаке ", "in pack ") + (inv != null ? inv.woodCount : 0) + ChapterOneText.Pick(" · сдано ", " · stored ") + b.Deposited + "/" + total);
             UIManager.Instance.SetObjective(d);
         }
-        else Objective(string.Format(campfireProgressText, campfireBuild.Deposited, campfireBuild.CostTotal));
+        else Objective(string.Format(GameLanguage.T(campfireProgressText), campfireBuild.Deposited, campfireBuild.CostTotal));
     }
 
     // ------------------------------------------------------------ сохранение (ISaveable, ключ «intro»)
@@ -629,8 +592,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
             return;
         }
 
-        if (s == Step.Talk2) s = Step.ReturnToMira;
-        if ((s == Step.Chop || s == Step.Campfire) && campfireDone) s = Step.ReturnToMira;
+        if (s == Step.Talk2 || s == Step.ReturnToMira || ((s == Step.Chop || s == Step.Campfire) && campfireDone)) s = Step.Done;
         restoreStep = s;
         hasRestore = true;
         if (started) ApplyRestore();
@@ -687,6 +649,19 @@ public class IntroFlow : MonoBehaviour, ISaveable
         restoreStep = Step.Done;
     }
 
+    internal void RefreshChapterLanguage()
+    {
+        if (!started) return;
+        switch (step)
+        {
+            case Step.Move: Objective(moveText); break;
+            case Step.GoToMira: Objective(goText); break;
+            case Step.Talk: Objective(talkText); break;
+            case Step.Chop: lastChopKey = -1; UpdateChopObjective(); break;
+            case Step.Campfire: lastCampKey = -1; UpdateCampfireObjective(); break;
+        }
+    }
+
     // ------------------------------------------------------------ утилиты
     static float Flat(Vector3 d)
     {
@@ -696,7 +671,7 @@ public class IntroFlow : MonoBehaviour, ISaveable
 
     void Objective(string text)
     {
-        if (UIManager.Instance != null) UIManager.Instance.UpdateObjective(text);
+        if (UIManager.Instance != null) UIManager.Instance.UpdateObjective(GameLanguage.T(text));
     }
 
     Transform NearestTree()

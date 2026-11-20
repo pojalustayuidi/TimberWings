@@ -4,8 +4,12 @@ internal sealed partial class LeoFirstPersonView
 {
     const float Contact = .62f;
     const float Recovery = .29f;
+    const float VisibleEquip = .32f;
     static readonly Vector3 LeftShoulder = new Vector3(-.22f, -.35f, .060f);
     static readonly Vector3 RightShoulder = new Vector3(.25f, -.35f, .075f);
+    static readonly Vector3 LoweredSupportWrist = new Vector3(-.255f, -.52f, .345f);
+    static readonly Quaternion LoweredSupportRotation = Quaternion.Euler(-57f, 17f, 11f) *
+        Quaternion.Euler(0f, 73f, 0f);
 
     struct Pose
     {
@@ -81,6 +85,7 @@ internal sealed partial class LeoFirstPersonView
         recoveryStart = recoveryEnd = -1f;
         airStart = airDue = -1f;
         silentDraw = false;
+        SetSupportArmVisible(false);
         if (stroke != null)
         {
             stroke.emitting = false;
@@ -113,9 +118,9 @@ internal sealed partial class LeoFirstPersonView
         }
         if (chopping || hit) carryUntil = now + .37f;
         bool drawAxe = manualCarry || chopping || hit || now < carryUntil;
-        bool wasDrawn = equipped >= .32f;
+        bool wasDrawn = equipped >= VisibleEquip;
         equipped = Mathf.MoveTowards(equipped, drawAxe ? 1f : 0f, dt / (drawAxe ? .21f : .25f));
-        bool isDrawn = equipped >= .32f;
+        bool isDrawn = equipped >= VisibleEquip;
         if (wasDrawn != isDrawn)
         {
             if (!silentDraw) SfxManager.Timber(isDrawn ? "axeDraw" : "axeStow", .49f);
@@ -123,6 +128,15 @@ internal sealed partial class LeoFirstPersonView
         }
         if (!drawAxe) silentDraw = false;
         SetAxeVisible(isDrawn);
+        if (!isDrawn)
+        {
+            // The camera can pitch freely while the entire close-up rig is hidden.
+            SetVisible(false);
+            SetSupportArmVisible(false);
+            supportWeight = cancelAmount = 0f;
+            wasSwinging = false;
+            return;
+        }
 
         float due = chopping ? interaction.FirstPersonImpactDue : airDue;
         float windupStart = chopping ? interaction.FirstPersonWindupStart : airStart;
@@ -185,8 +199,7 @@ internal sealed partial class LeoFirstPersonView
         wasSwinging = swing;
         supportWeight = Mathf.MoveTowards(supportWeight, chopping || swing ? 1f : 0f, dt * (chopping ? 15f : 11f));
         if ((chopping || air) && phase >= .15f && phase <= Contact) supportWeight = 1f;
-        float down = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.11f, .81f, -camera.transform.forward.y));
-        Apply(pose, ready, gait, lift, run, down);
+        Apply(pose);
         SetVisible(true);
         UpdateLighting(now);
         if (stroke != null)
@@ -304,29 +317,33 @@ internal sealed partial class LeoFirstPersonView
             rest.tool, 1f - LeoMotionProfile.Smooth((returnT - .22f) / .78f));
     }
 
-    void Apply(Pose pose, float draw, float gait, float lift, float run, float down)
+    void Apply(Pose pose)
     {
-        var rightRest = new Vector3(.265f, -.411f + down * .246f + run * .096f + lift * .011f,
-            .365f + down * .130f + gait * .047f + run * .055f);
-        var leftRest = new Vector3(-.274f, -.471f + down * .226f + run * .085f - lift * .012f,
-            .338f + down * .125f - gait * .044f + run * .049f);
-        var rightRestRotation = Quaternion.Euler(-58f + gait * 9f, -9f, -14f) * Quaternion.Euler(0f, -77f, 0f);
-        var leftRestRotation = Quaternion.Euler(-57f - gait * 9f, 17f, 11f) * Quaternion.Euler(0f, 73f, 0f);
-
-        float rightJoin = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.02f, .216f, draw));
-        float leftJoin = LeoMotionProfile.Smooth(supportWeight) * rightJoin;
+        float leftJoin = LeoMotionProfile.Smooth(supportWeight);
         Vector3 main = FitAxeGrip(pose, leftJoin, out var rightArm, out var leftArm);
         axe.localRotation = pose.tool;
         axe.localPosition = main - pose.tool * mainGrip.localPosition;
-        Vector3 rightGoal = Vector3.Lerp(rightRest, main - rightArm.offset, rightJoin);
-        Vector3 support = axe.localPosition + pose.tool * supportGrip.localPosition;
-        Vector3 leftGoal = Vector3.Lerp(leftRest, support - leftArm.offset, leftJoin);
+        Vector3 rightGoal = main - rightArm.offset;
         rightArm.AllowBend(rightGoal);
-        leftArm.AllowBend(leftGoal);
         right.upper.localPosition = rightArm.shoulder;
+        right.Pose(root, rightGoal, rightArm.pole, rightArm.wrist, 1f);
+
+        bool showSupport = leftJoin > .01f;
+        SetSupportArmVisible(showSupport);
+        if (!showSupport) return;
+
+        Vector3 support = axe.localPosition + pose.tool * supportGrip.localPosition;
+        Vector3 leftGoal = Vector3.Lerp(LoweredSupportWrist, support - leftArm.offset, leftJoin);
+        leftArm.AllowBend(leftGoal);
         left.upper.localPosition = leftArm.shoulder;
-        right.Pose(root, rightGoal, rightArm.pole, Quaternion.Slerp(rightRestRotation, rightArm.wrist, rightJoin), rightJoin);
-        left.Pose(root, leftGoal, leftArm.pole, Quaternion.Slerp(leftRestRotation, leftArm.wrist, leftJoin), leftJoin);
+        Quaternion rotation = Quaternion.Slerp(LoweredSupportRotation, leftArm.wrist, leftJoin);
+        left.Pose(root, leftGoal, leftArm.pole, rotation, Mathf.Lerp(.60f, 1f, leftJoin));
+    }
+
+    void SetSupportArmVisible(bool show)
+    {
+        var supportArm = left.upper.gameObject;
+        if (supportArm.activeSelf != show) supportArm.SetActive(show);
     }
 
     struct ArmPlacement

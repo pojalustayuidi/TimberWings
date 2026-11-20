@@ -58,9 +58,9 @@ public static class WorkerText
     {
         switch (r)
         {
-            case WorkerRole.Clerk: return "Приказчик";
-            case WorkerRole.Lumberjack: return "Дровосек";
-            default: return "Пильщик";
+            case WorkerRole.Clerk: return GameLanguage.T("Приказчик");
+            case WorkerRole.Lumberjack: return GameLanguage.T("Дровосек");
+            default: return GameLanguage.T("Пильщик");
         }
     }
 
@@ -69,9 +69,9 @@ public static class WorkerText
     {
         switch (r)
         {
-            case WorkerRole.Clerk: return "монеты";
-            case WorkerRole.Lumberjack: return "бревна";
-            default: return "доски";
+            case WorkerRole.Clerk: return GameLanguage.T("монеты");
+            case WorkerRole.Lumberjack: return GameLanguage.T("бревна");
+            default: return GameLanguage.T("доски");
         }
     }
 
@@ -79,11 +79,11 @@ public static class WorkerText
     {
         switch (r)
         {
-            case WorkerRarity.Common: return "Обычный";
-            case WorkerRarity.Uncommon: return "Необычный";
-            case WorkerRarity.Rare: return "Редкий";
-            case WorkerRarity.Legendary: return "Легендарный";
-            default: return "Мифический";
+            case WorkerRarity.Common: return GameLanguage.T("Обычный");
+            case WorkerRarity.Uncommon: return GameLanguage.T("Необычный");
+            case WorkerRarity.Rare: return GameLanguage.T("Редкий");
+            case WorkerRarity.Legendary: return GameLanguage.T("Легендарный");
+            default: return GameLanguage.T("Мифический");
         }
     }
 
@@ -91,18 +91,18 @@ public static class WorkerText
     {
         switch (p)
         {
-            case WorkerPerk.GoodDeal: return "Выгодная сделка";
-            case WorkerPerk.LuckyDeal: return "Счастливая сделка";
-            case WorkerPerk.Bonus: return "Премия";
-            case WorkerPerk.Mentor: return "Наставник";
-            case WorkerPerk.DoubleStrike: return "Двойной удар";
-            case WorkerPerk.HeavyHand: return "Тяжёлая рука";
-            case WorkerPerk.Roomy: return "Вместительный";
-            case WorkerPerk.GoldenTree: return "Золотое дерево";
-            case WorkerPerk.DoublePlank: return "Двойная доска";
-            case WorkerPerk.Thrifty: return "Экономный";
-            case WorkerPerk.FastSaw: return "Быстрая пила";
-            default: return "Запасливый";
+            case WorkerPerk.GoodDeal: return GameLanguage.T("Выгодная сделка");
+            case WorkerPerk.LuckyDeal: return GameLanguage.T("Счастливая сделка");
+            case WorkerPerk.Bonus: return GameLanguage.T("Премия");
+            case WorkerPerk.Mentor: return GameLanguage.T("Наставник");
+            case WorkerPerk.DoubleStrike: return GameLanguage.T("Двойной удар");
+            case WorkerPerk.HeavyHand: return GameLanguage.T("Тяжёлая рука");
+            case WorkerPerk.Roomy: return GameLanguage.T("Вместительный");
+            case WorkerPerk.GoldenTree: return GameLanguage.T("Золотое дерево");
+            case WorkerPerk.DoublePlank: return GameLanguage.T("Двойная доска");
+            case WorkerPerk.Thrifty: return GameLanguage.T("Экономный");
+            case WorkerPerk.FastSaw: return GameLanguage.T("Быстрая пила");
+            default: return GameLanguage.T("Запасливый");
         }
     }
 
@@ -141,9 +141,9 @@ public static class WorkerText
     {
         switch (t)
         {
-            case WorkerPackType.Artel: return "Артельный пак";
-            case WorkerPackType.Workshop: return "Мастерской пак";
-            default: return "Гильдейский пак";
+            case WorkerPackType.Artel: return GameLanguage.T("Артельный пак");
+            case WorkerPackType.Workshop: return GameLanguage.T("Мастерской пак");
+            default: return GameLanguage.T("Гильдейский пак");
         }
     }
 

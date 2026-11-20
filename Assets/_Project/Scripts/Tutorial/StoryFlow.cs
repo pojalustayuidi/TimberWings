@@ -1,33 +1,12 @@
-// Assets/_Project/Scripts/Tutorial/StoryFlow.cs (НЕ в Editor)
-// Сюжетные главы после вступления. IntroFlow остаётся главой 1 (ходьба, Мира, рубка, костёр из 2 стадий, возврат к Мире).
-// Дальше здания открывает НЕ уровень, а задание NPC. Уровень только условие начала главы.
-//
-//   2. Припасы     Мира                   принести ей 8 брёвен, по 4 за рейс (E у Миры). За бревна идёт опыт: к концу игрок на 2-м уровне
-//   3. Прокачка    Мира          (ур. 2)  открывает окно прокачки (U), в нём можно купить только «Вместимость рюкзака», потом отправляет к Оскару
-//   4. Хижина      Оскар         (ур. 2)  починить хижину, потом пила: 2 бревна -> 1 доска
-//   5. Доски       без разговора          сделать 6 досок на пиле
-//   6. Рынок       Мира                   построить прилавок (бревна + доски); после главы включается NPC-торговец
-//   7. Первая продажа                    продать брёвна или доски у здания лавки (tradeAtBuilding). Старый NPC оставлен для совместимости
-//   8. Палатка     Оскар         (ур. 3)  построить палатку (бревна, доски, монеты), лагерь для рабочих
-//  8б. Звери-помощники Оскар      (ур. 4)  после палатки: у клети в лагере первая бесплатная Лесная клеть, один раз даёт Обычного питомца
-//   9. Мост        Оскар         (ур. 5)  три этапа: опоры (брёвна + монеты), настил, тросы и перила (доски + монеты); после третьего открывается проход, а Небесная клеть питомцев открывается сюжетом
-//  10. Портал      без разговора          Лео переходит мост и активирует камень у арки Гуннара
-//
-// Оскар стоит у хижины с самого начала. Пока его глава не началась, он отсылает игрока («рано»), в ходе главы напоминает задание.
-// Если Оскара в сцене нет, при старте появляется копия Миры рядом с хижиной (или в точке Oskar Spot), чтобы поменять модель на свою.
-//
-// Глава = собеседник + условие + реплики + награда. Каждая идёт по циклу:
-//   Enter (ждём уровень) -> Offer (поговори, E) -> Do (задание в панели цели, стрелка к цели) -> Report (вернись, E) -> Complete.
-// Offer и Report необязательны: без реплик глава сразу идёт дальше. Нет NPC или здания в сцене: глава тихо пропускается,
-// а торговля при отсутствии рынка остаётся открытой, поэтому игра не ломается.
-// Исключение: глава «Мост» обязательна. Нет зоны стройки моста: ошибка в Console (и в Setup Doctor), глава не пропускается молча.
-// Добавить главу: новый блок в BuildChapters().
+// The campfire tutorial hands off to the supply stockpile, upgrades, hut, saw, stall, crew,
+// pet crate, forge, bridge, and portal. Only introductions use required conversations.
+// Existing chapter identifiers and save ordering keep older progress and completed sites valid.
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 [DefaultExecutionOrder(-10)]
-public class StoryFlow : MonoBehaviour, ISaveable
+public partial class StoryFlow : MonoBehaviour, ISaveable
 {
     const string GunnarAxeChapter = "gunnarAxe";
 
@@ -83,7 +62,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     [Header("Тексты")]
     public string levelText = "Нужен {0}-й уровень: руби дрова и строй";
     public string talkToText = "Поговори с {0}: <color=#6BCB5A>E</color>";
-    public string returnToText = "Вернись к {0}: <color=#6BCB5A>E</color>";
+    [HideInInspector] public string returnToText = "Вернись к {0}: <color=#6BCB5A>E</color>";
 
     // торговля открыта, когда прилавок построен (или рынка в сцене нет)
     public bool MarketOpen { get; private set; }
@@ -126,7 +105,6 @@ public class StoryFlow : MonoBehaviour, ISaveable
         public string giver;                       // у кого разговоры (null = без NPC)
         public int minLevel = 1;
         public DialogueSequence.Line[] offer;      // разговор перед заданием (null = сразу задание)
-        public DialogueSequence.Line[] report;     // разговор после задания (null = сразу следующая глава)
         public Func<string> objective;             // текст цели, пока идёт задание (запасной путь, если objectiveData нет или пуст)
         public Func<ObjectiveData> objectiveData;  // цель-виджет: иконки, счётчики, прогресс (необязательно)
         public Func<bool> done;                    // задание выполнено?
@@ -135,14 +113,13 @@ public class StoryFlow : MonoBehaviour, ISaveable
         public string talkText;                    // цель на время разговора «до» (пусто = talkToText «Поговори с {0}»); для имён, которые не склоняются
         public string reminder;                    // что NPC отвечает, пока идёт задание (E на нём)
         public string idleAfter;                   // что NPC отвечает после главы
-        public bool dumpWhenFull;                  // пока ждём уровень, полный рюкзак можно сложить у костра (иначе нечем добирать опыт)
         public Action onAccept;                    // после разговора offer
         public Action onComplete;                  // награда и открытия
         public Action restoreDone;                 // Load: тихо повторить открытия уже закрытой главы (без наград, диалогов, событий)
         public Action restoreActive;               // Load: тихо повторить принятие задания, если глава в процессе (onAccept без наград)
     }
 
-    enum Phase { Enter, Offer, Do, Report }
+    enum Phase { Enter, Offer, Do }
 
     readonly List<Chapter> chapters = new List<Chapter>();
     int ci;
@@ -187,6 +164,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     void Start()
     {
         EnsureWindow();
+        if (GetComponent<ChapterOneJournal>() == null) gameObject.AddComponent<ChapterOneJournal>();
         SetupOskar();
         SetupMerchant();
 
@@ -200,6 +178,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         GameEvents.BuildRevealFinished += OnBuildRevealFinished;
         GameEvents.BuildingRestored += OnBuildingRestored;
         TradingStall.Sold += OnSold;
+        EnableChapterOneEvents();
     }
 
     void OnDisable()
@@ -208,10 +187,15 @@ public class StoryFlow : MonoBehaviour, ISaveable
         GameEvents.BuildRevealFinished -= OnBuildRevealFinished;
         GameEvents.BuildingRestored -= OnBuildingRestored;
         TradingStall.Sold -= OnSold;
+        DisableChapterOneEvents();
     }
 
     // показ стадии здания закончился: сразу проверяем цель, а не ждём следующего опроса (0.25 с)
-    void OnBuildRevealFinished(BuildingController b) { pollAt = 0f; }
+    void OnBuildRevealFinished(BuildingController b)
+    {
+        pollAt = 0f;
+        ChapterOneBuilt(b);
+    }
 
     void OnDestroy()
     {
@@ -237,14 +221,13 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
     void Update()
     {
+        ChapterOneVoice.Tick();
         bool introOver = IntroFinished();
         // рынок без вступления закрыт, даже если прилавок в сцене не найден
         MarketOpen = introOver && (market == null || market.IsFinished);
         if (rico != null && rico.gameObject.activeSelf != MarketOpen) rico.gameObject.SetActive(MarketOpen);
         // рынка в сцене нет: глава «Рынок» пропущена и её onComplete не сработает, торговец выходит сразу после вступления
         if (market == null && MarketOpen) ShowMerchant();
-
-        if (AllDone) return;
 
         if (!introDone)
         {
@@ -255,7 +238,8 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
         if (Time.unscaledTime < pollAt) return;
         pollAt = Time.unscaledTime + 0.25f;
-        Tick();
+        PollChapterOne();
+        if (!AllDone) Tick();
     }
 
     // ------------------------------------------------------------ отладка (Editor-меню Tools/BuilderSim/Тест квестов)
@@ -316,12 +300,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
         {
             case Phase.Enter:
                 if (ch.skip != null && ch.skip()) { ci++; return; }
-                if (Level() < ch.minLevel)
+                if (Level() < ch.minLevel && (ch.id != "bridge" || bridge == null || !bridge.IsFinished))
                 {
                     WaitForLevel(ch);
                     return;
                 }
-                if (ch.offer == null || !BeginTalk(ch, ch.offer, Phase.Offer, string.IsNullOrEmpty(ch.talkText) ? talkToText : ch.talkText))
+                if (ch.offer == null || (ch.id == "hut" && hut != null && hut.IsFinished) || !BeginTalk(ch, ch.offer, Phase.Offer, string.IsNullOrEmpty(ch.talkText) ? talkToText : ch.talkText))
                 {
                     // нет разговора (или NPC не найден): принимаем задание сразу, иначе здание осталось бы закрытым
                     if (ch.onAccept != null) ch.onAccept();
@@ -331,10 +315,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
             case Phase.Do:
                 ChapterObjective(ch);
-                if (ch.done == null || ch.done())
-                {
-                    if (ch.report == null || !BeginTalk(ch, ch.report, Phase.Report, returnToText)) Complete(ch);
-                }
+                if (ch.done == null || ch.done()) Complete(ch);
                 break;
         }
     }
@@ -352,10 +333,13 @@ public class StoryFlow : MonoBehaviour, ISaveable
             if (!string.IsNullOrEmpty(ch.reminder)) SetIdle(ch.giver, ch.reminder);
             BeginDo(ch);
         }
-        else if (phase == Phase.Report) Complete(ch);
     }
 
-    void OnSold() { firstSale = true; }
+    void OnSold()
+    {
+        if (!firstSale) ChapterOneVoice.Queue("twv3_s08_04");
+        firstSale = true;
+    }
 
     // разговор: NPC находится, ему подставляются реплики, цель «Поговори с ...»
     bool BeginTalk(Chapter ch, DialogueSequence.Line[] lines, Phase next, string objectiveFormat)
@@ -383,7 +367,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         seq.SetLines(lines, true);
 
         phase = next;
-        Objective(string.Format(objectiveFormat, ch.giver));
+        Objective(string.Format(GameLanguage.T(objectiveFormat), ChapterOneText.SpeakerName(ch.giver)));
         Arrow(sp.transform);
         return true;
     }
@@ -400,6 +384,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     void Complete(Chapter ch)
     {
         if (ch.onComplete != null) ch.onComplete();
+        ChapterOneCompleted(ch.id);
         GameEvents.RaiseQuestDone(ch.id);   // звон, плашка и конфетти (Vibe/QuestCelebration, Vibe/SfxManager)
         if (!string.IsNullOrEmpty(ch.idleAfter)) SetIdle(ch.giver, ch.idleAfter);
         ci++;
@@ -422,172 +407,121 @@ public class StoryFlow : MonoBehaviour, ISaveable
     // ------------------------------------------------------------ главы и реплики
     void BuildChapters()
     {
-        // 2. Припасы (Мира): задание уже прозвучало в конце вступления, поэтому без разговора «до»; сдача по E у Миры
         chapters.Add(new Chapter
         {
-            id = "supply", giver = miraName,
-            skip = () => Speaker.Find(miraName) == null,
+            id = "supply",
             onAccept = BeginSupply,
             objective = SupplyObjective,
             objectiveData = SupplyData,
             done = () => supply == null || supply.delivered >= supply.need,
             onComplete = EndSupply,
-            restoreActive = RestoreSupply
+            restoreActive = RestoreSupply,
+            target = () => supply != null ? supply.transform : null
         });
-
-        // 3. Прокачка (Мира, ур. 2): окно открывается, можно купить только рюкзак
         chapters.Add(new Chapter
         {
-            id = "upgrade", giver = miraName, minLevel = GameBalance.UpgradeLevel,
-            offer = UpgradeOffer(), report = UpgradeReport(),
-            dumpWhenFull = true,
+            id = "upgrade", minLevel = GameBalance.UpgradeLevel,
             skip = () => PlayerUpgrades.Instance == null,
-            onAccept = BeginUpgradeQuest,
-            objective = UpgradeObjective,
-            done = () => PlayerUpgrades.Instance == null || PlayerUpgrades.Instance.Level(UpgradeType.Capacity) >= 1,
-            onComplete = EndUpgradeQuest,
+            onAccept = RestoreUpgradeDone,
+            objective = () => ChapterOneText.Text("quest.s05.objective", "Открой улучшения и выбери, что развивать."),
+            done = () => upgradeWindow == null || upgradeWindow.HasOpened,
             restoreDone = RestoreUpgradeDone,
-            restoreActive = RestoreUpgradeActive
+            restoreActive = RestoreUpgradeDone
         });
-
-        // 4. Хижина (Оскар, ур. 2)
         chapters.Add(new Chapter
         {
             id = "hut", giver = oskarName, minLevel = GameBalance.HutLevel,
-            offer = HutOffer(), report = HutReport(),
-            reminder = "Десять брёвен на стены, десять на крышу. Не стой, неси.",
-            idleAfter = "Бревна на верстак: из двух выйдет доска. Шесть досок отнеси Мире.",
+            offer = ChapterOneText.Lines("twv3_s06_intro_01", "twv3_s06_intro_02", "twv3_s06_intro_03", "twv3_s06_intro_04"),
+            talkText = "Поговори с Оскаром у хижины",
+            reminder = "Сначала стены, потом крыша. Материалы указаны на стройке.",
             skip = () => hut == null,
             onAccept = () => Unlock(hut),
-            objective = () => SiteObjective("Почини хижину", hut),
-            objectiveData = () => SiteData("Почини хижину", hut),
+            objective = () => SiteObjective(HutTitle(), hut),
+            objectiveData = () => SiteData(HutTitle(), hut),
             done = () => hut.IsFinished,
             target = () => hut.transform,
             onComplete = () => { if (workshop != null) workshop.unlocked = true; },
             restoreDone = () => { Unlock(hut); if (workshop != null) workshop.unlocked = true; },
             restoreActive = () => Unlock(hut)
         });
-
-        // 5. Доски (без разговора: Оскар уже всё объяснил)
         chapters.Add(new Chapter
         {
             id = "planks",
             skip = () => workshop == null,
-            objective = () => "Сделай досок для Миры: <color=#6BCB5A>" + Mathf.Min(workshop.totalCollected, GameBalance.MarketPlanks) + "/" + GameBalance.MarketPlanks
-                              + "</color>. Пилорама: E у хижины",
+            objective = () => ChapterOneText.Format("quest.s07.craft", "Сделай {required} досок на пилораме.", ("required", GameBalance.MarketPlanks)),
             objectiveData = PlanksData,
             done = () => workshop.totalCollected >= GameBalance.MarketPlanks,
             target = () => workshop.transform
         });
-
-        // 6. Рынок (Мира)
         chapters.Add(new Chapter
         {
-            id = "market", giver = miraName,
-            offer = MarketOffer(), report = MarketReport(),
+            id = "market",
             skip = () => market == null,
             onAccept = () => Unlock(market),
             onComplete = ShowMerchant,
             restoreDone = () => { Unlock(market); ShowMerchant(); },
             restoreActive = () => Unlock(market),
-            objective = () => SiteObjective("Построй прилавок", market),
-            objectiveData = () => SiteData("Построй прилавок", market),
+            objective = () => SiteObjective(ChapterOneText.Text("quest.s07.build", "Построй прилавок."), market),
+            objectiveData = () => SiteData(ChapterOneText.Text("quest.s07.build", "Построй прилавок."), market),
             done = () => market.IsFinished,
             target = () => market.transform
         });
-
-        // 7. Первая продажа. С Рико здесь проходит знакомство из сценария диалогов.
         bool merchantIntro = rico != null || !tradeAtBuilding;
         chapters.Add(new Chapter
         {
             id = "firstSale", giver = merchantIntro ? merchantName : null,
-            offer = merchantIntro ? MerchantIntro() : null,
-            talkText = rico != null ? "Познакомься с Рико: <color=#6BCB5A>E</color>" : "Подойди к прилавку: <color=#6BCB5A>E</color>",
-            skip = () => market == null || (rico == null && firstSale) || (merchantIntro && merchant == null),
-            objective = () => "Продай лишние брёвна или доски: <color=#6BCB5A>E</color> у прилавка",
+            offer = merchantIntro ? ChapterOneText.Lines("twv3_s08_intro_01", "twv3_s08_intro_02", "twv3_s08_01", "twv3_s08_02") : null,
+            talkText = rico != null ? "Познакомься с Рико у прилавка" : "Подойди к прилавку",
+            skip = () => market == null || firstSale || (merchantIntro && merchant == null),
+            objective = () => ChapterOneText.Text("quest.s08.sell", "Сделай первую продажу."),
             done = () => firstSale,
             target = () => tradeAtBuilding || rico != null
                 ? (marketTrading != null ? marketTrading.transform : market != null ? market.transform : null)
                 : (merchant != null ? merchant.transform : null)
         });
-
-        // 8. Палатка (Оскар, ур. 3)
         chapters.Add(new Chapter
         {
-            id = "tent", giver = oskarName, minLevel = GameBalance.TentLevel,
-            offer = TentOffer(), report = TentReport(),
-            reminder = "Брёвна, доски и монеты. Лагерь задаром не строят.",
-            idleAfter = "Лагерь стоит. Копи монеты, дальше мост.",
+            id = "tent", minLevel = GameBalance.TentLevel,
             skip = () => tent == null,
-            onAccept = () => Unlock(tent),
-            objective = () => SiteObjective("Поставь палатку", tent),
-            objectiveData = () => SiteData("Поставь палатку", tent),
+            onAccept = () => { Unlock(tent); OfferChapterCrew(); },
+            objective = () => SiteObjective(ChapterOneText.Text("quest.s10.repair", "Восстанови палатку артели."), tent),
+            objectiveData = () => SiteData(ChapterOneText.Text("quest.s10.repair", "Восстанови палатку артели."), tent),
             done = () => tent.IsFinished,
             target = () => tent.transform,
             restoreDone = () => Unlock(tent),
             restoreActive = () => Unlock(tent)
         });
-
-        // 8б. Звери-помощники (ур. 4, по умолчанию Оскар): первая бесплатная Лесная клеть, один раз даёт Обычного питомца.
-        // Клеть стоит в лагере (PetCrateSite). Нет PetManager, базы или клети в сцене: глава тихо пропускается.
-        // Дальше клети покупаются за монеты, Небесная открывается после моста (onComplete главы «Мост»).
         chapters.Add(new Chapter
         {
-            id = "pets", giver = petsGiverName, minLevel = GameBalance.PetCrateLevel[0],
-            offer = PetsOffer(), report = PetsReport(),
-            reminder = "Клеть в лагере, у палатки. Первая бесплатная, жми E.",
-            idleAfter = "Зверя корми по расписанию, он ворчать не будет. Теперь к мосту.",
+            id = "pets", minLevel = GameBalance.PetCrateLevel[0],
             skip = PetsSkip,
             onAccept = PetsAccept,
-            objective = () => "Открой клеть у палатки: <color=#6BCB5A>E</color>",
+            objective = () => ChapterOneText.Text("quest.s11.objective", "Открой бесплатную Лесную клеть у палатки."),
             done = () => PetManager.Instance == null || PetManager.Instance.FreeCrateUsed,
             target = PetCrateTarget,
-            restoreDone = () => PetsOpen = true,     // сама клеть и бесплатная попытка живут в PetManager (ключ pets)
-            restoreActive = () => PetsOpen = true
+            restoreDone = () => PetsOpen = true,
+            restoreActive = PetsAccept
         });
-
         chapters.Add(new Chapter
         {
-            id = GunnarAxeChapter, giver = oskarName,
-            skip = () => workshop == null && RuneForge.Active == null,
-            offer = new[]
-            {
-                L(false, "Нашёл в хижине лезвие Гуннара. Видишь две башни? Он ставил этот знак на своих инструментах."),
-                L(true, "Этим топором он тесал балки для переправы?"),
-                L(false, "Им самым. Возьми лезвие. Горн у верстака давно остыл. Принеси восемь досок и шестьдесят монет, тогда запустим его."),
-                L(false, "Когда горн разгорится, посади лезвие на новую рукоять. Стальной топор тоже смогу выковать, если захочешь.")
-            },
-            report = new[]
-            {
-                L(false, "Вот теперь знак видно. Гуннар этим топором вытесал первую балку. Пойдём, покажу, где будем ставить опоры.")
-            },
-            reminder = "Кузница у рабочего двора. Сначала разожги горн, потом восстанови лезвие.",
+            id = GunnarAxeChapter,
+            skip = () => RuneForge.Active == null && (workshop == null || hut == null || tent == null),
             objective = GunnarAxeObjective,
-            done = () => PlayerInteraction.CurrentAxes != null && PlayerInteraction.CurrentAxes.Has(AxeId.Gunnar),
+            done = () => PlayerInteraction.CurrentAxes != null && PlayerInteraction.CurrentAxes.ForgeRestored,
             target = GunnarAxeTarget
         });
-
-        // 9. Мост (Оскар, ур. 5): три этапа, цены из GameBalance.Bridge* (через Build Site Data).
-        // Обязательная глава: skip всегда false. Нет зоны моста: ошибка в Console, цепочка стоит здесь, а не открывает финал вхолостую.
-        // После стройки Лео отправляется к арке. Этапы идут строго по порядку.
         chapters.Add(new Chapter
         {
-            id = "bridge", giver = oskarName, minLevel = GameBalance.BridgeLevel,
-            offer = BridgeOffer(),
-            reminder = "Сперва опоры, потом настил, потом тросы. Брёвна, доски и монеты по списку над мостом.",
-            idleAfter = "Мост стоит. На дальнем острове поищи камень у арки. Гуннар оставил его для тебя.",
+            id = "bridge", minLevel = GameBalance.BridgeLevel,
             skip = BridgeMissing,
-            onAccept = () => Unlock(bridge),
+            onAccept = () => { Unlock(bridge); OfferChapterBridge(); },
             objective = BridgeObjective,
             objectiveData = BridgeData,
             done = () => bridge != null && bridge.IsFinished,
             target = () => bridge != null ? bridge.transform : null,
-            onComplete = () => { if (PetManager.Instance != null) PetManager.Instance.UnlockSkyCrate(); },   // мост стоит: открывается Небесная клеть
-            restoreDone = () => Unlock(bridge),       // Небесную клеть открывает PetManager из своего сохранения (skyByStory)
+            restoreDone = () => Unlock(bridge),
             restoreActive = () => Unlock(bridge)
         });
-
-        // 10. Финал. Сохранённый идентификатор gunnar связывает эту главу со старыми сохранениями.
         chapters.Add(new Chapter
         {
             id = "gunnar",
@@ -596,17 +530,18 @@ public class StoryFlow : MonoBehaviour, ISaveable
             target = NoteTarget,
             onComplete = EndOfSlice
         });
-
-        // Дальше (следующая работа): наём рабочих у палатки, доска заданий.
-        // Каждая глава: новый блок chapters.Add(...) здесь, реплики пишутся прямо в коде.
     }
+
+    string HutTitle() => ChapterOneText.Text(hut != null && hut.StepsDone > 0 ? "quest.s06.roof" : "quest.s06.walls",
+        hut != null && hut.StepsDone > 0 ? "Почини крышу." : "Почини стены.");
 
     string GunnarAxeObjective()
     {
-        var axes = PlayerInteraction.CurrentAxes;
-        return axes != null && axes.ForgeRestored
-            ? "Восстанови топор Гуннара в кузнице"
-            : $"Восстанови кузницу у рабочего двора · {PlayerAxeEquipment.ForgePlanks} досок и {PlayerAxeEquipment.ForgeCoins} монет";
+        var title = ChapterOneText.Text("quest.s12.objective", "Восстанови кузницу Гуннара.");
+        var forge = RuneForge.Active;
+        if (forge != null && forge.build != null) return SiteObjective(title, forge.build);
+        return title + " · " + PlayerAxeEquipment.ForgePlanks + " " + GameLanguage.T("Доски") +
+            " · " + PlayerAxeEquipment.ForgeCoins + " " + GameLanguage.T("Монеты");
     }
 
     Transform GunnarAxeTarget()
@@ -623,28 +558,6 @@ public class StoryFlow : MonoBehaviour, ISaveable
     }
 
     // ------------------------------------------------------------ глава «Звери-помощники»
-    DialogueSequence.Line[] PetsOffer()
-    {
-        return DialogueStorybook.Lines("pets_offer", playerName, new[]
-        {
-            L(false, "Лагерь стоит, а рук всё мало. Помощники нужны не только людям."),
-            L(true,  "Помощники? Это кто?"),
-            L(false, "Звери. Гуннар прислал клеть, она у палатки. Первая задаром, дальше за монеты."),
-            L(true,  "И что они умеют?"),
-            L(false, "Ворчат и помогают. Кто выпадет, того и бери. Иди, открывай.")
-        });
-    }
-
-    DialogueSequence.Line[] PetsReport()
-    {
-        return DialogueStorybook.Lines("pets_report", playerName, new[]
-        {
-            L(false, "Вот и зверь у тебя. В слот его, пусть бежит следом."),
-            L(true,  "Кормить по расписанию, как в записке?"),
-            L(false, "Именно. А теперь мост, малец. Монеты копи.")
-        });
-    }
-
     // пропуск: нет PetManager или базы питомцев, нет клети в сцене, либо бесплатную клеть уже открывали (сохранение)
     bool PetsSkip()
     {
@@ -684,134 +597,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         return forestCrate;
     }
 
-    DialogueSequence.Line[] UpgradeOffer()
-    {
-        return DialogueStorybook.Lines("upgrade_offer", playerName, new[]
-        {
-            L(false, "Второй уровень! Вот теперь можно говорить о настоящем деле."),
-            L(true,  "О каком?"),
-            L(false, "О прокачке. Я открыла тебе окно, монеты за уровень уже в кармане."),
-            L(true,  "И что улучшать первым?"),
-            L(false, "Рюкзак. Четыре бревна за рейс, курам на смех. Бегаешь туда-сюда."),
-            L(true,  "Окно на U. Берусь.")
-        });
-    }
-
-    DialogueSequence.Line[] UpgradeReport()
-    {
-        return DialogueStorybook.Lines("upgrade_report", playerName, new[]
-        {
-            L(false, "Шесть брёвен за рейс, совсем другое дело! Топор и ноги подкачаешь позже."),
-            L(true,  "А теперь куда?"),
-            L(false, "К Оскару, он у хижины, где брёвна лежат. Друг Гуннара, доски делать умеет."),
-            L(true,  "Иду к Оскару.")
-        });
-    }
-
-    DialogueSequence.Line[] HutOffer()
-    {
-        return DialogueStorybook.Lines("hut_offer", playerName, new[]
-        {
-            L(false, "Гуннаров племянник? Вылитый дядя, даже хмуришься так же."),
-            L(true,  "Вы Оскар? Мира сказала, вы научите делать доски."),
-            L(false, "Научу. Но пила стоит в хижине, а крыша там как решето. Сначала чиним."),
-            L(true,  "Сколько нужно брёвен?"),
-            L(false, "Десять на стены, десять на крышу. Топор не обманет, как говорил Гуннар."),
-            L(true,  "Понял. Несу брёвна.")
-        });
-    }
-
-    DialogueSequence.Line[] HutReport()
-    {
-        return DialogueStorybook.Lines("hut_report", playerName, new[]
-        {
-            L(false, "Стоит и не скрипит! Гуннар бы кивнул."),
-            L(true,  "А пила?"),
-            L(false, "Работает. Клади брёвна на верстак, потом забирай доски. Два бревна дают одну."),
-            L(true,  "Куда мне доски?"),
-            L(false, "Мира без них лавку не поставит. Шести ей хватит для начала."),
-            L(true,  "Шесть так шесть. Займусь.")
-        });
-    }
-
-    DialogueSequence.Line[] MarketOffer()
-    {
-        return DialogueStorybook.Lines("market_offer", playerName, new[]
-        {
-            L(false, "Доски! Настоящие! Ну-ка, дай посмотреть."),
-            L(true,  "Оскар сказал, они нужны для прилавка."),
-            L(false, "Ещё как. Торговец до сих пор с телеги торгует, а ему нужна нормальная лавка."),
-            L(true,  "Что строим?"),
-            L(false, "Помост, потом стойки с прилавком. Брёвна и твои доски."),
-            L(true,  "А кто будет стоять за прилавком?"),
-            L(false, "Торговец. Он берёт брёвна и доски по честной цене.")
-        });
-    }
-
     // знакомство с торговцем: первая реплика его (NPC), Лео отвечает
-    DialogueSequence.Line[] MerchantIntro()
-    {
-        return DialogueStorybook.Lines("merchant_intro", playerName, new[]
-        {
-            L(false, "Новенький? Ты, видать, племянник Гуннара. Мира про тебя говорила."),
-            L(true,  "Лео. Так это вы теперь за прилавком?"),
-            L(false, "Я. Беру брёвна и доски, плачу сразу и по-честному."),
-            L(true,  "Доски лучше оставить на стройку, да?"),
-            L(false, "Умно. Лишнее продавай, нужное придержи. Окно подскажет, сколько оставить."),
-            L(true,  "Понял. Сейчас продам, что есть.")
-        });
-    }
-
-    DialogueSequence.Line[] MarketReport()
-    {
-        return DialogueStorybook.Lines("market_report", playerName, new[]
-        {
-            L(false, "Красота! Теперь у торговца настоящая лавка."),
-            L(true,  "Дядя бы оценил."),
-            L(false, "Иди к торговцу, он платит сразу. Бревно за 2 монеты, доска за 6."),
-            L(true,  "Доска втрое дороже?"),
-            L(false, "Труд стоит денег. Монеты пригодятся: на палатку, на людей, на мост."),
-            L(true,  "Мост... Да. Гуннар ждёт.")
-        });
-    }
-
-    DialogueSequence.Line[] TentOffer()
-    {
-        return DialogueStorybook.Lines("tent_offer", playerName, new[]
-        {
-            L(false, "Монеты звенят, доски лежат. Пора звать людей."),
-            L(true,  "Каких людей?"),
-            L(false, "Лесорубов. После шторма многие разбрелись. Будет крыша, вернутся."),
-            L(true,  "Палатка у костра?"),
-            L(false, "Она самая. Брёвна, доски и немного монет. Лагерь задаром не строят."),
-            L(true,  "Принято. Соберу всё.")
-        });
-    }
-
-    DialogueSequence.Line[] TentReport()
-    {
-        return DialogueStorybook.Lines("tent_report", playerName, new[]
-        {
-            L(false, "Вот и лагерь. Костёр, хижина, лавка, палатка."),
-            L(true,  "А где люди?"),
-            L(false, "Придут, когда будет чем платить. Копи монеты, мост ждёт."),
-            L(true,  "Значит, дальше мост.")
-        });
-    }
-
-    DialogueSequence.Line[] BridgeOffer()
-    {
-        return DialogueStorybook.Lines("bridge_offer", playerName, new[]
-        {
-            L(false, "Лагерь стоит, монеты звенят. Теперь мост, малец. Гуннар по ту сторону реки."),
-            L(true,  "Он правда там? Три дня ни слова."),
-            L(false, "Мастерская за рекой. Шторм разнёс мост, а у меня одного рук не хватит."),
-            L(true,  "Что нужно?"),
-            L(false, "Брёвен сорок, досок семьдесят и монет восемьсот. Три этапа, по порядку."),
-            L(true,  "Опоры, настил, тросы. Понял. Берусь.")
-        });
-    }
-
     // записка Гуннара: читает Лео вслух. ТЕКСТ ЧЕРНОВОЙ, замени на авторский из GDD (до 120 символов в реплике)
     string[] NoteLines()
     {
@@ -993,8 +779,8 @@ public class StoryFlow : MonoBehaviour, ISaveable
     {
         if (b == null) return title;
         if (inv == null) inv = PlayerInventory.Instance;
-        if (b.AllDeposited && !b.IsFinished) return title + ": строим…";
-        return title + ": " + b.NeedSummary(inv);
+        if (b.AllDeposited && !b.IsFinished) return title + ChapterOneText.Pick(" · строим…", " · building…");
+        return title + " · " + b.NeedSummary(inv);
     }
 
     // ------------------------------------------------------------ цель-виджет (ObjectiveView)
@@ -1014,32 +800,32 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (workshop == null) workshop = FindFirstObjectByType<PlankWorkshop>();
 
         bool building = b.AllDeposited && !b.IsFinished;
-        var d = new ObjectiveData(building ? title + ": строим…" : title);
+        var d = new ObjectiveData(building ? title + ChapterOneText.Pick(" · строим…", " · building…") : title);
         // «Стадия 1 из 3 · Опоры»: у многоэтапных построек (хижина, мост) видно, на каком этапе игрок
-        if (b.StepsTotal > 1) d.Stage(Mathf.Min(b.StepsDone + 1, b.StepsTotal), b.StepsTotal, b.StepName);
+        if (b.StepsTotal > 1) d.Stage(Mathf.Min(b.StepsDone + 1, b.StepsTotal), b.StepsTotal, GameLanguage.T(b.StepName));
 
         int logs = b.CostTotal, planks = b.PlankTotal, coins = b.CoinTotal;
         if (logs > 0)
-            d.Req(UiIcon.Log, "Бревна", logs, () => b.Deposited,
-                () => b.Deposited >= logs ? null : "в рюкзаке " + (inv != null ? inv.woodCount : 0) + " · сдано " + b.Deposited + "/" + logs);
+            d.Req(UiIcon.Log, GameLanguage.T("Бревна"), logs, () => b.Deposited,
+                () => b.Deposited >= logs ? null : ChapterOneText.Pick("в рюкзаке ", "in pack ") + (inv != null ? inv.woodCount : 0) + ChapterOneText.Pick(" · сдано ", " · stored ") + b.Deposited + "/" + logs);
         if (planks > 0)
-            d.Req(UiIcon.Plank, "Доски", planks, () => b.DepositedPlanks, () =>
+            d.Req(UiIcon.Plank, GameLanguage.T("Доски"), planks, () => b.DepositedPlanks, () =>
             {
                 if (b.DepositedPlanks >= planks) return null;
-                string s = "в рюкзаке " + (inv != null ? inv.planksCount : 0) + " · сдано " + b.DepositedPlanks + "/" + planks;
+                string s = ChapterOneText.Pick("в рюкзаке ", "in pack ") + (inv != null ? inv.planksCount : 0) + ChapterOneText.Pick(" · сдано ", " · stored ") + b.DepositedPlanks + "/" + planks;
                 int ready = workshop != null ? workshop.readyPlanks : 0;
-                return ready > 0 ? s + " · на складе пилы " + ready + " готово" : s;
+                return ready > 0 ? s + ChapterOneText.Pick(" · на складе пилы ", " · at saw ") + ready : s;
             });
         if (coins > 0)
-            d.Req(UiIcon.Coin, "Монеты", coins, () => b.DepositedCoins >= coins ? coins : Mathf.Min(inv != null ? inv.coinsCount : 0, coins),
-                  () => b.DepositedCoins >= coins ? null : "в кошельке " + (inv != null ? inv.coinsCount : 0));
+            d.Req(UiIcon.Coin, GameLanguage.T("Монеты"), coins, () => b.DepositedCoins >= coins ? coins : Mathf.Min(inv != null ? inv.coinsCount : 0, coins),
+                  () => b.DepositedCoins >= coins ? null : ChapterOneText.Pick("в кошельке ", "in wallet ") + (inv != null ? inv.coinsCount : 0));
         return d;
     }
 
     ObjectiveData BridgeData()
     {
         if (bridge == null) return null;   // нет зоны: BridgeObjective уже пишет причину строкой
-        return SiteData("Построй мост", bridge);
+        return SiteData(BridgeStageTitle(), bridge);
     }
 
     // «Сделай досок для Миры»: заметка «на складе пилы N готово» (их ещё надо забрать)
@@ -1047,9 +833,9 @@ public class StoryFlow : MonoBehaviour, ISaveable
     {
         if (workshop == null) return null;
         int need = GameBalance.MarketPlanks;
-        var d = new ObjectiveData("Сделай досок для Миры");
-        d.Req(UiIcon.Plank, "Доски", need, () => workshop.totalCollected, () => workshop.readyPlanks > 0 ? "на складе пилы " + workshop.readyPlanks + " готово: забери" : null);
-        d.footer = "Пилорама: <color=#6BCB5A>E</color> у хижины";
+        var d = new ObjectiveData(ChapterOneText.Format("quest.s07.craft", "Сделай {required} досок на пилораме.", ("required", need)));
+        d.Req(UiIcon.Plank, GameLanguage.T("Доски"), need, () => workshop.totalCollected, () => workshop.readyPlanks > 0 ? ChapterOneText.Pick("Готово на пилораме: ", "Ready at the saw: ") + workshop.readyPlanks : null);
+        d.footer = ChapterOneText.Text("tutorial.saw.output", "Забери готовые доски.");
         return d;
     }
 
@@ -1066,13 +852,16 @@ public class StoryFlow : MonoBehaviour, ISaveable
         return false;
     }
 
-    string BridgeObjective()
+    string BridgeObjective() => bridge == null
+        ? ChapterOneText.Pick("Мост: в сцене нет зоны стройки.", "The bridge build site is missing.")
+        : SiteObjective(BridgeStageTitle(), bridge);
+
+    string BridgeStageTitle() => bridge.StepsDone switch
     {
-        if (bridge == null) return "Мост: в сцене нет зоны стройки (см. Setup Doctor)";
-        int n = Mathf.Min(bridge.StepsDone + 1, bridge.StepsTotal);
-        string name = bridge.StepName;
-        return SiteObjective("Мост, этап " + n + "/" + bridge.StepsTotal + (string.IsNullOrEmpty(name) ? "" : " «" + name + "»"), bridge);
-    }
+        0 => ChapterOneText.Text("quest.s15.supports", "Построй опоры."),
+        1 => ChapterOneText.Text("quest.s15.deck", "Уложи настил."),
+        _ => ChapterOneText.Text("quest.s15.railings", "Добавь тросы и перила.")
+    };
 
     Transform NoteTarget()
     {
@@ -1089,12 +878,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
             FindRefs();
             var portal = finalBridge.Portal;
             return player != null && portal != null && portal.OnFarIsland(player.position)
-                ? "Активируй камень у портала"
-                : "Перейди мост на дальний остров";
+                ? ChapterOneText.Text("quest.s16.activate", "Активируй камень у арки.")
+                : ChapterOneText.Text("quest.s16.cross", "Перейди мост на дальний остров.");
         }
-        if (noteStarted) return "Записка Гуннара…";
+        if (noteStarted) return GameLanguage.T("Записка Гуннара…");
         // мост готов: игроку надо перейти на дальний остров к площадке с запиской (стрелка ведёт туда же, см. NoteTarget)
-        return noteSpot != null ? "Перейди мост: записка Гуннара у арки на дальнем острове" : "Подойди к мосту: под перилами записка";
+        return noteSpot != null ? GameLanguage.T("Перейди мост: записка Гуннара у арки на дальнем острове") : GameLanguage.T("Подойди к мосту: под перилами записка");
     }
 
     // вызывается из опроса главы. Записка читается один раз, только когда мост достроен и Лео рядом
@@ -1148,26 +937,43 @@ public class StoryFlow : MonoBehaviour, ISaveable
             && !SaveSystem.IsLoading && !EndingSequence.Active;
     }
 
+    internal bool PreparingChapterPortal { get; private set; }
+
     internal void ActivatePortal(FinalIslandPortal portal, PlayerMovement actor)
     {
-        if (!CanActivatePortal(portal)) return;
+        if (!CanActivatePortal(portal) || actor == null || !portal.OnFarIsland(actor.transform.position)) return;
         int attempt = ++finaleAttempt;
-        if (!portal.Play(actor, () =>
+        noteStarted = true;
+        PreparingChapterPortal = true;
+        actor.CancelWalk();
+        Arrow(null);
+        Objective("");
+        var lines = new List<string>();
+        if (!ChapterOneVoice.Heard("twv3_s16_arrive_01")) lines.Add("twv3_s16_arrive_01");
+        if (!ChapterOneVoice.Heard("twv3_s16_01a") && !ChapterOneVoice.Heard("twv3_s16_01b"))
+            lines.Add(ArchVoice());
+        DialogueSeen.Mark(ArchKnown);
+        lines.AddRange(new[] { "twv3_s16_activate_01", "twv3_s16_gunnar_01", "twv3_s16_gunnar_02", "twv3_s16_leave_01" });
+        ChapterOneVoice.SpeakSequence(() =>
         {
             if (this == null || attempt != finaleAttempt) return;
-            noteRead = true;
-            pollAt = 0f;
-            SaveSystem.RequestSave("story");
-        }, () =>
+            PreparingChapterPortal = false;
+            if (portal != null && portal.Play(actor, () =>
+            {
+                if (this == null || attempt != finaleAttempt) return;
+                noteRead = true;
+                pollAt = 0f;
+                SaveSystem.RequestSave("story");
+            }, AbortPortal)) return;
+            AbortPortal();
+        }, lines.ToArray());
+
+        void AbortPortal()
         {
             if (this == null || attempt != finaleAttempt) return;
             noteStarted = false;
             RefreshHud();
-        })) return;
-
-        noteStarted = true;
-        Arrow(null);
-        Objective("");
+        }
     }
 
     // реплики по одной; пропуск разговора (удержание E) обрывает цепочку и засчитывает записку прочитанной
@@ -1186,17 +992,33 @@ public class StoryFlow : MonoBehaviour, ISaveable
     }
 
     // ------------------------------------------------------------ глава «Припасы»
-    void BeginSupply()
-    {
-        var sp = Speaker.Find(miraName);
-        if (sp == null) return;
-        supply = sp.GetComponent<SupplyPoint>();
-        if (supply == null) supply = sp.gameObject.AddComponent<SupplyPoint>();
+    void BeginSupply() => PrepareSupply(0);
 
+    void PrepareSupply(int savedLogs)
+    {
+        var intro = IntroFlow.Instance;
+        var fire = intro != null ? intro.campfirePoint : null;
+        if (fire == null)
+        {
+            var site = IntroFlow.FindCampfireBuild(null);
+            if (site != null) fire = site.transform;
+        }
+        if (fire == null) return;
+
+        if (supply == null)
+        {
+            var point = new GameObject("Campfire Stockpile");
+            point.transform.SetParent(transform, false);
+            point.transform.position = fire.position;
+            supply = point.AddComponent<SupplyPoint>();
+        }
         Level();
         int need = GameBalance.SupplyLogs;
         int gap = Mathf.Max(0, GameBalance.XpForLevel(GameBalance.UpgradeLevel) - (stats != null ? stats.currentXP : 0));
-        supply.Begin(need, Mathf.Max(GameBalance.SupplyMinXp, Mathf.CeilToInt(gap / (float)need)));   // 8 брёвен гарантированно дают нужный уровень
+        int stored = Mathf.Clamp(savedLogs, 0, need);
+        int remaining = Mathf.Max(1, need - stored);
+        supply.Begin(need, Mathf.Max(GameBalance.SupplyMinXp, Mathf.CeilToInt(gap / (float)remaining)));
+        supply.delivered = stored;
     }
 
     void EndSupply()
@@ -1204,32 +1026,14 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (supply != null) supply.End();
     }
 
-    // стрелка главы «Припасы»: к Мире, пока несём брёвна, иначе к ближайшему дереву
     void SupplyArrow(bool carrying)
     {
-        if (carrying)
-        {
-            var mira = Speaker.Find(miraName);
-            Arrow(mira != null ? mira.transform : null);
-        }
-        else
-        {
-            if (Time.unscaledTime >= treeAt) { treeAt = Time.unscaledTime + 1f; treeCache = NearestTree(); }
-            Arrow(treeCache);
-        }
+        if (carrying && supply != null) { Arrow(supply.transform); return; }
+        if (Time.unscaledTime >= treeAt) { treeAt = Time.unscaledTime + 1f; treeCache = NearestTree(); }
+        Arrow(treeCache);
     }
 
-    string SupplyObjective()
-    {
-        FindRefs();
-        int done = supply != null ? supply.delivered : 0;
-        int need = GameBalance.SupplyLogs;
-        bool carrying = inv != null && inv.woodCount > 0;
-        SupplyArrow(carrying);
-
-        string head = "Принеси Мире бревна: <color=#6BCB5A>" + done + "/" + need + "</color>";
-        return head + (carrying ? ". Отдай: <color=#6BCB5A>E</color> у Миры" : ". Руби деревья");
-    }
+    string SupplyObjective() => ChapterOneText.Format("quest.s03.stockpile", "Сложи {required} брёвен у костра.", ("required", GameBalance.SupplyLogs));
 
     ObjectiveData SupplyData()
     {
@@ -1237,51 +1041,18 @@ public class StoryFlow : MonoBehaviour, ISaveable
         int need = GameBalance.SupplyLogs;
         bool carrying = inv != null && inv.woodCount > 0;
         SupplyArrow(carrying);
-
-        var d = new ObjectiveData("Принеси Мире бревна");
-        d.Req(UiIcon.Log, "Бревна", need, () => supply != null ? supply.delivered : 0,
-              () => "в рюкзаке " + (inv != null ? inv.woodCount : 0) + " · сдано " + (supply != null ? supply.delivered : 0) + "/" + need);
-        d.footer = carrying ? "Отдай: <color=#6BCB5A>E</color> у Миры" : "Руби деревья";
-        return d;
-    }
-
-    // ------------------------------------------------------------ глава «Прокачка»
-    void BeginUpgradeQuest()
-    {
-        EnsureWindow();
-        var w = upgradeWindow;
-        if (w != null)
-        {
-            w.Unlock();
-            w.SetOnly((int)UpgradeType.Capacity);        // пока идёт задание, покупается только рюкзак
-            w.SetHighlight((int)UpgradeType.Capacity);
-        }
-
-        // Мира покрывает разницу, если игрок захочет купить первое улучшение за монеты.
-        FindRefs();
-        int cost = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.NextCost(UpgradeType.Capacity) : 30;
-        if (inv != null && inv.coinsCount < cost) inv.AddCoins(cost - inv.coinsCount);
-    }
-
-    void EndUpgradeQuest()
-    {
-        if (upgradeWindow == null) return;
-        upgradeWindow.SetOnly(-1);                        // дальше можно покупать всё
-        upgradeWindow.SetHighlight(-1);
-    }
-
-    string UpgradeObjective()
-    {
-        int cost = GameBalance.UpgradeCost((int)UpgradeType.Capacity, 0);
-        if (upgradeWindow != null && upgradeWindow.IsOpen)
-            return "Улучши рюкзак: <color=#6BCB5A>2</color>, Shift+2 за очко или кнопка за " + cost + " монет";
-        return "Открой прокачку: <color=#6BCB5A>U</color> или кнопка справа, и улучши рюкзак";
+        var data = new ObjectiveData(SupplyObjective());
+        data.Req(UiIcon.Log, GameLanguage.T("Бревна"), need, () => SupplyDelivered,
+            () => ChapterOneText.Pick("в рюкзаке ", "in pack ") + (inv != null ? inv.woodCount : 0));
+        data.footer = carrying ? ChapterOneText.Text("tutorial.stockpile.deposit", "Сложи брёвна у костра.") :
+            ChapterOneText.Pick("Наруби дров.", "Chop some wood.");
+        return data;
     }
 
     void EnsureWindow()
     {
         if (upgradeWindow == null) upgradeWindow = FindFirstObjectByType<UpgradeWindow>();
-        if (upgradeWindow == null) upgradeWindow = gameObject.AddComponent<UpgradeWindow>();   // кнопка «Прокачка» (закрыта, пока не откроет сюжет)
+        if (upgradeWindow == null) upgradeWindow = gameObject.AddComponent<UpgradeWindow>();
     }
 
     // ------------------------------------------------------------ ожидание уровня
@@ -1290,7 +1061,12 @@ public class StoryFlow : MonoBehaviour, ISaveable
     void WaitForLevel(Chapter ch)
     {
         FindRefs();
-        if (ch.dumpWhenFull && HandleFullPack()) return;
+        if (pack != null && pack.IsFull && market != null && market.IsFinished)
+        {
+            Objective(ChapterOneText.Pick("Рюкзак полон. Продай лишнее у прилавка.", "Your pack is full. Sell spare wood at the stall."));
+            Arrow(market.transform);
+            return;
+        }
 
         Objective(XpWaitText(ch.minLevel));
         if (Time.unscaledTime >= treeAt)
@@ -1307,37 +1083,10 @@ public class StoryFlow : MonoBehaviour, ISaveable
         int need = GameBalance.XpForLevel(lvl);
         int have = stats != null ? stats.currentXP : 0;
         int trees = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(0, need - have) / (float)GameBalance.XpPerTree));
+        if (GameLanguage.English)
+            return $"Level {lvl} · XP <color=#6BCB5A>{Mathf.Min(have, need)}/{need}</color> · keep chopping";
         return "До " + lvl + "-го уровня: опыт <color=#6BCB5A>" + Mathf.Min(have, need) + "/" + need + "</color>. Руби деревья, ещё "
                + trees + " " + UiDraw.Plural(trees, "дерево", "дерева", "деревьев");
-    }
-
-    // true = рюкзак полон и игрок ещё идёт к костру (цель уже выставлена)
-    bool HandleFullPack()
-    {
-        if (pack == null || inv == null || !pack.IsFull) return false;
-
-        var intro = IntroFlow.Instance;
-        Transform fire = intro != null ? intro.campfirePoint : null;
-        if (fire != null && player != null)
-        {
-            Vector3 d = player.position - fire.position;
-            d.y = 0f;
-            if (d.magnitude > 4f)
-            {
-                Objective("Рюкзак полон: сложи брёвна у костра");
-                Arrow(fire);
-                return true;
-            }
-        }
-
-        int n = inv.woodCount;
-        if (n > 0)
-        {
-            inv.RemoveWood(n);
-            if (RewardPopups.Instance != null && player != null)
-                RewardPopups.Instance.ShowText(player.position + Vector3.up * 3f, "Брёвна сложены", Color.white, 44f);
-        }
-        return false;
     }
 
     void FindRefs()
@@ -1513,8 +1262,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
         var d = new SaveData { allDone = AllDone, firstSale = firstSale, noteRead = noteRead, chapterIndex = ci };
         if (ci < chapters.Count) d.chapterId = chapters[ci].id;
-        // Offer пишем как «ещё не взяли» (разговор покажется снова), Report как «задание идёт» (отчёт ещё не звучал)
-        d.phase = (phase == Phase.Do || phase == Phase.Report) ? 1 : 0;
+        d.phase = phase == Phase.Do ? 1 : 0;
         if (supply != null) d.supplyDelivered = supply.delivered;
         if (workshop != null) d.planksCollected = workshop.totalCollected;
         return JsonUtility.ToJson(d);
@@ -1530,6 +1278,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         }
         if (d == null) { ResetToDefault(); return; }
 
+        if (PreparingChapterPortal) { finaleAttempt++; PreparingChapterPortal = false; DialogueManager.RequestSkipAll(); }
         restoreData = d;
         restorePending = true;
         if (started) ApplyRestore();   // Load в середине игры: сцена уже стартовала
@@ -1545,11 +1294,15 @@ public class StoryFlow : MonoBehaviour, ISaveable
         phase = Phase.Enter;
         talk = null;
         idleSeq = null;
-        supply = null;
+        EndSupply();
+        ChapterOneVoice.Reset();
+        introDone = false;
+        if (upgradeWindow != null) upgradeWindow.ResetStoryAccess();
         AllDone = false;
         PetsOpen = false;
         firstSale = noteRead = noteStarted = false;
         finaleAttempt++;
+        PreparingChapterPortal = false;
         endingAt = -1f;
         if (hut != null) hut.SetLocked(true);
         if (market != null) market.SetLocked(true);
@@ -1569,6 +1322,8 @@ public class StoryFlow : MonoBehaviour, ISaveable
         restorePending = false;
         if (d == null) return;
 
+        EndSupply();
+        ChapterOneVoice.Reset();
         int idx = -1;
         if (!string.IsNullOrEmpty(d.chapterId))
             for (int i = 0; i < chapters.Count; i++)
@@ -1577,7 +1332,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (d.allDone) idx = chapters.Count;
 
         ci = idx;
-        phase = (d.phase == 1 && ci < chapters.Count) ? Phase.Do : Phase.Enter;
+        phase = (d.phase >= 1 && ci < chapters.Count) ? Phase.Do : Phase.Enter;
         talk = null;
         idleSeq = null;
         endingAt = -1f;
@@ -1585,6 +1340,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
         noteRead = d.noteRead;
         noteStarted = false;
         finaleAttempt++;
+        PreparingChapterPortal = false;
         AllDone = d.allDone;
         restoreSupply = d.supplyDelivered;
 
@@ -1592,7 +1348,8 @@ public class StoryFlow : MonoBehaviour, ISaveable
         if (workshop != null && d.planksCollected > workshop.totalCollected) workshop.totalCollected = d.planksCollected;
 
         // глава идёт, значит вступление пройдено (старый файл мог не успеть записать секцию intro)
-        if ((ci > 0 || AllDone) && IntroFlow.Instance != null) IntroFlow.Instance.RestoreDoneFromStory();
+        introDone = ci > 0 || AllDone;
+        if (introDone && IntroFlow.Instance != null) IntroFlow.Instance.RestoreDoneFromStory();
 
         // закрытые главы: тихо повторяем открытия и реплики «после главы» (кроме Оскара «Погоди», его уже перекрыли)
         for (int i = 0; i < ci && i < chapters.Count; i++)
@@ -1634,12 +1391,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
     }
 
     // Load: Мира (не показываем «Припасы» заново, но продолжаем с тем же счётом)
-    void RestoreSupply()
-    {
-        BeginSupply();
-        // ВОЗМОЖНА ОШИБКА КОМПИЛЯТОРА: если delivered у SupplyPoint не public int с set, закомментируй строку (тогда счёт начнётся с нуля)
-        if (supply != null && restoreSupply > 0) supply.delivered = restoreSupply;
-    }
+    void RestoreSupply() => PrepareSupply(restoreSupply);
 
     // Load: окно прокачки после закрытой главы «Прокачка» (всё доступно) и в её процессе (только рюкзак). Монеты-страховку НЕ добавляем
     void RestoreUpgradeDone()
@@ -1651,15 +1403,6 @@ public class StoryFlow : MonoBehaviour, ISaveable
         upgradeWindow.SetHighlight(-1);
     }
 
-    void RestoreUpgradeActive()
-    {
-        EnsureWindow();
-        if (upgradeWindow == null) return;
-        upgradeWindow.Unlock();
-        upgradeWindow.SetOnly((int)UpgradeType.Capacity);
-        upgradeWindow.SetHighlight((int)UpgradeType.Capacity);
-    }
-
     // ------------------------------------------------------------ утилиты
     int Level()
     {
@@ -1669,7 +1412,7 @@ public class StoryFlow : MonoBehaviour, ISaveable
 
     static void Objective(string text)
     {
-        if (UIManager.Instance != null) UIManager.Instance.UpdateObjective(text);
+        if (UIManager.Instance != null) UIManager.Instance.UpdateObjective(GameLanguage.T(text));
     }
 
     static void Arrow(Transform t) { QuestEdgeArrow.Target = t; }

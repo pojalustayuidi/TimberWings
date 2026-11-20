@@ -145,6 +145,12 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
     }
 
     internal bool InspectionSeen => played || DialogueSeen.Has(PersistId);
+
+    internal void MarkChapterInspectionSeen()
+    {
+        played = true;
+        DialogueSeen.Mark(PersistId);
+    }
     internal void SyncInspectionSeen()
     {
         if (!playing && !string.IsNullOrEmpty(PersistId))
@@ -310,7 +316,7 @@ public class DialogueSequence : MonoBehaviour, IInteractable, IPriorityInteracta
             // а текст ушёл в журнал: игрок может перечитать
             if (DialogueManager.SkipAllRequested || (inspection != null && inspection.SkipRequested))
             {
-                DialogueLog.Add(who != null ? who.displayName : "", l.text, true);
+                DialogueLog.Add(who != null ? who.displayName : l.speaker, l.text, true);
                 continue;
             }
 

@@ -71,6 +71,7 @@ public sealed class PlayerThoughtController : MonoBehaviour
     }
     void LateUpdate()
     {
+        if (StoryFlow.Instance != null && ChapterOneText.Find("twv3_s02_01") != null) return;
         if (player == null)
         {
             var movement = PlayerMovement.Instance; if (movement == null) return;

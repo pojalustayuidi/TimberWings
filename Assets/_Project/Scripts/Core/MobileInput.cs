@@ -50,7 +50,7 @@ public static class MobileInput
 
     // Ходить нельзя: открыто окно, или герой «заперт» на стройке (пока идёт этап, он стоит у стены и бьёт молотком).
     // В отличие от ModalOpen, E и интерфейс стройки при этом работают (полоска стройки раскрывается по E).
-    static bool MoveBlocked { get { return ModalOpen || BuildWorkPose.MovementLocked || LeoCelebration.IsPlaying; } }
+    static bool MoveBlocked { get { return ModalOpen || StoryFlow.Instance != null && StoryFlow.Instance.PreparingChapterPortal || BuildWorkPose.MovementLocked || LeoCelebration.IsPlaying; } }
 
     public static float Horizontal
     {

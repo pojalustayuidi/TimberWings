@@ -316,7 +316,7 @@ public partial class HudMinimap
         handler.owner = this;
         bool mystery = p.kind.key == "Mystery";
         bool wasInspected = p.completed && CloudyIsInspection(p);
-        handler.title = UseCloudyV3 ? CloudyV3DisplayLabel(p) : (mystery ? "Таинственное место" : p.label);
+        handler.title = GameLanguage.T(UseCloudyV3 ? CloudyV3DisplayLabel(p) : (mystery ? "Таинственное место" : p.label));
         if (string.IsNullOrEmpty(handler.title)) handler.title = "Место на острове";
         handler.state = UseCloudyV3 ? CloudyV3Status(p) : mystery ? (p.nearby ? "Обнаружено • можно осмотреть" : "Неизвестно")
             : p.completed ? (wasInspected ? "Изучено" : "Построено / открыто") : "Место на острове";

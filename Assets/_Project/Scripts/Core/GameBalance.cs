@@ -137,8 +137,8 @@ public static class GameBalance
     // ---------- питомцы (GDD v2.1, глава «Питомцы») ----------
     // Клети дают питомцев за монеты. Питомец усиливает одну характеристику (PetStat) на долю от PetBonusByRarity.
     // Порядок массивов: по CrateType (Forest, River, Sky) и по PetRarity (Common, Uncommon, Rare, Legendary).
-    public static readonly int[] PetCratePrice = { 120, 400, 1200 };      // монет за клеть
-    public static readonly int[] PetCrateLevel = { 4, 5, 7 };             // уровень игрока для открытия (Лесная: с главы pets; Небесная: после моста или с 7-го)
+    public static readonly int[] PetCratePrice = { 120, 300, 800 };      // монет за клеть
+    public static readonly int[] PetCrateLevel = { 4, 6, 11 };            // сохраняем старые одноразовые открытия на уровне PetManager
 
     // шансы в процентах, сумма каждой строки = 100 (Setup Doctor и «Проверить шансы» следят)
     public static readonly float[][] PetCrateOdds =
@@ -227,7 +227,7 @@ public static class GameBalance
     // Итого: 40 брёвен, 70 досок, 800 монет. Брёвна и доски сдаются частями (рюкзак вмещает 4-16), монеты списываются
     // одним платежом, только когда брёвна и доски этапа уже сданы (BuildingController.DepositTick).
     // ВНИМАНИЕ: BridgeTime и BridgeXp в GDD не заданы, значения ниже предложены при аудите и ждут утверждения.
-    public const int BridgeLevel = 5;
+    public const int BridgeLevel = 11;
     public static readonly string[] BridgeNames = { "Опоры", "Настил", "Тросы и перила" };
     public static readonly int[] BridgeWood = { 40, 0, 0 };
     public static readonly int[] BridgePlanks = { 0, 30, 40 };

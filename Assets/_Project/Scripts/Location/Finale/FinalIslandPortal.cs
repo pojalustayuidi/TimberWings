@@ -37,7 +37,7 @@ public sealed partial class FinalIslandPortal : MonoBehaviour, IInteractable, IP
 
     public Transform Anchor => altar;
     public Vector3 PromptPoint => altar.position + Vector3.up * .78f;
-    public string Prompt => "активировать портал";
+    public string Prompt => GameLanguage.T("активировать камень");
     public float Radius => 1.75f;
     public bool Priority => true;
     public bool CanInteract

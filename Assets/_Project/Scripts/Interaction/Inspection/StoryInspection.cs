@@ -65,7 +65,7 @@ public sealed partial class StoryInspection : MonoBehaviour
 
     internal bool ShowBridgeOnMap => !superseded && bridgeEngraving != null && source is DialogueSequence knife && knife.InspectionSeen;
 
-    public string MapTitle => kind switch
+    public string MapTitle => GameLanguage.T(kind switch
     {
         Kind.Knife => "Старый нож Гуннара",
         Kind.Ribbon => "Оборванная лента",
@@ -74,7 +74,7 @@ public sealed partial class StoryInspection : MonoBehaviour
         Kind.BenchMarks => "Зарубки на скамье",
         Kind.Witness => "Камень-свидетель",
         _ => source is GroveChopBlock grove ? grove.title : "Осмотрено"
-    };
+    });
 
     internal static bool WasDiscovered(Transform target, string key)
     {
@@ -300,7 +300,19 @@ public sealed partial class StoryInspection : MonoBehaviour
         }
 
         SetBeat(Beat.Detail);
-        if (sequence != null && sequence.isActiveAndEnabled)
+        var chapterCue = ChapterCue();
+        if (chapterCue != null)
+        {
+            if (SkipRequested) DialogueLog.Add(chapterCue.speaker, chapterCue.ru, true);
+            else
+            {
+                bool finished = false;
+                DialogueManager.SayInspection(this, actorSpeaker, chapterCue.ru, () => finished = true);
+                while (!finished && !SkipRequested) yield return null;
+            }
+            sequence?.MarkChapterInspectionSeen();
+        }
+        else if (sequence != null && sequence.isActiveAndEnabled)
         {
             sequence.PlayInspection(this);
             while (sequence != null && sequence.InspectionOwner == this)
@@ -329,6 +341,7 @@ public sealed partial class StoryInspection : MonoBehaviour
         }
 
         accepted = true;
+        RecordChapterClue();
         Transform discovered = engraveBridge ? bridgeEngraving : transform;
         if (discovered != null)
         {
